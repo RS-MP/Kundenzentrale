@@ -41,15 +41,74 @@ else
             <div class="karte">
                 <div class="karte-kopf"><h2>Verlauf</h2></div>
                 <div class="karte-koerper eng">
-                    <div class="leer-hinweis">
-                        Noch keine Einträge — die Timeline über alle Kanäle
-                        (E-Mail, Anrufe, Aufgaben) kommt in Phase 2.
-                    </div>
+                    @if (_verlauf is null || _verlauf.Count == 0)
+                    {
+                        <div class="leer-hinweis">
+                            Noch keine Einträge — Vertragsereignisse erscheinen hier sofort,
+                            die Timeline über alle Kanäle (E-Mail, Anrufe, Aufgaben) kommt in Phase 2.
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var eintrag in _verlauf)
+                        {
+                            <div class="verlauf-eintrag">
+                                <div class="zeit">@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</div>
+                                <div>
+                                    <div class="betreff">@eintrag.Betreff</div>
+                                    @if (eintrag.Inhalt is not null)
+                                    {
+                                        <div>@eintrag.Inhalt</div>
+                                    }
+                                    <div class="meta">
+                                        @eintrag.Typ@(eintrag.Mitarbeiter is not null ? $" · {eintrag.Mitarbeiter}" : "")@(eintrag.Ansprechpartner is not null ? $" ↔ {eintrag.Ansprechpartner}" : "")
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
                 </div>
             </div>
         </div>
 
         <div>
+            <div class="karte">
+                <div class="karte-kopf">
+                    <h2>Verträge</h2>
+                    <span class="pill">@(_vertraege?.Count ?? 0)</span>
+                </div>
+                <div class="karte-koerper eng">
+                    @if (_vertraege is null || _vertraege.Count == 0)
+                    {
+                        <div class="leer-hinweis">Keine Verträge — <a href="vertraege">im Bereich Verträge anlegen</a>.</div>
+                    }
+                    else
+                    {
+                        @foreach (var vertrag in _vertraege)
+                        {
+                            <div class="person">
+                                <div class="name">
+                                    <a href="vertraege/@vertrag.Id">@vertrag.Vertragsnummer</a>
+                                    <span class="pill @(vertrag.Status == "Aktiv" ? "gut" : "")">@vertrag.Status</span>
+                                </div>
+                                <div class="details">
+                                    Beginn @vertrag.Beginn.ToString("dd.MM.yyyy")@(vertrag.NaechstesEnde is not null ? $" · nächstmögl. Ende {vertrag.NaechstesEnde.Value:dd.MM.yyyy}" : "")
+                                </div>
+                                @if (vertrag.Bestandteile.Count > 0)
+                                {
+                                    <div class="rollen">
+                                        @foreach (var typ in vertrag.Bestandteile)
+                                        {
+                                            <span class="pill akzent">@typ</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
             <div class="karte">
                 <div class="karte-kopf"><h2>Stammdaten</h2></div>
                 <div class="karte-koerper">
@@ -144,6 +203,8 @@ else
     [Parameter] public int Id { get; set; }
 
     private KundeDetail? _kunde;
+    private List<VerlaufEintrag>? _verlauf;
+    private List<VertragListenEintrag>? _vertraege;
     private string? _fehler;
 
     protected override async Task OnParametersSetAsync()
@@ -153,6 +214,10 @@ else
         try
         {
             _kunde = await Http.GetFromJsonAsync<KundeDetail>($"api/kunden/{Id}");
+            _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>($"api/kunden/{Id}/verlauf");
+            var vertraege = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
+                $"api/vertraege?kundeId={Id}&seite=1&proSeite=50");
+            _vertraege = vertraege?.Eintraege;
         }
         catch (Exception ex)
         {

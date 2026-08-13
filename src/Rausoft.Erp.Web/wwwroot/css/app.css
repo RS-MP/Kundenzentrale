@@ -149,6 +149,38 @@ input[type=text]:focus, input[type=search]:focus {
 .einstellung input { flex: 1; font-family: Consolas, monospace; font-size: 13px; }
 .einstellung .gespeichert { color: var(--good); font-size: 13px; align-self: center; }
 
+/* Formulare (Anlegen/Bearbeiten) */
+select, input[type=date], input[type=number], textarea {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--border-strong); border-radius: 7px; padding: 7px 10px;
+}
+select:focus, input[type=date]:focus, input[type=number]:focus, textarea:focus {
+  outline: 2px solid var(--accent-line); border-color: var(--accent);
+}
+.formular { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.formular label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink2); }
+.formular .breit { grid-column: 1 / -1; }
+.formular-aktionen { margin-top: 14px; display: flex; gap: 8px; align-items: center; }
+
+.auswahl-liste { border: 1px solid var(--border); border-radius: 7px; max-height: 220px; overflow-y: auto; }
+.auswahl-liste .eintrag { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.auswahl-liste .eintrag:last-child { border-bottom: none; }
+.auswahl-liste .eintrag:hover { background: var(--accent-soft); }
+.auswahl-liste .eintrag.gewaehlt { background: var(--accent-soft); font-weight: 600; }
+
+/* Timeline in der Kundenakte */
+.verlauf-eintrag { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 14px; }
+.verlauf-eintrag:last-child { border-bottom: none; }
+.verlauf-eintrag .zeit { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 110px; }
+.verlauf-eintrag .betreff { font-weight: 500; }
+.verlauf-eintrag .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+/* Dokumente */
+.dokument { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+.dokument:last-child { border-bottom: none; }
+.dokument .pfad { font-family: Consolas, monospace; word-break: break-all; flex: 1; }
+.dokument .hash { color: var(--muted); font-family: Consolas, monospace; font-size: 11px; }
+
 .fehler {
   background: var(--crit-bg); color: var(--crit); border: 1px solid var(--crit);
   border-radius: 7px; padding: 10px 14px; margin-bottom: 14px;

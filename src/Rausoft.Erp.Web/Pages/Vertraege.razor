@@ -1,0 +1,241 @@
+@page "/vertraege"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Verträge · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Verträge</h1>
+    @if (_ergebnis is not null)
+    {
+        <span class="untertitel">@_ergebnis.Gesamt Verträge</span>
+    }
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+<div class="werkzeugleiste">
+    <input type="search" placeholder="Suche nach Vertragsnummer, Firma oder Kundennummer …"
+           @bind="_suche" @bind:event="oninput" @onkeydown="BeiTaste" />
+    <select @bind="_statusFilter">
+        <option value="">Alle Status</option>
+        <option>Entwurf</option>
+        <option>Aktiv</option>
+        <option>Gekündigt</option>
+        <option>Beendet</option>
+    </select>
+    <select @bind="_bestandteilFilter">
+        <option value="">Alle Bestandteile</option>
+        <option>Lizenzvertrag</option>
+        <option>AVV</option>
+        <option>NDA</option>
+        <option>Sondervereinbarung</option>
+        <option>Nachtrag</option>
+    </select>
+    <button class="knopf" @onclick="() => LadenAsync(1)">Filtern</button>
+    <span class="fueller" style="flex:1"></span>
+    <button class="knopf" @onclick="() => _anlegenOffen = !_anlegenOffen">+ Neuer Vertrag</button>
+</div>
+
+@if (_anlegenOffen)
+{
+    <div class="karte" style="margin-bottom:16px">
+        <div class="karte-kopf"><h2>Neuen Vertrag anlegen</h2></div>
+        <div class="karte-koerper">
+            <div class="formular">
+                <label class="breit">
+                    Kunde (Suche nach Firma oder Kundennummer)
+                    <input type="text" @bind="_kundenSuche" @bind:event="oninput" @onkeydown="BeiKundenTaste"
+                           placeholder="Mindestens 2 Zeichen, Enter zum Suchen …" />
+                </label>
+                @if (_kundenTreffer is not null)
+                {
+                    <div class="auswahl-liste breit">
+                        @foreach (var kunde in _kundenTreffer)
+                        {
+                            <div class="eintrag @(kunde.Id == _gewaehlterKunde?.Id ? "gewaehlt" : "")"
+                                 @onclick="() => _gewaehlterKunde = kunde">
+                                @kunde.Kundennummer · @kunde.Firmenname @(kunde.Ort is not null ? $"({kunde.Ort})" : "")
+                            </div>
+                        }
+                        @if (_kundenTreffer.Count == 0)
+                        {
+                            <div class="eintrag">Keine Treffer.</div>
+                        }
+                    </div>
+                }
+                <label>
+                    Beginn
+                    <input type="date" @bind="_neu.Beginn" />
+                </label>
+                <label>
+                    Mindestlaufzeit (Monate)
+                    <input type="number" @bind="_neu.Mindestlaufzeit" min="0" />
+                </label>
+                <label>
+                    Verlängerung (Monate)
+                    <input type="number" @bind="_neu.Verlaengerung" min="0" />
+                </label>
+                <label>
+                    Kündigungsfrist (Monate)
+                    <input type="number" @bind="_neu.Kuendigungsfrist" min="0" />
+                </label>
+                <label class="breit">
+                    Notiz
+                    <textarea rows="2" @bind="_neu.Notiz"></textarea>
+                </label>
+            </div>
+            <div class="formular-aktionen">
+                <button class="knopf" disabled="@(_gewaehlterKunde is null)" @onclick="AnlegenAsync">
+                    Vertrag anlegen@(_gewaehlterKunde is not null ? $" für {_gewaehlterKunde.Firmenname}" : "")
+                </button>
+                <button class="knopf sekundaer" @onclick="() => _anlegenOffen = false">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="karte">
+    <div class="karte-koerper eng">
+        @if (_ergebnis is null)
+        {
+            <div class="leer-hinweis">Lade Verträge …</div>
+        }
+        else if (_ergebnis.Eintraege.Count == 0)
+        {
+            <div class="leer-hinweis">Keine Verträge gefunden — lege den ersten über „+ Neuer Vertrag" an.</div>
+        }
+        else
+        {
+            <table class="liste">
+                <thead>
+                    <tr>
+                        <th>Vertrags-Nr.</th>
+                        <th>Kunde</th>
+                        <th>Beginn</th>
+                        <th>Nächstmögl. Ende</th>
+                        <th>Bestandteile</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var vertrag in _ergebnis.Eintraege)
+                    {
+                        <tr @onclick='() => Navigation.NavigateTo($"vertraege/{vertrag.Id}")'>
+                            <td>@vertrag.Vertragsnummer</td>
+                            <td><strong>@vertrag.KundeName</strong> <span style="color:var(--muted)">· @vertrag.Kundennummer</span></td>
+                            <td>@vertrag.Beginn.ToString("dd.MM.yyyy")</td>
+                            <td>@(vertrag.NaechstesEnde?.ToString("dd.MM.yyyy") ?? "—")</td>
+                            <td>
+                                @foreach (var typ in vertrag.Bestandteile)
+                                {
+                                    <span class="pill akzent" style="margin-right:4px">@typ</span>
+                                }
+                            </td>
+                            <td><span class="pill @StatusKlasse(vertrag.Status)">@vertrag.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="paging">
+                <button class="knopf sekundaer" disabled="@(_ergebnis.Seite <= 1)"
+                        @onclick="() => LadenAsync(_ergebnis.Seite - 1)">‹ Zurück</button>
+                <span>Seite @_ergebnis.Seite von @_ergebnis.SeitenAnzahl</span>
+                <button class="knopf sekundaer" disabled="@(_ergebnis.Seite >= _ergebnis.SeitenAnzahl)"
+                        @onclick="() => LadenAsync(_ergebnis.Seite + 1)">Weiter ›</button>
+                <span class="fueller"></span>
+                <span>@_ergebnis.Gesamt Einträge</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private SeitenErgebnis<VertragListenEintrag>? _ergebnis;
+    private string _suche = "";
+    private string _statusFilter = "";
+    private string _bestandteilFilter = "";
+    private string? _fehler;
+
+    private bool _anlegenOffen;
+    private string _kundenSuche = "";
+    private List<KundeListenEintrag>? _kundenTreffer;
+    private KundeListenEintrag? _gewaehlterKunde;
+    private readonly NeuerVertrag _neu = new();
+
+    protected override Task OnInitializedAsync() => LadenAsync(1);
+
+    private async Task LadenAsync(int seite)
+    {
+        _fehler = null;
+        try
+        {
+            _ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
+                $"api/vertraege?suche={Uri.EscapeDataString(_suche.Trim())}" +
+                $"&status={Uri.EscapeDataString(_statusFilter)}" +
+                $"&bestandteil={Uri.EscapeDataString(_bestandteilFilter)}" +
+                $"&seite={seite}&proSeite=25");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Verträge konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private Task BeiTaste(KeyboardEventArgs e) =>
+        e.Key == "Enter" ? LadenAsync(1) : Task.CompletedTask;
+
+    private async Task BeiKundenTaste(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter" || _kundenSuche.Trim().Length < 2)
+            return;
+        var treffer = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
+            $"api/kunden?suche={Uri.EscapeDataString(_kundenSuche.Trim())}&seite=1&proSeite=10");
+        _kundenTreffer = treffer?.Eintraege ?? [];
+    }
+
+    private async Task AnlegenAsync()
+    {
+        if (_gewaehlterKunde is null)
+            return;
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/vertraege", new VertragAnlegen(
+                _gewaehlterKunde.Id, _neu.Beginn,
+                NullWennNullOderKleiner1(_neu.Mindestlaufzeit),
+                NullWennNullOderKleiner1(_neu.Verlaengerung),
+                NullWennNullOderKleiner1(_neu.Kuendigungsfrist),
+                string.IsNullOrWhiteSpace(_neu.Notiz) ? null : _neu.Notiz));
+            antwort.EnsureSuccessStatusCode();
+            var vertrag = await antwort.Content.ReadFromJsonAsync<VertragDetail>();
+            Navigation.NavigateTo($"vertraege/{vertrag!.Id}");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vertrag konnte nicht angelegt werden: {ex.Message}";
+        }
+    }
+
+    private static int? NullWennNullOderKleiner1(int? wert) => wert is > 0 ? wert : null;
+
+    private static string StatusKlasse(string status) => status switch
+    {
+        "Aktiv" => "gut",
+        "Gekündigt" => "warnung",
+        "Beendet" => "kritisch",
+        _ => "",
+    };
+
+    private class NeuerVertrag
+    {
+        public DateOnly Beginn { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public int? Mindestlaufzeit { get; set; } = 12;
+        public int? Verlaengerung { get; set; } = 12;
+        public int? Kuendigungsfrist { get; set; } = 3;
+        public string? Notiz { get; set; }
+    }
+}

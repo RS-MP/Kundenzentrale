@@ -1,0 +1,316 @@
+@page "/vertraege/{Id:int}"
+@inject HttpClient Http
+
+<PageTitle>@(_vertrag?.Vertragsnummer ?? "Vertrag") · Kundenzentrale</PageTitle>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_vertrag is null)
+{
+    @if (_fehler is null)
+    {
+        <div class="leer-hinweis">Lade Vertrag …</div>
+    }
+}
+else
+{
+    <div class="akte-kopf">
+        <div class="seitenkopf">
+            <h1>Vertrag @_vertrag.Vertragsnummer</h1>
+            <span class="untertitel">
+                <a href="kunden/@_vertrag.KundeId">@_vertrag.KundeName</a> · Kunden-Nr. @_vertrag.Kundennummer
+            </span>
+        </div>
+        <div class="pills">
+            <span class="pill @StatusKlasse(_vertrag.Status)">@_vertrag.Status</span>
+            @if (_vertrag.NaechstesEnde is not null)
+            {
+                <span class="pill">Nächstmögliches Ende: @_vertrag.NaechstesEnde.Value.ToString("dd.MM.yyyy")</span>
+            }
+            @foreach (var bestandteil in _vertrag.Bestandteile.Select(b => b.Typ).Distinct())
+            {
+                <span class="pill akzent">@bestandteil</span>
+            }
+        </div>
+    </div>
+
+    <div class="akte">
+        <div>
+            <div class="karte">
+                <div class="karte-kopf">
+                    <h2>Bestandteile &amp; Dokumente</h2>
+                    <button class="knopf sekundaer" @onclick="() => _bestandteilOffen = !_bestandteilOffen">+ Bestandteil</button>
+                </div>
+                <div class="karte-koerper">
+                    @if (_bestandteilOffen)
+                    {
+                        <div class="formular" style="margin-bottom:16px">
+                            <label>
+                                Typ
+                                <select @bind="_neuerBestandteil.Typ">
+                                    <option>Lizenzvertrag</option>
+                                    <option>AVV</option>
+                                    <option>NDA</option>
+                                    <option>Sondervereinbarung</option>
+                                    <option>Nachtrag</option>
+                                    <option>Sonstiges</option>
+                                </select>
+                            </label>
+                            <label>
+                                Titel
+                                <input type="text" @bind="_neuerBestandteil.Titel" placeholder="z. B. Lizenzvertrag ID prove" />
+                            </label>
+                            <label>
+                                Unterzeichnet am
+                                <input type="date" @bind="_neuerBestandteil.UnterzeichnetAm" />
+                            </label>
+                            <label class="breit">
+                                Beschreibung
+                                <textarea rows="2" @bind="_neuerBestandteil.Beschreibung"></textarea>
+                            </label>
+                            <div class="formular-aktionen breit">
+                                <button class="knopf" @onclick="BestandteilAnlegenAsync">Hinzufügen</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_vertrag.Bestandteile.Count == 0)
+                    {
+                        <div class="leer-hinweis">
+                            Noch keine Bestandteile — typischer Abschluss: Lizenzvertrag inkl. AVV,
+                            optional NDA und Sondervereinbarungen.
+                        </div>
+                    }
+                    @foreach (var bestandteil in _vertrag.Bestandteile)
+                    {
+                        <div style="margin-bottom:18px">
+                            <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap">
+                                <span class="pill akzent">@bestandteil.Typ</span>
+                                <strong>@bestandteil.Titel</strong>
+                                @if (bestandteil.UnterzeichnetAm is not null)
+                                {
+                                    <span style="color:var(--muted)">unterzeichnet @bestandteil.UnterzeichnetAm.Value.ToString("dd.MM.yyyy")</span>
+                                }
+                            </div>
+                            @if (bestandteil.Beschreibung is not null)
+                            {
+                                <div style="color:var(--ink2); margin:4px 0">@bestandteil.Beschreibung</div>
+                            }
+                            @foreach (var dokument in bestandteil.Dokumente)
+                            {
+                                <div class="dokument">
+                                    <span class="pill">v@(dokument.Version)</span>
+                                    <span class="pfad" title="@dokument.Dateipfad">@dokument.DateinameOriginal</span>
+                                    <span class="hash" title="SHA-256: @dokument.Sha256">@dokument.Sha256[..12]…</span>
+                                    <span style="color:var(--muted); white-space:nowrap">
+                                        @dokument.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm") · @dokument.ErstelltVon
+                                    </span>
+                                </div>
+                            }
+                            <div style="display:flex; gap:8px; margin-top:8px">
+                                <input type="text" style="flex:1; font-family:Consolas,monospace; font-size:13px"
+                                       placeholder="Neue Version: Pfad relativ zum Vertragsablage-Verzeichnis, z. B. Kunde\Vertrag_v2.pdf"
+                                       @bind="_dokumentPfade[bestandteil.Id]" />
+                                <button class="knopf sekundaer" @onclick="() => DokumentRegistrierenAsync(bestandteil.Id)">
+                                    Version registrieren
+                                </button>
+                            </div>
+                        </div>
+                    }
+                    <div style="color:var(--muted); font-size:12px; margin-top:8px">
+                        Dokumente bleiben im Ablageverzeichnis (Administration → Vertragsablage.Verzeichnis).
+                        Die Kundenzentrale speichert Pfad + SHA-256-Prüfsumme; Versionen sind unveränderlich.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="karte">
+                <div class="karte-kopf"><h2>Stammdaten</h2></div>
+                <div class="karte-koerper">
+                    <div class="formular">
+                        <label>
+                            Status
+                            <select @bind="_bearbeitung.Status">
+                                <option>Entwurf</option>
+                                <option>Aktiv</option>
+                                <option>Gekündigt</option>
+                                <option>Beendet</option>
+                            </select>
+                        </label>
+                        <label>
+                            Beginn
+                            <input type="date" @bind="_bearbeitung.Beginn" />
+                        </label>
+                        <label>
+                            Mindestlaufzeit (Monate)
+                            <input type="number" @bind="_bearbeitung.Mindestlaufzeit" min="0" />
+                        </label>
+                        <label>
+                            Verlängerung (Monate)
+                            <input type="number" @bind="_bearbeitung.Verlaengerung" min="0" />
+                        </label>
+                        <label>
+                            Kündigungsfrist (Monate)
+                            <input type="number" @bind="_bearbeitung.Kuendigungsfrist" min="0" />
+                        </label>
+                        <label>
+                            Gekündigt zum
+                            <input type="date" @bind="_bearbeitung.GekuendigtZum" />
+                        </label>
+                        <label class="breit">
+                            Notiz
+                            <textarea rows="3" @bind="_bearbeitung.Notiz"></textarea>
+                        </label>
+                    </div>
+                    <div class="formular-aktionen">
+                        <button class="knopf" @onclick="SpeichernAsync">Speichern</button>
+                        @if (_gespeichert)
+                        {
+                            <span style="color:var(--good)">✓ gespeichert</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private VertragDetail? _vertrag;
+    private string? _fehler;
+    private bool _gespeichert;
+    private bool _bestandteilOffen;
+    private readonly Bearbeitung _bearbeitung = new();
+    private readonly NeuerBestandteil _neuerBestandteil = new();
+    private readonly Dictionary<int, string> _dokumentPfade = [];
+
+    protected override Task OnParametersSetAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _vertrag = await Http.GetFromJsonAsync<VertragDetail>($"api/vertraege/{Id}");
+            _bearbeitung.Status = _vertrag!.Status;
+            _bearbeitung.Beginn = _vertrag.Beginn;
+            _bearbeitung.Mindestlaufzeit = _vertrag.MindestlaufzeitMonate;
+            _bearbeitung.Verlaengerung = _vertrag.VerlaengerungMonate;
+            _bearbeitung.Kuendigungsfrist = _vertrag.KuendigungsfristMonate;
+            _bearbeitung.GekuendigtZum = _vertrag.GekuendigtZum;
+            _bearbeitung.Notiz = _vertrag.Notiz;
+            foreach (var bestandteil in _vertrag.Bestandteile)
+                _dokumentPfade.TryAdd(bestandteil.Id, "");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vertrag konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task SpeichernAsync()
+    {
+        _fehler = null;
+        _gespeichert = false;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/vertraege/{Id}", new VertragAendern(
+                _bearbeitung.Status, _bearbeitung.Beginn,
+                _bearbeitung.Mindestlaufzeit, _bearbeitung.Verlaengerung, _bearbeitung.Kuendigungsfrist,
+                _bearbeitung.GekuendigtZum,
+                string.IsNullOrWhiteSpace(_bearbeitung.Notiz) ? null : _bearbeitung.Notiz));
+            antwort.EnsureSuccessStatusCode();
+            _gespeichert = true;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private async Task BestandteilAnlegenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync($"api/vertraege/{Id}/bestandteile", new BestandteilAnlegen(
+                _neuerBestandteil.Typ, _neuerBestandteil.Titel ?? "",
+                string.IsNullOrWhiteSpace(_neuerBestandteil.Beschreibung) ? null : _neuerBestandteil.Beschreibung,
+                _neuerBestandteil.UnterzeichnetAm));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _bestandteilOffen = false;
+            _neuerBestandteil.Titel = "";
+            _neuerBestandteil.Beschreibung = null;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Bestandteil konnte nicht angelegt werden: {ex.Message}";
+        }
+    }
+
+    private async Task DokumentRegistrierenAsync(int bestandteilId)
+    {
+        _fehler = null;
+        var pfad = _dokumentPfade.GetValueOrDefault(bestandteilId, "").Trim();
+        if (pfad.Length == 0)
+        {
+            _fehler = "Bitte den Pfad der Datei relativ zum Vertragsablage-Verzeichnis angeben.";
+            return;
+        }
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync(
+                $"api/vertraege/bestandteile/{bestandteilId}/dokumente", new DokumentRegistrieren(pfad));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _dokumentPfade[bestandteilId] = "";
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Dokument konnte nicht registriert werden: {ex.Message}";
+        }
+    }
+
+    private static string StatusKlasse(string status) => status switch
+    {
+        "Aktiv" => "gut",
+        "Gekündigt" => "warnung",
+        "Beendet" => "kritisch",
+        _ => "",
+    };
+
+    private class Bearbeitung
+    {
+        public string Status { get; set; } = "Entwurf";
+        public DateOnly Beginn { get; set; }
+        public int? Mindestlaufzeit { get; set; }
+        public int? Verlaengerung { get; set; }
+        public int? Kuendigungsfrist { get; set; }
+        public DateOnly? GekuendigtZum { get; set; }
+        public string? Notiz { get; set; }
+    }
+
+    private class NeuerBestandteil
+    {
+        public string Typ { get; set; } = "Lizenzvertrag";
+        public string? Titel { get; set; }
+        public string? Beschreibung { get; set; }
+        public DateOnly? UnterzeichnetAm { get; set; }
+    }
+}

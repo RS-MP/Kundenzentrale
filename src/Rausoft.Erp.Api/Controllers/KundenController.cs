@@ -99,6 +99,27 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 .ToList()));
     }
 
+    /// <summary>Timeline der Kundenakte — neueste Einträge zuerst.</summary>
+    [HttpGet("{id:int}/verlauf")]
+    public async Task<ActionResult<List<VerlaufEintrag>>> Verlauf(int id, CancellationToken ct)
+    {
+        var eintraege = await db.Aktivitaeten
+            .AsNoTracking()
+            .Where(a => a.KundeId == id)
+            .OrderByDescending(a => a.Zeitpunkt)
+            .Take(100)
+            .Select(a => new VerlaufEintrag(
+                a.Id,
+                a.Typ.ToString(),
+                a.Zeitpunkt,
+                a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : null,
+                a.Ansprechpartner != null ? a.Ansprechpartner.Nachname : null,
+                a.Betreff,
+                a.Inhalt))
+            .ToListAsync(ct);
+        return Ok(eintraege);
+    }
+
     private static string StatusText(KundenStatus status) => status switch
     {
         KundenStatus.Aktiv => "Aktiv",
