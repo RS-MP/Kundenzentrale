@@ -1,0 +1,6 @@
+@Rausoft.Erp.Api_HostAddress = http://localhost:5207
+
+GET {{Rausoft.Erp.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

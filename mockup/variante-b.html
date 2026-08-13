@@ -1,0 +1,950 @@
+<title>Kundenzentrale – Mockup Variante B (ruhig &amp; aufgeräumt)</title>
+<style>
+  :root{
+    --bg:#F7F7F5; --surface:#FFFFFF; --surface2:#F0F0EC; --border:#E3E3DD; --border-strong:#CFCFC6;
+    --ink:#20262C; --ink2:#4C555E; --muted:#8A9199;
+    --accent:#37556E; --accent-strong:#284054; --accent-soft:#EBF0F4; --accent-line:#C6D4DF;
+    --good:#2E7D4F; --good-bg:#E7F2EB; --warn:#8F6400; --warn-bg:#F8F0DB; --crit:#B3372E; --crit-bg:#FBE9E6;
+    --chart-grid:#E8E8E2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14181C; --surface:#1B2127; --surface2:#232B33; --border:#2C353E; --border-strong:#3D4954;
+      --ink:#E6EBEF; --ink2:#A9B4BD; --muted:#727E88;
+      --accent:#8FB0CC; --accent-strong:#B4CDE2; --accent-soft:#22303C; --accent-line:#33485A;
+      --good:#5FC08D; --good-bg:#16291E; --warn:#DDB55E; --warn-bg:#2B2313; --crit:#E57F74; --crit-bg:#331C19;
+      --chart-grid:#252E36;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14181C; --surface:#1B2127; --surface2:#232B33; --border:#2C353E; --border-strong:#3D4954;
+    --ink:#E6EBEF; --ink2:#A9B4BD; --muted:#727E88;
+    --accent:#8FB0CC; --accent-strong:#B4CDE2; --accent-soft:#22303C; --accent-line:#33485A;
+    --good:#5FC08D; --good-bg:#16291E; --warn:#DDB55E; --warn-bg:#2B2313; --crit:#E57F74; --crit-bg:#331C19;
+    --chart-grid:#252E36;
+  }
+  :root[data-theme="light"]{
+    --bg:#F7F7F5; --surface:#FFFFFF; --surface2:#F0F0EC; --border:#E3E3DD; --border-strong:#CFCFC6;
+    --ink:#20262C; --ink2:#4C555E; --muted:#8A9199;
+    --accent:#37556E; --accent-strong:#284054; --accent-soft:#EBF0F4; --accent-line:#C6D4DF;
+    --good:#2E7D4F; --good-bg:#E7F2EB; --warn:#8F6400; --warn-bg:#F8F0DB; --crit:#B3372E; --crit-bg:#FBE9E6;
+    --chart-grid:#E8E8E2;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.55 "Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+  }
+  button{font:inherit; color:inherit; cursor:pointer}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+
+  .app{display:flex; min-height:100vh}
+
+  /* ---------- Sidebar: gruppiert, ruhiger aktiver Zustand ---------- */
+  .sidebar{
+    width:224px; flex:0 0 auto; background:var(--surface); border-right:1px solid var(--border);
+    padding:22px 14px; display:flex; flex-direction:column; gap:1px; position:sticky; top:0; height:100vh;
+  }
+  .brand{padding:0 10px 16px; margin-bottom:6px}
+  .brand .co{font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)}
+  .brand .name{font-size:17px; font-weight:650; letter-spacing:-.01em}
+  .brand .sub{font-size:11.5px; color:var(--muted)}
+  .navgroup{
+    font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+    padding:16px 10px 5px; font-weight:600;
+  }
+  .navbtn{
+    display:flex; align-items:center; width:100%; text-align:left;
+    background:none; border:0; border-left:2px solid transparent; border-radius:0 7px 7px 0;
+    padding:7px 10px; color:var(--ink2);
+  }
+  .navbtn:hover{background:var(--surface2)}
+  .navbtn.active{border-left-color:var(--accent); color:var(--ink); font-weight:600; background:var(--accent-soft)}
+  .navbtn:disabled{opacity:.4; cursor:not-allowed}
+  .sidefoot{margin-top:auto; padding:10px; font-size:11.5px; color:var(--muted); border-top:1px solid var(--border)}
+
+  /* ---------- Main ---------- */
+  .main{flex:1; min-width:0}
+  .topbar{
+    display:flex; align-items:center; gap:14px; padding:12px 30px;
+    border-bottom:1px solid var(--border); background:var(--surface);
+  }
+  .search{
+    flex:0 1 320px; background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+    padding:6px 12px; color:var(--muted); font-size:13px;
+  }
+  .mocktag{
+    margin-left:auto; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent-strong); background:var(--accent-soft); border-radius:99px; padding:3px 10px;
+  }
+  .content{padding:30px 30px 56px; max-width:1060px; width:100%}
+  .view{display:none}
+  .view.active{display:block}
+
+  h1{font-size:22px; font-weight:650; letter-spacing:-.015em; margin:0; text-wrap:balance}
+  h2{font-size:14px; font-weight:650; margin:0}
+  .pagehead{margin-bottom:8px}
+  .subline{color:var(--muted); font-size:13px; margin:3px 0 0}
+  .intro{color:var(--ink2); font-size:13.5px; margin:6px 0 0; max-width:62ch}
+
+  /* Faktenzeile unter dem Seitenkopf: eine ruhige Zeile statt vieler Pills */
+  .factbar{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    margin:14px 0 24px; padding:10px 14px; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; font-size:13px; color:var(--ink2);
+  }
+  .factbar .sep{color:var(--border-strong)}
+  .factbar strong{color:var(--ink); font-weight:600}
+
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:20px 22px;
+  }
+  .cardhead{display:flex; align-items:baseline; gap:10px; margin-bottom:14px}
+  .cardhead .hint{font-size:12px; color:var(--muted); margin-left:auto}
+
+  .grid{display:grid; gap:18px}
+  .cols-2-1{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+  .cols-1-2{grid-template-columns:minmax(0,1fr) minmax(0,2fr)}
+  @media (max-width:960px){ .cols-2-1,.cols-1-2{grid-template-columns:1fr} .sidebar{display:none} }
+
+  /* Status: die einzigen Farbträger */
+  .st{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; border-radius:99px; padding:2px 10px}
+  .st.good{color:var(--good); background:var(--good-bg)}
+  .st.warn{color:var(--warn); background:var(--warn-bg)}
+  .st.crit{color:var(--crit); background:var(--crit-bg)}
+  .tag{font-size:12px; color:var(--muted)}
+
+  .btn{
+    border:1px solid var(--border-strong); background:var(--surface); border-radius:8px;
+    padding:6px 14px; font-weight:600; font-size:13px;
+  }
+  .btn:hover{background:var(--surface2)}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  :root[data-theme="dark"] .btn.primary{color:#10161C}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .btn.primary{color:#10161C} }
+  .btn.small{padding:3px 11px; font-size:12px}
+
+  /* tables: luftiger */
+  table{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); text-align:left; font-weight:600; padding:8px 10px; border-bottom:1px solid var(--border)}
+  td{padding:12px 10px; border-bottom:1px solid var(--border); vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  td.num, th.num{text-align:right}
+  .tablewrap{overflow-x:auto}
+  tbody tr.pick{cursor:pointer}
+  tbody tr.pick:hover td{background:var(--surface2)}
+  tbody tr.pick.sel td{background:var(--accent-soft)}
+
+  /* ruhige KPI-Zeile statt Kacheln */
+  .kpirow{display:flex; gap:36px; flex-wrap:wrap; margin:14px 0 24px; padding:14px 18px; background:var(--surface); border:1px solid var(--border); border-radius:10px}
+  .kpirow .k .label{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600}
+  .kpirow .k .value{font-size:19px; font-weight:650; font-variant-numeric:tabular-nums; margin-top:1px}
+  .kpirow .k .value.critc{color:var(--crit)}
+  .kpirow .k .value.goodc{color:var(--good)}
+
+  /* Segmente (Umschalter) */
+  .seg{display:inline-flex; border:1px solid var(--border-strong); border-radius:9px; overflow:hidden; margin-bottom:16px}
+  .seg button{border:0; background:var(--surface); padding:6px 16px; font-size:13px; color:var(--ink2)}
+  .seg button.on{background:var(--accent-soft); color:var(--accent-strong); font-weight:600}
+  .seg button + button{border-left:1px solid var(--border)}
+
+  /* chips (Filter) */
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px}
+  .chip{
+    border:1px solid var(--border); background:var(--surface); border-radius:99px;
+    padding:3px 12px; font-size:12.5px; color:var(--ink2);
+  }
+  .chip:hover{background:var(--surface2)}
+  .chip.on{border-color:var(--accent); color:var(--accent-strong); font-weight:600}
+
+  /* timeline: monochrom, Datum als eigene Spalte */
+  .tl{list-style:none; margin:0; padding:0}
+  .tl li{display:grid; grid-template-columns:76px 1fr; gap:14px; padding:11px 2px; border-bottom:1px solid var(--border)}
+  .tl li:last-child{border-bottom:0}
+  .tl .when{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; padding-top:2px}
+  .tl .typ{font-weight:600; text-transform:uppercase; letter-spacing:.07em; font-size:10.5px; color:var(--muted); margin-right:8px}
+  .tl .pair{color:var(--muted); font-size:12px}
+  .tl .txt{margin-top:1px}
+  .tl li.hidden{display:none}
+
+  /* Aufklapper rechts in der Akte */
+  details.sect{border:1px solid var(--border); border-radius:12px; background:var(--surface)}
+  details.sect + details.sect{margin-top:10px}
+  details.sect summary{
+    list-style:none; display:flex; align-items:center; gap:8px; cursor:pointer;
+    padding:13px 16px; font-weight:600; font-size:13.5px;
+  }
+  details.sect summary::-webkit-details-marker{display:none}
+  details.sect summary .cnt{color:var(--muted); font-weight:500; font-size:12.5px}
+  details.sect summary .chev{margin-left:auto; color:var(--muted); transition:transform .15s}
+  details.sect[open] summary .chev{transform:rotate(90deg)}
+  @media (prefers-reduced-motion: reduce){ details.sect summary .chev{transition:none} }
+  details.sect .body{padding:2px 16px 15px; font-size:13px}
+  details.sect summary .st{margin-left:auto}
+  details.sect[open] summary .st{margin-left:0}
+
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:5px 16px; font-size:13px}
+  .kv dt{color:var(--muted); margin:0}
+  .kv dd{margin:0}
+
+  .stack{display:flex; flex-direction:column; gap:18px}
+  .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .divider{border:0; border-top:1px solid var(--border); margin:14px 0}
+  .filechip{
+    display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border);
+    background:var(--surface2); border-radius:6px; padding:2px 9px; font-size:12px; color:var(--ink2);
+  }
+  .note{font-size:12.5px; color:var(--muted); margin-top:10px}
+
+  /* Vertragsliste */
+  .clist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+  .clist button{
+    width:100%; text-align:left; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:12px 14px;
+  }
+  .clist button:hover{background:var(--surface2)}
+  .clist button.sel{border-color:var(--accent)}
+  .clist .cnr{font-size:12px; color:var(--muted); margin-top:1px}
+
+  .vlist{list-style:none; margin:0; padding:0}
+  .vlist li{display:flex; gap:12px; align-items:center; padding:10px 2px; border-bottom:1px solid var(--border); flex-wrap:wrap; font-size:13px}
+  .vlist li:last-child{border-bottom:0}
+  .vlist .vtag{font-weight:650; min-width:80px}
+
+  /* comments */
+  .comments{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px}
+  .comments li{background:var(--surface2); border-radius:9px; padding:10px 14px}
+  .comments .who{font-weight:600; font-size:12.5px}
+  .comments .when{color:var(--muted); font-size:11.5px; margin-left:6px}
+  .comments li.sys{background:none; border-left:2px solid var(--border-strong); border-radius:0; padding:2px 12px; color:var(--muted); font-size:12px}
+
+  .inp{width:100%; background:var(--surface); border:1px solid var(--border-strong); border-radius:8px; padding:7px 10px; color:var(--ink); font:inherit}
+
+  /* modal */
+  .overlay{position:fixed; inset:0; background:rgba(14,18,22,.45); display:none; align-items:center; justify-content:center; padding:20px; z-index:50}
+  .overlay.open{display:flex}
+  .modal{background:var(--surface); border-radius:12px; max-width:640px; width:100%; max-height:88vh; overflow:auto; box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  .modal .mhead{display:flex; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border)}
+  .modal .mbody{padding:18px}
+  .modal .mfoot{display:flex; gap:10px; justify-content:flex-end; padding:14px 18px; border-top:1px solid var(--border)}
+  .letter{border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); padding:26px 30px; font-size:13px; line-height:1.65; max-width:60ch}
+  .letter .lhead{display:flex; justify-content:space-between; color:var(--muted); font-size:12px; margin-bottom:18px}
+  .letter h3{font-size:15px; margin:14px 0 8px}
+  .xbtn{margin-left:auto; background:none; border:0; font-size:18px; color:var(--muted); padding:2px 8px}
+
+  .chartwrap{position:relative}
+  .tooltip{
+    position:absolute; pointer-events:none; background:var(--ink); color:var(--bg);
+    font-size:12px; border-radius:6px; padding:5px 9px; transform:translate(-50%,-115%);
+    white-space:nowrap; opacity:0; transition:opacity .1s; font-variant-numeric:tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce){ .tooltip{transition:none} }
+
+  .toast{
+    position:fixed; right:22px; bottom:22px; z-index:60; background:var(--ink); color:var(--bg);
+    padding:10px 16px; border-radius:8px; font-size:13px; box-shadow:0 8px 30px rgba(0,0,0,.3);
+    opacity:0; transform:translateY(8px); transition:opacity .18s, transform .18s; pointer-events:none; max-width:420px;
+  }
+  .toast.show{opacity:1; transform:none}
+  @media (prefers-reduced-motion: reduce){ .toast{transition:none} }
+</style>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="co">rausoft GmbH</div>
+      <div class="name">Kundenzentrale</div>
+      <div class="sub">Variante B · ruhig &amp; aufgeräumt</div>
+    </div>
+    <div class="navgroup">Kunden</div>
+    <button class="navbtn active" data-view="kunde">Kundenakte</button>
+    <button class="navbtn" disabled title="In Variante B noch nicht ausgearbeitet – Stil siehe Kundenakte">Kontakte</button>
+    <div class="navgroup">Vorgänge</div>
+    <button class="navbtn" data-view="aufgaben">Aufgaben</button>
+    <button class="navbtn" disabled title="In Variante B noch nicht ausgearbeitet">Tickets</button>
+    <button class="navbtn" disabled title="In Variante B noch nicht ausgearbeitet">Angebote &amp; CRM</button>
+    <div class="navgroup">Verträge &amp; Geld</div>
+    <button class="navbtn" data-view="vertraege">Verträge</button>
+    <button class="navbtn" data-view="rechnungen">Rechnungen &amp; OP</button>
+    <button class="navbtn" disabled title="In Variante B noch nicht ausgearbeitet">E-Mail-Ausgang</button>
+    <div class="navgroup">Überblick</div>
+    <button class="navbtn" data-view="dashboard">Auswertungen</button>
+    <div class="sidefoot">Vergleichsentwurf zu Variante A.<br>Gleiche Daten, reduzierte Optik.</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search">Suche: Kunde, Vertrag, Rechnungsnr. …</div>
+      <span class="mocktag">Mockup · Variante B</span>
+    </div>
+
+    <div class="content">
+
+      <!-- ================= KUNDENAKTE ================= -->
+      <section class="view active" id="view-kunde">
+        <div class="pagehead">
+          <h1>Berghoff Logistik GmbH</h1>
+          <p class="subline">K-1042 · Bestandskunde · Duisburg</p>
+        </div>
+
+        <div class="factbar">
+          <span><strong>Shared Cloud</strong> seit 03/2024</span><span class="sep">·</span>
+          <span>PROFESSIONAL · 25.000 Stammdaten</span><span class="sep">·</span>
+          <span>5 Benutzer</span><span class="sep">·</span>
+          <span>Direktkunde</span><span class="sep">·</span>
+          <span>MRR <strong>890,00&nbsp;€</strong></span>
+          <span class="st crit" style="margin-left:auto">890&nbsp;€ überfällig · 23 Tage</span>
+        </div>
+
+        <div class="grid cols-2-1">
+          <div class="card">
+            <div class="cardhead"><h2>Verlauf</h2><span class="hint">alle Bereiche, ein Strom</span></div>
+            <div class="chips" id="tlchips">
+              <button class="chip on" data-f="alle">Alle</button>
+              <button class="chip" data-f="email">E-Mails</button>
+              <button class="chip" data-f="anruf">Anrufe</button>
+              <button class="chip" data-f="ticket">Tickets</button>
+              <button class="chip" data-f="angebot">Angebote</button>
+              <button class="chip" data-f="vertrag">Verträge</button>
+              <button class="chip" data-f="rechnung">Rechnungen</button>
+            </div>
+            <ul class="tl" id="timeline">
+              <li data-type="rechnung"><span class="when">01.08.2026</span>
+                <div><span class="typ">Rechnung</span><span class="pair">System → Einkauf (Rechnungsempfang)</span>
+                <div class="txt">RE-2026-0155 versendet (ZUGFeRD) – Kopie an DATEV Unternehmen Online</div></div></li>
+              <li data-type="ticket"><span class="when">28.07.2026</span>
+                <div><span class="typ">Ticket</span><span class="pair">S. Krause (Support) ↔ Herr Yilmaz (IT)</span>
+                <div class="txt">#4711 gelöst: API-Timeout bei Batchprüfung – Ursache Firewall-Regel beim Kunden</div></div></li>
+              <li data-type="angebot"><span class="when">21.07.2026</span>
+                <div><span class="typ">Angebot</span><span class="pair">D. Stauch (Vertrieb) → Frau Berghoff (GF)</span>
+                <div class="txt">AN-2026-089 versendet: Treffermonitor-Erweiterung, 240&nbsp;€/Monat</div></div></li>
+              <li data-type="anruf"><span class="when">21.07.2026</span>
+                <div><span class="typ">Anruf</span><span class="pair">D. Stauch (Vertrieb) ↔ Frau Berghoff (GF)</span>
+                <div class="txt">Interesse am Treffermonitor, Angebot direkt zugesagt · 12 Min, ausgehend (CTI)</div></div></li>
+              <li data-type="vertrag"><span class="when">03.06.2026</span>
+                <div><span class="typ">Vertrag</span><span class="pair">M. Pätzold ↔ Frau Berghoff (GF)</span>
+                <div class="txt">Nachtrag N2 zu V-2024-018 unterschrieben zurück: Suchvolumen +50.000/Jahr</div></div></li>
+              <li data-type="email"><span class="when">19.05.2026</span>
+                <div><span class="typ">E-Mail</span><span class="pair">Einkauf (Rechnungsempfang) → M. Pätzold</span>
+                <div class="txt">Rückfrage zur Rechnung RE-2026-0142 – Kostenstelle soll künftig auf der Rechnung stehen</div></div></li>
+              <li data-type="ticket"><span class="when">02.04.2026</span>
+                <div><span class="typ">Ticket</span><span class="pair">S. Krause (Support) ↔ Herr Yilmaz (IT)</span>
+                <div class="txt">#4650 gelöst: Frage zur Delta-Prüfung bei Bestandsdaten</div></div></li>
+              <li data-type="rechnung"><span class="when">15.03.2026</span>
+                <div><span class="typ">Rechnung</span><span class="pair">System (Bank-Import)</span>
+                <div class="txt">RE-2026-0089 bezahlt – Zahlungseingang 890,00&nbsp;€</div></div></li>
+            </ul>
+          </div>
+
+          <div>
+            <details class="sect" open>
+              <summary>Offene Posten <span class="cnt">1</span><span class="st crit">überfällig</span><span class="chev">›</span></summary>
+              <div class="body">
+                <div class="row">
+                  <span>RE-2026-0142 · 890,00&nbsp;€ · fällig 15.07.2026</span>
+                </div>
+                <div class="row" style="margin-top:10px">
+                  <button class="btn small" data-goto="rechnungen">Zu Rechnungen &amp; OP</button>
+                </div>
+              </div>
+            </details>
+
+            <details class="sect">
+              <summary>Verträge &amp; Abos <span class="cnt">2 aktiv</span><span class="chev">›</span></summary>
+              <div class="body">
+                <dl class="kv">
+                  <dt>V-2024-018</dt><dd>ID.prove Stammdaten-Abo · 650&nbsp;€/Monat, jährlich<br><span class="tag">Sondervereinbarung S1 · Erinnerung Kündigungsfrist 01.11.2026</span></dd>
+                  <dt>V-2025-031</dt><dd>Treffermonitor · 240&nbsp;€/Monat, monatlich</dd>
+                </dl>
+              </div>
+            </details>
+
+            <details class="sect">
+              <summary>Ansprechpartner <span class="cnt">3</span><span class="chev">›</span></summary>
+              <div class="body">
+                <dl class="kv">
+                  <dt>Frau Berghoff</dt><dd>Geschäftsführung · Vertrag &amp; Vertrieb</dd>
+                  <dt>Herr Yilmaz</dt><dd>IT · Technik &amp; Tickets</dd>
+                  <dt>Einkauf</dt><dd>Sammelpostfach · Rechnungsempfang</dd>
+                </dl>
+              </div>
+            </details>
+
+            <details class="sect">
+              <summary>Stammdaten <span class="chev">›</span></summary>
+              <div class="body">
+                <dl class="kv">
+                  <dt>Anschrift</dt><dd>Hafenstraße 12, 47119 Duisburg</dd>
+                  <dt>Rechnung an</dt><dd>Berghoff Verwaltungs GmbH, Postfach 10&nbsp;02&nbsp;44, 47002 Duisburg <span class="tag">(abweichend)</span></dd>
+                  <dt>USt-IdNr.</dt><dd>DE 214 987 653</dd>
+                  <dt>Module</dt><dd>API-Schnittstelle · Treffermonitor · All-Listen-Bundle</dd>
+                </dl>
+              </div>
+            </details>
+
+            <p class="note">Zweitinformationen sind eingeklappt – die Akte zeigt zuerst den Verlauf und das, was Aufmerksamkeit braucht (offener Posten).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= AUFGABEN ================= -->
+      <section class="view" id="view-aufgaben">
+        <div class="pagehead">
+          <h1>Aufgaben</h1>
+          <p class="intro">Eine Liste, ein Detail: Zeile anklicken öffnet die Aufgabe darunter. Pool-Aufgaben lassen sich direkt übernehmen.</p>
+        </div>
+
+        <div class="factbar">
+          <span><strong>2</strong> mir zugewiesen</span><span class="sep">·</span>
+          <span><strong>1</strong> im Pool Vertrieb</span><span class="sep">·</span>
+          <span><strong>1</strong> Rückfrage offen</span>
+          <span class="tag" style="margin-left:auto">angemeldet als M. Pätzold</span>
+        </div>
+
+        <div class="chips" id="aufgchips">
+          <button class="chip on" data-f="alle">Alle</button>
+          <button class="chip" data-f="mir">Mir zugewiesen</button>
+          <button class="chip" data-f="von-mir">Von mir erstellt</button>
+          <button class="chip" data-f="pool">Pool · offen zur Übernahme</button>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <div class="tablewrap">
+            <table id="aufgtable">
+              <thead><tr><th>Aufgabe</th><th>Bezug</th><th>Bereich</th><th>Zugewiesen an</th><th>Fällig</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr data-who="pool" data-detail="rr" class="pick sel">
+                  <td><strong>Rückruf: Nordbau GmbH</strong></td>
+                  <td>Nordbau · Lead</td><td>Vertrieb</td>
+                  <td id="rrassign"><span class="st warn">offen im Pool</span></td>
+                  <td>07.08.2026</td>
+                  <td><span class="tag" id="rrstatus">offen</span></td>
+                </tr>
+                <tr data-who="mir" data-detail="ks" class="pick">
+                  <td><strong>Kostenstelle auf Rechnungen ergänzen</strong></td>
+                  <td>Berghoff · RE-2026-0142</td><td>Buchhaltung</td><td>M. Pätzold</td><td>12.08.2026</td>
+                  <td><span class="tag">in Arbeit</span></td>
+                </tr>
+                <tr data-who="mir" class="pick">
+                  <td><strong>Sammelüberweisung KSK zuordnen</strong></td>
+                  <td>Bank-Import 05.08.</td><td>Buchhaltung</td><td>M. Pätzold</td><td style="color:var(--crit)">06.08.2026</td>
+                  <td><span class="st warn">Rückfrage</span></td>
+                </tr>
+                <tr data-who="von-mir" class="pick">
+                  <td><strong>Angebot Treffermonitor nachfassen</strong></td>
+                  <td>Berghoff · AN-2026-089</td><td>Vertrieb</td><td>D. Stauch</td><td>15.08.2026</td>
+                  <td><span class="tag">offen</span></td>
+                </tr>
+                <tr data-who="mir von-mir" class="pick">
+                  <td><strong>Kündigungsfrist V-2023-044 prüfen</strong></td>
+                  <td>Weidmann · V-2023-044</td><td>Verwaltung</td><td>M. Pätzold</td><td>01.11.2026</td>
+                  <td><span class="tag">offen</span></td>
+                </tr>
+                <tr data-who="andere" class="pick">
+                  <td><strong>AVV-Vorlage aktualisieren</strong></td>
+                  <td>allgemein</td><td>Datenschutz</td><td>C. Gerne</td><td>30.09.2026</td>
+                  <td><span class="tag">zurückgestellt bis 01.09.2026</span></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+
+          <div class="card" id="detail-rr">
+            <div class="cardhead">
+              <h2>Rückruf: Nordbau GmbH</h2>
+              <span class="hint">aus Portal-Rückrufformular · Bereich Vertrieb</span>
+            </div>
+            <div class="row" style="margin-bottom:14px">
+              <span class="tag">Bezug: Nordbau GmbH (Lead)</span>
+              <span class="st warn" id="rrdetailassign">offen im Pool</span>
+              <button class="btn small" id="uebernehmen">Übernehmen</button>
+              <label style="margin-left:auto; display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink2)">Wiedervorlage
+                <input class="inp" type="date" id="wvdate" value="2026-08-11" style="width:auto">
+              </label>
+              <button class="btn small" id="wvbtn">Zurückstellen</button>
+            </div>
+            <ul class="comments" id="rrcomments">
+              <li class="sys">Erstellt aus Portal-Rückrufformular · Bereich Vertrieb · 07.08.2026, 08:02</li>
+              <li><span class="who">Rückrufformular</span><span class="when">07.08.2026, 08:02</span><br>
+                Nachricht des Kunden: „Bitte um Rückruf wegen ID.prove-Einführung, vormittags am besten erreichbar.“</li>
+            </ul>
+            <div class="row" style="margin-top:12px">
+              <input class="inp" id="rrinput" placeholder="Verlaufseintrag hinzufügen, z. B. „telefonisch nicht erreicht“ …" style="flex:1">
+              <button class="btn" id="rrsend">Eintragen</button>
+            </div>
+          </div>
+
+          <div class="card" id="detail-ks" style="display:none">
+            <div class="cardhead">
+              <h2>Kostenstelle auf Rechnungen ergänzen</h2>
+              <span class="hint">entstanden aus E-Mail vom 19.05.2026 in der Berghoff-Timeline</span>
+            </div>
+            <div class="row" style="margin-bottom:14px">
+              <span class="tag">Bezug: RE-2026-0142</span>
+              <span class="tag">Zugewiesen: M. Pätzold</span>
+              <label style="margin-left:auto; display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink2)">Status
+                <select class="inp" id="aufgstatus" style="width:auto">
+                  <option>offen</option>
+                  <option selected>in Arbeit</option>
+                  <option>Rückfrage</option>
+                  <option>zurückgestellt</option>
+                  <option>erledigt</option>
+                </select>
+              </label>
+            </div>
+            <ul class="comments" id="aufgcomments">
+              <li><span class="who">D. Stauch</span><span class="when">07.08.2026, 09:12</span><br>
+                Kunde möchte Kostenstelle 4711-B auf allen Rechnungen. Kannst du das übernehmen?</li>
+              <li class="sys">Status geändert auf „in Arbeit“ · M. Pätzold · 07.08.2026, 09:30</li>
+              <li><span class="who">M. Pätzold</span><span class="when">07.08.2026, 10:02</span><br>
+                Feld gibt es im Rechnungslayout noch nicht. Klären: je Kunde oder je Vertrag? @Daniel – gilt das auch für den Jahresrechnungslauf?</li>
+              <li class="sys">Rückfrage an D. Stauch · wartet auf Antwort</li>
+            </ul>
+            <div class="row" style="margin-top:12px">
+              <input class="inp" placeholder="Kommentar oder Rückfrage schreiben …" style="flex:1">
+              <button class="btn">Senden</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= VERTRÄGE ================= -->
+      <section class="view" id="view-vertraege">
+        <div class="pagehead">
+          <h1>Verträge</h1>
+          <p class="intro">Metadaten und Fristen in der Datenbank, Dokumente unverändert im Ablageverzeichnis. Versionen und Nachträge sind eingeklappt, bis man sie braucht.</p>
+        </div>
+
+        <div class="grid cols-1-2" style="margin-top:18px">
+          <div class="stack">
+            <div class="chips" id="vfchips">
+              <button class="chip on" data-f="alle">Alle</button>
+              <button class="chip" data-f="sonder">mit Sondervereinbarung</button>
+              <button class="chip" data-f="nda">mit NDA</button>
+              <button class="chip" data-f="partner">über Partner</button>
+            </div>
+            <ul class="clist" id="vlist">
+              <li data-tags="sonder"><button class="sel">
+                <div><strong>Lizenzvertrag PROFESSIONAL</strong> <span class="st good">aktiv</span></div>
+                <div class="cnr">V-2024-018 · Berghoff Logistik · Sondervereinbarung · 3 Versionen</div>
+              </button></li>
+              <li data-tags=""><button>
+                <div><strong>Treffermonitor (Add-on)</strong> <span class="st good">aktiv</span></div>
+                <div class="cnr">V-2025-031 · Berghoff Logistik · 1 Version</div>
+              </button></li>
+              <li data-tags="nda"><button>
+                <div><strong>PayPerSearch-Rahmenvertrag</strong> <span class="tag">gekündigt zum 31.12.2026</span></div>
+                <div class="cnr">V-2023-044 · Weidmann &amp; Söhne · NDA · 2 Versionen</div>
+              </button></li>
+              <li data-tags="partner"><button>
+                <div><strong>Lizenzvertrag PROFESSIONAL</strong> <span class="st good">aktiv</span></div>
+                <div class="cnr">V-2026-007 · Helvetia Treuhand · via FineSolutions, Rechnung an Partner</div>
+              </button></li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <div class="cardhead">
+              <h2>V-2024-018 · Lizenzvertrag PROFESSIONAL</h2>
+              <span class="hint">Berghoff Logistik GmbH</span>
+            </div>
+            <dl class="kv">
+              <dt>Laufzeit</dt><dd>01.03.2024 – 28.02.2027, verlängert sich automatisch um 12 Monate</dd>
+              <dt>Kündigungsfrist</dt><dd>3 Monate zum Laufzeitende · Erinnerung am 01.11.2026</dd>
+              <dt>Abrechnung</dt><dd>650&nbsp;€/Monat, jährlich im Voraus → Abo A-2024-018</dd>
+              <dt>Bestandteile</dt><dd>Lizenzvertrag · AVV · Sondervereinbarung S1</dd>
+              <dt>Sondervereinb.</dt><dd>S1: Preisbindung Tier PROFESSIONAL bis 28.02.2027 (kein Inflationsaufschlag)</dd>
+            </dl>
+
+            <div style="margin-top:16px">
+              <details class="sect">
+                <summary>Versionen <span class="cnt">3 · aktuell v3 vom 03.06.2026</span><span class="chev">›</span></summary>
+                <div class="body">
+                  <ul class="vlist">
+                    <li><span class="vtag">Version 3</span><span>03.06.2026 · Nachtrag N2 eingearbeitet</span><span class="filechip">V-2024-018_v3.pdf</span></li>
+                    <li><span class="vtag">Version 2</span><span>15.01.2025 · Nachtrag N1 eingearbeitet</span><span class="filechip">V-2024-018_v2.pdf</span></li>
+                    <li><span class="vtag">Version 1</span><span>01.03.2024 · Erstunterzeichnung</span><span class="filechip">V-2024-018_v1.pdf</span></li>
+                  </ul>
+                </div>
+              </details>
+              <details class="sect">
+                <summary>Nachträge, Anhänge &amp; Vereinbarungen <span class="cnt">6</span><span class="chev">›</span></summary>
+                <div class="body">
+                  <ul class="vlist">
+                    <li><span class="vtag">Nachtrag N2</span><span>03.06.2026 · Suchvolumen +50.000/Jahr</span><span class="filechip">N2_signiert.pdf</span></li>
+                    <li><span class="vtag">Nachtrag N1</span><span>15.01.2025 · Preisanpassung 2025</span><span class="filechip">N1_signiert.pdf</span></li>
+                    <li><span class="vtag">Sondervereinb.</span><span>S1 · Preisbindung bis 28.02.2027</span><span class="filechip">S1_signiert.pdf</span></li>
+                    <li><span class="vtag">AVV</span><span>Auftragsverarbeitungsvertrag</span><span class="filechip">AVV_2024.pdf</span></li>
+                    <li><span class="vtag">Anhang</span><span>Service-Level-Vereinbarung</span><span class="filechip">SLA_2024.pdf</span></li>
+                    <li><span class="vtag">Anhang</span><span>Preisblatt Stand 06/2026</span><span class="filechip">Preisblatt_2026-06.pdf</span></li>
+                  </ul>
+                </div>
+              </details>
+            </div>
+            <p class="note">Dateien bleiben im Ablageverzeichnis; das System speichert Pfad + SHA-256-Prüfsumme.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= RECHNUNGEN ================= -->
+      <section class="view" id="view-rechnungen">
+        <div class="pagehead">
+          <h1>Rechnungen &amp; Offene Posten</h1>
+          <p class="intro">ZUGFeRD-Versand mit DATEV-Kopie, Zahlungsabgleich per Bank-CSV, Mahnung auf Knopfdruck. Offene Posten und Bank-Import sind getrennte Reiter statt zwei Tabellen übereinander.</p>
+        </div>
+
+        <div class="kpirow">
+          <div class="k"><div class="label">Offene Posten</div><div class="value">1.780,00&nbsp;€</div></div>
+          <div class="k"><div class="label">davon überfällig</div><div class="value critc">890,00&nbsp;€</div></div>
+          <div class="k"><div class="label">Bezahlt im August</div><div class="value goodc">7.410,00&nbsp;€</div></div>
+        </div>
+
+        <div class="seg" id="reseg">
+          <button class="on" data-pane="op">Offene Posten</button>
+          <button data-pane="bank">Bank-Import (CSV)</button>
+        </div>
+
+        <div class="card" id="pane-op">
+          <div class="tablewrap">
+          <table>
+            <thead><tr>
+              <th>Rechnung</th><th>Kunde</th><th class="num">Betrag</th><th>Fällig</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody>
+              <tr id="op-142">
+                <td>RE-2026-0142</td><td>Berghoff Logistik GmbH</td><td class="num">890,00&nbsp;€</td><td>15.07.2026</td>
+                <td class="opstatus"><span class="st crit">überfällig · 23 Tage</span></td>
+                <td><button class="btn small" id="mahnbtn">Mahnung erzeugen</button></td>
+              </tr>
+              <tr>
+                <td>RE-2026-0155</td><td>TechnoPlan AG</td><td class="num">890,00&nbsp;€</td><td>31.08.2026</td>
+                <td><span class="tag">offen</span></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>RE-2026-0139</td><td>Weidmann &amp; Söhne KG</td><td class="num">2.140,00&nbsp;€</td><td>30.06.2026</td>
+                <td><span class="st good">bezahlt am 02.07.2026</span></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="note">Nummernkreis fortlaufend, Original unveränderlich – Korrektur nur per Storno/Gutschrift. DATEV-Kopie wird bei jedem Versand automatisch mitgeschickt.</p>
+        </div>
+
+        <div class="card" id="pane-bank" style="display:none">
+          <div class="tablewrap">
+          <table>
+            <thead><tr><th>Buchungstag</th><th>Auftraggeber / Verwendungszweck</th><th class="num">Betrag</th><th>Vorschlag</th><th></th></tr></thead>
+            <tbody>
+              <tr id="match-142">
+                <td>06.08.2026</td><td>Berghoff Verwaltungs GmbH · „RG 2026-0142 Kd K-1042“</td><td class="num">890,00&nbsp;€</td>
+                <td><span class="tag">RE-2026-0142 · sicher</span></td>
+                <td><button class="btn small primary" id="zuordnen">Zuordnen</button></td>
+              </tr>
+              <tr>
+                <td>05.08.2026</td><td>Sammelüberweisung Kreissparkasse · „Rechnungen Juli“</td><td class="num">3.120,00&nbsp;€</td>
+                <td><span class="tag">kein eindeutiger Treffer</span></td>
+                <td><button class="btn small">Manuell zuordnen</button></td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="note">Halbautomatisch: Vorschlag über Rechnungsnummer + Betrag, Zuordnung per Klick. Sonderfälle erzeugen eine Aufgabe.</p>
+        </div>
+      </section>
+
+      <!-- ================= AUSWERTUNGEN ================= -->
+      <section class="view" id="view-dashboard">
+        <div class="pagehead">
+          <h1>Auswertungen</h1>
+          <p class="intro">MRR aus Abo-Positionen mit Gültig-von/Gültig-bis – Verlauf, Upgrades und Kündigungen rückwirkend auswertbar.</p>
+        </div>
+
+        <div class="kpirow">
+          <div class="k"><div class="label">MRR aktuell</div><div class="value">24.680&nbsp;€</div></div>
+          <div class="k"><div class="label">ARR</div><div class="value">296.160&nbsp;€</div></div>
+          <div class="k"><div class="label">Aktive Abos</div><div class="value">118</div></div>
+          <div class="k"><div class="label">Offene Posten</div><div class="value critc">1.780&nbsp;€</div></div>
+        </div>
+
+        <div class="card">
+          <div class="cardhead"><h2>MRR-Verlauf</h2><span class="hint">letzte 12 Monate</span></div>
+          <div class="chartwrap">
+            <svg id="mrrchart" viewBox="0 0 720 250" width="100%" role="img" aria-label="MRR-Verlauf der letzten 12 Monate, von 21.400 auf 24.680 Euro gestiegen"></svg>
+            <div class="tooltip" id="mrrtip"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px">
+          <details class="sect">
+            <summary>MRR nach Produkt <span class="chev">›</span></summary>
+            <div class="body">
+              <dl class="kv">
+                <dt>ID.prove Stammdaten-Abo</dt><dd>14.200&nbsp;€</dd>
+                <dt>PayPerSearch</dt><dd>5.900&nbsp;€</dd>
+                <dt>Treffermonitor</dt><dd>3.100&nbsp;€</dd>
+                <dt>Support &amp; Schulung</dt><dd>1.480&nbsp;€</dd>
+              </dl>
+            </div>
+          </details>
+          <details class="sect">
+            <summary>Sondervereinbarungen <span class="cnt">3</span><span class="chev">›</span></summary>
+            <div class="body">
+              <dl class="kv">
+                <dt>Berghoff Logistik</dt><dd>S1 · Preisbindung PROFESSIONAL · bis 28.02.2027</dd>
+                <dt>Weidmann &amp; Söhne</dt><dd>S2 · Zahlungsziel 60 Tage · bis 31.12.2026</dd>
+                <dt>TechnoPlan AG</dt><dd>S3 · kostenfreier 2. Mandant · unbefristet</dd>
+              </dl>
+            </div>
+          </details>
+          <details class="sect">
+            <summary>Partner-Provisionen <span class="chev">›</span></summary>
+            <div class="body">
+              <dl class="kv">
+                <dt>CSB</dt><dd>Tipp-Provision 15&nbsp;% · Q3 aufgelaufen: 1.240,50&nbsp;€ <span class="tag">wartet auf Provisionsrechnung</span></dd>
+                <dt>FineSolutions</dt><dd>MRR über Partner: 2.340&nbsp;€ (4 Endkunden)</dd>
+              </dl>
+            </div>
+          </details>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- Mahnungs-Modal -->
+<div class="overlay" id="mahnmodal" role="dialog" aria-modal="true" aria-labelledby="mahntitle">
+  <div class="modal">
+    <div class="mhead"><h2 id="mahntitle">Mahnung zu RE-2026-0142</h2><button class="xbtn" id="mahnclose" aria-label="Schließen">×</button></div>
+    <div class="mbody">
+      <div class="letter">
+        <div class="lhead"><span>rausoft GmbH · [Briefkopf]</span><span>07.08.2026</span></div>
+        <div>Berghoff Verwaltungs GmbH<br>Postfach 10 02 44<br>47002 Duisburg</div>
+        <h3>Zahlungserinnerung – Rechnung RE-2026-0142</h3>
+        <p>Sehr geehrte Damen und Herren,</p>
+        <p>zu unserer Rechnung RE-2026-0142 vom 01.07.2026 über <strong>890,00&nbsp;€</strong>, fällig am 15.07.2026, konnten wir bis heute keinen Zahlungseingang feststellen. Wir bitten um Ausgleich bis zum <strong>21.08.2026</strong>.</p>
+        <p>Sollte sich die Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie es bitte als gegenstandslos.</p>
+        <p>Mit freundlichen Grüßen<br>rausoft GmbH</p>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:12px 0 0">Erzeugt aus Rechnungsdaten + Textbaustein (Stufe 1) · gerendert mit Telerik Reporting · Versand meist manuell per Post.</p>
+    </div>
+    <div class="mfoot">
+      <button class="btn" id="mahnclose2">Abbrechen</button>
+      <button class="btn" disabled title="Im Mockup ohne Funktion">PDF herunterladen</button>
+      <button class="btn primary" id="mahnsent">Als versendet markieren</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  // ---------- Navigation ----------
+  var navbtns = document.querySelectorAll('.navbtn[data-view]');
+  function show(view){
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
+    navbtns.forEach(function(b){ b.classList.toggle('active', b.dataset.view === view); });
+  }
+  navbtns.forEach(function(b){ b.addEventListener('click', function(){ show(b.dataset.view); }); });
+  document.querySelectorAll('[data-goto]').forEach(function(b){
+    b.addEventListener('click', function(){ show(b.dataset.goto); });
+  });
+
+  // ---------- Toast ----------
+  var toastEl = document.getElementById('toast'), toastTimer;
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 4200);
+  }
+
+  // ---------- Timeline-Filter ----------
+  var chips = document.querySelectorAll('#tlchips .chip');
+  chips.forEach(function(c){
+    c.addEventListener('click', function(){
+      chips.forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on');
+      var f = c.dataset.f;
+      document.querySelectorAll('#timeline li').forEach(function(li){
+        li.classList.toggle('hidden', f !== 'alle' && li.dataset.type !== f);
+      });
+    });
+  });
+
+  // ---------- Aufgaben: Filter + Zeile wählt Detail ----------
+  var achips = document.querySelectorAll('#aufgchips .chip');
+  achips.forEach(function(c){
+    c.addEventListener('click', function(){
+      achips.forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on');
+      var f = c.dataset.f;
+      document.querySelectorAll('#aufgtable tbody tr').forEach(function(tr){
+        tr.style.display = (f === 'alle' || (tr.dataset.who || '').split(' ').indexOf(f) !== -1) ? '' : 'none';
+      });
+    });
+  });
+  var rows = document.querySelectorAll('#aufgtable tbody tr.pick');
+  rows.forEach(function(tr){
+    tr.addEventListener('click', function(){
+      rows.forEach(function(x){ x.classList.remove('sel'); });
+      tr.classList.add('sel');
+      var d = tr.dataset.detail;
+      document.getElementById('detail-rr').style.display = d === 'rr' ? '' : 'none';
+      document.getElementById('detail-ks').style.display = d === 'ks' ? '' : 'none';
+      if(!d) toast('Detail im Mockup nur für die ersten beiden Aufgaben ausgearbeitet.');
+    });
+  });
+
+  // ---------- Aufgabe: Übernahme, Wiedervorlage, Verlauf ----------
+  function deDate(iso){ var p = iso.split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
+  function rrlog(text){
+    var li = document.createElement('li');
+    li.className = 'sys'; li.textContent = text;
+    document.getElementById('rrcomments').appendChild(li);
+  }
+  document.getElementById('uebernehmen').addEventListener('click', function(){
+    document.getElementById('rrassign').innerHTML = 'M. Pätzold';
+    var d = document.getElementById('rrdetailassign');
+    d.textContent = 'Zugewiesen: M. Pätzold'; d.className = 'tag';
+    var st = document.getElementById('rrstatus');
+    st.textContent = 'in Arbeit';
+    this.style.display = 'none';
+    rrlog('Aus dem Pool übernommen von M. Pätzold · Bereich Vertrieb · 07.08.2026');
+    toast('Aufgabe übernommen – sie liegt jetzt bei dir.');
+  });
+  document.getElementById('wvbtn').addEventListener('click', function(){
+    var d = deDate(document.getElementById('wvdate').value);
+    document.getElementById('rrstatus').textContent = 'zurückgestellt bis ' + d;
+    rrlog('Zurückgestellt bis ' + d + ' (Wiedervorlage) · M. Pätzold');
+    toast('Zurückgestellt – am ' + d + ' taucht die Aufgabe automatisch wieder als offen auf.');
+  });
+  document.getElementById('rrsend').addEventListener('click', function(){
+    var inp = document.getElementById('rrinput');
+    if(!inp.value.trim()) return;
+    var li = document.createElement('li');
+    li.innerHTML = '<span class="who">M. Pätzold</span><span class="when">07.08.2026</span><br>';
+    li.appendChild(document.createTextNode(inp.value));
+    document.getElementById('rrcomments').appendChild(li);
+    inp.value = '';
+    toast('Verlaufseintrag gespeichert – auch in der Kunden-Timeline von Nordbau sichtbar.');
+  });
+  document.getElementById('aufgstatus').addEventListener('change', function(){
+    toast('Status aktualisiert: ' + this.value + ' – D. Stauch wird benachrichtigt.');
+  });
+
+  // ---------- Verträge: Filter ----------
+  var vchips = document.querySelectorAll('#vfchips .chip');
+  vchips.forEach(function(c){
+    c.addEventListener('click', function(){
+      vchips.forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on');
+      var f = c.dataset.f;
+      document.querySelectorAll('#vlist > li').forEach(function(li){
+        li.style.display = (f === 'alle' || (li.dataset.tags || '').split(' ').indexOf(f) !== -1) ? '' : 'none';
+      });
+    });
+  });
+
+  // ---------- Rechnungen: Segmente + Mahnung + Bank-Zuordnung ----------
+  var seg = document.querySelectorAll('#reseg button');
+  seg.forEach(function(b){
+    b.addEventListener('click', function(){
+      seg.forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      document.getElementById('pane-op').style.display = b.dataset.pane === 'op' ? '' : 'none';
+      document.getElementById('pane-bank').style.display = b.dataset.pane === 'bank' ? '' : 'none';
+    });
+  });
+  var modal = document.getElementById('mahnmodal');
+  function close(){ modal.classList.remove('open'); }
+  document.getElementById('mahnbtn').addEventListener('click', function(){ modal.classList.add('open'); });
+  document.getElementById('mahnclose').addEventListener('click', close);
+  document.getElementById('mahnclose2').addEventListener('click', close);
+  modal.addEventListener('click', function(e){ if(e.target === modal) close(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') close(); });
+  document.getElementById('mahnsent').addEventListener('click', function(){
+    var st = document.querySelector('#op-142 .opstatus');
+    st.innerHTML = '<span class="st warn">gemahnt am 07.08.2026</span>';
+    var btn = document.getElementById('mahnbtn');
+    btn.disabled = true; btn.textContent = 'Mahnstufe 1 aktiv'; btn.style.opacity = .55;
+    close();
+  });
+  document.getElementById('zuordnen').addEventListener('click', function(){
+    var st = document.querySelector('#op-142 .opstatus');
+    st.innerHTML = '<span class="st good">bezahlt am 06.08.2026</span>';
+    var cell = document.querySelector('#op-142 td:last-child'); if(cell) cell.innerHTML = '';
+    var row = document.getElementById('match-142');
+    row.cells[3].innerHTML = '<span class="st good">zugeordnet: RE-2026-0142</span>';
+    row.cells[4].innerHTML = '';
+  });
+
+  // ---------- MRR-Chart ----------
+  var months = ['Sep 25','Okt 25','Nov 25','Dez 25','Jan 26','Feb 26','Mrz 26','Apr 26','Mai 26','Jun 26','Jul 26','Aug 26'];
+  var vals   = [21400, 21900, 22050, 22600, 22800, 23100, 23480, 23700, 23980, 24050, 23870, 24680];
+  var svg = document.getElementById('mrrchart');
+  var NS = 'http://www.w3.org/2000/svg';
+  var W = 720, H = 250, padL = 52, padR = 14, padT = 16, padB = 30;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  var maxV = 26000;
+  function el(n, attrs){ var e = document.createElementNS(NS, n); for(var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function render(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    [0, 6500, 13000, 19500, 26000].forEach(function(v){
+      var y = padT + plotH - (v/maxV)*plotH;
+      svg.appendChild(el('line', {x1:padL, x2:W-padR, y1:y, y2:y, stroke:css('--chart-grid'), 'stroke-width':1}));
+      var t = el('text', {x:padL-8, y:y+4, 'text-anchor':'end', 'font-size':11, fill:css('--muted')});
+      t.textContent = v === 0 ? '0' : (v/1000).toLocaleString('de-DE') + ' k';
+      svg.appendChild(t);
+    });
+    var n = vals.length, slot = plotW/n, barW = 30;
+    vals.forEach(function(v, i){
+      var x = padL + slot*i + (slot-barW)/2;
+      var h = (v/maxV)*plotH, y = padT + plotH - h;
+      var last = i === n-1;
+      var bar = el('rect', {x:x, y:y, width:barW, height:h, rx:4,
+        fill: last ? css('--accent-strong') : css('--accent'), opacity: last ? 1 : .6});
+      bar.dataset.i = i;
+      svg.appendChild(bar);
+      if(i % 2 === 1 || last){
+        var t = el('text', {x:x+barW/2, y:H-10, 'text-anchor':'middle', 'font-size':11, fill:css('--muted')});
+        t.textContent = months[i]; svg.appendChild(t);
+      }
+      if(last){
+        var lbl = el('text', {x:x+barW/2, y:y-8, 'text-anchor':'middle', 'font-size':12, 'font-weight':650, fill:css('--ink')});
+        lbl.textContent = v.toLocaleString('de-DE') + ' €';
+        svg.appendChild(lbl);
+      }
+    });
+    svg.appendChild(el('line', {x1:padL, x2:W-padR, y1:padT+plotH, y2:padT+plotH, stroke:css('--border-strong'), 'stroke-width':1}));
+  }
+  render();
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  if(mq.addEventListener) mq.addEventListener('change', render);
+  new MutationObserver(render).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+
+  var tip = document.getElementById('mrrtip');
+  svg.addEventListener('mousemove', function(e){
+    var t = e.target;
+    if(t.tagName === 'rect' && t.dataset.i !== undefined){
+      var i = +t.dataset.i;
+      tip.textContent = months[i] + ' · ' + vals[i].toLocaleString('de-DE') + ' €';
+      var wrap = svg.parentElement.getBoundingClientRect();
+      var r = t.getBoundingClientRect();
+      tip.style.left = (r.left - wrap.left + r.width/2) + 'px';
+      tip.style.top  = (r.top - wrap.top) + 'px';
+      tip.style.opacity = 1;
+    } else { tip.style.opacity = 0; }
+  });
+  svg.addEventListener('mouseleave', function(){ tip.style.opacity = 0; });
+})();
+</script>

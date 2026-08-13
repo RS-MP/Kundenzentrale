@@ -1,0 +1,293 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Rausoft.Erp.Domain.Contracts;
+using Rausoft.Erp.Domain.Customers;
+using Rausoft.Erp.Domain.Shared;
+
+namespace Rausoft.Erp.Data;
+
+public class ErpDbContext(
+    DbContextOptions<ErpDbContext> options,
+    IAktuellerBenutzer? aktuellerBenutzer = null) : DbContext(options)
+{
+    private bool _mitarbeiterIdErmittelt;
+    private int? _mitarbeiterId;
+
+    // Querschnitt
+    public DbSet<Mitarbeiter> Mitarbeiter => Set<Mitarbeiter>();
+    public DbSet<Bereich> Bereiche => Set<Bereich>();
+    public DbSet<Nummernkreis> Nummernkreise => Set<Nummernkreis>();
+    public DbSet<Aktivitaet> Aktivitaeten => Set<Aktivitaet>();
+    public DbSet<AuditLogEintrag> AuditLog => Set<AuditLogEintrag>();
+
+    // Kontakte
+    public DbSet<Kunde> Kunden => Set<Kunde>();
+    public DbSet<Partner> Partner => Set<Partner>();
+    public DbSet<Ansprechpartner> Ansprechpartner => Set<Ansprechpartner>();
+    public DbSet<Adresse> Adressen => Set<Adresse>();
+
+    // Verträge
+    public DbSet<Vertrag> Vertraege => Set<Vertrag>();
+    public DbSet<Vertragsbestandteil> Vertragsbestandteile => Set<Vertragsbestandteil>();
+    public DbSet<Vertragsdokument> Vertragsdokumente => Set<Vertragsdokument>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Konservativer Default; längere Felder werden gezielt konfiguriert.
+        configurationBuilder.Properties<string>().HaveMaxLength(200);
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // --- Querschnitt -----------------------------------------------------
+        modelBuilder.Entity<Mitarbeiter>(e =>
+        {
+            e.HasIndex(m => m.EntraObjectId).IsUnique();
+            e.HasIndex(m => m.Email).IsUnique();
+            e.Property(m => m.Anzeigename).HasMaxLength(100);
+            e.HasOne(m => m.Bereich).WithMany().OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Bereich>(e =>
+        {
+            e.HasIndex(b => b.Name).IsUnique();
+            e.Property(b => b.Name).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<Nummernkreis>(e =>
+        {
+            e.HasIndex(n => n.Schluessel).IsUnique();
+            e.Property(n => n.Schluessel).HasMaxLength(50);
+            e.Property(n => n.Praefix).HasMaxLength(10);
+            e.Property(n => n.Format).HasMaxLength(20);
+            e.Property(n => n.RowVersion).IsRowVersion();
+        });
+
+        modelBuilder.Entity<Aktivitaet>(e =>
+        {
+            e.HasIndex(a => new { a.KundeId, a.Zeitpunkt }).IsDescending(false, true);
+            e.Property(a => a.Betreff).HasMaxLength(300);
+            e.Property(a => a.Inhalt).HasColumnType("nvarchar(max)");
+            e.HasOne(a => a.Kunde).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.Mitarbeiter).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.Ansprechpartner).WithMany().OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuditLogEintrag>(e =>
+        {
+            e.HasIndex(a => new { a.Entitaet, a.EntitaetId });
+            e.Property(a => a.Entitaet).HasMaxLength(100);
+            e.Property(a => a.AenderungenJson).HasColumnType("nvarchar(max)");
+        });
+
+        // --- Kontakte --------------------------------------------------------
+        modelBuilder.Entity<Kunde>(e =>
+        {
+            e.HasIndex(k => k.Kundennummer).IsUnique();
+            e.HasIndex(k => k.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+            e.Property(k => k.Kundennummer).HasMaxLength(20);
+            e.Property(k => k.Notiz).HasColumnType("nvarchar(max)");
+            e.Property(k => k.RowVersion).IsRowVersion();
+            e.HasOne(k => k.VermitteltDurchPartner).WithMany()
+                .HasForeignKey(k => k.VermitteltDurchPartnerId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(k => k.RechnungsempfaengerPartner).WithMany()
+                .HasForeignKey(k => k.RechnungsempfaengerPartnerId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(k => k.Ansprechpartner).WithOne(a => a.Kunde!)
+                .HasForeignKey(a => a.KundeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(k => k.Adressen).WithOne(a => a.Kunde!)
+                .HasForeignKey(a => a.KundeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Partner>(e =>
+        {
+            e.HasIndex(p => p.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+            e.Property(p => p.Land).HasMaxLength(2).IsFixedLength();
+            e.Property(p => p.ProvisionProzent).HasPrecision(5, 2);
+            e.Property(p => p.RowVersion).IsRowVersion();
+        });
+
+        modelBuilder.Entity<Ansprechpartner>(e =>
+        {
+            e.HasIndex(a => a.Email);
+            e.Property(a => a.Titel).HasMaxLength(50);
+            e.Property(a => a.Vorname).HasMaxLength(100);
+            e.Property(a => a.Nachname).HasMaxLength(100);
+            e.Property(a => a.TelefonFestnetz).HasMaxLength(50);
+            e.Property(a => a.TelefonMobil).HasMaxLength(50);
+            e.Property(a => a.Notiz).HasColumnType("nvarchar(max)");
+            e.Property(a => a.RowVersion).IsRowVersion();
+        });
+
+        modelBuilder.Entity<Adresse>(e =>
+        {
+            e.Property(a => a.Plz).HasMaxLength(10);
+            e.Property(a => a.Land).HasMaxLength(2).IsFixedLength();
+        });
+
+        // --- Verträge --------------------------------------------------------
+        modelBuilder.Entity<Vertrag>(e =>
+        {
+            e.HasIndex(v => v.Vertragsnummer).IsUnique();
+            e.HasIndex(v => v.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+            e.Property(v => v.Vertragsnummer).HasMaxLength(20);
+            e.Property(v => v.Notiz).HasColumnType("nvarchar(max)");
+            e.Property(v => v.RowVersion).IsRowVersion();
+            e.HasOne(v => v.Kunde).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(v => v.Bestandteile).WithOne(b => b.Vertrag!)
+                .HasForeignKey(b => b.VertragId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Vertragsbestandteil>(e =>
+        {
+            e.Property(b => b.Titel).HasMaxLength(200);
+            e.Property(b => b.Beschreibung).HasColumnType("nvarchar(max)");
+            // Bestandteile mit Dokumenten sind nicht löschbar (Unveränderlichkeit).
+            e.HasMany(b => b.Dokumente).WithOne(d => d.Vertragsbestandteil!)
+                .HasForeignKey(d => d.VertragsbestandteilId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Vertragsdokument>(e =>
+        {
+            e.HasIndex(d => new { d.VertragsbestandteilId, d.Version }).IsUnique();
+            e.Property(d => d.Dateipfad).HasMaxLength(500);
+            e.Property(d => d.DateinameOriginal).HasMaxLength(260);
+            e.Property(d => d.Sha256).HasMaxLength(64).IsFixedLength();
+            e.HasOne(d => d.ErstelltVon).WithMany()
+                .HasForeignKey(d => d.ErstelltVonId).OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        PruefeDokumentUnveraenderlichkeit();
+        var geplant = SammleAuditEintraege();
+        var result = base.SaveChanges(acceptAllChangesOnSuccess);
+        if (geplant.Count > 0)
+        {
+            FinalisiereAuditEintraege(geplant);
+            base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+        return result;
+    }
+
+    public override async Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        PruefeDokumentUnveraenderlichkeit();
+        var geplant = SammleAuditEintraege();
+        var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        if (geplant.Count > 0)
+        {
+            FinalisiereAuditEintraege(geplant);
+            await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Leitplanke „Dokumente unveränderlich versionieren": Vertragsdokumente
+    /// dürfen nur eingefügt, nie geändert oder gelöscht werden.
+    /// </summary>
+    private void PruefeDokumentUnveraenderlichkeit()
+    {
+        var verstoss = ChangeTracker.Entries<Vertragsdokument>()
+            .FirstOrDefault(e => e.State is EntityState.Modified or EntityState.Deleted);
+        if (verstoss is not null)
+            throw new InvalidOperationException(
+                "Vertragsdokumente sind unveränderlich — statt Ändern/Löschen eine neue Version anlegen.");
+    }
+
+    // Entitäten, die selbst Protokollcharakter haben, werden nicht auditiert.
+    private static readonly HashSet<Type> NichtAuditieren =
+        [typeof(AuditLogEintrag), typeof(Aktivitaet), typeof(Nummernkreis)];
+
+    private List<(EntityEntry Entry, AuditLogEintrag Eintrag)> SammleAuditEintraege()
+    {
+        var jetzt = DateTime.UtcNow;
+        var mitarbeiterId = ErmittleMitarbeiterId();
+        var liste = new List<(EntityEntry, AuditLogEintrag)>();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
+                continue;
+            if (NichtAuditieren.Contains(entry.Entity.GetType()))
+                continue;
+
+            var eintrag = new AuditLogEintrag
+            {
+                Zeitpunkt = jetzt,
+                MitarbeiterId = mitarbeiterId,
+                Entitaet = entry.Entity.GetType().Name,
+                Aktion = entry.State switch
+                {
+                    EntityState.Added => AuditAktion.Created,
+                    EntityState.Deleted => AuditAktion.Deleted,
+                    _ => AuditAktion.Updated,
+                },
+                AenderungenJson = SerialisiereAenderungen(entry),
+            };
+            liste.Add((entry, eintrag));
+        }
+
+        return liste;
+    }
+
+    private void FinalisiereAuditEintraege(List<(EntityEntry Entry, AuditLogEintrag Eintrag)> geplant)
+    {
+        foreach (var (entry, eintrag) in geplant)
+        {
+            // Bei Added steht die Id erst nach dem Speichern fest.
+            if (entry.Metadata.FindProperty("Id") is not null &&
+                entry.Property("Id").CurrentValue is int id)
+            {
+                eintrag.EntitaetId = id;
+            }
+            AuditLog.Add(eintrag);
+        }
+    }
+
+    private static string? SerialisiereAenderungen(EntityEntry entry)
+    {
+        var aenderungen = new Dictionary<string, object?>();
+
+        foreach (var prop in entry.Properties)
+        {
+            if (prop.Metadata.Name == "RowVersion")
+                continue;
+
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    aenderungen[prop.Metadata.Name] = new { neu = prop.CurrentValue };
+                    break;
+                case EntityState.Deleted:
+                    aenderungen[prop.Metadata.Name] = new { alt = prop.OriginalValue };
+                    break;
+                case EntityState.Modified when prop.IsModified &&
+                        !Equals(prop.OriginalValue, prop.CurrentValue):
+                    aenderungen[prop.Metadata.Name] = new { alt = prop.OriginalValue, neu = prop.CurrentValue };
+                    break;
+            }
+        }
+
+        return aenderungen.Count == 0 ? null : JsonSerializer.Serialize(aenderungen);
+    }
+
+    private int? ErmittleMitarbeiterId()
+    {
+        if (_mitarbeiterIdErmittelt)
+            return _mitarbeiterId;
+
+        _mitarbeiterIdErmittelt = true;
+        if (aktuellerBenutzer?.EntraObjectId is Guid oid)
+        {
+            _mitarbeiterId = Mitarbeiter
+                .Where(m => m.EntraObjectId == oid)
+                .Select(m => (int?)m.Id)
+                .FirstOrDefault();
+        }
+        return _mitarbeiterId;
+    }
+}

@@ -1,0 +1,1635 @@
+<title>Kundenzentrale – Mockup (Odoo-Ablösung)</title>
+<style>
+  :root{
+    --bg:#F4F6F8; --surface:#FFFFFF; --surface2:#ECF0F3; --border:#D9E0E6; --border-strong:#C3CDD6;
+    --ink:#182430; --ink2:#46586A; --muted:#7C8B99;
+    --accent:#0E6E7E; --accent-strong:#0A5561; --accent-soft:#DDEEF1; --accent-line:#B5D9DF;
+    --good:#1E7B45; --good-bg:#E2F2E8; --warn:#8F6400; --warn-bg:#FAF0D7; --crit:#B3372E; --crit-bg:#FBE7E4;
+    --shadow:0 1px 2px rgba(24,36,48,.06),0 4px 14px rgba(24,36,48,.05);
+    --chart-grid:#E3E9EE;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#10161C; --surface:#161F27; --surface2:#1E2932; --border:#2A3846; --border-strong:#3A4B5B;
+      --ink:#E4EDF3; --ink2:#A7B7C4; --muted:#71818F;
+      --accent:#4FB3C1; --accent-strong:#7ECBD6; --accent-soft:#12333B; --accent-line:#1E4B55;
+      --good:#54C48D; --good-bg:#132A1E; --warn:#E0B458; --warn-bg:#2C2312; --crit:#E8776E; --crit-bg:#341B18;
+      --shadow:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.25);
+      --chart-grid:#243240;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10161C; --surface:#161F27; --surface2:#1E2932; --border:#2A3846; --border-strong:#3A4B5B;
+    --ink:#E4EDF3; --ink2:#A7B7C4; --muted:#71818F;
+    --accent:#4FB3C1; --accent-strong:#7ECBD6; --accent-soft:#12333B; --accent-line:#1E4B55;
+    --good:#54C48D; --good-bg:#132A1E; --warn:#E0B458; --warn-bg:#2C2312; --crit:#E8776E; --crit-bg:#341B18;
+    --shadow:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.25);
+    --chart-grid:#243240;
+  }
+  :root[data-theme="light"]{
+    --bg:#F4F6F8; --surface:#FFFFFF; --surface2:#ECF0F3; --border:#D9E0E6; --border-strong:#C3CDD6;
+    --ink:#182430; --ink2:#46586A; --muted:#7C8B99;
+    --accent:#0E6E7E; --accent-strong:#0A5561; --accent-soft:#DDEEF1; --accent-line:#B5D9DF;
+    --good:#1E7B45; --good-bg:#E2F2E8; --warn:#8F6400; --warn-bg:#FAF0D7; --crit:#B3372E; --crit-bg:#FBE7E4;
+    --shadow:0 1px 2px rgba(24,36,48,.06),0 4px 14px rgba(24,36,48,.05);
+    --chart-grid:#E3E9EE;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.5 "Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+  }
+  button{font:inherit; color:inherit; cursor:pointer}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+
+  .app{display:flex; min-height:100vh}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:232px; flex:0 0 auto; background:var(--surface); border-right:1px solid var(--border);
+    padding:20px 12px; display:flex; flex-direction:column; gap:2px; position:sticky; top:0; height:100vh;
+  }
+  .brand{padding:0 10px 14px; border-bottom:1px solid var(--border); margin-bottom:12px}
+  .brand .co{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+  .brand .name{font-size:17px; font-weight:650; letter-spacing:-.01em}
+  .brand .sub{font-size:11.5px; color:var(--muted)}
+  .navbtn{
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    background:none; border:0; border-radius:7px; padding:8px 10px; color:var(--ink2);
+  }
+  .navbtn:hover{background:var(--surface2)}
+  .navbtn.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600}
+  .navbtn:disabled{opacity:.45; cursor:not-allowed}
+  .navbtn .grow{flex:1}
+  .phase{
+    font-size:10px; font-weight:600; letter-spacing:.06em; color:var(--muted);
+    border:1px solid var(--border-strong); border-radius:99px; padding:1px 7px; white-space:nowrap;
+  }
+  .navbtn.active .phase{color:var(--accent-strong); border-color:var(--accent-line)}
+  .sidefoot{margin-top:auto; padding:10px; font-size:11.5px; color:var(--muted); border-top:1px solid var(--border)}
+
+  /* ---------- Main ---------- */
+  .main{flex:1; min-width:0; display:flex; flex-direction:column}
+  .topbar{
+    display:flex; align-items:center; gap:14px; padding:12px 26px;
+    border-bottom:1px solid var(--border); background:var(--surface);
+  }
+  .search{
+    flex:0 1 340px; background:var(--surface2); border:1px solid var(--border); border-radius:7px;
+    padding:6px 12px; color:var(--muted); font-size:13px;
+  }
+  .mocktag{
+    margin-left:auto; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--warn); background:var(--warn-bg); border-radius:99px; padding:3px 10px;
+  }
+  .content{padding:24px 26px 48px; max-width:1180px; width:100%}
+  .view{display:none}
+  .view.active{display:block}
+
+  h1{font-size:21px; font-weight:650; letter-spacing:-.015em; margin:0 0 4px; text-wrap:balance}
+  h2{font-size:15px; font-weight:650; margin:0}
+  .pagehead{margin-bottom:20px}
+  .pagehead p{margin:2px 0 0; color:var(--ink2); max-width:68ch}
+
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    box-shadow:var(--shadow); padding:16px 18px;
+  }
+  .cardhead{display:flex; align-items:baseline; gap:10px; margin-bottom:12px}
+  .cardhead .hint{font-size:12px; color:var(--muted); margin-left:auto}
+
+  .grid{display:grid; gap:16px}
+  .cols-2-1{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+  .cols-1-2{grid-template-columns:minmax(0,1fr) minmax(0,2fr)}
+  @media (max-width:960px){ .cols-2-1,.cols-1-2{grid-template-columns:1fr} .sidebar{display:none} }
+
+  /* pills & badges */
+  .pill{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; border-radius:99px; padding:2px 10px}
+  .pill.good{color:var(--good); background:var(--good-bg)}
+  .pill.warn{color:var(--warn); background:var(--warn-bg)}
+  .pill.crit{color:var(--crit); background:var(--crit-bg)}
+  .pill.neutral{color:var(--ink2); background:var(--surface2)}
+  .pill.accent{color:var(--accent-strong); background:var(--accent-soft)}
+
+  .btn{
+    border:1px solid var(--border-strong); background:var(--surface); border-radius:7px;
+    padding:6px 13px; font-weight:600; font-size:13px;
+  }
+  .btn:hover{background:var(--surface2)}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  :root[data-theme="dark"] .btn.primary, .dark-btn-ink{color:#0B1418}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .btn.primary{color:#0B1418} }
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn.small{padding:3px 10px; font-size:12px}
+
+  /* tables */
+  table{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums}
+  th{font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); text-align:left; font-weight:600; padding:6px 10px; border-bottom:1px solid var(--border)}
+  td{padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  td.num, th.num{text-align:right}
+  .tablewrap{overflow-x:auto}
+  tbody tr:hover td{background:var(--surface2)}
+
+  /* KPI tiles */
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:16px}
+  .kpi{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; box-shadow:var(--shadow)}
+  .kpi .label{font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); font-weight:600}
+  .kpi .value{font-size:24px; font-weight:650; letter-spacing:-.02em; margin-top:2px; font-variant-numeric:tabular-nums}
+  .kpi .delta{font-size:12px; margin-top:2px}
+  .kpi .delta.up{color:var(--good)} .kpi .delta.warnc{color:var(--warn)} .kpi .delta.critc{color:var(--crit)}
+
+  /* chart */
+  .chartwrap{position:relative}
+  .tooltip{
+    position:absolute; pointer-events:none; background:var(--ink); color:var(--bg);
+    font-size:12px; border-radius:6px; padding:5px 9px; transform:translate(-50%,-115%);
+    white-space:nowrap; opacity:0; transition:opacity .1s; font-variant-numeric:tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce){ .tooltip{transition:none} }
+
+  /* bar rows (top products) */
+  .barrow{height:8px; border-radius:4px; background:var(--accent); min-width:3px}
+  .barrow.dim{opacity:.55}
+  .bartrack{background:var(--surface2); border-radius:4px; height:8px; width:100%}
+
+  /* timeline */
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px}
+  .chip{
+    border:1px solid var(--border-strong); background:var(--surface); border-radius:99px;
+    padding:3px 12px; font-size:12.5px; color:var(--ink2);
+  }
+  .chip:hover{background:var(--surface2)}
+  .chip.on{background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent-strong); font-weight:600}
+  .tl{list-style:none; margin:0; padding:0; position:relative}
+  .tl::before{content:""; position:absolute; left:7px; top:6px; bottom:6px; width:2px; background:var(--border)}
+  .tl li{position:relative; padding:0 0 16px 30px}
+  .tl li:last-child{padding-bottom:0}
+  .tl .dot{position:absolute; left:1px; top:5px; width:14px; height:14px; border-radius:50%; border:3px solid var(--surface); background:var(--accent)}
+  .tl li[data-type="ticket"] .dot{background:var(--warn)}
+  .tl li[data-type="rechnung"] .dot{background:var(--good)}
+  .tl li[data-type="vertrag"] .dot{background:var(--accent-strong)}
+  .tl li[data-type="email"] .dot{background:var(--muted)}
+  .tl li[data-type="anruf"] .dot{background:var(--ink2)}
+  .tl .meta{font-size:12px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap}
+  .tl .meta .typ{font-weight:600; text-transform:uppercase; letter-spacing:.06em; font-size:10.5px; color:var(--ink2)}
+  .tl .meta .pair{color:var(--ink2); font-weight:600}
+  .tl .txt{margin-top:1px}
+  .tl li.hidden{display:none}
+
+  /* definition rows */
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:3px 14px; font-size:13px}
+  .kv dt{color:var(--muted); margin:0}
+  .kv dd{margin:0}
+
+  .stack{display:flex; flex-direction:column; gap:16px}
+  .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .divider{border:0; border-top:1px solid var(--border); margin:12px 0}
+  .filechip{
+    display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border);
+    background:var(--surface2); border-radius:6px; padding:3px 9px; font-size:12px; color:var(--ink2);
+  }
+  .note{
+    font-size:12.5px; color:var(--ink2); background:var(--surface2); border:1px solid var(--border);
+    border-radius:8px; padding:9px 12px;
+  }
+
+  /* CRM pipeline */
+  .pipe{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
+  @media (max-width:960px){ .pipe{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .pipecol{background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px}
+  .pipecol h3{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+    margin:0 0 8px; font-weight:600; display:flex; gap:6px;
+  }
+  .pipecol h3 .cnt{margin-left:auto; color:var(--ink2)}
+  .lead{background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:9px 11px; box-shadow:var(--shadow); margin-bottom:8px}
+  .lead:last-child{margin-bottom:0}
+  .lead .lsub{font-size:12px; color:var(--muted); margin-top:2px}
+  .lead .lval{font-size:12.5px; font-weight:600; margin-top:4px; font-variant-numeric:tabular-nums}
+  .checkline{flex-direction:row; align-items:center; gap:8px; font-size:13px; color:var(--ink)}
+  .checkline input{width:auto}
+  .checkline .price{margin-left:auto; color:var(--ink2); font-variant-numeric:tabular-nums}
+
+  /* contract list */
+  .clist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+  .clist button{
+    width:100%; text-align:left; background:var(--surface); border:1px solid var(--border);
+    border-radius:9px; padding:11px 13px;
+  }
+  .clist button:hover{background:var(--surface2)}
+  .clist button.sel{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset}
+  .clist .cnr{font-size:12px; color:var(--muted)}
+
+  /* version list */
+  .vlist{list-style:none; margin:0; padding:0}
+  .vlist li{display:flex; gap:12px; align-items:center; padding:9px 2px; border-bottom:1px solid var(--border); flex-wrap:wrap}
+  .vlist li:last-child{border-bottom:0}
+  .vlist .vtag{font-weight:650; min-width:74px}
+
+  /* modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(10,18,24,.45); display:none;
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .overlay.open{display:flex}
+  .modal{background:var(--surface); border-radius:12px; max-width:640px; width:100%; max-height:88vh; overflow:auto; box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  .modal .mhead{display:flex; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border)}
+  .modal .mbody{padding:18px}
+  .modal .mfoot{display:flex; gap:10px; justify-content:flex-end; padding:14px 18px; border-top:1px solid var(--border)}
+  .letter{
+    border:1px solid var(--border-strong); border-radius:6px; background:var(--surface);
+    padding:26px 30px; font-size:13px; line-height:1.65; max-width:60ch;
+  }
+  .letter .lhead{display:flex; justify-content:space-between; color:var(--muted); font-size:12px; margin-bottom:18px}
+  .letter h3{font-size:15px; margin:14px 0 8px}
+  .xbtn{margin-left:auto; background:none; border:0; font-size:18px; color:var(--muted); padding:2px 8px}
+
+  /* click-to-dial */
+  .tel{
+    background:none; border:0; padding:0; color:var(--accent-strong); font-weight:600;
+    text-decoration:underline; text-decoration-color:var(--accent-line); text-underline-offset:3px;
+    font-variant-numeric:tabular-nums;
+  }
+  .tel:hover{color:var(--accent)}
+
+  /* form fields */
+  .inp{width:100%; background:var(--surface); border:1px solid var(--border-strong); border-radius:7px; padding:7px 10px; color:var(--ink); font:inherit}
+  .field{display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--ink2)}
+  .formgrid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .formgrid .wide{grid-column:1 / -1}
+
+  /* task comments */
+  .comments{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px}
+  .comments li{background:var(--surface2); border-radius:8px; padding:9px 13px}
+  .comments .who{font-weight:600; font-size:12.5px}
+  .comments .when{color:var(--muted); font-size:11.5px; margin-left:6px}
+  .comments li.sys{background:none; border-left:2px solid var(--border-strong); border-radius:0; padding:2px 11px; color:var(--muted); font-size:12px}
+
+  /* toast */
+  .toast{
+    position:fixed; right:22px; bottom:22px; z-index:60; background:var(--ink); color:var(--bg);
+    padding:10px 16px; border-radius:8px; font-size:13px; box-shadow:0 8px 30px rgba(0,0,0,.3);
+    opacity:0; transform:translateY(8px); transition:opacity .18s, transform .18s; pointer-events:none; max-width:420px;
+  }
+  .toast.show{opacity:1; transform:none}
+  @media (prefers-reduced-motion: reduce){ .toast{transition:none} }
+</style>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="co">rausoft GmbH</div>
+      <div class="name">Kundenzentrale</div>
+      <div class="sub">Arbeitstitel · .NET REST API + Blazor · SQL Server</div>
+    </div>
+    <button class="navbtn active" data-view="kunde"><span class="grow">Kundenakte</span><span class="phase">Phase 1–2</span></button>
+    <button class="navbtn" data-view="kontakte"><span class="grow">Kontakte</span><span class="phase">Phase 1</span></button>
+    <button class="navbtn" data-view="vertraege"><span class="grow">Verträge</span><span class="phase">Phase 1</span></button>
+    <button class="navbtn" data-view="aufgaben"><span class="grow">Aufgaben</span><span class="phase">Phase 2</span></button>
+    <button class="navbtn" data-view="rechnungen"><span class="grow">Rechnungen &amp; OP</span><span class="phase">Phase 4</span></button>
+    <button class="navbtn" data-view="email"><span class="grow">E-Mail</span><span class="phase">Basis</span></button>
+    <button class="navbtn" data-view="dashboard"><span class="grow">Auswertungen</span><span class="phase">Phase 4</span></button>
+    <button class="navbtn" data-view="crm"><span class="grow">Angebote &amp; CRM</span><span class="phase">Phase 3</span></button>
+    <button class="navbtn" data-view="tickets"><span class="grow">Tickets</span><span class="phase">Phase 3</span></button>
+    <div class="sidefoot">Buchhaltung bleibt bei DATEV.<br>Dieses System: Fakturierung,<br>Verträge, Kundenakte, CRM.</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search">Suche: Kunde, Vertrag, Rechnungsnr. …</div>
+      <span class="mocktag">Klickbares Mockup</span>
+    </div>
+
+    <div class="content">
+
+      <!-- ================= KUNDENAKTE ================= -->
+      <section class="view active" id="view-kunde">
+        <div class="pagehead">
+          <h1>Berghoff Logistik GmbH <span class="pill neutral">K-1042</span> <span class="pill accent">Bestandskunde</span> <span class="pill neutral">Shared Cloud</span> <span class="pill good">Direktkunde</span></h1>
+          <p>Verlauf links, Fakten rechts. Kommt ein Kunde über einen Partner, steht das sofort im Kopf – bei Helvetia Treuhand z. B. <span class="pill warn">Endkunde via FineSolutions · Rechnung an Partner</span> statt „Direktkunde“.</p>
+        </div>
+
+        <div class="grid cols-2-1">
+          <div class="card">
+            <div class="cardhead"><h2>Kommunikation &amp; Verlauf</h2><span class="hint">alle Bereiche, ein Strom</span></div>
+            <div class="chips" id="tlchips">
+              <button class="chip on" data-f="alle">Alle</button>
+              <button class="chip" data-f="email">E-Mails</button>
+              <button class="chip" data-f="anruf">Anrufe</button>
+              <button class="chip" data-f="ticket">Tickets</button>
+              <button class="chip" data-f="angebot">Angebote</button>
+              <button class="chip" data-f="vertrag">Verträge</button>
+              <button class="chip" data-f="rechnung">Rechnungen</button>
+            </div>
+            <ul class="tl" id="timeline">
+              <li data-type="rechnung"><span class="dot"></span>
+                <div class="meta"><span class="typ">Rechnung</span><span>01.08.2026</span><span class="pair">System&ensp;→&ensp;Einkauf (Rechnungsempfang)</span></div>
+                <div class="txt">RE-2026-0155 versendet (E-Mail, ZUGFeRD) – Kopie an DATEV Unternehmen Online ✓</div></li>
+              <li data-type="ticket"><span class="dot"></span>
+                <div class="meta"><span class="typ">Ticket</span><span>28.07.2026</span><span class="pair">S. Krause (Support)&ensp;↔&ensp;Herr Yilmaz (IT)</span></div>
+                <div class="txt">#4711 gelöst: API-Timeout bei Batchprüfung – Ursache Firewall-Regel beim Kunden</div></li>
+              <li data-type="angebot"><span class="dot"></span>
+                <div class="meta"><span class="typ">Angebot</span><span>21.07.2026</span><span class="pair">D. Stauch (Vertrieb)&ensp;→&ensp;Frau Berghoff (GF)</span></div>
+                <div class="txt">AN-2026-089 versendet: Treffermonitor-Erweiterung, 240 €/Monat</div></li>
+              <li data-type="anruf"><span class="dot"></span>
+                <div class="meta"><span class="typ">Anruf</span><span>21.07.2026</span><span class="pair">D. Stauch (Vertrieb)&ensp;↔&ensp;Frau Berghoff (GF)</span></div>
+                <div class="txt">Interesse am Treffermonitor, Angebot direkt zugesagt · 12 Min, ausgehend (CTI)</div></li>
+              <li data-type="vertrag"><span class="dot"></span>
+                <div class="meta"><span class="typ">Vertrag</span><span>03.06.2026</span><span class="pair">M. Pätzold&ensp;↔&ensp;Frau Berghoff (GF)</span></div>
+                <div class="txt">Nachtrag N2 zu V-2024-018 unterschrieben zurück: Suchvolumen +50.000/Jahr</div></li>
+              <li data-type="email"><span class="dot"></span>
+                <div class="meta"><span class="typ">E-Mail</span><span>19.05.2026</span><span class="pair">Einkauf (Rechnungsempfang)&ensp;→&ensp;M. Pätzold</span></div>
+                <div class="txt">Rückfrage zur Rechnung RE-2026-0142 – Kostenstelle soll künftig auf der Rechnung stehen</div></li>
+              <li data-type="ticket"><span class="dot"></span>
+                <div class="meta"><span class="typ">Ticket</span><span>02.04.2026</span><span class="pair">S. Krause (Support)&ensp;↔&ensp;Herr Yilmaz (IT)</span></div>
+                <div class="txt">#4650 gelöst: Frage zur Delta-Prüfung bei Bestandsdaten</div></li>
+              <li data-type="rechnung"><span class="dot"></span>
+                <div class="meta"><span class="typ">Rechnung</span><span>15.03.2026</span><span class="pair">System (Bank-Import)</span></div>
+                <div class="txt">RE-2026-0089 bezahlt – Zahlungseingang 890,00 €</div></li>
+            </ul>
+          </div>
+
+          <div class="stack">
+            <div class="card">
+              <div class="cardhead"><h2>Betrieb &amp; Lizenzen</h2></div>
+              <dl class="kv">
+                <dt>Betrieb</dt><dd><span class="pill accent">Shared Cloud</span> · eingerichtet 03/2024</dd>
+                <dt>Tier</dt><dd>PROFESSIONAL · 25.000 Stammdaten</dd>
+                <dt>Module</dt><dd>
+                  <span class="pill neutral">API-Schnittstelle</span>
+                  <span class="pill neutral">Treffermonitor</span>
+                  <span class="pill neutral">All-Listen-Bundle</span>
+                </dd>
+                <dt>Benutzer</dt><dd>5 Voll-Benutzer (3 im Tier inkl. + 2 zusätzlich)</dd>
+                <dt>Vertriebsweg</dt><dd><span class="pill good">Direktkunde</span> <span style="color:var(--muted);font-size:12px">· bei Partner-Kunden: „via FineSolutions“ / „Tipp CSB“</span></dd>
+              </dl>
+            </div>
+
+            <div class="card">
+              <div class="cardhead"><h2>Stammdaten</h2></div>
+              <dl class="kv">
+                <dt>Anschrift</dt><dd>Berghoff Logistik GmbH<br>Hafenstraße 12, 47119 Duisburg</dd>
+                <dt>Rechnung an</dt><dd>Berghoff Verwaltungs GmbH<br>Postfach 10 02 44, 47002 Duisburg<br><span class="pill warn">abweichende Rechnungsanschrift</span></dd>
+                <dt>USt-IdNr.</dt><dd>DE 214 987 653</dd>
+              </dl>
+              <hr class="divider">
+              <div class="cardhead"><h2>Ansprechpartner</h2></div>
+              <dl class="kv">
+                <dt>Frau Berghoff</dt><dd>Geschäftsführung · Vertrieb &amp; Vertrag</dd>
+                <dt>Herr Yilmaz</dt><dd>IT · Technik &amp; Tickets</dd>
+                <dt>Einkauf</dt><dd>einkauf@… · Rechnungsempfang</dd>
+              </dl>
+            </div>
+
+            <div class="card">
+              <div class="cardhead"><h2>Verträge &amp; Abos</h2></div>
+              <dl class="kv">
+                <dt>V-2024-018</dt><dd>ID.prove Stammdaten-Abo · <span class="pill good">aktiv</span><br>650 €/Monat, jährliche Abrechnung</dd>
+                <dt>V-2025-031</dt><dd>Treffermonitor · <span class="pill good">aktiv</span><br>240 €/Monat, monatliche Abrechnung</dd>
+              </dl>
+              <hr class="divider">
+              <div class="row"><span style="color:var(--muted);font-size:12.5px">MRR dieses Kunden</span><strong style="margin-left:auto;font-variant-numeric:tabular-nums">890,00 €</strong></div>
+            </div>
+
+            <div class="card">
+              <div class="cardhead"><h2>Offene Posten</h2></div>
+              <div class="row">
+                <div>RE-2026-0142 · 890,00 €</div>
+                <span class="pill crit" style="margin-left:auto">überfällig 23 Tage</span>
+              </div>
+              <div class="row" style="margin-top:8px">
+                <button class="btn small" data-goto="rechnungen">Zu Rechnungen &amp; OP</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= KONTAKTE ================= -->
+      <section class="view" id="view-kontakte">
+        <div class="pagehead">
+          <h1>Kontaktverwaltung</h1>
+          <p>Kunden anlegen, Ansprechpartner pflegen – und direkt aus der Akte telefonieren: Klick auf eine Nummer wählt über eure Telefonsoftware, das Gespräch wird als Anruf in die Timeline zurückgespielt.</p>
+        </div>
+
+        <div class="grid cols-1-2">
+          <div class="stack">
+            <div class="card">
+              <div class="row">
+                <div class="search" style="flex:1">Kunde oder Ansprechpartner suchen …</div>
+                <button class="btn primary" id="neukundebtn">+ Neuer Kunde</button>
+              </div>
+            </div>
+            <ul class="clist">
+              <li><button class="sel">
+                <div><strong>Berghoff Logistik GmbH</strong> <span class="pill accent">Bestandskunde</span></div>
+                <div class="cnr">K-1042 · Duisburg · 3 Ansprechpartner</div>
+              </button></li>
+              <li><button>
+                <div><strong>TechnoPlan AG</strong> <span class="pill accent">Bestandskunde</span></div>
+                <div class="cnr">K-1078 · Essen · 2 Ansprechpartner</div>
+              </button></li>
+              <li><button>
+                <div><strong>Weidmann &amp; Söhne KG</strong> <span class="pill accent">Bestandskunde</span></div>
+                <div class="cnr">K-0961 · Bochum · 4 Ansprechpartner</div>
+              </button></li>
+              <li><button>
+                <div><strong>Nordbau GmbH</strong> <span class="pill neutral">Lead · Schnellanalyse</span></div>
+                <div class="cnr">K-1103 · Kiel · 1 Ansprechpartner</div>
+              </button></li>
+              <li><button>
+                <div><strong>Helvetia Treuhand AG</strong> <span class="pill accent">Endkunde via FineSolutions</span></div>
+                <div class="cnr">K-1085 · Zürich · Rechnung an Partner · Shared Cloud eingerichtet 04/2026</div>
+              </button></li>
+            </ul>
+
+            <div class="card">
+              <div class="cardhead"><h2>Partner &amp; Reseller</h2><span class="hint">eigener Kontakttyp mit Provisionsmodell</span></div>
+              <dl class="kv">
+                <dt>CSB</dt><dd><span class="pill neutral">Tipp-Provision 15 %</span><br>Partner stellt uns die Provision in Rechnung; Endkunde bleibt Vertrags- und Rechnungspartner von rausoft.</dd>
+                <dt>FineSolutions</dt><dd><span class="pill neutral">Vertriebspartner Schweiz</span><br>Verkauft die Software, unsere Rechnung geht an FineSolutions. Endkunden werden trotzdem als Kunden geführt (Shared-Cloud-Einrichtung, Support, Timeline).</dd>
+              </dl>
+            </div>
+
+            <div class="note">CTI-Anbindung: Klick auf Nummer → Wählbefehl an die eigene Telefonsoftware. Nach Auflegen meldet sie Dauer und Richtung zurück; der Mitarbeiter ergänzt eine Gesprächsnotiz, der Eintrag erscheint automatisch in der Kunden-Timeline.</div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead"><h2>Berghoff Logistik GmbH</h2><span class="hint">K-1042 · angelegt 01.03.2024</span></div>
+            <dl class="kv">
+              <dt>Anschrift</dt><dd>Hafenstraße 12, 47119 Duisburg</dd>
+              <dt>Rechnung an</dt><dd>Berghoff Verwaltungs GmbH, Postfach 10 02 44, 47002 Duisburg</dd>
+              <dt>Zentrale</dt><dd><button class="tel" data-tel="0203 5544-0">0203 5544-0</button></dd>
+              <dt>Gruppe</dt><dd>Bestandskunde · Logistik</dd>
+            </dl>
+
+            <hr class="divider">
+            <div class="cardhead"><h2>Ansprechpartner</h2><span class="hint">Rollen steuern Rechnungs-, Vertrags- und Ticketzuordnung</span></div>
+            <ul class="vlist">
+              <li>
+                <div style="min-width:200px"><strong>Frau Katrin Berghoff</strong><br><span style="color:var(--muted);font-size:12px">Geschäftsführung · Vertrag &amp; Vertrieb · Briefanrede: „Sehr geehrte Frau Berghoff“</span></div>
+                <div style="font-size:13px">Tel <button class="tel" data-tel="0203 5544-10">0203 5544-10</button><br>Mobil <button class="tel" data-tel="0172 234 56 78">0172 234 56 78</button></div>
+                <div style="font-size:13px">k.berghoff@berghoff-logistik.de</div>
+                <button class="btn small apopen" style="margin-left:auto">Bearbeiten</button>
+              </li>
+              <li>
+                <div style="min-width:200px"><strong>Herr Murat Yilmaz</strong><br><span style="color:var(--muted);font-size:12px">IT-Leitung · Technik &amp; Tickets · Briefanrede: „Sehr geehrter Herr Yilmaz“</span></div>
+                <div style="font-size:13px">Tel <button class="tel" data-tel="0203 5544-31">0203 5544-31</button></div>
+                <div style="font-size:13px">m.yilmaz@berghoff-logistik.de</div>
+                <button class="btn small apopen" style="margin-left:auto">Bearbeiten</button>
+              </li>
+              <li>
+                <div style="min-width:200px"><strong>Einkauf (Sammelpostfach)</strong><br><span style="color:var(--muted);font-size:12px">Rechnungsempfang · ohne Anrede → „Sehr geehrte Damen und Herren“</span></div>
+                <div style="font-size:13px">Tel <button class="tel" data-tel="0203 5544-22">0203 5544-22</button></div>
+                <div style="font-size:13px">einkauf@berghoff-logistik.de</div>
+                <button class="btn small apopen" style="margin-left:auto">Bearbeiten</button>
+              </li>
+            </ul>
+            <div class="row" style="margin-top:12px">
+              <button class="btn apopen">+ Ansprechpartner</button>
+              <button class="btn" data-goto="kunde" style="margin-left:auto">Zur Kundenakte</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= VERTRÄGE ================= -->
+      <section class="view" id="view-vertraege">
+        <div class="pagehead">
+          <h1>Vertragsverwaltung</h1>
+          <p>Metadaten und Fristen in der Datenbank, die Dokumente unverändert im Ablageverzeichnis – jede Version, jeder Nachtrag, jeder Anhang bleibt nachvollziehbar.</p>
+        </div>
+
+        <div class="grid cols-1-2">
+          <div class="stack">
+            <div class="chips" id="vfchips">
+              <button class="chip on" data-f="alle">Alle</button>
+              <button class="chip" data-f="sonder">mit Sondervereinbarung</button>
+              <button class="chip" data-f="nda">mit NDA</button>
+              <button class="chip" data-f="partner">über Partner</button>
+            </div>
+            <ul class="clist" id="vlist">
+              <li data-tags="sonder"><button class="sel">
+                <div><strong>Lizenzvertrag PROFESSIONAL</strong> <span class="pill good">aktiv</span> <span class="pill warn">Sondervereinbarung</span></div>
+                <div class="cnr">V-2024-018 · Berghoff Logistik GmbH · inkl. AVV · 3 Versionen, 2 Nachträge</div>
+              </button></li>
+              <li data-tags=""><button>
+                <div><strong>Treffermonitor (Add-on)</strong> <span class="pill good">aktiv</span></div>
+                <div class="cnr">V-2025-031 · Berghoff Logistik GmbH · 1 Version</div>
+              </button></li>
+              <li data-tags="nda"><button>
+                <div><strong>PayPerSearch-Rahmenvertrag</strong> <span class="pill neutral">gekündigt zum 31.12.2026</span> <span class="pill neutral">NDA</span></div>
+                <div class="cnr">V-2023-044 · Weidmann &amp; Söhne KG · inkl. AVV + NDA · 2 Versionen, 1 Nachtrag</div>
+              </button></li>
+              <li data-tags="partner"><button>
+                <div><strong>Lizenzvertrag PROFESSIONAL</strong> <span class="pill good">aktiv</span> <span class="pill accent">via FineSolutions (CH)</span></div>
+                <div class="cnr">V-2026-007 · Helvetia Treuhand AG · Rechnung an Partner · inkl. AVV</div>
+              </button></li>
+            </ul>
+            <div class="note">Dateien bleiben im bestehenden lokalen Ablageverzeichnis. Das System speichert Pfad + SHA-256-Prüfsumme – stille Änderungen an abgelegten Dokumenten fallen sofort auf.</div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead">
+              <h2>V-2024-018 · Lizenzvertrag PROFESSIONAL</h2>
+              <span class="hint">Berghoff Logistik GmbH</span>
+            </div>
+            <dl class="kv">
+              <dt>Laufzeit</dt><dd>01.03.2024 – 28.02.2027, verlängert sich automatisch um 12 Monate</dd>
+              <dt>Kündigungsfrist</dt><dd>3 Monate zum Laufzeitende · <span class="pill warn">Erinnerung am 01.11.2026</span></dd>
+              <dt>Abrechnung</dt><dd>650 €/Monat, jährlich im Voraus → Abo A-2024-018</dd>
+              <dt>Bestandteile</dt><dd>
+                <span class="pill accent">Lizenzvertrag</span>
+                <span class="pill neutral">AVV</span>
+                <span class="pill warn">Sondervereinbarung S1</span>
+              </dd>
+              <dt>Sondervereinb.</dt><dd>S1: Preisbindung Tier PROFESSIONAL bis 28.02.2027 (kein Inflationsaufschlag) · <span style="color:var(--muted);font-size:12px">auswertbar über „mit Sondervereinbarung“</span></dd>
+            </dl>
+
+            <hr class="divider">
+            <div class="cardhead"><h2>Versionen</h2><span class="hint">unveränderlich, neue Version statt Überschreiben</span></div>
+            <ul class="vlist">
+              <li><span class="vtag">Version 3</span><span>03.06.2026 · Nachtrag N2 eingearbeitet (Suchvolumen +50.000)</span><span class="pill accent">aktuell</span><span class="filechip">V-2024-018_v3.pdf</span></li>
+              <li><span class="vtag">Version 2</span><span>15.01.2025 · Nachtrag N1 eingearbeitet (Preisanpassung)</span><span class="filechip">V-2024-018_v2.pdf</span></li>
+              <li><span class="vtag">Version 1</span><span>01.03.2024 · Erstunterzeichnung</span><span class="filechip">V-2024-018_v1.pdf</span></li>
+            </ul>
+
+            <hr class="divider">
+            <div class="cardhead"><h2>Nachträge, Anhänge &amp; Vereinbarungen</h2><span class="hint">jeder Bestandteil mit Typ – dadurch auswertbar</span></div>
+            <ul class="vlist">
+              <li><span class="vtag">Nachtrag N2</span><span>03.06.2026 · Suchvolumen +50.000/Jahr</span><span class="filechip">N2_signiert.pdf</span></li>
+              <li><span class="vtag">Nachtrag N1</span><span>15.01.2025 · Preisanpassung 2025</span><span class="filechip">N1_signiert.pdf</span></li>
+              <li><span class="vtag">Sondervereinb.</span><span>S1 · Preisbindung bis 28.02.2027</span><span class="pill warn">Sondervereinbarung</span><span class="filechip">S1_signiert.pdf</span></li>
+              <li><span class="vtag">AVV</span><span>Auftragsverarbeitungsvertrag</span><span class="filechip">AVV_2024.pdf</span></li>
+              <li><span class="vtag">Anhang</span><span>Service-Level-Vereinbarung</span><span class="filechip">SLA_2024.pdf</span></li>
+              <li><span class="vtag">Anhang</span><span>Preisblatt Stand 06/2026</span><span class="filechip">Preisblatt_2026-06.pdf</span></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= AUFGABEN ================= -->
+      <section class="view" id="view-aufgaben">
+        <div class="pagehead">
+          <h1>Aufgaben</h1>
+          <p>Aufgaben laufen an eine Person oder in den Pool eines Bereichs (Vertrieb, Support, Buchhaltung …) – wie im Service-Portal. Ein freier Mitarbeiter übernimmt aus dem Pool oder weist gezielt zu. Jeder Schritt („telefonisch nicht erreicht“) landet im Verlauf; Wiedervorlage und Zurückstellen bis Datum inklusive.</p>
+        </div>
+
+        <div class="chips" id="aufgchips">
+          <button class="chip on" data-f="alle">Alle</button>
+          <button class="chip" data-f="mir">Mir zugewiesen</button>
+          <button class="chip" data-f="von-mir">Von mir erstellt</button>
+          <button class="chip" data-f="pool">Pool · offen zur Übernahme</button>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <div class="cardhead"><h2>Aufgabenliste</h2><span class="hint">angemeldet als M. Pätzold</span></div>
+            <div class="tablewrap">
+            <table id="aufgtable">
+              <thead><tr><th>Aufgabe</th><th>Bezug</th><th>Bereich</th><th>Zugewiesen an</th><th>Fällig</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr data-who="pool">
+                  <td><strong>Rückruf: Nordbau GmbH</strong></td>
+                  <td>Nordbau · Lead</td><td><span class="pill accent">Vertrieb</span></td>
+                  <td id="rrassign"><span class="pill warn">offen im Pool</span> <button class="btn small" id="uebernehmen">Übernehmen</button></td>
+                  <td>07.08.2026</td>
+                  <td><span class="pill neutral" id="rrstatus">offen</span></td>
+                </tr>
+                <tr data-who="mir">
+                  <td><strong>Kostenstelle auf Rechnungen ergänzen</strong></td>
+                  <td>Berghoff · RE-2026-0142</td><td><span class="pill neutral">Buchhaltung</span></td><td>M. Pätzold</td><td>12.08.2026</td>
+                  <td><span class="pill accent" id="aufg1status">in Arbeit</span></td>
+                </tr>
+                <tr data-who="mir">
+                  <td><strong>Sammelüberweisung KSK zuordnen</strong></td>
+                  <td>Bank-Import 05.08.</td><td><span class="pill neutral">Buchhaltung</span></td><td>M. Pätzold</td><td style="color:var(--crit)">06.08.2026</td>
+                  <td><span class="pill warn">Rückfrage</span></td>
+                </tr>
+                <tr data-who="von-mir">
+                  <td><strong>Angebot Treffermonitor nachfassen</strong></td>
+                  <td>Berghoff · AN-2026-089</td><td><span class="pill accent">Vertrieb</span></td><td>D. Stauch</td><td>15.08.2026</td>
+                  <td><span class="pill neutral">offen</span></td>
+                </tr>
+                <tr data-who="mir von-mir">
+                  <td><strong>Kündigungsfrist V-2023-044 prüfen</strong></td>
+                  <td>Weidmann · V-2023-044</td><td><span class="pill neutral">Verwaltung</span></td><td>M. Pätzold</td><td>01.11.2026</td>
+                  <td><span class="pill neutral">offen</span></td>
+                </tr>
+                <tr data-who="andere">
+                  <td><strong>AVV-Vorlage aktualisieren</strong></td>
+                  <td>allgemein</td><td><span class="pill neutral">Datenschutz</span></td><td>C. Gerne</td><td>30.09.2026</td>
+                  <td><span class="pill neutral">zurückgestellt bis 01.09.2026</span></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead">
+              <h2>Rückruf: Nordbau GmbH</h2>
+              <span class="hint">aus Portal-Rückrufformular · Bereich Vertrieb</span>
+            </div>
+            <div class="row" style="margin-bottom:14px">
+              <span class="pill neutral">Bezug: Nordbau GmbH (Lead)</span>
+              <span class="pill accent">Bereich: Vertrieb</span>
+              <span class="pill warn" id="rrdetailassign">Zugewiesen: offen im Pool</span>
+              <label class="field" style="margin-left:auto; flex-direction:row; align-items:center; gap:8px">Wiedervorlage
+                <input class="inp" type="date" id="wvdate" value="2026-08-11" style="width:auto">
+              </label>
+              <button class="btn small" id="wvbtn">Zurückstellen bis Wiedervorlage</button>
+            </div>
+            <ul class="comments" id="rrcomments">
+              <li class="sys">Erstellt aus Portal-Rückrufformular · Bereich Vertrieb · 07.08.2026, 08:02</li>
+              <li><span class="who">Rückrufformular</span><span class="when">07.08.2026, 08:02</span><br>
+                Nachricht des Kunden: „Bitte um Rückruf wegen ID.prove-Einführung, vormittags am besten erreichbar.“</li>
+            </ul>
+            <div class="row" style="margin-top:12px">
+              <input class="inp" id="rrinput" placeholder="Verlaufseintrag hinzufügen, z. B. „telefonisch nicht erreicht“ …" style="flex:1">
+              <button class="btn" id="rrsend">Eintragen</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead">
+              <h2>Kostenstelle auf Rechnungen ergänzen</h2>
+              <span class="hint">entstanden aus E-Mail vom 19.05.2026 in der Berghoff-Timeline</span>
+            </div>
+            <div class="row" style="margin-bottom:14px">
+              <span class="pill neutral">Bezug: RE-2026-0142</span>
+              <span class="pill neutral">Zugewiesen: M. Pätzold</span>
+              <label class="field" style="margin-left:auto; flex-direction:row; align-items:center; gap:8px">Status
+                <select class="inp" id="aufgstatus" style="width:auto">
+                  <option>offen</option>
+                  <option selected>in Arbeit</option>
+                  <option>Rückfrage</option>
+                  <option>zurückgestellt</option>
+                  <option>erledigt</option>
+                </select>
+              </label>
+            </div>
+            <ul class="comments" id="aufgcomments">
+              <li><span class="who">D. Stauch</span><span class="when">07.08.2026, 09:12</span><br>
+                Kunde möchte Kostenstelle 4711-B auf allen Rechnungen. Kannst du das übernehmen?</li>
+              <li class="sys">Status geändert auf „in Arbeit“ · M. Pätzold · 07.08.2026, 09:30</li>
+              <li><span class="who">M. Pätzold</span><span class="when">07.08.2026, 10:02</span><br>
+                Feld gibt es im Rechnungslayout noch nicht. Klären: je Kunde oder je Vertrag? @Daniel – gilt das auch für den Jahresrechnungslauf?</li>
+              <li class="sys">Rückfrage an D. Stauch · wartet auf Antwort</li>
+            </ul>
+            <div class="row" style="margin-top:12px">
+              <input class="inp" placeholder="Kommentar oder Rückfrage schreiben …" style="flex:1">
+              <button class="btn">Senden</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= RECHNUNGEN ================= -->
+      <section class="view" id="view-rechnungen">
+        <div class="pagehead">
+          <h1>Rechnungen &amp; Offene Posten</h1>
+          <p>Versand per E-Mail als ZUGFeRD mit automatischer Kopie an DATEV Unternehmen Online. Zahlungsabgleich per Bank-CSV, Mahnung auf Knopfdruck – die Buchhaltung selbst bleibt beim Steuerberater.</p>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="label">Offene Posten</div><div class="value">1.780,00 €</div><div class="delta">2 Rechnungen</div></div>
+          <div class="kpi"><div class="label">davon überfällig</div><div class="value">890,00 €</div><div class="delta critc">1 Rechnung, max. 23 Tage</div></div>
+          <div class="kpi"><div class="label">Bezahlt im August</div><div class="value">7.410,00 €</div><div class="delta up">9 Rechnungen</div></div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <div class="cardhead"><h2>Offene-Posten-Liste</h2><span class="hint">Nummernkreis fortlaufend, Original unveränderlich – Korrektur nur per Storno/Gutschrift</span></div>
+            <div class="tablewrap">
+            <table>
+              <thead><tr>
+                <th>Rechnung</th><th>Kunde</th><th class="num">Betrag</th><th>Fällig</th><th>Status</th><th>DATEV</th><th></th>
+              </tr></thead>
+              <tbody>
+                <tr id="op-142">
+                  <td>RE-2026-0142</td><td>Berghoff Logistik GmbH</td><td class="num">890,00 €</td><td>15.07.2026</td>
+                  <td class="opstatus"><span class="pill crit">überfällig · 23 Tage</span></td>
+                  <td><span class="pill good">Kopie ✓</span></td>
+                  <td><button class="btn small" id="mahnbtn">Mahnung erzeugen</button></td>
+                </tr>
+                <tr>
+                  <td>RE-2026-0155</td><td>TechnoPlan AG</td><td class="num">890,00 €</td><td>31.08.2026</td>
+                  <td><span class="pill warn">offen</span></td>
+                  <td><span class="pill good">Kopie ✓</span></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>RE-2026-0139</td><td>Weidmann &amp; Söhne KG</td><td class="num">2.140,00 €</td><td>30.06.2026</td>
+                  <td><span class="pill good">bezahlt am 02.07.2026</span></td>
+                  <td><span class="pill good">Kopie ✓</span></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead"><h2>Bank-Import (CSV)</h2><span class="hint">halbautomatisch: Vorschlag per Rechnungsnr. + Betrag, Zuordnung per Klick</span></div>
+            <div class="tablewrap">
+            <table>
+              <thead><tr><th>Buchungstag</th><th>Auftraggeber / Verwendungszweck</th><th class="num">Betrag</th><th>Vorschlag</th><th></th></tr></thead>
+              <tbody>
+                <tr id="match-142">
+                  <td>06.08.2026</td><td>Berghoff Verwaltungs GmbH · „RG 2026-0142 Kd K-1042“</td><td class="num">890,00 €</td>
+                  <td><span class="pill accent">RE-2026-0142 · sicher</span></td>
+                  <td><button class="btn small primary" id="zuordnen">Zuordnen</button></td>
+                </tr>
+                <tr>
+                  <td>05.08.2026</td><td>Sammelüberweisung Kreissparkasse · „Rechnungen Juli“</td><td class="num">3.120,00 €</td>
+                  <td><span class="pill neutral">kein eindeutiger Treffer</span></td>
+                  <td><button class="btn small">Manuell zuordnen</button></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= E-MAIL-AUSGANG ================= -->
+      <section class="view" id="view-email">
+        <div class="pagehead">
+          <h1>E-Mail</h1>
+          <p>Ausgang: alle Mails (Rechnungen, Mahnungen, Angebote) laufen über eine Warteschlange mit IONOS-Drosselung. Eingang: das überwachte Postfach <strong>akte@rausoft.de</strong> nimmt Outlook-Mails per BCC oder Weiterleitung entgegen und legt sie automatisch am richtigen Kunden ab.</p>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="label">In Warteschlange</div><div class="value">14</div><div class="delta">davon 12 aus Rechnungslauf</div></div>
+          <div class="kpi">
+            <div class="label">Limit / Minute</div><div class="value">8 <span style="font-size:14px;color:var(--muted)">/ 30</span></div>
+            <div class="bartrack" style="margin-top:8px"><div class="barrow" style="width:27%"></div></div>
+          </div>
+          <div class="kpi">
+            <div class="label">Limit / Stunde</div><div class="value">213 <span style="font-size:14px;color:var(--muted)">/ 500</span></div>
+            <div class="bartrack" style="margin-top:8px"><div class="barrow" style="width:43%"></div></div>
+          </div>
+          <div class="kpi">
+            <div class="label">Limit / Tag</div><div class="value">213 <span style="font-size:14px;color:var(--muted)">/ 1.000</span></div>
+            <div class="bartrack" style="margin-top:8px"><div class="barrow dim" style="width:21%"></div></div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <div class="cardhead"><h2>Warteschlange</h2><span class="hint">Priorität: Einzelmail vor Massenlauf · Fehlversuche mit Wartezeit-Staffelung</span></div>
+            <div class="tablewrap">
+            <table>
+              <thead><tr><th>Eingereiht</th><th>Empfänger</th><th>Betreff</th><th>Typ</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>14:52</td><td>rechnung@technoplan.de</td><td>Ihre Rechnung RE-2026-0161 (ZUGFeRD) + Kopie DATEV UO</td>
+                  <td><span class="pill neutral">Rechnung</span></td>
+                  <td><span class="pill accent">wird gesendet</span></td>
+                </tr>
+                <tr>
+                  <td>14:50</td><td>einkauf@berghoff-logistik.de</td><td>Zahlungserinnerung RE-2026-0142</td>
+                  <td><span class="pill neutral">Mahnung</span></td>
+                  <td><span class="pill warn">wartend · Platz 2</span></td>
+                </tr>
+                <tr>
+                  <td>14:45</td><td>12 Empfänger</td><td>Jahresrechnungslauf 09/2026 (RE-2026-0162 … 0173)</td>
+                  <td><span class="pill neutral">Rechnungslauf</span></td>
+                  <td><span class="pill warn">wartend · gedrosselt auf 30/Min</span></td>
+                </tr>
+                <tr>
+                  <td>13:58</td><td>mail@weidmann-soehne.de</td><td>Angebot AN-2026-090</td>
+                  <td><span class="pill neutral">Angebot</span></td>
+                  <td><span class="pill crit">fehlgeschlagen (Postfach voll) · Versuch 3/5 um 15:10</span></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead"><h2>Versendet heute</h2><span class="hint">jede Mail erscheint zusätzlich in der Kunden-Timeline</span></div>
+            <div class="tablewrap">
+            <table>
+              <thead><tr><th>Zeit</th><th>Empfänger</th><th>Betreff</th><th>Typ</th><th>DATEV</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>14:31</td><td>buchhaltung@technoplan.de</td><td>Ihre Rechnung RE-2026-0160 (ZUGFeRD)</td><td><span class="pill neutral">Rechnung</span></td><td><span class="pill good">Kopie ✓</span></td><td><span class="pill good">zugestellt</span></td></tr>
+                <tr><td>11:04</td><td>k.berghoff@berghoff-logistik.de</td><td>Angebot AN-2026-089: Treffermonitor</td><td><span class="pill neutral">Angebot</span></td><td>–</td><td><span class="pill good">zugestellt</span></td></tr>
+                <tr><td>09:12</td><td>einkauf@berghoff-logistik.de</td><td>Ihre Rechnung RE-2026-0155 (ZUGFeRD)</td><td><span class="pill neutral">Rechnung</span></td><td><span class="pill good">Kopie ✓</span></td><td><span class="pill good">zugestellt</span></td></tr>
+              </tbody>
+            </table>
+            </div>
+            <hr class="divider">
+            <div class="note">Limits sind konfigurierbar (IONOS-Vorgaben je Minute/Stunde/Tag). Der Versanddienst protokolliert jeden Zustellversuch; fehlgeschlagene Mails werden automatisch neu versucht und nach dem letzten Fehlversuch als Aufgabe gemeldet.</div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead"><h2>Aus Outlook erfasst</h2><span class="hint">BCC-Postfach akte@rausoft.de · Zuordnung über Empfänger bzw. Absender</span></div>
+            <div class="tablewrap">
+            <table>
+              <thead><tr><th>Zeit</th><th>Von → An</th><th>Betreff</th><th>Zuordnung</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>15:20</td><td>D. Stauch → k.berghoff@berghoff-logistik.de</td><td>Terminvorschlag Treffermonitor-Demo</td>
+                  <td><span class="pill good">Berghoff Logistik · Adresse Frau Berghoff</span></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>14:05</td><td>M. Pätzold → info@nordbau-kiel.de</td><td>Unterlagen zur Schnellanalyse</td>
+                  <td><span class="pill good">Nordbau GmbH · Domain-Treffer</span></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td>11:47</td><td>D. Stauch → mueller@stahlbau-peters.de</td><td>Rückfrage zu Ihren Stammdaten</td>
+                  <td id="uzstatus"><span class="pill warn">nicht zugeordnet · Aufgabe bei D. Stauch</span></td>
+                  <td id="uzaction"><button class="btn small primary" id="zuordmailbtn">Kunde zuordnen</button></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+            <hr class="divider">
+            <div class="note">Zuordnungs-Reihenfolge: exakte Ansprechpartner-Adresse → Kunden-Domain → sonst Aufgabe für den Absender. Duplikate werden über die Message-ID erkannt (Mail an Kunde + BCC landet nur einmal in der Timeline). Erfasst wird nur, was bewusst per BCC/Weiterleitung ans Postfach geht – kein Komplett-Sync der Outlook-Postfächer.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= DASHBOARD ================= -->
+      <section class="view" id="view-dashboard">
+        <div class="pagehead">
+          <h1>Auswertungen</h1>
+          <p>MRR wird aus den Abo-Positionen mit Gültig-von/Gültig-bis berechnet – dadurch sind Verlauf, Upgrades und Kündigungen rückwirkend auswertbar, nicht nur der aktuelle Stand.</p>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="label">MRR aktuell</div><div class="value">24.680 €</div><div class="delta up">+3,4 % ggü. Vormonat</div></div>
+          <div class="kpi"><div class="label">ARR</div><div class="value">296.160 €</div><div class="delta">hochgerechnet</div></div>
+          <div class="kpi"><div class="label">Aktive Abos</div><div class="value">118</div><div class="delta up">+2 neu · 1 Kündigung</div></div>
+          <div class="kpi"><div class="label">Offene Posten</div><div class="value">1.780 €</div><div class="delta critc">890 € überfällig</div></div>
+        </div>
+
+        <div class="grid cols-2-1">
+          <div class="card">
+            <div class="cardhead"><h2>MRR-Verlauf</h2><span class="hint">letzte 12 Monate</span></div>
+            <div class="chartwrap">
+              <svg id="mrrchart" viewBox="0 0 720 250" width="100%" role="img" aria-label="MRR-Verlauf der letzten 12 Monate, von 21.400 auf 24.680 Euro gestiegen"></svg>
+              <div class="tooltip" id="mrrtip"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead"><h2>MRR nach Produkt</h2></div>
+            <div class="tablewrap">
+            <table>
+              <thead><tr><th>Produkt</th><th class="num">MRR</th><th style="width:34%"></th></tr></thead>
+              <tbody>
+                <tr><td>ID.prove Stammdaten-Abo</td><td class="num">14.200 €</td><td><div class="bartrack"><div class="barrow" style="width:100%"></div></div></td></tr>
+                <tr><td>PayPerSearch</td><td class="num">5.900 €</td><td><div class="bartrack"><div class="barrow dim" style="width:42%"></div></div></td></tr>
+                <tr><td>Treffermonitor</td><td class="num">3.100 €</td><td><div class="bartrack"><div class="barrow dim" style="width:22%"></div></div></td></tr>
+                <tr><td>Support &amp; Schulung</td><td class="num">1.480 €</td><td><div class="bartrack"><div class="barrow dim" style="width:10%"></div></div></td></tr>
+              </tbody>
+            </table>
+            </div>
+            <hr class="divider">
+            <div class="note">Weitere geplante Auswertungen: Umsatz je Kunde, Kündigungsquote, Neu-MRR vs. Abwanderung, Fälligkeitsvorschau der Jahresrechnungen.</div>
+          </div>
+        </div>
+
+        <div class="grid cols-2-1" style="margin-top:16px">
+          <div class="card">
+            <div class="cardhead"><h2>Sondervereinbarungen</h2><span class="hint">Bestandteil-Typ am Vertrag macht es abfragbar</span></div>
+            <div class="tablewrap">
+            <table>
+              <thead><tr><th>Kunde</th><th>Vertrag</th><th>Vereinbarung</th><th>Gültig bis</th></tr></thead>
+              <tbody>
+                <tr><td>Berghoff Logistik GmbH</td><td>V-2024-018</td><td>S1 · Preisbindung Tier PROFESSIONAL</td><td>28.02.2027</td></tr>
+                <tr><td>Weidmann &amp; Söhne KG</td><td>V-2023-044</td><td>S2 · abweichendes Zahlungsziel 60 Tage</td><td>31.12.2026</td></tr>
+                <tr><td>TechnoPlan AG</td><td>V-2025-102</td><td>S3 · kostenfreier 2. Mandant</td><td>unbefristet</td></tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="cardhead"><h2>Partner-Provisionen</h2></div>
+            <dl class="kv">
+              <dt>CSB</dt><dd>Tipp-Provision 15 % · Q3 aufgelaufen: <strong style="font-variant-numeric:tabular-nums">1.240,50 €</strong><br><span style="color:var(--muted);font-size:12px">wartet auf Provisionsrechnung des Partners</span></dd>
+              <dt>FineSolutions</dt><dd>MRR über Partner: <strong style="font-variant-numeric:tabular-nums">2.340 €</strong> (4 Endkunden)<br><span style="color:var(--muted);font-size:12px">Rechnungen an FineSolutions, Endkunden separat geführt</span></dd>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= ANGEBOTE & CRM ================= -->
+      <section class="view" id="view-crm">
+        <div class="pagehead">
+          <h1>Angebote &amp; CRM</h1>
+          <p>Leads laufen durch die Pipeline (Stufen angeglichen an den Sales-Funnel im Portal). Angebote rechnen mit dem Produktkatalog: Volumen eingeben, Tier und Preis kommen über die Aufrundungsregel – kein Freitext, keine Rechenfehler.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="cardhead"><h2>Lead-Pipeline</h2><span class="hint">Quelle am Lead: Portal-Schnellanalyse, Tipp CSB, Website, Messe</span></div>
+          <div class="pipe">
+            <div class="pipecol">
+              <h3>Neu <span class="cnt">2</span></h3>
+              <div class="lead"><strong>Hanseatic Marine GmbH</strong>
+                <div class="lsub">Tipp von CSB · 06.08.2026</div>
+                <div class="lval"><span class="pill neutral">15 % Provision bei Abschluss</span></div></div>
+              <div class="lead"><strong>Vogel &amp; Partner StB</strong>
+                <div class="lsub">Website-Anfrage · 04.08.2026</div></div>
+            </div>
+            <div class="pipecol">
+              <h3>Qualifiziert <span class="cnt">1</span></h3>
+              <div class="lead"><strong>Nordbau GmbH</strong>
+                <div class="lsub">Portal-Schnellanalyse · Rückruf im Pool Vertrieb</div>
+                <div class="lval">~ 18.000 Stammdaten → PROFESSIONAL</div></div>
+            </div>
+            <div class="pipecol">
+              <h3>Angebot <span class="cnt">2</span></h3>
+              <div class="lead"><strong>Berghoff Logistik</strong>
+                <div class="lsub">AN-2026-089 · Treffermonitor · nachfassen 15.08.</div>
+                <div class="lval">240 €/Monat</div></div>
+              <div class="lead"><strong>Weidmann &amp; Söhne</strong>
+                <div class="lsub">AN-2026-090 · Wechsel PayPerSearch → Abo</div>
+                <div class="lval">890 €/Monat</div></div>
+            </div>
+            <div class="pipecol">
+              <h3>Gewonnen Q3 <span class="cnt">1</span></h3>
+              <div class="lead"><strong>Helvetia Treuhand AG</strong>
+                <div class="lsub">via FineSolutions · Vertrag V-2026-007</div>
+                <div class="lval">+585 €/Monat MRR</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid cols-1-2">
+          <div class="stack">
+            <div class="card">
+              <div class="cardhead"><h2>Angebote</h2><span class="hint">jedes Angebot auch in der Kunden-Timeline</span></div>
+              <div class="tablewrap">
+              <table>
+                <thead><tr><th>Angebot</th><th>Kunde</th><th class="num">mtl.</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><strong>AN-2026-091</strong><br><span style="color:var(--muted);font-size:12px">PROFESSIONAL bis 25.000 + All-Listen-Bundle</span></td>
+                    <td>Nordbau GmbH</td><td class="num">855 €</td>
+                    <td><span class="pill neutral" id="an91status">Entwurf</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>AN-2026-090</strong><br><span style="color:var(--muted);font-size:12px">Wechsel PayPerSearch → Stammdaten-Abo</span></td>
+                    <td>Weidmann &amp; Söhne KG</td><td class="num">890 €</td>
+                    <td><span class="pill warn">versendet · Zustellung wird wiederholt</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>AN-2026-089</strong><br><span style="color:var(--muted);font-size:12px">Treffermonitor (Add-on)</span></td>
+                    <td>Berghoff Logistik GmbH</td><td class="num">240 €</td>
+                    <td><span class="pill accent">versendet · nachfassen 15.08.</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>AN-2026-087</strong><br><span style="color:var(--muted);font-size:12px">PROFESSIONAL bis 25.000 · via Partner</span></td>
+                    <td>Helvetia Treuhand AG</td><td class="num">585 €</td>
+                    <td><span class="pill good">angenommen → V-2026-007</span></td>
+                  </tr>
+                </tbody>
+              </table>
+              </div>
+            </div>
+            <div class="note">„Nachfassen“ erzeugt eine Aufgabe im Pool Vertrieb. Angenommene Angebote werden zum Vertrag – die Kette Angebot → Vertrag → Abo → Rechnung bleibt von Anfang an verknüpft.</div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead"><h2>AN-2026-091 · Kalkulation für Nordbau GmbH</h2><span class="hint">Entwurf · rechnet mit dem Produktkatalog</span></div>
+            <div class="formgrid">
+              <label class="field">Stammdaten-Volumen
+                <input class="inp" type="number" id="kvol" value="18000" step="1000" min="0">
+              </label>
+              <label class="field">Voll-Benutzer
+                <input class="inp" type="number" id="kuser" value="4" min="1">
+              </label>
+            </div>
+            <p class="note" id="ktier" style="margin:12px 0 0"></p>
+
+            <hr class="divider">
+            <div class="cardhead"><h2>Add-ons</h2><span class="hint">Regeln sind im Katalog hinterlegt</span></div>
+            <div class="stack" style="gap:8px">
+              <label class="field checkline"><input type="checkbox" class="kaddon" data-price="180" checked> All-Listen-Bundle <span class="price">180 €/Monat</span></label>
+              <label class="field checkline"><input type="checkbox" class="kaddon" data-price="240"> Treffermonitor <span class="price">240 €/Monat</span></label>
+              <label class="field checkline"><input type="checkbox" class="kaddon" data-price="120"> API-Schnittstelle <span class="price">120 €/Monat</span></label>
+              <label class="field checkline"><input type="checkbox" class="kaddon" id="kwc" data-price="350"> WorldCheck-Paket S <span class="price">350 €/Monat</span></label>
+              <div style="font-size:12px;color:var(--muted);margin-left:26px" id="kwchint"></div>
+            </div>
+
+            <hr class="divider">
+            <dl class="kv">
+              <dt>Benutzer</dt><dd id="kextra"></dd>
+            </dl>
+            <div class="row" style="margin-top:10px">
+              <span style="color:var(--muted)">Summe Angebot</span>
+              <strong id="ksum" style="margin-left:auto;font-size:18px;font-variant-numeric:tabular-nums"></strong>
+            </div>
+
+            <hr class="divider">
+            <p style="font-size:12px;color:var(--muted);margin:0">Alle Preise im Mockup sind Platzhalter – der echte Produktkatalog entsteht in Phase 3 aus der internen Preisliste (vertraulich). Volumen wird immer auf die nächsthöhere Staffel aufgerundet. Das Angebots-PDF wird mit Telerik Reporting gerendert (bereits lizenziert).</p>
+            <div class="row" style="margin-top:12px">
+              <button class="btn" disabled title="Im Mockup ohne Funktion – später Telerik Reporting">PDF-Vorschau</button>
+              <button class="btn primary" id="kversand" style="margin-left:auto">In E-Mail-Warteschlange</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TICKETS ================= -->
+      <section class="view" id="view-tickets">
+        <div class="pagehead">
+          <h1>Tickets</h1>
+          <p>Gleicher Unterbau wie Aufgaben: Bereichs-Pool (Support), Übernehmen, Verlauf, Statuswechsel werden protokolliert. Jedes Ticket hängt am Kunden und erscheint in der Timeline – auch bei Endkunden, die über einen Partner kommen.</p>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="label">Offen</div><div class="value">3</div><div class="delta">davon 1 im Pool</div></div>
+          <div class="kpi"><div class="label">Wartet auf Kunde</div><div class="value">1</div><div class="delta">Wiedervorlage 12.08.</div></div>
+          <div class="kpi"><div class="label">Gelöst diese Woche</div><div class="value">6</div><div class="delta up">Ø Lösungszeit 1,8 Tage</div></div>
+        </div>
+
+        <div class="chips" id="tkchips">
+          <button class="chip on" data-f="alle">Alle</button>
+          <button class="chip" data-f="offen">Offen</button>
+          <button class="chip" data-f="mir">Mir zugewiesen</button>
+          <button class="chip" data-f="pool">Pool · offen zur Übernahme</button>
+          <button class="chip" data-f="geloest">Gelöst</button>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <div class="cardhead"><h2>Ticketliste</h2><span class="hint">angemeldet als M. Pätzold</span></div>
+            <div class="tablewrap">
+            <table id="tktable">
+              <thead><tr><th>Ticket</th><th>Kunde · Ansprechpartner</th><th>Bereich</th><th>Zugewiesen an</th><th>Priorität</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr data-who="offen pool">
+                  <td><strong>#4714 · CSV-Import bricht bei Umlauten ab</strong></td>
+                  <td>TechnoPlan AG · Herr Lindner (IT)</td>
+                  <td><span class="pill accent">Support</span></td>
+                  <td id="tkassign"><span class="pill warn">offen im Pool</span> <button class="btn small" id="tkuebernehmen">Übernehmen</button></td>
+                  <td><span class="pill crit">hoch</span></td>
+                  <td><span class="pill neutral" id="tk14status">offen</span></td>
+                </tr>
+                <tr data-who="offen">
+                  <td><strong>#4713 · Frage zum Sanktionslisten-Update</strong></td>
+                  <td>Helvetia Treuhand AG <span class="pill accent">via FineSolutions</span> · Frau Nussbaumer</td>
+                  <td><span class="pill accent">Support</span></td>
+                  <td>S. Krause</td>
+                  <td><span class="pill neutral">normal</span></td>
+                  <td><span class="pill accent">in Arbeit</span></td>
+                </tr>
+                <tr data-who="offen mir">
+                  <td><strong>#4712 · Exportformat für Wirtschaftsprüfer</strong></td>
+                  <td>Weidmann &amp; Söhne KG · Herr Weidmann jun.</td>
+                  <td><span class="pill accent">Support</span></td>
+                  <td>M. Pätzold</td>
+                  <td><span class="pill neutral">normal</span></td>
+                  <td><span class="pill warn">wartet auf Kunde · WV 12.08.</span></td>
+                </tr>
+                <tr data-who="geloest">
+                  <td><strong>#4711 · API-Timeout bei Batchprüfung</strong></td>
+                  <td>Berghoff Logistik GmbH · Herr Yilmaz (IT)</td>
+                  <td><span class="pill accent">Support</span></td>
+                  <td>S. Krause</td>
+                  <td><span class="pill crit">hoch</span></td>
+                  <td><span class="pill good">gelöst am 28.07.2026</span></td>
+                </tr>
+                <tr data-who="geloest">
+                  <td><strong>#4650 · Frage zur Delta-Prüfung bei Bestandsdaten</strong></td>
+                  <td>Berghoff Logistik GmbH · Herr Yilmaz (IT)</td>
+                  <td><span class="pill accent">Support</span></td>
+                  <td>S. Krause</td>
+                  <td><span class="pill neutral">normal</span></td>
+                  <td><span class="pill good">gelöst am 02.04.2026</span></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardhead">
+              <h2>#4714 · CSV-Import bricht bei Umlauten ab</h2>
+              <span class="hint">erstellt aus E-Mail an support@rausoft.de · Bereich Support</span>
+            </div>
+            <div class="row" style="margin-bottom:14px">
+              <span class="pill neutral">Bezug: TechnoPlan AG</span>
+              <span class="pill crit">Priorität: hoch</span>
+              <span class="pill warn" id="tkdetailassign">Zugewiesen: offen im Pool</span>
+              <label class="field" style="margin-left:auto; flex-direction:row; align-items:center; gap:8px">Status
+                <select class="inp" id="tkstatus" style="width:auto">
+                  <option selected>offen</option>
+                  <option>in Arbeit</option>
+                  <option>wartet auf Kunde</option>
+                  <option>gelöst</option>
+                </select>
+              </label>
+            </div>
+            <ul class="comments" id="tkcomments">
+              <li class="sys">Erstellt aus E-Mail an support@rausoft.de · 07.08.2026, 08:41 · Kunde automatisch erkannt (Absender-Domain)</li>
+              <li><span class="who">Herr Lindner (TechnoPlan, IT)</span><span class="when">07.08.2026, 08:41</span><br>
+                Beim CSV-Import bricht der Lauf ab Zeile 1.204 ab, sobald Umlaute in der Firmierung stehen. Beispieldatei anbei.</li>
+              <li class="sys">Anhang gespeichert: import_beispiel.csv</li>
+            </ul>
+            <div class="row" style="margin-top:12px">
+              <input class="inp" id="tkinput" placeholder="Antwort an den Kunden oder interner Vermerk …" style="flex:1">
+              <button class="btn" id="tksend">Eintragen</button>
+            </div>
+            <hr class="divider">
+            <div class="note">Antworten gehen als E-Mail über die Warteschlange an den Ansprechpartner. Ticket und Antworten erscheinen in der Kunden-Timeline von TechnoPlan – gelöste Tickets bleiben dort recherchierbar.</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- Mahnungs-Modal -->
+<div class="overlay" id="mahnmodal" role="dialog" aria-modal="true" aria-labelledby="mahntitle">
+  <div class="modal">
+    <div class="mhead"><h2 id="mahntitle">Mahnung zu RE-2026-0142</h2><button class="xbtn" id="mahnclose" aria-label="Schließen">×</button></div>
+    <div class="mbody">
+      <div class="letter">
+        <div class="lhead"><span>rausoft GmbH · [Briefkopf]</span><span>07.08.2026</span></div>
+        <div>Berghoff Verwaltungs GmbH<br>Postfach 10 02 44<br>47002 Duisburg</div>
+        <h3>Zahlungserinnerung – Rechnung RE-2026-0142</h3>
+        <p>Sehr geehrte Damen und Herren,</p>
+        <p>zu unserer Rechnung RE-2026-0142 vom 01.07.2026 über <strong>890,00 €</strong>, fällig am 15.07.2026, konnten wir bis heute keinen Zahlungseingang feststellen. Wir bitten um Ausgleich bis zum <strong>21.08.2026</strong>.</p>
+        <p>Sollte sich die Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie es bitte als gegenstandslos.</p>
+        <p>Mit freundlichen Grüßen<br>rausoft GmbH</p>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:12px 0 0">Erzeugt aus Rechnungsdaten + Textbaustein (Stufe 1: Zahlungserinnerung). Versand meist manuell per Post – daher als druckfertiges PDF.</p>
+    </div>
+    <div class="mfoot">
+      <button class="btn" id="mahnclose2">Abbrechen</button>
+      <button class="btn" disabled title="Im Mockup ohne Funktion">PDF herunterladen</button>
+      <button class="btn primary" id="mahnsent">Als versendet markieren</button>
+    </div>
+  </div>
+</div>
+
+<!-- Neuer-Kunde-Modal -->
+<div class="overlay" id="neukundemodal" role="dialog" aria-modal="true" aria-labelledby="nktitle">
+  <div class="modal">
+    <div class="mhead"><h2 id="nktitle">Neuen Kunden anlegen</h2><button class="xbtn" id="nkclose" aria-label="Schließen">×</button></div>
+    <div class="mbody">
+      <div class="formgrid">
+        <label class="field wide">Firma<input class="inp" placeholder="z. B. Nordbau GmbH"></label>
+        <label class="field wide">Straße &amp; Hausnummer<input class="inp"></label>
+        <label class="field">PLZ<input class="inp"></label>
+        <label class="field">Ort<input class="inp"></label>
+        <label class="field">Gruppe
+          <select class="inp"><option>Bestandskunde</option><option>Lead</option><option>Partner</option></select>
+        </label>
+        <label class="field">Zentrale (Telefon)<input class="inp"></label>
+        <label class="field wide" style="flex-direction:row; align-items:center; gap:8px">
+          <input type="checkbox" style="width:auto"> Abweichende Rechnungsanschrift erfassen
+        </label>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:12px 0 0">Kundennummer wird automatisch aus dem Nummernkreis vergeben. Ansprechpartner lassen sich anschließend in der Detailansicht ergänzen.</p>
+    </div>
+    <div class="mfoot">
+      <button class="btn" id="nkclose2">Abbrechen</button>
+      <button class="btn primary" id="nkanlegen">Kunde anlegen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ansprechpartner-Modal -->
+<div class="overlay" id="apmodal" role="dialog" aria-modal="true" aria-labelledby="aptitle">
+  <div class="modal">
+    <div class="mhead"><h2 id="aptitle">Ansprechpartner bearbeiten</h2><button class="xbtn" id="apclose" aria-label="Schließen">×</button></div>
+    <div class="mbody">
+      <div class="formgrid">
+        <label class="field">Anrede
+          <select class="inp" id="apanrede">
+            <option>Frau</option>
+            <option>Herr</option>
+            <option value="">ohne Anrede (Sammelpostfach, Abteilung)</option>
+          </select>
+        </label>
+        <label class="field">Titel (optional)<input class="inp" placeholder="z. B. Dr."></label>
+        <label class="field">Vorname<input class="inp" id="apvor" value="Katrin"></label>
+        <label class="field">Nachname<input class="inp" id="apnach" value="Berghoff"></label>
+        <label class="field wide">Rolle
+          <select class="inp"><option>Geschäftsführung · Vertrag &amp; Vertrieb</option><option>Technik &amp; Tickets</option><option>Rechnungsempfang</option></select>
+        </label>
+        <label class="field">Telefon<input class="inp" value="0203 5544-10"></label>
+        <label class="field">Mobil<input class="inp" value="0172 234 56 78"></label>
+        <label class="field wide">E-Mail<input class="inp" value="k.berghoff@berghoff-logistik.de"></label>
+      </div>
+      <p class="note" style="margin:14px 0 0">Briefanrede wird automatisch gebildet und überall verwendet (E-Mails, Mahnungen, Angebote, Serienbriefe):<br><strong id="appreview">Sehr geehrte Frau Berghoff</strong></p>
+    </div>
+    <div class="mfoot">
+      <button class="btn" id="apclose2">Abbrechen</button>
+      <button class="btn primary" id="apsave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- E-Mail-Zuordnungs-Modal -->
+<div class="overlay" id="zuordmodal" role="dialog" aria-modal="true" aria-labelledby="zutitle">
+  <div class="modal">
+    <div class="mhead"><h2 id="zutitle">E-Mail einem Kunden zuordnen</h2><button class="xbtn" id="zuclose" aria-label="Schließen">×</button></div>
+    <div class="mbody">
+      <dl class="kv" style="margin-bottom:14px">
+        <dt>Von</dt><dd>D. Stauch (Vertrieb)</dd>
+        <dt>An</dt><dd>mueller@stahlbau-peters.de</dd>
+        <dt>Betreff</dt><dd>Rückfrage zu Ihren Stammdaten · 11:47</dd>
+      </dl>
+      <div class="search" style="margin-bottom:10px">Kunde suchen … „stahl“</div>
+      <ul class="clist" id="zulist">
+        <li><button class="zupick sel" data-kunde="Stahlbau Peters GmbH">
+          <div><strong>Stahlbau Peters GmbH</strong> <span class="pill accent">Namens-Vorschlag</span></div>
+          <div class="cnr">K-1091 · Essen · 2 Ansprechpartner</div>
+        </button></li>
+        <li><button class="zupick" data-kunde="Weidmann &amp; Söhne KG">
+          <div><strong>Weidmann &amp; Söhne KG</strong></div>
+          <div class="cnr">K-0961 · Bochum · 4 Ansprechpartner</div>
+        </button></li>
+        <li><button class="zupick" data-kunde="Neuer Lead">
+          <div><strong>+ Neuen Kunden / Lead anlegen …</strong></div>
+          <div class="cnr">wenn der Absender noch nicht im System ist</div>
+        </button></li>
+      </ul>
+      <label class="field" style="flex-direction:row; align-items:center; gap:8px; margin-top:14px">
+        <input type="checkbox" id="zuap" checked style="width:auto">
+        mueller@stahlbau-peters.de als Ansprechpartner beim Kunden ergänzen (nächstes Mal automatisch)
+      </label>
+    </div>
+    <div class="mfoot">
+      <button class="btn" id="zuclose2">Abbrechen</button>
+      <button class="btn primary" id="zusave">Zuordnen</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  // ---------- Navigation ----------
+  var navbtns = document.querySelectorAll('.navbtn[data-view]');
+  function show(view){
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
+    navbtns.forEach(function(b){ b.classList.toggle('active', b.dataset.view === view); });
+  }
+  navbtns.forEach(function(b){ b.addEventListener('click', function(){ show(b.dataset.view); }); });
+  document.querySelectorAll('[data-goto]').forEach(function(b){
+    b.addEventListener('click', function(){ show(b.dataset.goto); });
+  });
+
+  // ---------- Timeline-Filter ----------
+  var chips = document.querySelectorAll('#tlchips .chip');
+  chips.forEach(function(c){
+    c.addEventListener('click', function(){
+      chips.forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on');
+      var f = c.dataset.f;
+      document.querySelectorAll('#timeline li').forEach(function(li){
+        li.classList.toggle('hidden', f !== 'alle' && li.dataset.type !== f);
+      });
+    });
+  });
+
+  // ---------- Mahnungs-Modal ----------
+  var modal = document.getElementById('mahnmodal');
+  function close(){ modal.classList.remove('open'); }
+  document.getElementById('mahnbtn').addEventListener('click', function(){ modal.classList.add('open'); });
+  document.getElementById('mahnclose').addEventListener('click', close);
+  document.getElementById('mahnclose2').addEventListener('click', close);
+  modal.addEventListener('click', function(e){ if(e.target === modal) close(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ close(); document.getElementById('neukundemodal').classList.remove('open'); document.getElementById('apmodal').classList.remove('open'); document.getElementById('zuordmodal').classList.remove('open'); } });
+  document.getElementById('mahnsent').addEventListener('click', function(){
+    var st = document.querySelector('#op-142 .opstatus');
+    st.innerHTML = '<span class="pill warn">gemahnt am 07.08.2026</span>';
+    var btn = document.getElementById('mahnbtn');
+    btn.disabled = true; btn.textContent = 'Mahnstufe 1 aktiv'; btn.style.opacity = .55;
+    close();
+  });
+
+  // ---------- Bank-Zuordnung ----------
+  document.getElementById('zuordnen').addEventListener('click', function(){
+    var st = document.querySelector('#op-142 .opstatus');
+    st.innerHTML = '<span class="pill good">bezahlt am 06.08.2026</span>';
+    var cell = document.querySelector('#op-142 td:last-child'); if(cell) cell.innerHTML = '';
+    var row = document.getElementById('match-142');
+    row.cells[3].innerHTML = '<span class="pill good">zugeordnet: RE-2026-0142</span>';
+    row.cells[4].innerHTML = '';
+  });
+
+  // ---------- Toast ----------
+  var toastEl = document.getElementById('toast'), toastTimer;
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 4200);
+  }
+
+  // ---------- Click-to-dial (CTI) ----------
+  document.querySelectorAll('.tel').forEach(function(b){
+    b.addEventListener('click', function(){
+      toast('Telefonsoftware wählt ' + b.dataset.tel + ' – nach dem Gespräch wird der Anruf in die Kunden-Timeline übernommen.');
+    });
+  });
+
+  // ---------- Neuer-Kunde-Modal ----------
+  var nkmodal = document.getElementById('neukundemodal');
+  function nkclose(){ nkmodal.classList.remove('open'); }
+  document.getElementById('neukundebtn').addEventListener('click', function(){ nkmodal.classList.add('open'); });
+  document.getElementById('nkclose').addEventListener('click', nkclose);
+  document.getElementById('nkclose2').addEventListener('click', nkclose);
+  nkmodal.addEventListener('click', function(e){ if(e.target === nkmodal) nkclose(); });
+  document.getElementById('nkanlegen').addEventListener('click', function(){
+    nkclose();
+    toast('Kunde angelegt (Mockup) – Kundennummer K-1104 vergeben, Akte geöffnet.');
+  });
+
+  // ---------- Verträge: Filter ----------
+  var vchips = document.querySelectorAll('#vfchips .chip');
+  vchips.forEach(function(c){
+    c.addEventListener('click', function(){
+      vchips.forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on');
+      var f = c.dataset.f;
+      document.querySelectorAll('#vlist > li').forEach(function(li){
+        li.style.display = (f === 'alle' || (li.dataset.tags || '').split(' ').indexOf(f) !== -1) ? '' : 'none';
+      });
+    });
+  });
+
+  // ---------- Ansprechpartner-Modal (Anrede / Vorname / Nachname) ----------
+  var apmodal = document.getElementById('apmodal');
+  function apclose(){ apmodal.classList.remove('open'); }
+  document.querySelectorAll('.apopen').forEach(function(b){
+    b.addEventListener('click', function(){ apmodal.classList.add('open'); });
+  });
+  document.getElementById('apclose').addEventListener('click', apclose);
+  document.getElementById('apclose2').addEventListener('click', apclose);
+  apmodal.addEventListener('click', function(e){ if(e.target === apmodal) apclose(); });
+  document.getElementById('apsave').addEventListener('click', function(){
+    apclose();
+    toast('Ansprechpartner gespeichert – Briefanrede: „' + document.getElementById('appreview').textContent + '“');
+  });
+  function apPreview(){
+    var a = document.getElementById('apanrede').value;
+    var n = document.getElementById('apnach').value.trim();
+    var p = document.getElementById('appreview');
+    p.textContent = (a === 'Frau' && n) ? 'Sehr geehrte Frau ' + n
+                  : (a === 'Herr' && n) ? 'Sehr geehrter Herr ' + n
+                  : 'Sehr geehrte Damen und Herren';
+  }
+  document.getElementById('apanrede').addEventListener('change', apPreview);
+  document.getElementById('apnach').addEventListener('input', apPreview);
+
+  // ---------- Aufgaben: Filter + Status ----------
+  var achips = document.querySelectorAll('#aufgchips .chip');
+  achips.forEach(function(c){
+    c.addEventListener('click', function(){
+      achips.forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on');
+      var f = c.dataset.f;
+      document.querySelectorAll('#aufgtable tbody tr').forEach(function(tr){
+        tr.style.display = (f === 'alle' || (tr.dataset.who || '').split(' ').indexOf(f) !== -1) ? '' : 'none';
+      });
+    });
+  });
+  // ---------- Aufgaben: Pool-Übernahme, Verlauf, Wiedervorlage ----------
+  function deDate(iso){ var p = iso.split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
+  function rrlog(text){
+    var li = document.createElement('li');
+    li.className = 'sys'; li.textContent = text;
+    document.getElementById('rrcomments').appendChild(li);
+  }
+  document.getElementById('uebernehmen').addEventListener('click', function(){
+    document.getElementById('rrassign').innerHTML = 'M. Pätzold';
+    var d = document.getElementById('rrdetailassign');
+    d.textContent = 'Zugewiesen: M. Pätzold'; d.className = 'pill accent';
+    var st = document.getElementById('rrstatus');
+    st.textContent = 'in Arbeit'; st.className = 'pill accent';
+    rrlog('Aus dem Pool übernommen von M. Pätzold · Bereich Vertrieb · 07.08.2026');
+    toast('Aufgabe übernommen – sie liegt jetzt bei dir, der Bereich Vertrieb sieht sie als vergeben.');
+  });
+  document.getElementById('wvbtn').addEventListener('click', function(){
+    var d = deDate(document.getElementById('wvdate').value);
+    var st = document.getElementById('rrstatus');
+    st.textContent = 'zurückgestellt bis ' + d; st.className = 'pill neutral';
+    rrlog('Zurückgestellt bis ' + d + ' (Wiedervorlage) · M. Pätzold');
+    toast('Zurückgestellt – am ' + d + ' taucht die Aufgabe automatisch wieder als offen auf.');
+  });
+  document.getElementById('rrsend').addEventListener('click', function(){
+    var inp = document.getElementById('rrinput');
+    if(!inp.value.trim()) return;
+    var li = document.createElement('li');
+    li.innerHTML = '<span class="who">M. Pätzold</span><span class="when">07.08.2026</span><br>';
+    li.appendChild(document.createTextNode(inp.value));
+    document.getElementById('rrcomments').appendChild(li);
+    inp.value = '';
+    toast('Verlaufseintrag gespeichert – auch in der Kunden-Timeline von Nordbau sichtbar.');
+  });
+
+  var stSel = document.getElementById('aufgstatus');
+  stSel.addEventListener('change', function(){
+    var v = stSel.value;
+    var pill = document.getElementById('aufg1status');
+    pill.textContent = v;
+    pill.className = 'pill ' + (v === 'erledigt' ? 'good' : v === 'Rückfrage' ? 'warn' : v === 'in Arbeit' ? 'accent' : 'neutral');
+    var li = document.createElement('li');
+    li.className = 'sys';
+    li.textContent = 'Status geändert auf „' + v + '“ · M. Pätzold · 07.08.2026';
+    document.getElementById('aufgcomments').appendChild(li);
+    toast('Status aktualisiert: ' + v + ' – D. Stauch wird benachrichtigt.');
+  });
+
+  // ---------- Angebots-Kalkulation (Produktkatalog, Platzhalter-Preise) ----------
+  var tiers = [
+    {max:5000,   tier:'STARTER',       price:290},
+    {max:10000,  tier:'STARTER',       price:390},
+    {max:25000,  tier:'PROFESSIONAL',  price:650},
+    {max:50000,  tier:'PROFESSIONAL',  price:890},
+    {max:100000, tier:'ENTERPRISE',    price:1290},
+    {max:250000, tier:'ENTERPRISE',    price:1790}
+  ];
+  var kvol = document.getElementById('kvol'), kuser = document.getElementById('kuser');
+  var kwc = document.getElementById('kwc');
+  function eur(v){ return v.toLocaleString('de-DE') + ' €'; }
+  function kcalc(){
+    var vol = Math.max(0, +kvol.value || 0);
+    var t = null;
+    for(var i = 0; i < tiers.length; i++){ if(vol <= tiers[i].max){ t = tiers[i]; break; } }
+    var over = !t;
+    if(over) t = tiers[tiers.length-1];
+    document.getElementById('ktier').innerHTML = over
+      ? 'Über 250.000 Stammdaten → individuelles Angebot außerhalb der Staffel (Kalkulation gesperrt).'
+      : vol.toLocaleString('de-DE') + ' Stammdaten → aufgerundet auf Staffel „bis ' + t.max.toLocaleString('de-DE') + '“ = <strong>' + t.tier + '</strong>, ' + eur(t.price) + '/Monat · 3 Voll-Benutzer inklusive';
+    // Katalogregel: WorldCheck erst ab PROFESSIONAL
+    var wcOk = t.tier !== 'STARTER';
+    kwc.disabled = !wcOk;
+    if(!wcOk) kwc.checked = false;
+    document.getElementById('kwchint').textContent = wcOk
+      ? 'Regel: Full File / Bank & Versicherung → Prüffilter (LSEG-Direktvertrag)'
+      : 'Regel: erst ab PROFESSIONAL buchbar – aktuelles Tier ist ' + t.tier;
+    var sum = t.price;
+    document.querySelectorAll('.kaddon').forEach(function(c){ if(c.checked) sum += +c.dataset.price; });
+    var extra = Math.max(0, (+kuser.value || 0) - 3);
+    sum += extra * 25;
+    document.getElementById('kextra').textContent = extra
+      ? extra + ' zusätzliche Voll-Benutzer × 25 €/Monat = ' + eur(extra * 25)
+      : 'keine zusätzlichen Benutzer (3 im Tier inklusive)';
+    document.getElementById('ksum').textContent = eur(sum) + ' / Monat';
+  }
+  [kvol, kuser].forEach(function(i){ i.addEventListener('input', kcalc); });
+  document.querySelectorAll('.kaddon').forEach(function(c){ c.addEventListener('change', kcalc); });
+  kcalc();
+  document.getElementById('kversand').addEventListener('click', function(){
+    var st = document.getElementById('an91status');
+    st.textContent = 'versendet · heute'; st.className = 'pill accent';
+    toast('AN-2026-091 in die E-Mail-Warteschlange eingereiht – erscheint in der Nordbau-Timeline, Nachfass-Aufgabe im Pool Vertrieb angelegt.');
+  });
+
+  // ---------- E-Mail-Zuordnung (BCC-Postfach) ----------
+  var zumodal = document.getElementById('zuordmodal');
+  function zuclose(){ zumodal.classList.remove('open'); }
+  document.getElementById('zuordmailbtn').addEventListener('click', function(){ zumodal.classList.add('open'); });
+  document.getElementById('zuclose').addEventListener('click', zuclose);
+  document.getElementById('zuclose2').addEventListener('click', zuclose);
+  zumodal.addEventListener('click', function(e){ if(e.target === zumodal) zuclose(); });
+  var zupicks = document.querySelectorAll('.zupick');
+  zupicks.forEach(function(b){
+    b.addEventListener('click', function(){
+      zupicks.forEach(function(x){ x.classList.remove('sel'); });
+      b.classList.add('sel');
+    });
+  });
+  document.getElementById('zusave').addEventListener('click', function(){
+    var pick = document.querySelector('.zupick.sel');
+    var kunde = pick ? pick.dataset.kunde : 'Stahlbau Peters GmbH';
+    var ap = document.getElementById('zuap').checked;
+    document.getElementById('uzstatus').innerHTML = '<span class="pill good">' + kunde + ' · manuell zugeordnet</span>';
+    document.getElementById('uzaction').innerHTML = '';
+    zuclose();
+    toast('E-Mail zugeordnet – Eintrag in der Timeline von ' + kunde + (ap ? ', Adresse als Ansprechpartner ergänzt (nächstes Mal automatisch).' : '.'));
+  });
+
+  // ---------- Tickets: Filter, Pool-Übernahme, Verlauf ----------
+  var tkchips = document.querySelectorAll('#tkchips .chip');
+  tkchips.forEach(function(c){
+    c.addEventListener('click', function(){
+      tkchips.forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on');
+      var f = c.dataset.f;
+      document.querySelectorAll('#tktable tbody tr').forEach(function(tr){
+        tr.style.display = (f === 'alle' || (tr.dataset.who || '').split(' ').indexOf(f) !== -1) ? '' : 'none';
+      });
+    });
+  });
+  function tklog(text){
+    var li = document.createElement('li');
+    li.className = 'sys'; li.textContent = text;
+    document.getElementById('tkcomments').appendChild(li);
+  }
+  document.getElementById('tkuebernehmen').addEventListener('click', function(){
+    document.getElementById('tkassign').innerHTML = 'M. Pätzold';
+    var d = document.getElementById('tkdetailassign');
+    d.textContent = 'Zugewiesen: M. Pätzold'; d.className = 'pill accent';
+    var st = document.getElementById('tk14status');
+    st.textContent = 'in Arbeit'; st.className = 'pill accent';
+    document.getElementById('tkstatus').value = 'in Arbeit';
+    tklog('Aus dem Pool übernommen von M. Pätzold · Bereich Support · 07.08.2026');
+    toast('Ticket übernommen – der Bereich Support sieht es als vergeben.');
+  });
+  var tkSel = document.getElementById('tkstatus');
+  tkSel.addEventListener('change', function(){
+    var v = tkSel.value;
+    var pill = document.getElementById('tk14status');
+    pill.textContent = v === 'gelöst' ? 'gelöst am 07.08.2026' : v;
+    pill.className = 'pill ' + (v === 'gelöst' ? 'good' : v === 'wartet auf Kunde' ? 'warn' : v === 'in Arbeit' ? 'accent' : 'neutral');
+    tklog('Status geändert auf „' + v + '“ · M. Pätzold · 07.08.2026');
+    toast(v === 'gelöst'
+      ? 'Ticket gelöst – Lösungsmail geht über die Warteschlange raus, Eintrag in der TechnoPlan-Timeline.'
+      : 'Status aktualisiert: ' + v);
+  });
+  document.getElementById('tksend').addEventListener('click', function(){
+    var inp = document.getElementById('tkinput');
+    if(!inp.value.trim()) return;
+    var li = document.createElement('li');
+    li.innerHTML = '<span class="who">M. Pätzold</span><span class="when">07.08.2026</span><br>';
+    li.appendChild(document.createTextNode(inp.value));
+    document.getElementById('tkcomments').appendChild(li);
+    inp.value = '';
+    toast('Eintrag gespeichert – auch in der Kunden-Timeline von TechnoPlan sichtbar.');
+  });
+
+  // ---------- MRR-Chart ----------
+  var months = ['Sep 25','Okt 25','Nov 25','Dez 25','Jan 26','Feb 26','Mrz 26','Apr 26','Mai 26','Jun 26','Jul 26','Aug 26'];
+  var vals   = [21400, 21900, 22050, 22600, 22800, 23100, 23480, 23700, 23980, 24050, 23870, 24680];
+  var svg = document.getElementById('mrrchart');
+  var NS = 'http://www.w3.org/2000/svg';
+  var W = 720, H = 250, padL = 52, padR = 14, padT = 16, padB = 30;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  var maxV = 26000;
+  function el(n, attrs){ var e = document.createElementNS(NS, n); for(var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function render(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    // grid + y labels
+    [0, 6500, 13000, 19500, 26000].forEach(function(v){
+      var y = padT + plotH - (v/maxV)*plotH;
+      svg.appendChild(el('line', {x1:padL, x2:W-padR, y1:y, y2:y, stroke:css('--chart-grid'), 'stroke-width':1}));
+      var t = el('text', {x:padL-8, y:y+4, 'text-anchor':'end', 'font-size':11, fill:css('--muted')});
+      t.textContent = v === 0 ? '0' : (v/1000).toLocaleString('de-DE') + ' k';
+      svg.appendChild(t);
+    });
+    var n = vals.length, slot = plotW/n, barW = 30;
+    vals.forEach(function(v, i){
+      var x = padL + slot*i + (slot-barW)/2;
+      var h = (v/maxV)*plotH, y = padT + plotH - h;
+      var last = i === n-1;
+      var bar = el('rect', {x:x, y:y, width:barW, height:h, rx:4,
+        fill: last ? css('--accent-strong') : css('--accent'), opacity: last ? 1 : .78});
+      bar.dataset.i = i;
+      svg.appendChild(bar);
+      if(i % 2 === 1 || last){
+        var t = el('text', {x:x+barW/2, y:H-10, 'text-anchor':'middle', 'font-size':11, fill:css('--muted')});
+        t.textContent = months[i]; svg.appendChild(t);
+      }
+      if(last){
+        var lbl = el('text', {x:x+barW/2, y:y-8, 'text-anchor':'middle', 'font-size':12, 'font-weight':650, fill:css('--ink')});
+        lbl.textContent = (v/1000).toLocaleString('de-DE',{minimumFractionDigits:2}).replace(',00','') + ' k€';
+        lbl.textContent = v.toLocaleString('de-DE') + ' €';
+        svg.appendChild(lbl);
+      }
+    });
+    // baseline
+    svg.appendChild(el('line', {x1:padL, x2:W-padR, y1:padT+plotH, y2:padT+plotH, stroke:css('--border-strong'), 'stroke-width':1}));
+  }
+  render();
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  if(mq.addEventListener) mq.addEventListener('change', render);
+  new MutationObserver(render).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+
+  // tooltip
+  var tip = document.getElementById('mrrtip');
+  svg.addEventListener('mousemove', function(e){
+    var t = e.target;
+    if(t.tagName === 'rect' && t.dataset.i !== undefined){
+      var i = +t.dataset.i;
+      tip.textContent = months[i] + ' · ' + vals[i].toLocaleString('de-DE') + ' €';
+      var wrap = svg.parentElement.getBoundingClientRect();
+      var r = t.getBoundingClientRect();
+      tip.style.left = (r.left - wrap.left + r.width/2) + 'px';
+      tip.style.top  = (r.top - wrap.top) + 'px';
+      tip.style.opacity = 1;
+    } else { tip.style.opacity = 0; }
+  });
+  svg.addEventListener('mouseleave', function(){ tip.style.opacity = 0; });
+})();
+</script>

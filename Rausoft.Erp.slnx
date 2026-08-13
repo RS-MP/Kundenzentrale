@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Rausoft.Erp.Api/Rausoft.Erp.Api.csproj" />
+    <Project Path="src/Rausoft.Erp.Data/Rausoft.Erp.Data.csproj" />
+    <Project Path="src/Rausoft.Erp.Domain/Rausoft.Erp.Domain.csproj" />
+    <Project Path="src/Rausoft.Erp.Web/Rausoft.Erp.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Rausoft.Erp.Tests/Rausoft.Erp.Tests.csproj" />
+  </Folder>
+</Solution>
