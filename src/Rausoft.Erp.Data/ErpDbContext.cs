@@ -62,6 +62,10 @@ public class ErpDbContext(
             e.Property(n => n.Praefix).HasMaxLength(10);
             e.Property(n => n.Format).HasMaxLength(20);
             e.Property(n => n.RowVersion).IsRowVersion();
+            // Anonyme Typen, damit die rowversion-Spalte nicht mitgeseedet wird.
+            e.HasData(
+                new { Id = 1, Schluessel = "Kunde", Praefix = "K", NaechsterWert = 1, Format = "D5" },
+                new { Id = 2, Schluessel = "Vertrag", Praefix = "V", NaechsterWert = 1, Format = "D5" });
         });
 
         modelBuilder.Entity<Aktivitaet>(e =>

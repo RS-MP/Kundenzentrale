@@ -606,6 +606,24 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Nummernkreise");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Format = "D5",
+                            NaechsterWert = 1,
+                            Praefix = "K",
+                            Schluessel = "Kunde"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Format = "D5",
+                            NaechsterWert = 1,
+                            Praefix = "V",
+                            Schluessel = "Vertrag"
+                        });
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>

@@ -6,6 +6,12 @@
       "runtimeExecutable": "C:/laragon/bin/php/php-8.3.30-Win32-vs16-x64/php.exe",
       "runtimeArgs": ["-S", "localhost:8378", "-t", "D:/Claude/Code/Kundenzentrale/mockup"],
       "port": 8378
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Rausoft.Erp.Api", "--launch-profile", "http"],
+      "port": 5207
     }
   ]
 }
