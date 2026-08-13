@@ -536,6 +536,52 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Bereiche");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Einstellung", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Beschreibung")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Schluessel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Wert")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Schluessel")
+                        .IsUnique();
+
+                    b.ToTable("Einstellungen");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Beschreibung = "Basisverzeichnis der Vertragsablage (UNC- oder lokaler Pfad). Vertragsdokumente werden hier referenziert, Dateien bleiben im Verzeichnis.",
+                            Schluessel = "Vertragsablage.Verzeichnis",
+                            Wert = ""
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Beschreibung = "Basisverzeichnis für sonstige Dokumente (z. B. E-Mail-Anhänge ab Phase 2).",
+                            Schluessel = "Dokumentablage.Verzeichnis",
+                            Wert = ""
+                        });
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Mitarbeiter", b =>
                 {
                     b.Property<int>("Id")

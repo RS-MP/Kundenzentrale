@@ -1,0 +1,162 @@
+@page "/kunden/{Id:int}"
+@inject HttpClient Http
+
+<PageTitle>@(_kunde?.Firmenname ?? "Kundenakte") · Kundenzentrale</PageTitle>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+else if (_kunde is null)
+{
+    <div class="leer-hinweis">Lade Kundenakte …</div>
+}
+else
+{
+    <div class="akte-kopf">
+        <div class="seitenkopf">
+            <h1>@_kunde.Firmenname</h1>
+            <span class="untertitel">Kunden-Nr. @_kunde.Kundennummer</span>
+        </div>
+        <div class="pills">
+            <span class="pill @(_kunde.Status == "Aktiv" ? "gut" : "kritisch")">@_kunde.Status</span>
+            @if (_kunde.Betriebsart is not null)
+            {
+                <span class="pill akzent">@_kunde.Betriebsart</span>
+            }
+            @if (_kunde.RechnungsempfaengerPartner is not null)
+            {
+                <span class="pill warnung">Endkunde via @_kunde.RechnungsempfaengerPartner · Rechnung an Partner</span>
+            }
+            else if (_kunde.VermitteltDurchPartner is not null)
+            {
+                <span class="pill warnung">Vermittelt durch @_kunde.VermitteltDurchPartner</span>
+            }
+        </div>
+    </div>
+
+    @* Bewusste Layout-Entscheidung: Verlauf links (breite Spalte), Fakten rechts *@
+    <div class="akte">
+        <div>
+            <div class="karte">
+                <div class="karte-kopf"><h2>Verlauf</h2></div>
+                <div class="karte-koerper eng">
+                    <div class="leer-hinweis">
+                        Noch keine Einträge — die Timeline über alle Kanäle
+                        (E-Mail, Anrufe, Aufgaben) kommt in Phase 2.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="karte">
+                <div class="karte-kopf"><h2>Stammdaten</h2></div>
+                <div class="karte-koerper">
+                    <div class="faktenzeile"><span class="beschriftung">Kunden-Nr.</span><span class="wert">@_kunde.Kundennummer</span></div>
+                    @if (_kunde.Kundengruppe is not null)
+                    {
+                        <div class="faktenzeile"><span class="beschriftung">Kundengruppe</span><span class="wert">@_kunde.Kundengruppe</span></div>
+                    }
+                    @if (_kunde.UStIdNr is not null)
+                    {
+                        <div class="faktenzeile"><span class="beschriftung">USt-IdNr.</span><span class="wert">@_kunde.UStIdNr</span></div>
+                    }
+                    @if (_kunde.OdooId is not null)
+                    {
+                        <div class="faktenzeile"><span class="beschriftung">Odoo-Referenz</span><span class="wert">@_kunde.OdooId</span></div>
+                    }
+                </div>
+            </div>
+
+            <div class="karte">
+                <div class="karte-kopf">
+                    <h2>Ansprechpartner</h2>
+                    <span class="pill">@_kunde.Ansprechpartner.Count(a => a.Aktiv)</span>
+                </div>
+                <div class="karte-koerper eng">
+                    @if (_kunde.Ansprechpartner.Count == 0)
+                    {
+                        <div class="leer-hinweis">Keine Ansprechpartner hinterlegt.</div>
+                    }
+                    @foreach (var person in _kunde.Ansprechpartner)
+                    {
+                        <div class="person @(person.Aktiv ? "" : "inaktiv")">
+                            <div class="name">
+                                @person.Anrede @person.Titel @person.Vorname @person.Nachname
+                                @if (!person.Aktiv)
+                                {
+                                    <span class="pill kritisch">inaktiv</span>
+                                }
+                            </div>
+                            @if (person.Position is not null)
+                            {
+                                <div class="details">@person.Position</div>
+                            }
+                            <div class="details">
+                                @if (person.Email is not null)
+                                {
+                                    <a href="mailto:@person.Email">@person.Email</a>
+                                }
+                                @if (person.TelefonFestnetz is not null)
+                                {
+                                    <span> · @person.TelefonFestnetz</span>
+                                }
+                            </div>
+                            @if (person.Rollen.Count > 0)
+                            {
+                                <div class="rollen">
+                                    @foreach (var rolle in person.Rollen)
+                                    {
+                                        <span class="pill akzent">@rolle</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="karte">
+                <div class="karte-kopf"><h2>Adressen</h2></div>
+                <div class="karte-koerper">
+                    @if (_kunde.Adressen.Count == 0)
+                    {
+                        <div class="leer-hinweis">Keine Adressen hinterlegt.</div>
+                    }
+                    @foreach (var adresse in _kunde.Adressen)
+                    {
+                        <div class="faktenzeile">
+                            <span class="beschriftung">@adresse.Typ</span>
+                            <span class="wert">
+                                @adresse.Strasse@(adresse.Zusatz is not null ? $" ({adresse.Zusatz})" : "")<br />
+                                @adresse.Plz @adresse.Ort@(adresse.Land != "DE" ? $" · {adresse.Land}" : "")
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private KundeDetail? _kunde;
+    private string? _fehler;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _fehler = null;
+        _kunde = null;
+        try
+        {
+            _kunde = await Http.GetFromJsonAsync<KundeDetail>($"api/kunden/{Id}");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Kundenakte konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+}

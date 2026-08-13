@@ -1,0 +1,127 @@
+@page "/kunden"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Kunden · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Kunden</h1>
+    @if (_ergebnis is not null)
+    {
+        <span class="untertitel">@_ergebnis.Gesamt Kunden</span>
+    }
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+<div class="werkzeugleiste">
+    <input type="search" placeholder="Suche nach Firma oder Kundennummer …"
+           @bind="_suche" @bind:event="oninput" @onkeydown="BeiTaste" />
+    <button class="knopf" @onclick="() => LadenAsync(1)">Suchen</button>
+    @if (!string.IsNullOrEmpty(_aktiveSuche))
+    {
+        <button class="knopf sekundaer" @onclick="SucheLeeren">Zurücksetzen</button>
+    }
+</div>
+
+<div class="karte">
+    <div class="karte-koerper eng">
+        @if (_ergebnis is null)
+        {
+            <div class="leer-hinweis">Lade Kunden …</div>
+        }
+        else if (_ergebnis.Eintraege.Count == 0)
+        {
+            <div class="leer-hinweis">Keine Kunden gefunden.</div>
+        }
+        else
+        {
+            <table class="liste">
+                <thead>
+                    <tr>
+                        <th>Kunden-Nr.</th>
+                        <th>Firma</th>
+                        <th>Ort</th>
+                        <th>Betriebsart</th>
+                        <th>Vertriebsweg</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var kunde in _ergebnis.Eintraege)
+                    {
+                        <tr @onclick='() => Navigation.NavigateTo($"kunden/{kunde.Id}")'>
+                            <td>@kunde.Kundennummer</td>
+                            <td><strong>@kunde.Firmenname</strong></td>
+                            <td>@kunde.Ort</td>
+                            <td>
+                                @if (kunde.Betriebsart is not null)
+                                {
+                                    <span class="pill akzent">@kunde.Betriebsart</span>
+                                }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(kunde.PartnerHinweis))
+                                {
+                                    <span class="pill warnung">@kunde.PartnerHinweis</span>
+                                }
+                                else
+                                {
+                                    <span class="pill">Direktkunde</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="pill @(kunde.Status == "Aktiv" ? "gut" : "kritisch")">@kunde.Status</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="paging">
+                <button class="knopf sekundaer" disabled="@(_ergebnis.Seite <= 1)"
+                        @onclick="() => LadenAsync(_ergebnis.Seite - 1)">‹ Zurück</button>
+                <span>Seite @_ergebnis.Seite von @_ergebnis.SeitenAnzahl</span>
+                <button class="knopf sekundaer" disabled="@(_ergebnis.Seite >= _ergebnis.SeitenAnzahl)"
+                        @onclick="() => LadenAsync(_ergebnis.Seite + 1)">Weiter ›</button>
+                <span class="fueller"></span>
+                <span>@_ergebnis.Gesamt Einträge</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private SeitenErgebnis<KundeListenEintrag>? _ergebnis;
+    private string _suche = "";
+    private string _aktiveSuche = "";
+    private string? _fehler;
+
+    protected override Task OnInitializedAsync() => LadenAsync(1);
+
+    private async Task LadenAsync(int seite)
+    {
+        _fehler = null;
+        try
+        {
+            _aktiveSuche = _suche.Trim();
+            _ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
+                $"api/kunden?suche={Uri.EscapeDataString(_aktiveSuche)}&seite={seite}&proSeite=25");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Kunden konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private Task BeiTaste(KeyboardEventArgs e) =>
+        e.Key == "Enter" ? LadenAsync(1) : Task.CompletedTask;
+
+    private Task SucheLeeren()
+    {
+        _suche = "";
+        return LadenAsync(1);
+    }
+}

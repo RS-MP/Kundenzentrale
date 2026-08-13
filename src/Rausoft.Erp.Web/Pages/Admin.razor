@@ -1,0 +1,89 @@
+@page "/admin"
+@inject HttpClient Http
+
+<PageTitle>Administration · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Administration</h1>
+    <span class="untertitel">Systemeinstellungen — Änderungen werden protokolliert</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+<div class="karte">
+    <div class="karte-kopf"><h2>Verzeichnisse &amp; Einstellungen</h2></div>
+    <div class="karte-koerper eng">
+        @if (_einstellungen is null)
+        {
+            <div class="leer-hinweis">Lade Einstellungen …</div>
+        }
+        else
+        {
+            @foreach (var einstellung in _einstellungen)
+            {
+                <div class="einstellung">
+                    <div class="schluessel">@einstellung.Schluessel</div>
+                    @if (einstellung.Beschreibung is not null)
+                    {
+                        <div class="beschreibung">@einstellung.Beschreibung</div>
+                    }
+                    <div class="zeile">
+                        <input type="text" @bind="_werte[einstellung.Schluessel]"
+                               placeholder="z. B. \\server\ablage\vertraege" />
+                        <button class="knopf" @onclick="() => SpeichernAsync(einstellung.Schluessel)">Speichern</button>
+                        @if (_gespeichert == einstellung.Schluessel)
+                        {
+                            <span class="gespeichert">✓ gespeichert</span>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private List<EinstellungEintrag>? _einstellungen;
+    private readonly Dictionary<string, string> _werte = [];
+    private string? _gespeichert;
+    private string? _fehler;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _einstellungen = await Http.GetFromJsonAsync<List<EinstellungEintrag>>("api/einstellungen");
+            foreach (var einstellung in _einstellungen ?? [])
+                _werte[einstellung.Schluessel] = einstellung.Wert;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            _fehler = "Kein Zugriff: Der Admin-Bereich erfordert die Administrator-Rolle.";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Einstellungen konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task SpeichernAsync(string schluessel)
+    {
+        _fehler = null;
+        _gespeichert = null;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync(
+                $"api/einstellungen/{Uri.EscapeDataString(schluessel)}",
+                new EinstellungAenderung(_werte[schluessel]));
+            antwort.EnsureSuccessStatusCode();
+            _gespeichert = schluessel;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+    }
+}

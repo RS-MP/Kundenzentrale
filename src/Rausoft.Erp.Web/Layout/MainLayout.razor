@@ -1,16 +1,16 @@
-﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
+@inherits LayoutComponentBase
+
+<div class="topbar">
+    <div class="topbar-inhalt">
+        <span class="marke"><span class="firma">rausoft</span> Kundenzentrale</span>
+        <nav class="hauptnav">
+            <NavLink href="kunden">Kunden</NavLink>
+            <span class="bald" title="Kommt als Nächstes in Phase 1">Verträge <small>· bald</small></span>
+            <NavLink href="admin">Administration</NavLink>
+        </nav>
     </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
 </div>
+
+<main class="inhalt">
+    @Body
+</main>

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Rausoft.Erp.Data\Rausoft.Erp.Data.csproj" />
+    <ProjectReference Include="..\Rausoft.Erp.Dtos\Rausoft.Erp.Dtos.csproj" />
   </ItemGroup>
 
 </Project>

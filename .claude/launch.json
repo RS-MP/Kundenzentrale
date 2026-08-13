@@ -12,6 +12,12 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "src/Rausoft.Erp.Api", "--launch-profile", "http"],
       "port": 5207
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Rausoft.Erp.Web", "--launch-profile", "http"],
+      "port": 5100
     }
   ]
 }

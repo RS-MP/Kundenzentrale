@@ -37,7 +37,13 @@ else
 builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = options.DefaultPolicy;
+    // "Admin" prüft die Mitarbeiter-Rolle aus der DB (AdminAnforderungHandler)
+    options.AddPolicy("Admin", policy => policy.Requirements.Add(new AdminAnforderung()));
 });
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminAnforderungHandler>();
+
+// Blazor WASM (eigener Dev-Port) darf die API in der Entwicklung aufrufen
+builder.Services.AddCors();
 
 builder.Services.AddDbContext<ErpDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Kundenzentrale")));
@@ -83,6 +89,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+if (app.Environment.IsDevelopment())
+{
+    // Nur lokale Origins (Blazor-Dev-Server); Produktions-CORS wird beim
+    // Deployment bewusst konfiguriert.
+    app.UseCors(policy => policy
+        .SetIsOriginAllowed(origin => new Uri(origin).IsLoopback)
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

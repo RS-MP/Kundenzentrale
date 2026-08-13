@@ -20,6 +20,7 @@ public class ErpDbContext(
     public DbSet<Nummernkreis> Nummernkreise => Set<Nummernkreis>();
     public DbSet<Aktivitaet> Aktivitaeten => Set<Aktivitaet>();
     public DbSet<AuditLogEintrag> AuditLog => Set<AuditLogEintrag>();
+    public DbSet<Einstellung> Einstellungen => Set<Einstellung>();
 
     // Kontakte
     public DbSet<Kunde> Kunden => Set<Kunde>();
@@ -83,6 +84,30 @@ public class ErpDbContext(
             e.HasIndex(a => new { a.Entitaet, a.EntitaetId });
             e.Property(a => a.Entitaet).HasMaxLength(100);
             e.Property(a => a.AenderungenJson).HasColumnType("nvarchar(max)");
+        });
+
+        modelBuilder.Entity<Einstellung>(e =>
+        {
+            e.HasIndex(x => x.Schluessel).IsUnique();
+            e.Property(x => x.Schluessel).HasMaxLength(100);
+            e.Property(x => x.Wert).HasMaxLength(1000);
+            e.Property(x => x.Beschreibung).HasMaxLength(500);
+            e.HasData(
+                new
+                {
+                    Id = 1,
+                    Schluessel = EinstellungsSchluessel.VertragsablageVerzeichnis,
+                    Wert = "",
+                    Beschreibung = "Basisverzeichnis der Vertragsablage (UNC- oder lokaler Pfad). " +
+                                   "Vertragsdokumente werden hier referenziert, Dateien bleiben im Verzeichnis.",
+                },
+                new
+                {
+                    Id = 2,
+                    Schluessel = EinstellungsSchluessel.DokumentablageVerzeichnis,
+                    Wert = "",
+                    Beschreibung = "Basisverzeichnis für sonstige Dokumente (z. B. E-Mail-Anhänge ab Phase 2).",
+                });
         });
 
         // --- Kontakte --------------------------------------------------------
