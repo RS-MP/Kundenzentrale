@@ -24,6 +24,9 @@ public class Adresse
     public string Land { get; set; } = "DE";
 
     public bool Aktiv { get; set; } = true;
+
+    /// <summary>Odoo-Adresskind (type=invoice/delivery/other), falls importiert.</summary>
+    public int? OdooId { get; set; }
 }
 
 public enum AdressTyp

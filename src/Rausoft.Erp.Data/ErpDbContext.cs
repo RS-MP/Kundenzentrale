@@ -91,6 +91,7 @@ public class ErpDbContext(
             e.HasIndex(k => k.Kundennummer).IsUnique();
             e.HasIndex(k => k.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
             e.Property(k => k.Kundennummer).HasMaxLength(20);
+            e.Property(k => k.UStIdNr).HasMaxLength(20);
             e.Property(k => k.Notiz).HasColumnType("nvarchar(max)");
             e.Property(k => k.RowVersion).IsRowVersion();
             e.HasOne(k => k.VermitteltDurchPartner).WithMany()
@@ -127,6 +128,7 @@ public class ErpDbContext(
         {
             e.Property(a => a.Plz).HasMaxLength(10);
             e.Property(a => a.Land).HasMaxLength(2).IsFixedLength();
+            e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
         });
 
         // --- Verträge --------------------------------------------------------

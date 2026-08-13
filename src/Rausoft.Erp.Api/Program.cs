@@ -46,7 +46,9 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAktuellerBenutzer, AktuellerBenutzer>();
 builder.Services.AddScoped<NummernkreisDienst>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+    // Übergangslösung bis zur DTO-Schicht: Navigations-Zyklen (Kunde ↔ Ansprechpartner) kappen
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

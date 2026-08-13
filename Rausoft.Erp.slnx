@@ -3,6 +3,7 @@
     <Project Path="src/Rausoft.Erp.Api/Rausoft.Erp.Api.csproj" />
     <Project Path="src/Rausoft.Erp.Data/Rausoft.Erp.Data.csproj" />
     <Project Path="src/Rausoft.Erp.Domain/Rausoft.Erp.Domain.csproj" />
+    <Project Path="src/Rausoft.Erp.OdooImport/Rausoft.Erp.OdooImport.csproj" />
     <Project Path="src/Rausoft.Erp.Web/Rausoft.Erp.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">

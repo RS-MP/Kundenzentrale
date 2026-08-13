@@ -29,6 +29,9 @@ public class Kunde
     public int? RechnungsempfaengerPartnerId { get; set; }
     public Partner? RechnungsempfaengerPartner { get; set; }
 
+    /// <summary>Umsatzsteuer-Identifikationsnummer, z. B. "DE262976662" — für Rechnungen/ZUGFeRD.</summary>
+    public string? UStIdNr { get; set; }
+
     /// <summary>Referenz auf den Odoo-Datensatz für den Import und die Übergangszeit.</summary>
     public int? OdooId { get; set; }
 

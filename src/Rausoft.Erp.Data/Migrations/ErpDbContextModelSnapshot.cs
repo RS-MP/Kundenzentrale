@@ -182,6 +182,9 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasColumnType("nchar(2)")
                         .IsFixedLength();
 
+                    b.Property<int?>("OdooId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Ort")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -207,6 +210,10 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("KundeId");
+
+                    b.HasIndex("OdooId")
+                        .IsUnique()
+                        .HasFilter("[OdooId] IS NOT NULL");
 
                     b.ToTable("Adressen");
                 });
@@ -325,6 +332,10 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
+
+                    b.Property<string>("UStIdNr")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<int?>("VermitteltDurchPartnerId")
                         .HasColumnType("int");

@@ -80,4 +80,5 @@ public enum AnsprechpartnerRolle
     Vertrag = 1,
     Technik = 2,
     Rechnungsempfang = 4,
+    Hauptansprechpartner = 8,
 }
