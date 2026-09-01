@@ -5,14 +5,14 @@ abgearbeitet, wenn die Sammelphase beendet ist. Neue Punkte einfach unten anfüg
 
 ## Nr. 1 · Kundenakte → Vertrag nicht anklickbar (2026-09-01, MP)
 
-Weg: Kunde suchen → Kundenakte öffnen → in der Karte „Verträge" auf den
-Vertrag klicken → Klick führt nicht zum Vertrag, man muss die Akte erst
-wieder verlassen und über den Bereich „Verträge" gehen.
+Aufklärung: kein Fehler — der Vertragslink sitzt in der Karte „Verträge"
+rechts (Faktenspalte); gesucht wurde im Verlauf links im Hauptbild.
 
-Erwartung: Klick auf die Vertragsnummer (oder die ganze Zeile) in der
-Kundenakte öffnet direkt die Vertragsdetailseite.
+Daraus abgeleitete Idee (klein, für später): Verlaufseinträge mit
+Vertragsbezug ebenfalls klickbar machen — die Timeline kennt das Sprungziel
+bereits (VerweisTyp/VerweisId), es wird nur noch nicht als Link gerendert.
 
-Status: offen
+Status: erledigt (kein Fehler) · Folgeidee offen
 
 ## Backlog (bereits bekannt, kein neues Feedback)
 
