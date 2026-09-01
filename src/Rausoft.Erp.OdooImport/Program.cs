@@ -1,6 +1,14 @@
 using System.Text.Json;
 using Rausoft.Erp.OdooImport;
 
+// Modus "vertragsscan": Bestand der Vertragsdateien aus dem Ablageverzeichnis
+// erfassen (braucht kein Odoo, nur DB + Dateizugriff). --dry-run = nur Bericht.
+if (args.Contains("vertragsscan"))
+{
+    await new VertragsBestandScanner(dryRun: args.Contains("--dry-run")).AusfuehrenAsync();
+    return 0;
+}
+
 // Verbindungsdaten ausschließlich aus Umgebungsvariablen (keine Secrets in Dateien):
 //   ODOO_URL      z. B. https://rausoft.odoo.com oder http://odoo.intern:8069
 //   ODOO_DB       Name der Odoo-Datenbank

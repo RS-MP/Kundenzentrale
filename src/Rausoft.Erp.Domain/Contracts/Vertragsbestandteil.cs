@@ -30,4 +30,5 @@ public enum BestandteilTyp
     Sondervereinbarung = 3,
     Nachtrag = 4,
     Sonstiges = 5,
+    Wartungsvertrag = 6,
 }

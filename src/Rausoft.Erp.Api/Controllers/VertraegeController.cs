@@ -304,6 +304,7 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         BestandteilTyp.Nda => "NDA",
         BestandteilTyp.Sondervereinbarung => "Sondervereinbarung",
         BestandteilTyp.Nachtrag => "Nachtrag",
+        BestandteilTyp.Wartungsvertrag => "Wartungsvertrag",
         _ => "Sonstiges",
     };
 
@@ -314,6 +315,7 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         "NDA" => BestandteilTyp.Nda,
         "Sondervereinbarung" => BestandteilTyp.Sondervereinbarung,
         "Nachtrag" => BestandteilTyp.Nachtrag,
+        "Wartungsvertrag" => BestandteilTyp.Wartungsvertrag,
         "Sonstiges" => BestandteilTyp.Sonstiges,
         _ => null,
     };
