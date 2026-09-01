@@ -71,6 +71,17 @@ Layout-Entscheidung nach Ansicht beider Varianten.
   kommen Dauer/Richtung zurück, Gesprächsnotiz wird ergänzt, Eintrag landet in
   der Timeline.
 
+### Individualentwicklung & Preis-Sonderabsprachen (ergänzt 09/2026)
+
+- **Individualentwicklung:** Einige Kunden haben eine Individualentwicklung
+  erhalten — Kennzeichen am Kunden mit Beschreibung (was wurde entwickelt),
+  in der Kundenakte sofort sichtbar.
+- **Preis-Sonderabsprachen, zeitlich befristet:** z. B. 50 % Rabatt in den
+  ersten 2 Jahren oder fester Abzugsbetrag in den ersten 2 Jahren.
+  Hinterlegbar am Kunden/Vertrag (Gültig-von/-bis, Typ Prozent oder Betrag),
+  auswertbar analog Sondervereinbarungen; fließt in Phase 4 in Abo-Abrechnung
+  und MRR-Berechnung ein.
+
 ## Partner & Reseller
 
 - **CSB:** Tipp-Provision 15 % — Partner stellt rausoft die Provision in

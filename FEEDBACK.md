@@ -14,6 +14,27 @@ bereits (VerweisTyp/VerweisId), es wird nur noch nicht als Link gerendert.
 
 Status: erledigt (kein Fehler) · Folgeidee offen
 
+## Nr. 2 · Kennzeichen „Individualentwicklung" am Kunden (2026-09-01, MP)
+
+Einige Kunden haben eine Individualentwicklung erhalten. Das muss am Kunden
+gekennzeichnet und hinterlegt werden können (was wurde entwickelt), sichtbar
+in der Kundenakte.
+
+Status: offen (Anforderung, umsetzen nach der Sammelphase)
+
+## Nr. 3 · Preis-Sonderabsprachen zeitlich befristet (2026-09-01, MP)
+
+Es gibt Sonderabsprachen zum Preis, z. B.:
+- 50 % Rabatt in den ersten 2 Jahren (prozentual, befristet)
+- fester Betrag wird in den ersten 2 Jahren vom Preis abgezogen (absolut, befristet)
+
+Muss am Kunden/Vertrag hinterlegbar sein, in der Akte sichtbar, auswertbar
+(„wer hat Sonderabsprachen?") und später in Abo-Abrechnung + MRR-Auswertung
+(Phase 4) korrekt einfließen — Rabatt mit Gültig-von/Gültig-bis, Typ
+Prozent oder Betrag.
+
+Status: offen (Anforderung; Datenmodell bei Phase-4-Vorbereitung, Kennzeichnung ggf. früher)
+
 ## Backlog (bereits bekannt, kein neues Feedback)
 
 - Laufzeiten/Kündigungsfristen der 776 Bestandsverträge nachpflegen
