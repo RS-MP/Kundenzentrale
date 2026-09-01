@@ -1,5 +1,6 @@
 @page "/vertraege/{Id:int}"
 @inject HttpClient Http
+@inject IJSRuntime JS
 
 <PageTitle>@(_vertrag?.Vertragsnummer ?? "Vertrag") · Kundenzentrale</PageTitle>
 
@@ -108,6 +109,7 @@ else
                                     <span style="color:var(--muted); white-space:nowrap">
                                         @dokument.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm") · @dokument.ErstelltVon
                                     </span>
+                                    <button class="knopf sekundaer" @onclick="() => VorschauAsync(dokument)">Ansehen</button>
                                 </div>
                             }
                             <div style="display:flex; gap:8px; margin-top:8px">
@@ -176,6 +178,20 @@ else
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+}
+
+@if (_vorschauUrl is not null)
+{
+    <div class="vorschau-overlay" @onclick="VorschauSchliessenAsync">
+        <div class="vorschau-fenster" @onclick:stopPropagation="true">
+            <div class="vorschau-kopf">
+                <span class="titel">@_vorschauTitel</span>
+                <a class="knopf sekundaer" href="@_vorschauUrl" target="_blank">In neuem Tab öffnen</a>
+                <button class="knopf" @onclick="VorschauSchliessenAsync">Schließen</button>
+            </div>
+            <iframe src="@_vorschauUrl" title="Dokumentvorschau"></iframe>
         </div>
     </div>
 }
@@ -285,6 +301,47 @@ else
         catch (Exception ex)
         {
             _fehler = $"Dokument konnte nicht registriert werden: {ex.Message}";
+        }
+    }
+
+    private string? _vorschauUrl;
+    private string? _vorschauTitel;
+
+    private async Task VorschauAsync(DokumentEintrag dokument)
+    {
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.GetAsync($"api/vertraege/dokumente/{dokument.Id}/datei");
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var bytes = await antwort.Content.ReadAsByteArrayAsync();
+            var typ = antwort.Content.Headers.ContentType?.MediaType ?? "application/pdf";
+            await VorschauUrlFreigebenAsync();
+            _vorschauUrl = await JS.InvokeAsync<string>("dateiVorschau.erzeugeUrl", Convert.ToBase64String(bytes), typ);
+            _vorschauTitel = $"{dokument.DateinameOriginal} (v{dokument.Version})";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Dokument konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task VorschauSchliessenAsync()
+    {
+        await VorschauUrlFreigebenAsync();
+        _vorschauTitel = null;
+    }
+
+    private async Task VorschauUrlFreigebenAsync()
+    {
+        if (_vorschauUrl is not null)
+        {
+            await JS.InvokeVoidAsync("dateiVorschau.freigeben", _vorschauUrl);
+            _vorschauUrl = null;
         }
     }
 

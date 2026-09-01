@@ -234,6 +234,29 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         return NoContent();
     }
 
+    /// <summary>
+    /// Liefert die Datei einer registrierten Dokumentversion aus (Vorschau/Download).
+    /// Es sind ausschließlich registrierte Dokumente erreichbar — kein freier
+    /// Zugriff auf das Ablageverzeichnis.
+    /// </summary>
+    [HttpGet("dokumente/{dokumentId:int}/datei")]
+    public async Task<IActionResult> DokumentDatei(int dokumentId, CancellationToken ct)
+    {
+        var dokument = await db.Vertragsdokumente.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == dokumentId, ct);
+        if (dokument is null)
+            return NotFound();
+        if (!System.IO.File.Exists(dokument.Dateipfad))
+            return NotFound($"Die Datei liegt nicht (mehr) am registrierten Pfad: {dokument.Dateipfad}");
+
+        new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider()
+            .TryGetContentType(dokument.DateinameOriginal, out var contentType);
+
+        var stream = System.IO.File.OpenRead(dokument.Dateipfad);
+        // Ohne fileDownloadName → Anzeige inline (Vorschau) statt Download
+        return File(stream, contentType ?? "application/octet-stream", enableRangeProcessing: true);
+    }
+
     // --- Hilfen ----------------------------------------------------------------
 
     private async Task<Aktivitaet> TimelineEintrag(int kundeId, string betreff, string? inhalt, CancellationToken ct)

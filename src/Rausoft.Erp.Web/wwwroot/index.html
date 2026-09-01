@@ -22,6 +22,18 @@
         <a href="." class="reload">Neu laden</a>
         <span class="dismiss">🗙</span>
     </div>
+    <script>
+        // Dokument-Vorschau: erzeugt eine Blob-URL aus geladenen Dateibytes,
+        // damit die Datei im iframe angezeigt werden kann (UNC-Pfade kann der
+        // Browser nicht öffnen; der Abruf läuft über die API).
+        window.dateiVorschau = {
+            erzeugeUrl: (base64, typ) => {
+                const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                return URL.createObjectURL(new Blob([bytes], { type: typ }));
+            },
+            freigeben: (url) => URL.revokeObjectURL(url)
+        };
+    </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 
