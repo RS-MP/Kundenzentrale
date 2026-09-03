@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kundenakte ruhig</title>
+<style>
+  :root{
+    --bg:#F4F6F8; --surface:#FFFFFF; --surface2:#ECF0F3; --border:#D9E0E6; --border-strong:#C3CDD6;
+    --ink:#182430; --ink2:#46586A; --muted:#7C8B99;
+    --accent:#0E6E7E; --accent-strong:#0A5561; --accent-soft:#DDEEF1;
+    --good:#1E7B45; --warn:#8F6400; --crit:#B3372E;
+    --shadow:0 1px 2px rgba(24,36,48,.06),0 4px 14px rgba(24,36,48,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#10161C; --surface:#161F27; --surface2:#1E2932; --border:#2A3846; --border-strong:#3A4B5B;
+      --ink:#E4EDF3; --ink2:#A7B7C4; --muted:#71818F;
+      --accent:#4FB3C1; --accent-strong:#7ECBD6; --accent-soft:#12333B;
+      --good:#54C48D; --warn:#E0B458; --crit:#E8776E;
+      --shadow:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10161C; --surface:#161F27; --surface2:#1E2932; --border:#2A3846; --border-strong:#3A4B5B;
+    --ink:#E4EDF3; --ink2:#A7B7C4; --muted:#71818F;
+    --accent:#4FB3C1; --accent-strong:#7ECBD6; --accent-soft:#12333B;
+    --good:#54C48D; --warn:#E0B458; --crit:#E8776E;
+    --shadow:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.25);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.5 "Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  /* Konzept-Rahmen */
+  .konzeptkopf{
+    max-width:1200px; margin:0 auto; padding:28px 20px 8px;
+  }
+  .konzeptkopf h1{font-size:22px; margin:0 0 4px; text-wrap:balance}
+  .konzeptkopf p{color:var(--ink2); max-width:66ch; margin:6px 0}
+  .prinzipien{display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 6px}
+  .prinzipien span{
+    border:1px solid var(--border-strong); border-radius:999px; padding:3px 11px;
+    font-size:12px; color:var(--ink2); background:var(--surface);
+  }
+  .sprungnav{
+    position:sticky; top:0; z-index:20; background:var(--bg);
+    border-bottom:1px solid var(--border);
+  }
+  .sprungnav .innen{max-width:1200px; margin:0 auto; padding:10px 20px; display:flex; gap:18px}
+  .sprungnav a{font-weight:600; color:var(--ink2)}
+  .sprungnav a:hover{color:var(--accent); text-decoration:none}
+
+  section.schirm{max-width:1200px; margin:0 auto; padding:36px 20px 12px}
+  .schirm-titel{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0 0 10px}
+  .schirm-notiz{color:var(--muted); font-size:13px; max-width:70ch; margin:10px 0 0}
+
+  /* Simulierte App-Leiste */
+  .appbar{
+    background:var(--surface); border:1px solid var(--border); border-bottom:none;
+    border-radius:10px 10px 0 0;
+    display:flex; align-items:center; gap:24px; padding:0 18px; height:46px;
+  }
+  .appbar .marke{font-weight:600; white-space:nowrap}
+  .appbar .marke b{color:var(--accent); font-weight:600}
+  .appbar nav{display:flex; gap:2px}
+  .appbar nav a{padding:5px 11px; border-radius:6px; color:var(--ink2); font-weight:500}
+  .appbar nav a.aktiv{background:var(--accent-soft); color:var(--accent-strong)}
+  .rahmen{
+    background:var(--surface); border:1px solid var(--border); border-radius:0 0 10px 10px;
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .rahmen .inhalt{padding:18px}
+
+  h2.seitentitel{font-size:19px; margin:0}
+  .zeilenkopf{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:14px}
+  .zeilenkopf .zusatz{color:var(--muted)}
+
+  /* Status: die EINZIGE Farbe */
+  .status{display:inline-flex; align-items:center; gap:6px; white-space:nowrap}
+  .status::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--muted)}
+  .status.gut::before{background:var(--good)}
+  .status.warnung::before{background:var(--warn)}
+  .status.kritisch::before{background:var(--crit)}
+  .warntext{color:var(--warn)}
+  .krittext{color:var(--crit)}
+
+  /* Werkzeuge */
+  input[type=search]{
+    font:inherit; color:var(--ink); background:var(--surface);
+    border:1px solid var(--border-strong); border-radius:7px; padding:6px 10px; min-width:300px;
+  }
+  input[type=search]:focus{outline:2px solid var(--accent-soft); border-color:var(--accent)}
+  .chips{display:flex; gap:6px; flex-wrap:wrap}
+  .chip{
+    font:inherit; font-size:13px; cursor:pointer; border:1px solid var(--border-strong);
+    background:var(--surface); color:var(--ink2); border-radius:999px; padding:4px 12px;
+  }
+  .chip:hover{border-color:var(--accent)}
+  .chip.aktiv{background:var(--ink); border-color:var(--ink); color:var(--surface)}
+  .werkzeuge{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px}
+
+  /* Tabellen */
+  table{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums}
+  th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); font-weight:600; padding:8px 12px; border-bottom:1px solid var(--border);
+  }
+  td{padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:var(--surface2)}
+  td .haupt{font-weight:600}
+  td .neben{color:var(--muted); font-size:12.5px; margin-top:1px}
+  .rechts{text-align:right}
+  .tabellenfuss{display:flex; gap:14px; align-items:center; padding:10px 12px; color:var(--muted); font-size:13px}
+  .tabellenfuss .fueller{flex:1}
+
+  /* Akte */
+  .faktenzeile{color:var(--ink2); margin-top:4px}
+  .faktenzeile b{font-weight:600; color:var(--ink)}
+  .faktenzeile .trenn{color:var(--border-strong); margin:0 7px}
+  .merkmal{border-bottom:1px dashed var(--border-strong); cursor:help}
+
+  .akte{display:grid; grid-template-columns:1.6fr 1fr; gap:18px; align-items:start; margin-top:16px}
+  @media (max-width:900px){.akte{grid-template-columns:1fr}}
+
+  .karte{border:1px solid var(--border); border-radius:9px; overflow:hidden; background:var(--surface)}
+  .karte + .karte{margin-top:12px}
+  .kartekopf{
+    padding:9px 14px; border-bottom:1px solid var(--border); background:var(--surface2);
+    font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:600;
+    display:flex; align-items:center; gap:8px;
+  }
+  .kartekopf .zahl{margin-left:auto; font-variant-numeric:tabular-nums; letter-spacing:0}
+
+  /* Verlauf: monochrom, Datumsspalte */
+  .verlauf{list-style:none; margin:0; padding:0}
+  .verlauf li{display:grid; grid-template-columns:92px 1fr; gap:12px; padding:10px 14px; border-bottom:1px solid var(--border)}
+  .verlauf li:last-child{border-bottom:none}
+  .verlauf .datum{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums; padding-top:1px}
+  .verlauf .paar{color:var(--muted); font-size:12.5px; margin-top:1px}
+  .verlauf .text{color:var(--ink2); margin-top:2px}
+
+  /* Aufklapper rechts */
+  details.gruppe{border:1px solid var(--border); border-radius:9px; background:var(--surface); overflow:hidden}
+  details.gruppe + details.gruppe{margin-top:12px}
+  details.gruppe summary{
+    list-style:none; cursor:pointer; padding:10px 14px;
+    font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:600;
+    display:flex; align-items:center; gap:8px; background:var(--surface2);
+  }
+  details.gruppe summary::-webkit-details-marker{display:none}
+  details.gruppe summary::after{content:"▸"; margin-left:auto; color:var(--muted); transition:transform .15s}
+  @media (prefers-reduced-motion: reduce){ details.gruppe summary::after{transition:none} }
+  details.gruppe[open] summary::after{transform:rotate(90deg)}
+  details.gruppe summary .zahl{font-variant-numeric:tabular-nums; letter-spacing:0}
+  .gruppe-inhalt{padding:12px 14px}
+
+  .zeile{display:flex; justify-content:space-between; gap:12px; padding:5px 0}
+  .zeile .l{color:var(--muted)}
+  .zeile .r{text-align:right; font-variant-numeric:tabular-nums}
+
+  .person{padding:8px 0; border-bottom:1px dashed var(--border)}
+  .person:last-child{border-bottom:none}
+  .person .name{font-weight:600}
+  .person .rolle{color:var(--muted); font-size:12px; margin-left:6px; font-weight:400}
+  .person .kontakt{color:var(--ink2); font-size:13px}
+  .mehr{color:var(--accent); background:none; border:none; font:inherit; cursor:pointer; padding:6px 0}
+  .mehr:hover{text-decoration:underline}
+
+  .dok{display:flex; gap:10px; align-items:baseline; padding:5px 0}
+  .dok .name{flex:1}
+  .dok .meta{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums; white-space:nowrap}
+
+  /* KPI-Zeile Arbeitsliste */
+  .kpis{display:flex; gap:28px; flex-wrap:wrap; margin-bottom:14px}
+  .kpi .wert{font-size:22px; font-weight:600; font-variant-numeric:tabular-nums}
+  .kpi .label{color:var(--muted); font-size:12.5px}
+
+  footer{max-width:1200px; margin:0 auto; padding:24px 20px 48px; color:var(--muted); font-size:13px; max-width:72ch}
+</style>
+</head>
+<body>
+
+<div class="konzeptkopf">
+  <h1>Kundenakte ruhig — Konzept 09/2026</h1>
+  <p>Beruhigungs-Iteration der laufenden Anwendung, aufgebaut auf den Prinzipien aus
+  Variante B. Datenstruktur wie im Echtbetrieb (Bestandsverträge, Sammelpostfächer,
+  Bestellungen als Dokumentart, neue Anforderungen Nr. 2 + 3), Kundennamen fiktiv.</p>
+  <div class="prinzipien">
+    <span>Farbe nur für Status</span>
+    <span>Faktenzeile statt Pills</span>
+    <span>Aufklapper: Wichtiges offen</span>
+    <span>Listen mit Arbeitszweck</span>
+    <span>Verlauf klickbar</span>
+  </div>
+</div>
+
+<div class="sprungnav"><div class="innen">
+  <a href="#liste">1 · Kundenliste</a>
+  <a href="#akte">2 · Kundenakte</a>
+  <a href="#vertraege">3 · Verträge als Arbeitsliste</a>
+</div></div>
+
+<!-- ============ 1 · KUNDENLISTE ============ -->
+<section class="schirm" id="liste">
+  <p class="schirm-titel">1 · Kundenliste — vier Spalten, Zusatzinfo nur wo gepflegt</p>
+  <div class="appbar">
+    <span class="marke"><b>rausoft</b> Kundenzentrale</span>
+    <nav><a class="aktiv" href="#liste">Kunden</a><a href="#vertraege">Verträge</a><a href="#liste">Administration</a></nav>
+  </div>
+  <div class="rahmen"><div class="inhalt">
+    <div class="zeilenkopf"><h2 class="seitentitel">Kunden</h2><span class="zusatz">4.918 aktive · 607 inaktive</span></div>
+    <div class="werkzeuge">
+      <input type="search" placeholder="Firma oder Kundennummer …">
+      <div class="chips">
+        <button class="chip aktiv" type="button">Aktive</button>
+        <button class="chip" type="button">Alle</button>
+        <button class="chip" type="button">Mit Partner</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th style="width:90px">Nr.</th><th>Firma</th><th style="width:180px">Ort</th><th style="width:110px">Status</th></tr></thead>
+      <tbody>
+        <tr><td>4228</td><td><span class="haupt">Berghoff Logistik GmbH</span><div class="neben">Shared Cloud · Endkunde via Finesolutions — Rechnung an Partner</div></td><td>Ravensburg</td><td><span class="status gut">Aktiv</span></td></tr>
+        <tr><td>5730</td><td><span class="haupt">Micromac Systems AG</span></td><td>Chemnitz</td><td><span class="status gut">Aktiv</span></td></tr>
+        <tr><td>6342</td><td><span class="haupt">Nordwind Software GmbH</span><div class="neben">OnPrem · Individualentwicklung</div></td><td>Leonberg</td><td><span class="status gut">Aktiv</span></td></tr>
+        <tr><td>7536</td><td><span class="haupt">Hansa Zeitarbeit GmbH &amp; Co. KG</span></td><td>Hamburg</td><td><span class="status gut">Aktiv</span></td></tr>
+        <tr><td>8991</td><td><span class="haupt">Talheim Kunststofftechnik GmbH</span><div class="neben">vermittelt durch consys</div></td><td>Heilbronn</td><td><span class="status">Inaktiv</span></td></tr>
+        <tr><td>10079</td><td><span class="haupt">Ruck Medizintechnik GmbH</span></td><td>Neuenbürg</td><td><span class="status gut">Aktiv</span></td></tr>
+      </tbody>
+    </table>
+    <div class="tabellenfuss"><span>Seite 1 von 197</span><span class="fueller"></span><span>25 pro Seite</span></div>
+  </div></div>
+  <p class="schirm-notiz">Betriebsart und Vertriebsweg sind keine eigenen Spalten mehr —
+  sie erscheinen als graue Nebenzeile nur bei den Kunden, wo sie gepflegt sind
+  (71 bzw. 139 von 5.525). Der einzige Farbpunkt der Liste ist der Status.</p>
+</section>
+
+<!-- ============ 2 · KUNDENAKTE ============ -->
+<section class="schirm" id="akte">
+  <p class="schirm-titel">2 · Kundenakte — Verlauf links, Fakten rechts als Aufklapper</p>
+  <div class="appbar">
+    <span class="marke"><b>rausoft</b> Kundenzentrale</span>
+    <nav><a class="aktiv" href="#liste">Kunden</a><a href="#vertraege">Verträge</a><a href="#liste">Administration</a></nav>
+  </div>
+  <div class="rahmen"><div class="inhalt">
+
+    <div class="zeilenkopf" style="margin-bottom:2px">
+      <h2 class="seitentitel">Berghoff Logistik GmbH</h2>
+      <span class="status gut">Aktiv</span>
+    </div>
+    <p class="faktenzeile">
+      Kunden-Nr. <b>4228</b><span class="trenn">·</span>Shared Cloud
+      <span class="trenn">·</span>Endkunde via Finesolutions — Rechnung an Partner
+      <span class="trenn">·</span>USt-IdNr. DE812345678
+      <span class="trenn">·</span><span class="merkmal" title="Individuelle Schnittstelle zum Berghoff-TMS (2024); Details im Vertrag">Individualentwicklung</span>
+    </p>
+
+    <div class="akte">
+      <!-- Verlauf -->
+      <div class="karte">
+        <div class="kartekopf">Verlauf<span class="zahl">31 Einträge</span></div>
+        <div style="padding:10px 14px; border-bottom:1px solid var(--border)">
+          <div class="chips" id="verlauf-filter">
+            <button class="chip aktiv" type="button" data-typ="alle">Alle</button>
+            <button class="chip" type="button" data-typ="vertrag">Verträge</button>
+            <button class="chip" type="button" data-typ="bestellung">Bestellungen</button>
+            <button class="chip" type="button" data-typ="mail">E-Mail</button>
+            <button class="chip" type="button" data-typ="notiz">Notizen</button>
+          </div>
+        </div>
+        <ul class="verlauf" id="verlauf">
+          <li data-typ="vertrag">
+            <span class="datum">28.08.2026</span>
+            <div><a href="#vertraege">Vertrag V00123: Kündigungsfrist endet in 90 Tagen</a>
+              <div class="text warntext">Nächstmögliches Vertragsende 01.01.2027 — Wiedervorlage angelegt</div>
+              <div class="paar">System → Vertrieb</div></div>
+          </li>
+          <li data-typ="mail">
+            <span class="datum">21.08.2026</span>
+            <div><a href="#akte">Zollanbindung Schweiz — Rückfrage zur Testumgebung</a>
+              <div class="paar">D. Stauch (Vertrieb) ↔ Frau Berghoff (GF)</div></div>
+          </li>
+          <li data-typ="bestellung">
+            <span class="datum">14.08.2026</span>
+            <div><a href="#akte">Bestellung 4228-3: Erweiterung um 5 Benutzer</a>
+              <div class="paar">Eingang per E-Mail · Dokument abgelegt</div></div>
+          </li>
+          <li data-typ="notiz">
+            <span class="datum">11.08.2026</span>
+            <div><a href="#akte">Telefonat: Interesse an Sanktionslisten-Paket</a>
+              <div class="text">Frau Berghoff meldet sich nach interner Abstimmung; Wiedervorlage 15.09.</div>
+              <div class="paar">P. Glemser (Vertrieb) ↔ Frau Berghoff (GF)</div></div>
+          </li>
+          <li data-typ="vertrag">
+            <span class="datum">02.06.2026</span>
+            <div><a href="#vertraege">Vertrag V00123: Dokument „4228-2.pdf“ als Nachtrag registriert</a>
+              <div class="paar">M. Pätzold</div></div>
+          </li>
+          <li data-typ="mail">
+            <span class="datum">27.05.2026</span>
+            <div><a href="#akte">Rechnung 2026-0412 versendet (ZUGFeRD)</a>
+              <div class="paar">System → Rechnungsempfang (Finesolutions)</div></div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Fakten rechts -->
+      <div>
+        <details class="gruppe" open>
+          <summary>Vertrag &amp; Konditionen<span class="zahl">V00123</span></summary>
+          <div class="gruppe-inhalt">
+            <div class="zeile"><span class="l">Wartungsvertrag</span><span class="r"><span class="status gut">Aktiv</span></span></div>
+            <div class="zeile"><span class="l">Beginn</span><span class="r">01.01.2019</span></div>
+            <div class="zeile"><span class="l">Nächstmögl. Ende</span><span class="r">01.01.2027</span></div>
+            <div class="zeile"><span class="l">Kündigungsfrist</span><span class="r">3 Monate</span></div>
+            <div class="zeile"><span class="l">Sonderabsprache</span><span class="r">−50 % bis 31.12.2026</span></div>
+            <div style="border-top:1px solid var(--border); margin-top:8px; padding-top:8px">
+              <div class="dok"><a class="name" href="#akte">Wartungsvertrag</a><span class="meta">v2 · 02.06.2026</span></div>
+              <div class="dok"><a class="name" href="#akte">Nachtrag 4228-2</a><span class="meta">v1 · 02.06.2026</span></div>
+              <div class="dok"><a class="name" href="#akte">Bestellungen</a><span class="meta">3 Dokumente</span></div>
+              <div class="dok"><a class="name" href="#akte">Installations-Protokoll</a><span class="meta">1 Dokument</span></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="gruppe" open>
+          <summary>Ansprechpartner<span class="zahl">2 von 9</span></summary>
+          <div class="gruppe-inhalt">
+            <div class="person">
+              <div class="name">Frau Karin Berghoff<span class="rolle">GF · Hauptansprechpartnerin</span></div>
+              <div class="kontakt"><a href="#akte">berghoff@berghoff-logistik.de</a> · 0751 3609-0</div>
+            </div>
+            <div class="person">
+              <div class="name">Herr Jens Auer<span class="rolle">IT-Leitung · Technik</span></div>
+              <div class="kontakt"><a href="#akte">auer@berghoff-logistik.de</a> · 0751 3609-44</div>
+            </div>
+            <button class="mehr" type="button" data-ziel="weitere-ap">7 weitere anzeigen (davon 3 Sammelpostfächer)</button>
+            <div id="weitere-ap" hidden>
+              <div class="person"><div class="name">Frau Sabine Roth<span class="rolle">Einkauf</span></div><div class="kontakt"><a href="#akte">roth@berghoff-logistik.de</a></div></div>
+              <div class="person"><div class="name">Rechnungsempfang<span class="rolle">Sammelpostfach · Rechnungsempfang</span></div><div class="kontakt"><a href="#akte">invoice@berghoff-logistik.de</a></div></div>
+              <div class="person"><div class="name">Support<span class="rolle">Sammelpostfach</span></div><div class="kontakt"><a href="#akte">support@berghoff-logistik.de</a></div></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="gruppe">
+          <summary>Stammdaten &amp; Adressen</summary>
+          <div class="gruppe-inhalt">
+            <div class="zeile"><span class="l">Hauptsitz</span><span class="r">Ulmer Str. 118, 88212 Ravensburg</span></div>
+            <div class="zeile"><span class="l">Rechnungsanschrift</span><span class="r">via Finesolutions AG, Zürich (CH)</span></div>
+            <div class="zeile"><span class="l">Kundengruppe</span><span class="r">Logistik</span></div>
+            <div class="zeile"><span class="l">Odoo-Referenz</span><span class="r">5871</span></div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div></div>
+  <p class="schirm-notiz">Der Kopf ist eine Faktenzeile — der Status ist der einzige
+  Farbpunkt. Rechts sind Vertrag und die wichtigsten Ansprechpartner offen, alles
+  andere ist einen Klick entfernt; Sammelpostfächer stehen hinter „7 weitere“.
+  Verlaufseinträge sind klickbar (Feedback Nr. 1) und tragen das Gesprächspaar.
+  Bestellungen &amp; Co. erscheinen als Dokumentzeilen und als Verlaufstyp.
+  Individualentwicklung (Anforderung Nr. 2) steht als Merkmal in der Faktenzeile,
+  die Sonderabsprache (Nr. 3) bei den Konditionen.</p>
+</section>
+
+<!-- ============ 3 · VERTRÄGE ============ -->
+<section class="schirm" id="vertraege">
+  <p class="schirm-titel">3 · Verträge — Bestand wird Arbeitsliste</p>
+  <div class="appbar">
+    <span class="marke"><b>rausoft</b> Kundenzentrale</span>
+    <nav><a href="#liste">Kunden</a><a class="aktiv" href="#vertraege">Verträge</a><a href="#liste">Administration</a></nav>
+  </div>
+  <div class="rahmen"><div class="inhalt">
+    <div class="zeilenkopf"><h2 class="seitentitel">Verträge</h2></div>
+    <div class="kpis">
+      <div class="kpi"><div class="wert">776</div><div class="label">Verträge gesamt</div></div>
+      <div class="kpi"><div class="wert warntext">761</div><div class="label">Laufzeit nachzupflegen</div></div>
+      <div class="kpi"><div class="wert">14</div><div class="label">Ende in 90 Tagen</div></div>
+      <div class="kpi"><div class="wert krittext">3</div><div class="label">gekündigt</div></div>
+    </div>
+    <div class="werkzeuge">
+      <input type="search" placeholder="Vertragsnummer, Firma oder Kundennummer …">
+      <div class="chips">
+        <button class="chip" type="button">Alle</button>
+        <button class="chip aktiv" type="button">Nachzupflegen</button>
+        <button class="chip" type="button">Ende in 90 Tagen</button>
+        <button class="chip" type="button">Mit Sondervereinbarung</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:90px">Nr.</th><th>Kunde</th><th style="width:110px">Beginn</th>
+        <th style="width:150px">Nächstmögl. Ende ↓</th><th style="width:120px">Status</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>V00114</td><td><span class="haupt">Talheim Kunststofftechnik GmbH</span><div class="neben">Wartungsvertrag + 2 Nachträge</div></td><td>26.10.2015</td><td class="warntext">Laufzeit fehlt</td><td><span class="status gut">Aktiv</span></td></tr>
+        <tr><td>V00287</td><td><span class="haupt">Micromac Systems AG</span><div class="neben">Wartungsvertrag</div></td><td>03.03.2018</td><td class="warntext">Laufzeit fehlt</td><td><span class="status gut">Aktiv</span></td></tr>
+        <tr><td>V00123</td><td><span class="haupt">Berghoff Logistik GmbH</span><div class="neben">Wartungsvertrag + Nachtrag · Sonderabsprache −50 %</div></td><td>01.01.2019</td><td>01.01.2027</td><td><span class="status gut">Aktiv</span></td></tr>
+        <tr><td>V00301</td><td><span class="haupt">Hansa Zeitarbeit GmbH &amp; Co. KG</span><div class="neben">Wartungsvertrag</div></td><td>15.05.2020</td><td>15.05.2027</td><td><span class="status warnung">Gekündigt</span></td></tr>
+      </tbody>
+    </table>
+    <div class="tabellenfuss"><span>Sortiert nach nächstmöglichem Ende</span><span class="fueller"></span><span>761 Treffer</span></div>
+  </div></div>
+  <p class="schirm-notiz">Die KPI-Zeile beantwortet „wo stehen wir?“, die Filter-Chips
+  sind gespeicherte Arbeitssichten. „Laufzeit fehlt“ macht die 761 nachzupflegenden
+  Bestandsverträge sichtbar, statt 776-mal identisch „Aktiv“ zu zeigen.</p>
+</section>
+
+<footer>
+  Konzept-Mockup, Stand 01.09.2026 · Kundennamen fiktiv, Datenstruktur wie im
+  Interimsbetrieb. Klickbar: Verlauf-Filter, Aufklapper, „weitere anzeigen“.
+  Grundlage: Beruhigungsprinzipien aus Mockup-Variante B (08/2026).
+</footer>
+
+<script>
+  // Verlauf-Filter
+  const filter = document.getElementById('verlauf-filter');
+  filter.addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    filter.querySelectorAll('.chip').forEach(c => c.classList.toggle('aktiv', c === chip));
+    const typ = chip.dataset.typ;
+    document.querySelectorAll('#verlauf li').forEach(li => {
+      li.hidden = typ !== 'alle' && li.dataset.typ !== typ;
+    });
+  });
+  // "weitere anzeigen"
+  document.querySelectorAll('.mehr').forEach(knopf => {
+    knopf.addEventListener('click', () => {
+      const ziel = document.getElementById(knopf.dataset.ziel);
+      ziel.hidden = !ziel.hidden;
+      knopf.textContent = ziel.hidden
+        ? '7 weitere anzeigen (davon 3 Sammelpostfächer)'
+        : 'weniger anzeigen';
+    });
+  });
+</script>
+</body>
+</html>

@@ -21,6 +21,9 @@ Aufgaben, Timeline, Angebote/CRM, Tickets und schlanke Fakturierung.
 - Variante B (`mockup/variante-b.html`, verworfener Vergleichsentwurf „ruhig &
   aufgeräumt" — als Ideenfundus behalten, nicht weiterpflegen):
   https://claude.ai/code/artifact/1d768777-0a28-457a-9047-623acd953640
+- **Konzept „Kundenakte ruhig" 09/2026** (`mockup/akte-ruhig.html`,
+  Beruhigungs-Iteration der laufenden App nach B-Prinzipien, in Diskussion):
+  https://claude.ai/code/artifact/5646e699-a66b-4778-abae-7da8eadc5ebb
 
 Bei Updates aus diesem Projekt die jeweilige URL als `url`-Parameter an das
 Artifact-Tool übergeben, sonst entsteht eine neue URL.

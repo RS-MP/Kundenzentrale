@@ -35,6 +35,26 @@ Prozent oder Betrag.
 
 Status: offen (Anforderung; Datenmodell bei Phase-4-Vorbereitung, Kennzeichnung ggf. früher)
 
+## Nr. 4 · Software wirkt unübersichtlich → Konzept „Kundenakte ruhig" (2026-09-01, MP)
+
+Konzept-Mockup mit Beruhigungsprinzipien aus Variante B erstellt:
+`mockup/akte-ruhig.html` · https://claude.ai/code/artifact/5646e699-a66b-4778-abae-7da8eadc5ebb
+(Kundenliste 4 Spalten, Akte mit Faktenzeile + Aufklappern, Verträge als
+Arbeitsliste, Farbe nur für Status, Verlauf klickbar).
+
+Status: Konzept in Diskussion — Entscheidung ausstehend, dann Umsetzung in der App
+
+## Nr. 5 · Weitere Bestände aufnehmen (2026-09-01, MP)
+
+Im Kunden Archiv liegen weitere Ordner mit demselben KundenNr-Dateinamen-Muster:
+1_Bestellungen (1.929), 3_Installations-Protokolle (27), 9_Kündigungen (2),
+Verträge_NTT Data_Kunden (8), 5_Softwaremiete (1), 6_DORA (1), 4_Datenschutz (2).
+In Odoo außerdem 1.150 Bestellungen (sale.order) und 1.542 Ausgangsrechnungen.
+→ Scanner um Dokumentarten je Ordner verallgemeinern; Import nach Mockup-Entscheid
+(Konzept sieht Dokumentarten in Akte + Verlauf bereits vor).
+
+Status: offen
+
 ## Backlog (bereits bekannt, kein neues Feedback)
 
 - Laufzeiten/Kündigungsfristen der 776 Bestandsverträge nachpflegen
