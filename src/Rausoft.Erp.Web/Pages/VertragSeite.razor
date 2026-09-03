@@ -24,17 +24,21 @@ else
                 <a href="kunden/@_vertrag.KundeId">@_vertrag.KundeName</a> · Kunden-Nr. @_vertrag.Kundennummer
             </span>
         </div>
-        <div class="pills">
-            <span class="pill @StatusKlasse(_vertrag.Status)">@_vertrag.Status</span>
+        <p class="faktenzeile2">
+            <span class="status @StatusKlasse(_vertrag.Status)">@_vertrag.Status</span>
             @if (_vertrag.NaechstesEnde is not null)
             {
-                <span class="pill">Nächstmögliches Ende: @_vertrag.NaechstesEnde.Value.ToString("dd.MM.yyyy")</span>
+                <span class="trenn">·</span><span>Nächstmögliches Ende @_vertrag.NaechstesEnde.Value.ToString("dd.MM.yyyy")</span>
             }
-            @foreach (var bestandteil in _vertrag.Bestandteile.Select(b => b.Typ).Distinct())
+            else
             {
-                <span class="pill akzent">@bestandteil</span>
+                <span class="trenn">·</span><span class="warntext">Laufzeit fehlt — bitte nachpflegen</span>
             }
-        </div>
+            @if (_vertrag.Bestandteile.Count > 0)
+            {
+                <span class="trenn">·</span>@string.Join(" · ", _vertrag.Bestandteile.Select(b => b.Typ).Distinct())
+            }
+        </p>
     </div>
 
     <div class="akte">
@@ -114,7 +118,7 @@ else
                             }
                             <div style="display:flex; gap:8px; margin-top:8px">
                                 <input type="text" style="flex:1; font-family:Consolas,monospace; font-size:13px"
-                                       placeholder="Neue Version: Pfad relativ zum Vertragsablage-Verzeichnis, z. B. Kunde\Vertrag_v2.pdf"
+                                       placeholder="Neue Version: Pfad relativ zum Ablageverzeichnis, z. B. 2_Wartungsverträge\4228-2.pdf"
                                        @bind="_dokumentPfade[bestandteil.Id]" />
                                 <button class="knopf sekundaer" @onclick="() => DokumentRegistrierenAsync(bestandteil.Id)">
                                     Version registrieren

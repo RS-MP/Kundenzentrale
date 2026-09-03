@@ -18,7 +18,8 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
     [HttpGet]
     public async Task<ActionResult<SeitenErgebnis<VertragListenEintrag>>> Liste(
         [FromQuery] string? suche, [FromQuery] string? status, [FromQuery] string? bestandteil,
-        [FromQuery] int? kundeId, [FromQuery] int seite = 1, [FromQuery] int proSeite = 25,
+        [FromQuery] int? kundeId, [FromQuery] string? filter,
+        [FromQuery] int seite = 1, [FromQuery] int proSeite = 25,
         CancellationToken ct = default)
     {
         seite = Math.Max(1, seite);
@@ -40,11 +41,8 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         if (BestandteilWert(bestandteil) is { } typWert)
             query = query.Where(v => v.Bestandteile.Any(b => b.Typ == typWert));
 
-        var gesamt = await query.CountAsync(ct);
+        // Nächstmögliches Ende wird berechnet → Arbeitsfilter/Paging im Speicher
         var roh = await query
-            .OrderBy(v => v.Vertragsnummer)
-            .Skip((seite - 1) * proSeite)
-            .Take(proSeite)
             .Select(v => new
             {
                 v.Id, v.Vertragsnummer, v.KundeId,
@@ -57,23 +55,97 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             .ToListAsync(ct);
 
         var heute = DateOnly.FromDateTime(DateTime.Today);
-        var eintraege = roh.Select(v => new VertragListenEintrag(
-                v.Id, v.Vertragsnummer, v.KundeId, v.KundeName, v.Kundennummer,
-                StatusText(v.Status), v.Beginn,
-                new Vertrag
-                {
-                    Vertragsnummer = v.Vertragsnummer,
-                    Beginn = v.Beginn,
-                    MindestlaufzeitMonate = v.MindestlaufzeitMonate,
-                    VerlaengerungMonate = v.VerlaengerungMonate,
-                    KuendigungsfristMonate = v.KuendigungsfristMonate,
-                    GekuendigtZum = v.GekuendigtZum,
-                }.NaechstesVertragsende(heute),
-                v.Typen.Distinct().Select(BestandteilText).ToList()))
+        var berechnet = roh.Select(v => new
+        {
+            v.Id, v.Vertragsnummer, v.KundeId, v.KundeName, v.Kundennummer,
+            v.Status, v.Beginn, v.MindestlaufzeitMonate, v.Typen,
+            Ende = new Vertrag
+            {
+                Vertragsnummer = v.Vertragsnummer,
+                Beginn = v.Beginn,
+                MindestlaufzeitMonate = v.MindestlaufzeitMonate,
+                VerlaengerungMonate = v.VerlaengerungMonate,
+                KuendigungsfristMonate = v.KuendigungsfristMonate,
+                GekuendigtZum = v.GekuendigtZum,
+            }.NaechstesVertragsende(heute),
+        });
+
+        berechnet = filter switch
+        {
+            "nachzupflegen" => berechnet.Where(v => v.MindestlaufzeitMonate == null
+                && v.Status is VertragsStatus.Aktiv or VertragsStatus.Entwurf),
+            "ende90" => berechnet.Where(v => v.Ende is { } ende
+                && ende <= heute.AddDays(90) && v.Status != VertragsStatus.Beendet),
+            _ => berechnet,
+        };
+
+        var gefiltert = (filter == "ende90"
+                ? berechnet.OrderBy(v => v.Ende)
+                : berechnet.OrderBy(v => v.Vertragsnummer, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
-        return Ok(new SeitenErgebnis<VertragListenEintrag>(eintraege, gesamt, seite, proSeite));
+        var eintraege = gefiltert
+            .Skip((seite - 1) * proSeite)
+            .Take(proSeite)
+            .Select(v => new VertragListenEintrag(
+                v.Id, v.Vertragsnummer, v.KundeId, v.KundeName, v.Kundennummer,
+                StatusText(v.Status), v.Beginn, v.Ende, BestandteilZusammenfassung(v.Typen)))
+            .ToList();
+
+        return Ok(new SeitenErgebnis<VertragListenEintrag>(eintraege, gefiltert.Count, seite, proSeite));
     }
+
+    /// <summary>Kennzahlen für die Arbeitsliste (KPI-Zeile).</summary>
+    [HttpGet("kennzahlen")]
+    public async Task<ActionResult<VertragsKennzahlen>> Kennzahlen(CancellationToken ct)
+    {
+        var roh = await db.Vertraege.AsNoTracking()
+            .Select(v => new
+            {
+                v.Vertragsnummer, v.Status, v.Beginn, v.MindestlaufzeitMonate,
+                v.VerlaengerungMonate, v.KuendigungsfristMonate, v.GekuendigtZum,
+            })
+            .ToListAsync(ct);
+
+        var heute = DateOnly.FromDateTime(DateTime.Today);
+        var mitEnde = roh.Select(v => new
+        {
+            v.Status, v.MindestlaufzeitMonate,
+            Ende = new Vertrag
+            {
+                Vertragsnummer = v.Vertragsnummer,
+                Beginn = v.Beginn,
+                MindestlaufzeitMonate = v.MindestlaufzeitMonate,
+                VerlaengerungMonate = v.VerlaengerungMonate,
+                KuendigungsfristMonate = v.KuendigungsfristMonate,
+                GekuendigtZum = v.GekuendigtZum,
+            }.NaechstesVertragsende(heute),
+        }).ToList();
+
+        return Ok(new VertragsKennzahlen(
+            roh.Count,
+            mitEnde.Count(v => v.MindestlaufzeitMonate == null
+                && v.Status is VertragsStatus.Aktiv or VertragsStatus.Entwurf),
+            mitEnde.Count(v => v.Ende is { } ende && ende <= heute.AddDays(90)
+                && v.Status != VertragsStatus.Beendet),
+            roh.Count(v => v.Status == VertragsStatus.Gekuendigt)));
+    }
+
+    /// <summary>Kompakte Zusammenfassung wie „Wartungsvertrag + 2 Nachträge · 5 Bestellungen".</summary>
+    private static List<string> BestandteilZusammenfassung(List<BestandteilTyp> typen) =>
+        typen.GroupBy(t => t)
+            .OrderBy(g => g.Key)
+            .Select(g => g.Count() == 1 ? BestandteilText(g.Key) : $"{g.Count()} {MehrzahlText(g.Key)}")
+            .ToList();
+
+    private static string MehrzahlText(BestandteilTyp typ) => typ switch
+    {
+        BestandteilTyp.Nachtrag => "Nachträge",
+        BestandteilTyp.Bestellung => "Bestellungen",
+        BestandteilTyp.Installationsprotokoll => "Installationsprotokolle",
+        BestandteilTyp.Kuendigung => "Kündigungen",
+        _ => BestandteilText(typ),
+    };
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<VertragDetail>> Einzeln(int id, CancellationToken ct)
@@ -113,9 +185,11 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             Notiz = anlage.Notiz,
         };
         db.Vertraege.Add(vertrag);
+        await db.SaveChangesAsync(ct);
 
+        // Timeline-Eintrag mit Sprungziel — braucht die gespeicherte Vertrags-Id
         db.Aktivitaeten.Add(await TimelineEintrag(kunde.Id,
-            $"Vertrag {nummer} angelegt", null, ct));
+            $"Vertrag {nummer} angelegt", null, vertrag.Id, ct));
         await db.SaveChangesAsync(ct);
 
         vertrag.Kunde = kunde;
@@ -143,7 +217,8 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         if (alterStatus != neuerStatus)
         {
             db.Aktivitaeten.Add(await TimelineEintrag(vertrag.KundeId,
-                $"Vertrag {vertrag.Vertragsnummer}: {StatusText(alterStatus)} → {StatusText(neuerStatus)}", null, ct));
+                $"Vertrag {vertrag.Vertragsnummer}: {StatusText(alterStatus)} → {StatusText(neuerStatus)}",
+                null, vertrag.Id, ct));
         }
 
         await db.SaveChangesAsync(ct);
@@ -228,7 +303,7 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
 
         db.Aktivitaeten.Add(await TimelineEintrag(bestandteil.Vertrag!.KundeId,
             $"Vertrag {bestandteil.Vertrag.Vertragsnummer}: Dokument „{Path.GetFileName(dateiVoll)}“ als Version {version} zu {bestandteil.Titel} registriert",
-            null, ct));
+            null, bestandteil.VertragId, ct));
 
         await db.SaveChangesAsync(ct);
         return NoContent();
@@ -259,7 +334,8 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
 
     // --- Hilfen ----------------------------------------------------------------
 
-    private async Task<Aktivitaet> TimelineEintrag(int kundeId, string betreff, string? inhalt, CancellationToken ct)
+    private async Task<Aktivitaet> TimelineEintrag(
+        int kundeId, string betreff, string? inhalt, int? vertragId, CancellationToken ct)
         => new()
         {
             KundeId = kundeId,
@@ -269,6 +345,8 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             Richtung = AktivitaetsRichtung.Intern,
             Betreff = betreff,
             Inhalt = inhalt,
+            VerweisTyp = vertragId is not null ? AktivitaetsVerweisTyp.Vertrag : null,
+            VerweisId = vertragId,
         };
 
     private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) =>
@@ -328,6 +406,9 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         BestandteilTyp.Sondervereinbarung => "Sondervereinbarung",
         BestandteilTyp.Nachtrag => "Nachtrag",
         BestandteilTyp.Wartungsvertrag => "Wartungsvertrag",
+        BestandteilTyp.Bestellung => "Bestellung",
+        BestandteilTyp.Installationsprotokoll => "Installationsprotokoll",
+        BestandteilTyp.Kuendigung => "Kündigung",
         _ => "Sonstiges",
     };
 
@@ -339,6 +420,9 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         "Sondervereinbarung" => BestandteilTyp.Sondervereinbarung,
         "Nachtrag" => BestandteilTyp.Nachtrag,
         "Wartungsvertrag" => BestandteilTyp.Wartungsvertrag,
+        "Bestellung" => BestandteilTyp.Bestellung,
+        "Installationsprotokoll" => BestandteilTyp.Installationsprotokoll,
+        "Kündigung" => BestandteilTyp.Kuendigung,
         "Sonstiges" => BestandteilTyp.Sonstiges,
         _ => null,
     };

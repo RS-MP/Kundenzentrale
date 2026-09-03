@@ -31,4 +31,7 @@ public enum BestandteilTyp
     Nachtrag = 4,
     Sonstiges = 5,
     Wartungsvertrag = 6,
+    Bestellung = 7,
+    Installationsprotokoll = 8,
+    Kuendigung = 9,
 }

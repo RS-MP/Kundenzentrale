@@ -8,7 +8,7 @@
     <h1>Kunden</h1>
     @if (_ergebnis is not null)
     {
-        <span class="untertitel">@_ergebnis.Gesamt Kunden</span>
+        <span class="untertitel">@_ergebnis.Gesamt @(_filter == "Aktiv" ? "aktive" : _filter == "Inaktiv" ? "inaktive" : "") Kunden</span>
     }
 </div>
 
@@ -18,13 +18,13 @@
 }
 
 <div class="werkzeugleiste">
-    <input type="search" placeholder="Suche nach Firma oder Kundennummer …"
+    <input type="search" placeholder="Firma oder Kundennummer …"
            @bind="_suche" @bind:event="oninput" @onkeydown="BeiTaste" />
-    <button class="knopf" @onclick="() => LadenAsync(1)">Suchen</button>
-    @if (!string.IsNullOrEmpty(_aktiveSuche))
-    {
-        <button class="knopf sekundaer" @onclick="SucheLeeren">Zurücksetzen</button>
-    }
+    <div class="chips">
+        <button class="chip @(_filter == "Aktiv" ? "aktiv" : "")" @onclick='() => FilterAsync("Aktiv")'>Aktive</button>
+        <button class="chip @(_filter == "" ? "aktiv" : "")" @onclick='() => FilterAsync("")'>Alle</button>
+        <button class="chip @(_filter == "Partner" ? "aktiv" : "")" @onclick='() => FilterAsync("Partner")'>Mit Partner</button>
+    </div>
 </div>
 
 <div class="karte">
@@ -42,12 +42,10 @@
             <table class="liste">
                 <thead>
                     <tr>
-                        <th>Kunden-Nr.</th>
+                        <th style="width:90px">Nr.</th>
                         <th>Firma</th>
-                        <th>Ort</th>
-                        <th>Betriebsart</th>
-                        <th>Vertriebsweg</th>
-                        <th>Status</th>
+                        <th style="width:180px">Ort</th>
+                        <th style="width:110px">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -55,27 +53,15 @@
                     {
                         <tr @onclick='() => Navigation.NavigateTo($"kunden/{kunde.Id}")'>
                             <td>@kunde.Kundennummer</td>
-                            <td><strong>@kunde.Firmenname</strong></td>
+                            <td>
+                                <span class="haupt">@kunde.Firmenname</span>
+                                @if (Nebenzeile(kunde) is { } neben)
+                                {
+                                    <div class="neben">@neben</div>
+                                }
+                            </td>
                             <td>@kunde.Ort</td>
-                            <td>
-                                @if (kunde.Betriebsart is not null)
-                                {
-                                    <span class="pill akzent">@kunde.Betriebsart</span>
-                                }
-                            </td>
-                            <td>
-                                @if (!string.IsNullOrEmpty(kunde.PartnerHinweis))
-                                {
-                                    <span class="pill warnung">@kunde.PartnerHinweis</span>
-                                }
-                                else
-                                {
-                                    <span class="pill">Direktkunde</span>
-                                }
-                            </td>
-                            <td>
-                                <span class="pill @(kunde.Status == "Aktiv" ? "gut" : "kritisch")">@kunde.Status</span>
-                            </td>
+                            <td><span class="status @(kunde.Status == "Aktiv" ? "gut" : "")">@kunde.Status</span></td>
                         </tr>
                     }
                 </tbody>
@@ -87,7 +73,7 @@
                 <button class="knopf sekundaer" disabled="@(_ergebnis.Seite >= _ergebnis.SeitenAnzahl)"
                         @onclick="() => LadenAsync(_ergebnis.Seite + 1)">Weiter ›</button>
                 <span class="fueller"></span>
-                <span>@_ergebnis.Gesamt Einträge</span>
+                <span>25 pro Seite</span>
             </div>
         }
     </div>
@@ -96,19 +82,29 @@
 @code {
     private SeitenErgebnis<KundeListenEintrag>? _ergebnis;
     private string _suche = "";
-    private string _aktiveSuche = "";
+    private string _filter = "Aktiv"; // Standardsicht: nur aktive Kunden
     private string? _fehler;
 
     protected override Task OnInitializedAsync() => LadenAsync(1);
+
+    private static string? Nebenzeile(KundeListenEintrag kunde)
+    {
+        var teile = new[] { kunde.Betriebsart, string.IsNullOrEmpty(kunde.PartnerHinweis) ? null : kunde.PartnerHinweis }
+            .Where(t => t is not null);
+        var text = string.Join(" · ", teile);
+        return text.Length == 0 ? null : text;
+    }
 
     private async Task LadenAsync(int seite)
     {
         _fehler = null;
         try
         {
-            _aktiveSuche = _suche.Trim();
+            var status = _filter is "Aktiv" or "Inaktiv" ? _filter : "";
+            var mitPartner = _filter == "Partner";
             _ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
-                $"api/kunden?suche={Uri.EscapeDataString(_aktiveSuche)}&seite={seite}&proSeite=25");
+                $"api/kunden?suche={Uri.EscapeDataString(_suche.Trim())}&status={status}" +
+                $"&mitPartner={mitPartner}&seite={seite}&proSeite=25");
         }
         catch (Exception ex)
         {
@@ -116,12 +112,12 @@
         }
     }
 
-    private Task BeiTaste(KeyboardEventArgs e) =>
-        e.Key == "Enter" ? LadenAsync(1) : Task.CompletedTask;
-
-    private Task SucheLeeren()
+    private Task FilterAsync(string filter)
     {
-        _suche = "";
+        _filter = filter;
         return LadenAsync(1);
     }
+
+    private Task BeiTaste(KeyboardEventArgs e) =>
+        e.Key == "Enter" ? LadenAsync(1) : Task.CompletedTask;
 }

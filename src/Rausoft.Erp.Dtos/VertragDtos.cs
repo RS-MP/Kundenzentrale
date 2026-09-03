@@ -77,4 +77,12 @@ public record VerlaufEintrag(
     string? Mitarbeiter,
     string? Ansprechpartner,
     string Betreff,
-    string? Inhalt);
+    string? Inhalt,
+    string? VerweisTyp,
+    int? VerweisId);
+
+public record VertragsKennzahlen(
+    int Gesamt,
+    int LaufzeitFehlt,
+    int EndeIn90Tagen,
+    int Gekuendigt);

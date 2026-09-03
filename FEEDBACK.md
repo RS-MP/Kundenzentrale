@@ -42,7 +42,9 @@ Konzept-Mockup mit Beruhigungsprinzipien aus Variante B erstellt:
 (Kundenliste 4 Spalten, Akte mit Faktenzeile + Aufklappern, Verträge als
 Arbeitsliste, Farbe nur für Status, Verlauf klickbar).
 
-Status: Konzept in Diskussion — Entscheidung ausstehend, dann Umsetzung in der App
+Status: erledigt — Konzept vom Nutzer abgesegnet und am 03.09.2026 in die App
+übernommen (Kundenliste 4 Spalten + Chips, Akte mit Faktenzeile/Aufklappern/
+klickbarem Verlauf, Verträge mit KPI-Zeile + Arbeitsfiltern, Farbe nur für Status)
 
 ## Nr. 5 · Weitere Bestände aufnehmen (2026-09-01, MP)
 
@@ -53,7 +55,12 @@ In Odoo außerdem 1.150 Bestellungen (sale.order) und 1.542 Ausgangsrechnungen.
 → Scanner um Dokumentarten je Ordner verallgemeinern; Import nach Mockup-Entscheid
 (Konzept sieht Dokumentarten in Akte + Verlauf bereits vor).
 
-Status: offen
+Status: erledigt (03.09.2026) — Scanner verallgemeinert (Dokumentart je Ordner,
+auch .doc/.docx), 1.903 Dokumente für 1.138 Kunden importiert; 396 neue
+Vertragsakten (nur-Bestellungen → Status Entwurf). Manuell offen: 53 Dateien
+ohne Nummer (v. a. Schweizer „Bestellung_Abfrageversion …_<Firma>.pdf") und
+20 mit unbekannter Nummer — Liste per Dry-Run (`vertragsscan --dry-run`) abrufbar.
+Odoo-Bestellungen (sale.order) und Rechnungen bleiben für Phase 2/4.
 
 ## Backlog (bereits bekannt, kein neues Feedback)
 

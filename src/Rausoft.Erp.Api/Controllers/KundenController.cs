@@ -14,7 +14,8 @@ public class KundenController(ErpDbContext db) : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<SeitenErgebnis<KundeListenEintrag>>> Liste(
-        [FromQuery] string? suche, [FromQuery] int seite = 1, [FromQuery] int proSeite = 25,
+        [FromQuery] string? suche, [FromQuery] string? status, [FromQuery] bool mitPartner = false,
+        [FromQuery] int seite = 1, [FromQuery] int proSeite = 25,
         CancellationToken ct = default)
     {
         seite = Math.Max(1, seite);
@@ -26,6 +27,12 @@ public class KundenController(ErpDbContext db) : ControllerBase
             var s = suche.Trim();
             query = query.Where(k => k.Firmenname.Contains(s) || k.Kundennummer.Contains(s));
         }
+        if (status == "Aktiv")
+            query = query.Where(k => k.Status == KundenStatus.Aktiv);
+        else if (status == "Inaktiv")
+            query = query.Where(k => k.Status == KundenStatus.Inaktiv);
+        if (mitPartner)
+            query = query.Where(k => k.VermitteltDurchPartnerId != null || k.RechnungsempfaengerPartnerId != null);
 
         var gesamt = await query.CountAsync(ct);
         var roh = await query
@@ -103,21 +110,21 @@ public class KundenController(ErpDbContext db) : ControllerBase
     [HttpGet("{id:int}/verlauf")]
     public async Task<ActionResult<List<VerlaufEintrag>>> Verlauf(int id, CancellationToken ct)
     {
-        var eintraege = await db.Aktivitaeten
+        var roh = await db.Aktivitaeten
             .AsNoTracking()
             .Where(a => a.KundeId == id)
             .OrderByDescending(a => a.Zeitpunkt)
             .Take(100)
-            .Select(a => new VerlaufEintrag(
-                a.Id,
-                a.Typ.ToString(),
-                a.Zeitpunkt,
-                a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : null,
-                a.Ansprechpartner != null ? a.Ansprechpartner.Nachname : null,
-                a.Betreff,
-                a.Inhalt))
+            .Select(a => new
+            {
+                a.Id, a.Typ, a.Zeitpunkt, a.Betreff, a.Inhalt, a.VerweisTyp, a.VerweisId,
+                Mitarbeiter = a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : null,
+                Ansprechpartner = a.Ansprechpartner != null ? a.Ansprechpartner.Nachname : null,
+            })
             .ToListAsync(ct);
-        return Ok(eintraege);
+        return Ok(roh.Select(a => new VerlaufEintrag(
+            a.Id, a.Typ.ToString(), a.Zeitpunkt, a.Mitarbeiter, a.Ansprechpartner,
+            a.Betreff, a.Inhalt, a.VerweisTyp?.ToString(), a.VerweisId)).ToList());
     }
 
     private static string StatusText(KundenStatus status) => status switch

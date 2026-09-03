@@ -14,32 +14,46 @@ else if (_kunde is null)
 else
 {
     <div class="akte-kopf">
-        <div class="seitenkopf">
+        <div class="seitenkopf" style="margin-bottom:2px">
             <h1>@_kunde.Firmenname</h1>
-            <span class="untertitel">Kunden-Nr. @_kunde.Kundennummer</span>
+            <span class="status @(_kunde.Status == "Aktiv" ? "gut" : "")">@_kunde.Status</span>
         </div>
-        <div class="pills">
-            <span class="pill @(_kunde.Status == "Aktiv" ? "gut" : "kritisch")">@_kunde.Status</span>
+        <p class="faktenzeile2">
+            Kunden-Nr. <b>@_kunde.Kundennummer</b>
             @if (_kunde.Betriebsart is not null)
             {
-                <span class="pill akzent">@_kunde.Betriebsart</span>
+                <span class="trenn">·</span>@_kunde.Betriebsart
             }
             @if (_kunde.RechnungsempfaengerPartner is not null)
             {
-                <span class="pill warnung">Endkunde via @_kunde.RechnungsempfaengerPartner · Rechnung an Partner</span>
+                <span class="trenn">·</span><span>Endkunde via @_kunde.RechnungsempfaengerPartner — Rechnung an Partner</span>
             }
             else if (_kunde.VermitteltDurchPartner is not null)
             {
-                <span class="pill warnung">Vermittelt durch @_kunde.VermitteltDurchPartner</span>
+                <span class="trenn">·</span><span>vermittelt durch @_kunde.VermitteltDurchPartner</span>
             }
-        </div>
+            @if (_kunde.UStIdNr is not null)
+            {
+                <span class="trenn">·</span><span>USt-IdNr. @_kunde.UStIdNr</span>
+            }
+            @if (_kunde.Kundengruppe is not null)
+            {
+                <span class="trenn">·</span>@_kunde.Kundengruppe
+            }
+        </p>
     </div>
 
     @* Bewusste Layout-Entscheidung: Verlauf links (breite Spalte), Fakten rechts *@
     <div class="akte">
         <div>
             <div class="karte">
-                <div class="karte-kopf"><h2>Verlauf</h2></div>
+                <div class="karte-kopf">
+                    <h2>Verlauf</h2>
+                    @if (_verlauf is not null && _verlauf.Count > 0)
+                    {
+                        <span style="color:var(--muted); font-size:13px">@_verlauf.Count Einträge</span>
+                    }
+                </div>
                 <div class="karte-koerper eng">
                     @if (_verlauf is null || _verlauf.Count == 0)
                     {
@@ -50,151 +64,104 @@ else
                     }
                     else
                     {
-                        @foreach (var eintrag in _verlauf)
-                        {
-                            <div class="verlauf-eintrag">
-                                <div class="zeit">@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</div>
-                                <div>
-                                    <div class="betreff">@eintrag.Betreff</div>
-                                    @if (eintrag.Inhalt is not null)
-                                    {
-                                        <div>@eintrag.Inhalt</div>
-                                    }
-                                    <div class="meta">
-                                        @eintrag.Typ@(eintrag.Mitarbeiter is not null ? $" · {eintrag.Mitarbeiter}" : "")@(eintrag.Ansprechpartner is not null ? $" ↔ {eintrag.Ansprechpartner}" : "")
+                        <ul class="verlauf2">
+                            @foreach (var eintrag in _verlauf)
+                            {
+                                <li>
+                                    <span class="datum">@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                                    <div>
+                                        @if (eintrag.VerweisTyp == "Vertrag" && eintrag.VerweisId is not null)
+                                        {
+                                            <a href="vertraege/@eintrag.VerweisId">@eintrag.Betreff</a>
+                                        }
+                                        else
+                                        {
+                                            <span>@eintrag.Betreff</span>
+                                        }
+                                        @if (eintrag.Inhalt is not null)
+                                        {
+                                            <div class="textzeile">@eintrag.Inhalt</div>
+                                        }
+                                        @if (VerlaufMeta(eintrag) is { } meta)
+                                        {
+                                            <div class="paar">@meta</div>
+                                        }
                                     </div>
-                                </div>
-                            </div>
-                        }
+                                </li>
+                            }
+                        </ul>
                     }
                 </div>
             </div>
         </div>
 
         <div>
-            <div class="karte">
-                <div class="karte-kopf">
-                    <h2>Verträge</h2>
-                    <span class="pill">@(_vertraege?.Count ?? 0)</span>
-                </div>
-                <div class="karte-koerper eng">
+            <details class="gruppe" open>
+                <summary>Verträge<span class="zahl">@(_vertraege?.Count ?? 0)</span></summary>
+                <div class="gruppe-inhalt">
                     @if (_vertraege is null || _vertraege.Count == 0)
                     {
-                        <div class="leer-hinweis">Keine Verträge — <a href="vertraege">im Bereich Verträge anlegen</a>.</div>
+                        <div style="color:var(--muted)">Keine Verträge — <a href="vertraege">im Bereich Verträge anlegen</a>.</div>
                     }
-                    else
+                    @foreach (var vertrag in _vertraege ?? [])
                     {
-                        @foreach (var vertrag in _vertraege)
-                        {
-                            <div class="person">
-                                <div class="name">
-                                    <a href="vertraege/@vertrag.Id">@vertrag.Vertragsnummer</a>
-                                    <span class="pill @(vertrag.Status == "Aktiv" ? "gut" : "")">@vertrag.Status</span>
-                                </div>
-                                <div class="details">
-                                    Beginn @vertrag.Beginn.ToString("dd.MM.yyyy")@(vertrag.NaechstesEnde is not null ? $" · nächstmögl. Ende {vertrag.NaechstesEnde.Value:dd.MM.yyyy}" : "")
-                                </div>
-                                @if (vertrag.Bestandteile.Count > 0)
-                                {
-                                    <div class="rollen">
-                                        @foreach (var typ in vertrag.Bestandteile)
-                                        {
-                                            <span class="pill akzent">@typ</span>
-                                        }
-                                    </div>
-                                }
+                        <div style="padding:6px 0; border-bottom:1px dashed var(--border)">
+                            <div style="display:flex; gap:10px; align-items:baseline">
+                                <a href="vertraege/@vertrag.Id" style="font-weight:600">@vertrag.Vertragsnummer</a>
+                                <span class="status @StatusKlasse(vertrag.Status)" style="font-size:13px">@vertrag.Status</span>
+                                <span style="margin-left:auto; color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums">
+                                    @(vertrag.NaechstesEnde is not null ? $"Ende {vertrag.NaechstesEnde.Value:dd.MM.yyyy}" : "")
+                                </span>
                             </div>
+                            <div class="neben">@string.Join(" · ", vertrag.Bestandteile)</div>
+                        </div>
+                    }
+                </div>
+            </details>
+
+            <details class="gruppe" open>
+                <summary>Ansprechpartner<span class="zahl">@_wichtige.Count von @(_kunde.Ansprechpartner.Count)</span></summary>
+                <div class="gruppe-inhalt">
+                    @foreach (var person in _wichtige)
+                    {
+                        @PersonZeile(person)
+                    }
+                    @if (_weitere.Count > 0)
+                    {
+                        <button class="mehr" @onclick="() => _weitereOffen = !_weitereOffen">
+                            @(_weitereOffen ? "weniger anzeigen" : WeitereText())
+                        </button>
+                        @if (_weitereOffen)
+                        {
+                            @foreach (var person in _weitere)
+                            {
+                                @PersonZeile(person)
+                            }
                         }
                     }
                 </div>
-            </div>
+            </details>
 
-            <div class="karte">
-                <div class="karte-kopf"><h2>Stammdaten</h2></div>
-                <div class="karte-koerper">
-                    <div class="faktenzeile"><span class="beschriftung">Kunden-Nr.</span><span class="wert">@_kunde.Kundennummer</span></div>
-                    @if (_kunde.Kundengruppe is not null)
+            <details class="gruppe">
+                <summary>Stammdaten &amp; Adressen</summary>
+                <div class="gruppe-inhalt">
+                    @foreach (var adresse in _kunde.Adressen)
                     {
-                        <div class="faktenzeile"><span class="beschriftung">Kundengruppe</span><span class="wert">@_kunde.Kundengruppe</span></div>
-                    }
-                    @if (_kunde.UStIdNr is not null)
-                    {
-                        <div class="faktenzeile"><span class="beschriftung">USt-IdNr.</span><span class="wert">@_kunde.UStIdNr</span></div>
+                        <div class="zeile2">
+                            <span class="l">@adresse.Typ</span>
+                            <span class="r">@adresse.Strasse@(adresse.Zusatz is not null ? $" ({adresse.Zusatz})" : ""), @adresse.Plz @adresse.Ort@(adresse.Land != "DE" ? $" · {adresse.Land}" : "")</span>
+                        </div>
                     }
                     @if (_kunde.OdooId is not null)
                     {
-                        <div class="faktenzeile"><span class="beschriftung">Odoo-Referenz</span><span class="wert">@_kunde.OdooId</span></div>
+                        <div class="zeile2"><span class="l">Odoo-Referenz</span><span class="r">@_kunde.OdooId</span></div>
+                    }
+                    @if (_kunde.Notiz is not null)
+                    {
+                        <div class="zeile2"><span class="l">Notiz</span><span class="r">@_kunde.Notiz</span></div>
                     }
                 </div>
-            </div>
-
-            <div class="karte">
-                <div class="karte-kopf">
-                    <h2>Ansprechpartner</h2>
-                    <span class="pill">@_kunde.Ansprechpartner.Count(a => a.Aktiv)</span>
-                </div>
-                <div class="karte-koerper eng">
-                    @if (_kunde.Ansprechpartner.Count == 0)
-                    {
-                        <div class="leer-hinweis">Keine Ansprechpartner hinterlegt.</div>
-                    }
-                    @foreach (var person in _kunde.Ansprechpartner)
-                    {
-                        <div class="person @(person.Aktiv ? "" : "inaktiv")">
-                            <div class="name">
-                                @person.Anrede @person.Titel @person.Vorname @person.Nachname
-                                @if (!person.Aktiv)
-                                {
-                                    <span class="pill kritisch">inaktiv</span>
-                                }
-                            </div>
-                            @if (person.Position is not null)
-                            {
-                                <div class="details">@person.Position</div>
-                            }
-                            <div class="details">
-                                @if (person.Email is not null)
-                                {
-                                    <a href="mailto:@person.Email">@person.Email</a>
-                                }
-                                @if (person.TelefonFestnetz is not null)
-                                {
-                                    <span> · @person.TelefonFestnetz</span>
-                                }
-                            </div>
-                            @if (person.Rollen.Count > 0)
-                            {
-                                <div class="rollen">
-                                    @foreach (var rolle in person.Rollen)
-                                    {
-                                        <span class="pill akzent">@rolle</span>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-
-            <div class="karte">
-                <div class="karte-kopf"><h2>Adressen</h2></div>
-                <div class="karte-koerper">
-                    @if (_kunde.Adressen.Count == 0)
-                    {
-                        <div class="leer-hinweis">Keine Adressen hinterlegt.</div>
-                    }
-                    @foreach (var adresse in _kunde.Adressen)
-                    {
-                        <div class="faktenzeile">
-                            <span class="beschriftung">@adresse.Typ</span>
-                            <span class="wert">
-                                @adresse.Strasse@(adresse.Zusatz is not null ? $" ({adresse.Zusatz})" : "")<br />
-                                @adresse.Plz @adresse.Ort@(adresse.Land != "DE" ? $" · {adresse.Land}" : "")
-                            </span>
-                        </div>
-                    }
-                </div>
-            </div>
+            </details>
         </div>
     </div>
 }
@@ -205,12 +172,16 @@ else
     private KundeDetail? _kunde;
     private List<VerlaufEintrag>? _verlauf;
     private List<VertragListenEintrag>? _vertraege;
+    private List<AnsprechpartnerEintrag> _wichtige = [];
+    private List<AnsprechpartnerEintrag> _weitere = [];
+    private bool _weitereOffen;
     private string? _fehler;
 
     protected override async Task OnParametersSetAsync()
     {
         _fehler = null;
         _kunde = null;
+        _weitereOffen = false;
         try
         {
             _kunde = await Http.GetFromJsonAsync<KundeDetail>($"api/kunden/{Id}");
@@ -218,10 +189,72 @@ else
             var vertraege = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
                 $"api/vertraege?kundeId={Id}&seite=1&proSeite=50");
             _vertraege = vertraege?.Eintraege;
+
+            // Wichtige zuerst: aktive Ansprechpartner mit Rolle; ohne Rollen die ersten zwei.
+            var aktive = _kunde!.Ansprechpartner.Where(a => a.Aktiv).ToList();
+            _wichtige = aktive.Where(a => a.Rollen.Count > 0).ToList();
+            if (_wichtige.Count == 0)
+                _wichtige = aktive.Where(a => !IstSammelpostfach(a)).Take(2).ToList();
+            _weitere = _kunde.Ansprechpartner
+                .Where(a => !_wichtige.Contains(a))
+                .OrderBy(IstSammelpostfach)          // Sammelpostfächer ans Ende
+                .ThenByDescending(a => a.Aktiv)
+                .ToList();
         }
         catch (Exception ex)
         {
             _fehler = $"Kundenakte konnte nicht geladen werden: {ex.Message}";
         }
     }
+
+    private static bool IstSammelpostfach(AnsprechpartnerEintrag a) =>
+        a.Anrede == "" && string.IsNullOrEmpty(a.Vorname);
+
+    private string WeitereText()
+    {
+        var sammel = _weitere.Count(IstSammelpostfach);
+        return sammel > 0
+            ? $"{_weitere.Count} weitere anzeigen (davon {sammel} Sammelpostfächer)"
+            : $"{_weitere.Count} weitere anzeigen";
+    }
+
+    private static string? VerlaufMeta(VerlaufEintrag eintrag)
+    {
+        var teile = new List<string> { eintrag.Typ };
+        if (eintrag.Mitarbeiter is not null && eintrag.Ansprechpartner is not null)
+            teile.Add($"{eintrag.Mitarbeiter} ↔ {eintrag.Ansprechpartner}");
+        else if (eintrag.Mitarbeiter is not null)
+            teile.Add(eintrag.Mitarbeiter);
+        return string.Join(" · ", teile);
+    }
+
+    private RenderFragment PersonZeile(AnsprechpartnerEintrag person) => @<div class="person @(person.Aktiv ? "" : "inaktiv")">
+        <div class="name">
+            @person.Anrede @person.Titel @person.Vorname @person.Nachname
+            @if (person.Rollen.Count > 0 || person.Position is not null)
+            {
+                <span style="color:var(--muted); font-size:12px; font-weight:400; margin-left:6px">
+                    @string.Join(" · ", new[] { person.Position }.Where(p => p is not null).Concat(person.Rollen))
+                </span>
+            }
+        </div>
+        <div class="details">
+            @if (person.Email is not null)
+            {
+                <a href="mailto:@person.Email">@person.Email</a>
+            }
+            @if (person.TelefonFestnetz is not null)
+            {
+                <span> · @person.TelefonFestnetz</span>
+            }
+        </div>
+    </div>;
+
+    private static string StatusKlasse(string status) => status switch
+    {
+        "Aktiv" => "gut",
+        "Gekündigt" => "warnung",
+        "Beendet" => "kritisch",
+        _ => "",
+    };
 }

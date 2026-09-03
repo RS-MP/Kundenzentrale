@@ -76,7 +76,7 @@ button { font: inherit; cursor: pointer; }
 .karte-koerper.eng { padding: 0; }
 
 /* Tabellen */
-table.liste { width: 100%; border-collapse: collapse; }
+table.liste { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 table.liste th {
   text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   color: var(--muted); font-weight: 600; padding: 10px 16px; border-bottom: 1px solid var(--border);
@@ -87,15 +87,75 @@ table.liste tr:last-child td { border-bottom: none; }
 table.liste tbody tr { cursor: pointer; }
 table.liste tbody tr:hover { background: var(--accent-soft); }
 
-/* Pills & Badges */
+/* Pills: monochrom — Farbe ist dem Status vorbehalten (Ruhig-Konzept 09/2026) */
 .pill {
-  display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600;
-  background: var(--surface2); color: var(--ink2); white-space: nowrap;
+  display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border-strong); color: var(--ink2); background: transparent; white-space: nowrap;
 }
-.pill.gut { background: var(--good-bg); color: var(--good); }
-.pill.warnung { background: var(--warn-bg); color: var(--warn); }
-.pill.kritisch { background: var(--crit-bg); color: var(--crit); }
-.pill.akzent { background: var(--accent-soft); color: var(--accent-strong); }
+.pill.gut, .pill.warnung, .pill.kritisch, .pill.akzent { border-color: var(--border-strong); color: var(--ink2); background: transparent; }
+
+/* Status-Punkt: der einzige Farbtupfer */
+.status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.status.gut::before { background: var(--good); }
+.status.warnung::before { background: var(--warn); }
+.status.kritisch::before { background: var(--crit); }
+.warntext { color: var(--warn); }
+.krittext { color: var(--crit); }
+
+/* Nebenzeile in Tabellen */
+td .haupt { font-weight: 600; }
+td .neben { color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+
+/* Filter-Chips */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  font: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--border-strong);
+  background: var(--surface); color: var(--ink2); border-radius: 999px; padding: 4px 12px;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.aktiv { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+
+/* KPI-Zeile */
+.kpis { display: flex; gap: 28px; flex-wrap: wrap; margin-bottom: 14px; }
+.kpi .wert { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi .label { color: var(--muted); font-size: 12.5px; }
+
+/* Faktenzeile im Akten-Kopf */
+.faktenzeile2 { color: var(--ink2); margin: 2px 0 0; }
+.faktenzeile2 b { font-weight: 600; color: var(--ink); }
+.faktenzeile2 .trenn { color: var(--border-strong); margin: 0 7px; }
+.merkmal { border-bottom: 1px dashed var(--border-strong); cursor: help; }
+
+/* Aufklapper-Gruppen (Fakten rechts) */
+details.gruppe { border: 1px solid var(--border); border-radius: 9px; background: var(--surface); overflow: hidden; box-shadow: var(--shadow); }
+details.gruppe + details.gruppe { margin-top: 12px; }
+details.gruppe summary {
+  list-style: none; cursor: pointer; padding: 10px 14px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600;
+  display: flex; align-items: center; gap: 8px; background: var(--surface2);
+}
+details.gruppe summary::-webkit-details-marker { display: none; }
+details.gruppe summary::after { content: "▸"; margin-left: auto; color: var(--muted); transition: transform .15s; }
+@media (prefers-reduced-motion: reduce) { details.gruppe summary::after { transition: none; } }
+details.gruppe[open] summary::after { transform: rotate(90deg); }
+details.gruppe summary .zahl { font-variant-numeric: tabular-nums; letter-spacing: 0; margin-left: auto; margin-right: 8px; }
+.gruppe-inhalt { padding: 12px 14px; }
+
+.zeile2 { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; }
+.zeile2 .l { color: var(--muted); }
+.zeile2 .r { text-align: right; font-variant-numeric: tabular-nums; }
+
+.mehr { color: var(--accent); background: none; border: none; font: inherit; cursor: pointer; padding: 6px 0; }
+.mehr:hover { text-decoration: underline; }
+
+/* Verlauf: monochrom mit Datumsspalte */
+.verlauf2 { list-style: none; margin: 0; padding: 0; }
+.verlauf2 li { display: grid; grid-template-columns: 100px 1fr; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.verlauf2 li:last-child { border-bottom: none; }
+.verlauf2 .datum { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; padding-top: 1px; }
+.verlauf2 .paar { color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+.verlauf2 .textzeile { color: var(--ink2); margin-top: 2px; }
 
 /* Formulare */
 input[type=text], input[type=search] {
