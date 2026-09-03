@@ -13,7 +13,8 @@ public record KundeListenEintrag(
     string Status,
     string? Betriebsart,
     string? Ort,
-    string? PartnerHinweis);
+    string? PartnerHinweis,
+    string Kategorie);
 
 public record KundeDetail(
     int Id,
@@ -28,7 +29,8 @@ public record KundeDetail(
     string? VermitteltDurchPartner,
     string? RechnungsempfaengerPartner,
     List<AnsprechpartnerEintrag> Ansprechpartner,
-    List<AdresseEintrag> Adressen);
+    List<AdresseEintrag> Adressen,
+    string Kategorie);
 
 public record AnsprechpartnerEintrag(
     int Id,

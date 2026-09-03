@@ -14,7 +14,8 @@ public class KundenController(ErpDbContext db) : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<SeitenErgebnis<KundeListenEintrag>>> Liste(
-        [FromQuery] string? suche, [FromQuery] string? status, [FromQuery] bool mitPartner = false,
+        [FromQuery] string? suche, [FromQuery] string? status, [FromQuery] string? kategorie,
+        [FromQuery] bool mitPartner = false,
         [FromQuery] int seite = 1, [FromQuery] int proSeite = 25,
         CancellationToken ct = default)
     {
@@ -34,6 +35,14 @@ public class KundenController(ErpDbContext db) : ControllerBase
         if (mitPartner)
             query = query.Where(k => k.VermitteltDurchPartnerId != null || k.RechnungsempfaengerPartnerId != null);
 
+        // Kategorie ist berechnet, nie gepflegt: Kunde = laufendes Abo ODER aktiver Vertrag.
+        if (kategorie == "kunden")
+            query = query.Where(KundenRegel(db));
+        else if (kategorie == "interessenten")
+            query = query.Where(k =>
+                !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv));
+
         var gesamt = await query.CountAsync(ct);
         var roh = await query
             .OrderBy(k => k.Firmenname)
@@ -49,6 +58,10 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 Ort = k.Adressen.Where(a => a.Typ == AdressTyp.Hauptsitz).Select(a => a.Ort).FirstOrDefault(),
                 Vermittelt = k.VermitteltDurchPartner!.Name,
                 RechnungAn = k.RechnungsempfaengerPartner!.Name,
+                HatAktives = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                    || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv),
+                HatteFrueher = db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
+                    || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status != Domain.Contracts.VertragsStatus.Entwurf),
             })
             .ToListAsync(ct);
 
@@ -60,7 +73,8 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 BetriebsartText(k.Betriebsart),
                 k.Ort,
                 k.RechnungAn != null ? $"via {k.RechnungAn} · Rechnung an Partner"
-                    : k.Vermittelt != null ? $"via {k.Vermittelt}" : ""))
+                    : k.Vermittelt != null ? $"via {k.Vermittelt}" : "",
+                KategorieText(k.HatAktives, k.HatteFrueher)))
             .ToList();
 
         return Ok(new SeitenErgebnis<KundeListenEintrag>(eintraege, gesamt, seite, proSeite));
@@ -78,6 +92,15 @@ public class KundenController(ErpDbContext db) : ControllerBase
             .FirstOrDefaultAsync(k => k.Id == id, ct);
         if (kunde is null)
             return NotFound();
+
+        var hatAktives = await db.Abos.AnyAsync(
+                a => a.KundeId == id && a.Status == Domain.Subscriptions.AboStatus.Laufend, ct)
+            || await db.Vertraege.AnyAsync(
+                v => v.KundeId == id && v.Status == Domain.Contracts.VertragsStatus.Aktiv, ct);
+        var hatteFrueher = await db.Abos.AnyAsync(
+                a => a.KundeId == id && a.Status != Domain.Subscriptions.AboStatus.Entwurf, ct)
+            || await db.Vertraege.AnyAsync(
+                v => v.KundeId == id && v.Status != Domain.Contracts.VertragsStatus.Entwurf, ct);
 
         return Ok(new KundeDetail(
             kunde.Id,
@@ -103,7 +126,8 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 .OrderBy(a => a.Typ)
                 .Select(a => new AdresseEintrag(
                     a.Id, AdressTypText(a.Typ), a.Strasse, a.Zusatz, a.Plz, a.Ort, a.Land))
-                .ToList()));
+                .ToList(),
+            KategorieText(hatAktives, hatteFrueher)));
     }
 
     /// <summary>Abos des Kunden mit Lizenz-Positionen — Basis der Karte „Betrieb &amp; Lizenzen".</summary>
@@ -157,6 +181,14 @@ public class KundenController(ErpDbContext db) : ControllerBase
             a.Id, a.Typ.ToString(), a.Zeitpunkt, a.Mitarbeiter, a.Ansprechpartner,
             a.Betreff, a.Inhalt, a.VerweisTyp?.ToString(), a.VerweisId)).ToList());
     }
+
+    /// <summary>Berechnete Kategorie: Kunde = laufendes Abo oder aktiver Vertrag (Regel 09/2026).</summary>
+    private static System.Linq.Expressions.Expression<Func<Kunde, bool>> KundenRegel(ErpDbContext db) =>
+        k => db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+             || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv);
+
+    private static string KategorieText(bool hatAktives, bool hatteFrueher) =>
+        hatAktives ? "Kunde" : hatteFrueher ? "Ehemaliger Kunde" : "Interessent";
 
     private static string StatusText(KundenStatus status) => status switch
     {

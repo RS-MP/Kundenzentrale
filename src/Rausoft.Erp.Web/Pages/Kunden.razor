@@ -8,7 +8,7 @@
     <h1>Kunden</h1>
     @if (_ergebnis is not null)
     {
-        <span class="untertitel">@_ergebnis.Gesamt @(_filter == "Aktiv" ? "aktive" : _filter == "Inaktiv" ? "inaktive" : "") Kunden</span>
+        <span class="untertitel">@_ergebnis.Gesamt @(_filter switch { "kunden" => "Kunden", "interessenten" => "Interessenten", "Partner" => "über Partner", _ => "Kontakte" })</span>
     }
 </div>
 
@@ -21,7 +21,8 @@
     <input type="search" placeholder="Firma oder Kundennummer …"
            @bind="_suche" @bind:event="oninput" @onkeydown="BeiTaste" />
     <div class="chips">
-        <button class="chip @(_filter == "Aktiv" ? "aktiv" : "")" @onclick='() => FilterAsync("Aktiv")'>Aktive</button>
+        <button class="chip @(_filter == "kunden" ? "aktiv" : "")" @onclick='() => FilterAsync("kunden")'>Kunden</button>
+        <button class="chip @(_filter == "interessenten" ? "aktiv" : "")" @onclick='() => FilterAsync("interessenten")'>Interessenten</button>
         <button class="chip @(_filter == "" ? "aktiv" : "")" @onclick='() => FilterAsync("")'>Alle</button>
         <button class="chip @(_filter == "Partner" ? "aktiv" : "")" @onclick='() => FilterAsync("Partner")'>Mit Partner</button>
     </div>
@@ -45,7 +46,7 @@
                         <th style="width:90px">Nr.</th>
                         <th>Firma</th>
                         <th style="width:180px">Ort</th>
-                        <th style="width:110px">Status</th>
+                        <th style="width:150px">Kategorie</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -61,7 +62,13 @@
                                 }
                             </td>
                             <td>@kunde.Ort</td>
-                            <td><span class="status @(kunde.Status == "Aktiv" ? "gut" : "")">@kunde.Status</span></td>
+                            <td>
+                                <span class="status @KategorieKlasse(kunde.Kategorie)">@kunde.Kategorie</span>
+                                @if (kunde.Status == "Inaktiv")
+                                {
+                                    <div class="neben">in Odoo archiviert</div>
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -82,7 +89,7 @@
 @code {
     private SeitenErgebnis<KundeListenEintrag>? _ergebnis;
     private string _suche = "";
-    private string _filter = "Aktiv"; // Standardsicht: nur aktive Kunden
+    private string _filter = "kunden"; // Standardsicht: echte Kunden (laufendes Abo/aktiver Vertrag)
     private string? _fehler;
 
     protected override Task OnInitializedAsync() => LadenAsync(1);
@@ -100,10 +107,10 @@
         _fehler = null;
         try
         {
-            var status = _filter is "Aktiv" or "Inaktiv" ? _filter : "";
+            var kategorie = _filter is "kunden" or "interessenten" ? _filter : "";
             var mitPartner = _filter == "Partner";
             _ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
-                $"api/kunden?suche={Uri.EscapeDataString(_suche.Trim())}&status={status}" +
+                $"api/kunden?suche={Uri.EscapeDataString(_suche.Trim())}&kategorie={kategorie}" +
                 $"&mitPartner={mitPartner}&seite={seite}&proSeite=25");
         }
         catch (Exception ex)
@@ -120,4 +127,11 @@
 
     private Task BeiTaste(KeyboardEventArgs e) =>
         e.Key == "Enter" ? LadenAsync(1) : Task.CompletedTask;
+
+    private static string KategorieKlasse(string kategorie) => kategorie switch
+    {
+        "Kunde" => "gut",
+        "Ehemaliger Kunde" => "warnung",
+        _ => "",
+    };
 }
