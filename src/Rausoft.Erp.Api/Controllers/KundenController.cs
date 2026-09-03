@@ -49,6 +49,8 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
         //                     Vertrag ohne Laufzeit — dahinter stecken oft unerkannte Kündigungen)
         if (kategorie == "kunden")
             query = query.Where(KundenRegel(db));
+        // Abo-ENTWÜRFE sind Angebote (Odoo) und zählen bewusst nicht als Artefakt —
+        // ein Interessent mit (abgelehntem) Angebot bleibt Interessent.
         else if (kategorie == "einmalbestellung")
             query = query.Where(k =>
                 !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
@@ -56,7 +58,7 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 && !db.Vertraege.Any(v => v.KundeId == k.Id
                     && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))
                 && db.Vertraege.Any(v => v.KundeId == k.Id)
-                && !db.Abos.Any(a => a.KundeId == k.Id)
+                && !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                 && !db.Vertraege.Any(v => v.KundeId == k.Id
                     && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung)));
         else if (kategorie == "zuklaeren")
@@ -67,13 +69,12 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                     && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
                 && !db.Vertraege.Any(v => v.KundeId == k.Id
                     && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))
-                && (db.Abos.Any(a => a.KundeId == k.Id) || db.Vertraege.Any(v => v.KundeId == k.Id))
-                && (db.Abos.Any(a => a.KundeId == k.Id)
+                && (db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                     || db.Vertraege.Any(v => v.KundeId == k.Id
                         && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung))));
         else if (kategorie == "interessenten")
             query = query.Where(k =>
-                !db.Abos.Any(a => a.KundeId == k.Id)
+                !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                 && !db.Vertraege.Any(v => v.KundeId == k.Id));
 
         var gesamt = await query.CountAsync(ct);
@@ -101,10 +102,12 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                     || db.Vertraege.Any(v => v.KundeId == k.Id
                         && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet)),
                 IstEinmalbestellung = db.Vertraege.Any(v => v.KundeId == k.Id)
-                    && !db.Abos.Any(a => a.KundeId == k.Id)
+                    && !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                     && !db.Vertraege.Any(v => v.KundeId == k.Id
                         && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung)),
-                HatArtefakte = db.Abos.Any(a => a.KundeId == k.Id) || db.Vertraege.Any(v => v.KundeId == k.Id),
+                // Abo-Entwürfe = Angebote → kein Artefakt (Interessent bleibt Interessent)
+                HatArtefakte = db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
+                    || db.Vertraege.Any(v => v.KundeId == k.Id),
             })
             .ToListAsync(ct);
 
@@ -147,10 +150,12 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             || await db.Vertraege.AnyAsync(v => v.KundeId == id
                 && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet), ct);
         var istEinmalbestellung = await db.Vertraege.AnyAsync(v => v.KundeId == id, ct)
-            && !await db.Abos.AnyAsync(a => a.KundeId == id, ct)
+            && !await db.Abos.AnyAsync(a => a.KundeId == id
+                && a.Status != Domain.Subscriptions.AboStatus.Entwurf, ct)
             && !await db.Vertraege.AnyAsync(v => v.KundeId == id
                 && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung), ct);
-        var hatArtefakte = await db.Abos.AnyAsync(a => a.KundeId == id, ct)
+        var hatArtefakte = await db.Abos.AnyAsync(a => a.KundeId == id
+                && a.Status != Domain.Subscriptions.AboStatus.Entwurf, ct)
             || await db.Vertraege.AnyAsync(v => v.KundeId == id, ct);
 
         return Ok(new KundeDetail(
