@@ -8,7 +8,7 @@
     <h1>Kunden</h1>
     @if (_ergebnis is not null)
     {
-        <span class="untertitel">@_ergebnis.Gesamt @(_filter switch { "kunden" => "Kunden", "interessenten" => "Interessenten", "Partner" => "über Partner", _ => "Kontakte" })</span>
+        <span class="untertitel">@_ergebnis.Gesamt @(_filter switch { "kunden" => "Kunden", "interessenten" => "Interessenten", "zuklaeren" => "zu klären", "Partner" => "über Partner", _ => "Kontakte" })</span>
     }
 </div>
 
@@ -23,6 +23,7 @@
     <div class="chips">
         <button class="chip @(_filter == "kunden" ? "aktiv" : "")" @onclick='() => FilterAsync("kunden")'>Kunden</button>
         <button class="chip @(_filter == "interessenten" ? "aktiv" : "")" @onclick='() => FilterAsync("interessenten")'>Interessenten</button>
+        <button class="chip @(_filter == "zuklaeren" ? "aktiv" : "")" @onclick='() => FilterAsync("zuklaeren")'>Zu klären</button>
         <button class="chip @(_filter == "" ? "aktiv" : "")" @onclick='() => FilterAsync("")'>Alle</button>
         <button class="chip @(_filter == "Partner" ? "aktiv" : "")" @onclick='() => FilterAsync("Partner")'>Mit Partner</button>
     </div>
@@ -107,7 +108,7 @@
         _fehler = null;
         try
         {
-            var kategorie = _filter is "kunden" or "interessenten" ? _filter : "";
+            var kategorie = _filter is "kunden" or "interessenten" or "zuklaeren" ? _filter : "";
             var mitPartner = _filter == "Partner";
             _ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
                 $"api/kunden?suche={Uri.EscapeDataString(_suche.Trim())}&kategorie={kategorie}" +
@@ -131,7 +132,7 @@
     private static string KategorieKlasse(string kategorie) => kategorie switch
     {
         "Kunde" => "gut",
-        "Ehemaliger Kunde" => "warnung",
+        "Zu klären" => "warnung",
         _ => "",
     };
 }

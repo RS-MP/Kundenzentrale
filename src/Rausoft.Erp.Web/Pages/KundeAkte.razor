@@ -16,7 +16,7 @@ else
     <div class="akte-kopf">
         <div class="seitenkopf" style="margin-bottom:2px">
             <h1>@_kunde.Firmenname</h1>
-            <span class="status @(_kunde.Kategorie == "Kunde" ? "gut" : _kunde.Kategorie == "Ehemaliger Kunde" ? "warnung" : "")">@_kunde.Kategorie</span>
+            <span class="status @(_kunde.Kategorie == "Kunde" ? "gut" : _kunde.Kategorie == "Zu klären" ? "warnung" : "")">@_kunde.Kategorie</span>
             @if (_kunde.Status == "Inaktiv")
             {
                 <span class="status kritisch">in Odoo archiviert</span>

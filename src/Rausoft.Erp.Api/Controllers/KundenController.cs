@@ -35,13 +35,20 @@ public class KundenController(ErpDbContext db) : ControllerBase
         if (mitPartner)
             query = query.Where(k => k.VermitteltDurchPartnerId != null || k.RechnungsempfaengerPartnerId != null);
 
-        // Kategorie ist berechnet, nie gepflegt: Kunde = laufendes Abo ODER aktiver Vertrag.
+        // Kategorie ist berechnet, nie gepflegt: Kunde = laufendes Abo ODER aktiver Vertrag;
+        // "Zu klären" = es gibt Artefakte (alte Bestellungen/Entwürfe), aber nichts Laufendes
+        // und keine abgeschlossene Historie — die Gruppe leert sich beim Klären von selbst.
         if (kategorie == "kunden")
             query = query.Where(KundenRegel(db));
+        else if (kategorie == "zuklaeren")
+            query = query.Where(k =>
+                !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status != Domain.Contracts.VertragsStatus.Entwurf)
+                && (db.Abos.Any(a => a.KundeId == k.Id) || db.Vertraege.Any(v => v.KundeId == k.Id)));
         else if (kategorie == "interessenten")
             query = query.Where(k =>
-                !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
-                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv));
+                !db.Abos.Any(a => a.KundeId == k.Id)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id));
 
         var gesamt = await query.CountAsync(ct);
         var roh = await query
@@ -62,6 +69,7 @@ public class KundenController(ErpDbContext db) : ControllerBase
                     || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv),
                 HatteFrueher = db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                     || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status != Domain.Contracts.VertragsStatus.Entwurf),
+                HatArtefakte = db.Abos.Any(a => a.KundeId == k.Id) || db.Vertraege.Any(v => v.KundeId == k.Id),
             })
             .ToListAsync(ct);
 
@@ -74,7 +82,7 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 k.Ort,
                 k.RechnungAn != null ? $"via {k.RechnungAn} · Rechnung an Partner"
                     : k.Vermittelt != null ? $"via {k.Vermittelt}" : "",
-                KategorieText(k.HatAktives, k.HatteFrueher)))
+                KategorieText(k.HatAktives, k.HatteFrueher, k.HatArtefakte)))
             .ToList();
 
         return Ok(new SeitenErgebnis<KundeListenEintrag>(eintraege, gesamt, seite, proSeite));
@@ -101,6 +109,8 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 a => a.KundeId == id && a.Status != Domain.Subscriptions.AboStatus.Entwurf, ct)
             || await db.Vertraege.AnyAsync(
                 v => v.KundeId == id && v.Status != Domain.Contracts.VertragsStatus.Entwurf, ct);
+        var hatArtefakte = await db.Abos.AnyAsync(a => a.KundeId == id, ct)
+            || await db.Vertraege.AnyAsync(v => v.KundeId == id, ct);
 
         return Ok(new KundeDetail(
             kunde.Id,
@@ -127,7 +137,7 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 .Select(a => new AdresseEintrag(
                     a.Id, AdressTypText(a.Typ), a.Strasse, a.Zusatz, a.Plz, a.Ort, a.Land))
                 .ToList(),
-            KategorieText(hatAktives, hatteFrueher)));
+            KategorieText(hatAktives, hatteFrueher, hatArtefakte)));
     }
 
     /// <summary>Abos des Kunden mit Lizenz-Positionen — Basis der Karte „Betrieb &amp; Lizenzen".</summary>
@@ -187,8 +197,11 @@ public class KundenController(ErpDbContext db) : ControllerBase
         k => db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
              || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv);
 
-    private static string KategorieText(bool hatAktives, bool hatteFrueher) =>
-        hatAktives ? "Kunde" : hatteFrueher ? "Ehemaliger Kunde" : "Interessent";
+    private static string KategorieText(bool hatAktives, bool hatteFrueher, bool hatArtefakte) =>
+        hatAktives ? "Kunde"
+        : hatteFrueher ? "Ehemaliger Kunde"
+        : hatArtefakte ? "Zu klären"
+        : "Interessent";
 
     private static string StatusText(KundenStatus status) => status switch
     {
