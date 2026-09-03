@@ -65,6 +65,12 @@ public partial class VertragsBestandScanner(bool dryRun)
         Console.WriteLine($"Basisverzeichnis: {basis}");
 
         var kundenNachNummer = await db.Kunden.ToDictionaryAsync(k => k.Kundennummer, StringComparer.OrdinalIgnoreCase);
+        // Fallback-Zuordnung über den Firmennamen (z. B. "Bestellung_… _Motorex AG.pdf") —
+        // nur bei eindeutigem Namen
+        var kundenNachName = kundenNachNummer.Values
+            .GroupBy(k => k.Firmenname.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() == 1)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var registriertePfade = (await db.Vertragsdokumente.Select(d => d.Dateipfad).ToListAsync())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var bestandsVertraege = (await db.Vertraege
@@ -96,16 +102,26 @@ public partial class VertragsBestandScanner(bool dryRun)
                     continue;
                 }
                 var datei = new FileInfo(dateiPfad);
-                var treffer = KundennummerAmAnfang().Match(Path.GetFileNameWithoutExtension(datei.Name));
-                if (!treffer.Success)
+                var basisName = Path.GetFileNameWithoutExtension(datei.Name);
+                var treffer = KundennummerAmAnfang().Match(basisName);
+                Rausoft.Erp.Domain.Customers.Kunde? kunde;
+                if (treffer.Success)
                 {
-                    nichtZuordenbar.Add($"{ordner}\\{datei.Name}");
-                    continue;
+                    if (!kundenNachNummer.TryGetValue(treffer.Groups[1].Value, out kunde))
+                    {
+                        unbekannteNummer.Add($"{ordner}\\{datei.Name}");
+                        continue;
+                    }
                 }
-                if (!kundenNachNummer.TryGetValue(treffer.Groups[1].Value, out var kunde))
+                else
                 {
-                    unbekannteNummer.Add($"{ordner}\\{datei.Name}");
-                    continue;
+                    // Keine Nummer — Firmenname hinter dem letzten "_" versuchen
+                    var nameKandidat = basisName.Split('_')[^1].Trim();
+                    if (nameKandidat.Length < 4 || !kundenNachName.TryGetValue(nameKandidat, out kunde))
+                    {
+                        nichtZuordenbar.Add($"{ordner}\\{datei.Name}");
+                        continue;
+                    }
                 }
                 (proKunde.TryGetValue(kunde.Id, out var liste)
                     ? liste

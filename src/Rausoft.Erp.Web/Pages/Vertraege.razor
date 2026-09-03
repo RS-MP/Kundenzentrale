@@ -27,19 +27,19 @@
     <input type="search" placeholder="Vertragsnummer, Firma oder Kundennummer …"
            @bind="_suche" @bind:event="oninput" @onkeydown="BeiTaste" />
     <div class="chips">
-        <button class="chip @(_arbeitsfilter == "" ? "aktiv" : "")" @onclick='() => ArbeitsfilterAsync("")'>Alle</button>
-        <button class="chip @(_arbeitsfilter == "nachzupflegen" ? "aktiv" : "")" @onclick='() => ArbeitsfilterAsync("nachzupflegen")'>Nachzupflegen</button>
-        <button class="chip @(_arbeitsfilter == "ende90" ? "aktiv" : "")" @onclick='() => ArbeitsfilterAsync("ende90")'>Ende in 90 Tagen</button>
-        <button class="chip @(_bestandteilFilter == "Sondervereinbarung" ? "aktiv" : "")" @onclick="SondervereinbarungAsync">Mit Sondervereinbarung</button>
+        <button class="chip @(_arbeitsfilter == "" ? "aktiv" : "")" @onclick='() => Navigiere(arbeitsfilter: "")'>Alle</button>
+        <button class="chip @(_arbeitsfilter == "nachzupflegen" ? "aktiv" : "")" @onclick='() => Navigiere(arbeitsfilter: "nachzupflegen")'>Nachzupflegen</button>
+        <button class="chip @(_arbeitsfilter == "ende90" ? "aktiv" : "")" @onclick='() => Navigiere(arbeitsfilter: "ende90")'>Ende in 90 Tagen</button>
+        <button class="chip @(_bestandteilFilter == "Sondervereinbarung" ? "aktiv" : "")" @onclick="SondervereinbarungUmschalten">Mit Sondervereinbarung</button>
     </div>
-    <select @bind="_statusFilter" @bind:after="() => LadenAsync(1)">
+    <select @bind="_statusFilter" @bind:after="() => Navigiere()">
         <option value="">Alle Status</option>
         <option>Entwurf</option>
         <option>Aktiv</option>
         <option>Gekündigt</option>
         <option>Beendet</option>
     </select>
-    <select @bind="_bestandteilFilter" @bind:after="() => LadenAsync(1)">
+    <select @bind="_bestandteilFilter" @bind:after="() => Navigiere()">
         <option value="">Alle Bestandteile</option>
         <option>Lizenzvertrag</option>
         <option>Wartungsvertrag</option>
@@ -162,10 +162,10 @@
             </table>
             <div class="paging">
                 <button class="knopf sekundaer" disabled="@(_ergebnis.Seite <= 1)"
-                        @onclick="() => LadenAsync(_ergebnis.Seite - 1)">‹ Zurück</button>
+                        @onclick="() => Navigiere(seite: _ergebnis.Seite - 1)">‹ Zurück</button>
                 <span>Seite @_ergebnis.Seite von @_ergebnis.SeitenAnzahl</span>
                 <button class="knopf sekundaer" disabled="@(_ergebnis.Seite >= _ergebnis.SeitenAnzahl)"
-                        @onclick="() => LadenAsync(_ergebnis.Seite + 1)">Weiter ›</button>
+                        @onclick="() => Navigiere(seite: _ergebnis.Seite + 1)">Weiter ›</button>
                 <span class="fueller"></span>
                 <span>@_ergebnis.Gesamt Einträge</span>
             </div>
@@ -174,6 +174,13 @@
 </div>
 
 @code {
+    // Filter, Suche und Seite leben in der URL — Auswahl überlebt Detail-Besuch und Zurück
+    [Parameter, SupplyParameterFromQuery(Name = "filter")] public string? FilterParam { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "suche")] public string? SucheParam { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "status")] public string? StatusParam { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "bestandteil")] public string? BestandteilParam { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "seite")] public int SeiteParam { get; set; }
+
     private SeitenErgebnis<VertragListenEintrag>? _ergebnis;
     private VertragsKennzahlen? _kennzahlen;
     private string _suche = "";
@@ -190,7 +197,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LadenAsync(1);
         try
         {
             _kennzahlen = await Http.GetFromJsonAsync<VertragsKennzahlen>("api/vertraege/kennzahlen");
@@ -199,6 +205,36 @@
         {
             // Kennzahlen sind Komfort — Liste funktioniert auch ohne
         }
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        _arbeitsfilter = FilterParam ?? "";
+        _suche = SucheParam ?? "";
+        _statusFilter = StatusParam ?? "";
+        _bestandteilFilter = BestandteilParam ?? "";
+        return LadenAsync(Math.Max(1, SeiteParam));
+    }
+
+    private void Navigiere(string? arbeitsfilter = null, int seite = 1)
+    {
+        var filter = arbeitsfilter ?? _arbeitsfilter;
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["filter"] = filter == "" ? null : filter,
+            ["suche"] = string.IsNullOrWhiteSpace(_suche) ? null : _suche.Trim(),
+            ["status"] = _statusFilter == "" ? null : _statusFilter,
+            ["bestandteil"] = arbeitsfilter is not null and not "" ? null
+                : _bestandteilFilter == "" ? null : _bestandteilFilter,
+            ["seite"] = seite <= 1 ? null : seite,
+        }));
+    }
+
+    private void SondervereinbarungUmschalten()
+    {
+        _arbeitsfilter = "";
+        _bestandteilFilter = _bestandteilFilter == "Sondervereinbarung" ? "" : "Sondervereinbarung";
+        Navigiere(arbeitsfilter: "");
     }
 
     private async Task LadenAsync(int seite)
@@ -219,23 +255,12 @@
         }
     }
 
-    private Task ArbeitsfilterAsync(string filter)
+    private Task BeiTaste(KeyboardEventArgs e)
     {
-        _arbeitsfilter = filter;
-        if (filter != "")
-            _bestandteilFilter = "";
-        return LadenAsync(1);
+        if (e.Key == "Enter")
+            Navigiere();
+        return Task.CompletedTask;
     }
-
-    private Task SondervereinbarungAsync()
-    {
-        _arbeitsfilter = "";
-        _bestandteilFilter = _bestandteilFilter == "Sondervereinbarung" ? "" : "Sondervereinbarung";
-        return LadenAsync(1);
-    }
-
-    private Task BeiTaste(KeyboardEventArgs e) =>
-        e.Key == "Enter" ? LadenAsync(1) : Task.CompletedTask;
 
     private async Task BeiKundenTaste(KeyboardEventArgs e)
     {

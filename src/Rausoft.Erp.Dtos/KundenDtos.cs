@@ -43,6 +43,9 @@ public record ArchivAenderung(bool Archivieren);
 /// <summary>Manuelle Merkmal-Pflege (z. B. "Insolvenz"); leer/null entfernt das Merkmal.</summary>
 public record MerkmaleAenderung(string? Wert);
 
+/// <summary>Neues Merkmal für die Stammliste.</summary>
+public record MerkmalAnlegen(string Name);
+
 public record AnsprechpartnerEintrag(
     int Id,
     string Anrede,

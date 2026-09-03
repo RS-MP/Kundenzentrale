@@ -71,7 +71,9 @@ der Akte bevorzugt angezeigt. ZU KLÄREN mit MP: Was fehlt konkret — sollen
 die Rollen prominenter erscheinen, in Odoo gepflegte Änderungen schneller
 ankommen (Import-Rhythmus), oder gibt es Kunden, bei denen die Rolle fehlt?
 
-Status: Rückfrage offen
+Status: geschlossen mit Annahme (03.09.2026) — Haupt- und Technik-Rolle
+werden importiert und in der Akte bevorzugt angezeigt; keine weitere
+Anforderung genannt. Bei Bedarf einfach neu melden, was fehlt.
 
 ## Nr. 7 · Vertragsseite unübersichtlich (2026-09-03, MP, Screenshot)
 
@@ -145,16 +147,35 @@ Umsetzungsidee: Merkmal-Stammliste als Einstellung/eigene Tabelle, Pflege im
 Admin-Bereich; in der Akte Auswahl (Mehrfachauswahl?) + „Neues Merkmal…".
 Freitext-Wildwuchs („Insolvent", „insolvenz", „Insolvenz!") wird so vermieden.
 
-Status: offen (Sammelphase)
+Status: erledigt (03.09.2026) — Merkmal-Stammliste als Tabelle (Seed:
+Insolvenz, Einmalkauf), in der Akte Mehrfachauswahl per Chips + „Neues
+Merkmal für die Auswahl" (steht danach allen zur Verfügung); kein Freitext
+mehr am Kunden.
 
-## Backlog (bereits bekannt, kein neues Feedback)
+## Nr. 13 · Regel V2: gültiger Zeitraum + Kategorie Einmalbestellung (2026-09-03, MP)
 
-- Laufzeiten/Kündigungsfristen der 776 Bestandsverträge nachpflegen
-  (Notiz-Marker „Bestandsimport" filterbar machen?)
-- 6 nicht zugeordnete Vertragsdateien manuell erfassen: DowJones.pdf,
-  perstorp.pdf, -17102.pdf, 12822.pdf, 15824.pdf, 233305.pdf
+Auslöser 11304/adquas: -1-Datei war eine Kündigung, kein Nachtrag — aktiver
+Bestandsvertrag ohne Laufzeit ist kein Beleg für einen Kunden.
+
+Status: erledigt (03.09.2026) — Kunde = laufendes Abo ODER aktiver Vertrag
+MIT Laufzeit; aktive Verträge ohne Laufzeit → „Zu klären" (304). Neue
+berechnete Kategorie „Einmalbestellung" (nur Bestellungen, nie Abo; 140).
+Verteilung: 810 Kunden / 304 zu klären / 140 Einmalbestellung / 4.225
+Interessenten. adquas: Vertrag auf Gekündigt gesetzt → Ehemaliger Kunde.
+Beim Klären gilt: Kündigung gefunden → Vertragsstatus „Gekündigt" setzen.
+
+## Backlog (Aufgaben beim Nutzer / für später)
+
+- **Entra + IIS:** Klick-Anleitung liegt in `DEPLOYMENT.md` — sobald die
+  App-Registrierungen existieren (Tenant-/Client-IDs), baut Claude MSAL ins
+  Frontend + Produktions-CORS ein und das Deployment kann laufen.
+- Klärungsliste abarbeiten (Chip „Zu klären", 304): Kündigung gefunden →
+  Vertragsstatus „Gekündigt"; echtes Abo → in Odoo pflegen + abos-Import.
+- 37 nicht zugeordnete Vertragsdateien manuell erfassen (Liste per
+  `vertragsscan --dry-run`; Namens-Zuordnung hat 36 Schweizer Bestellungen
+  bereits automatisch erledigt).
 - KundenNr-Dubletten in Odoo bereinigen (13 Stück, siehe Import-Warnungen)
-- Entra-App-Registrierung + IIS-Deployment auf RS-W2019-01
-  (ASP.NET Core Hosting Bundle nötig; erst Entra, sonst keine Anmeldung möglich)
-- Backup-Plan für die Produktiv-DB bestätigen
+- Backup-Plan für die Produktiv-DB einrichten (Hinweise in DEPLOYMENT.md)
 - SQL Server 2017 auf RS-W2019-01: Support endet Okt 2027, Upgrade einplanen
+- 7 Odoo-Abos hängen am Ansprechpartner statt an der Firma (Import überspringt
+  sie) — in Odoo umhängen oder Import um commercial_partner erweitern

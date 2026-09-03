@@ -366,6 +366,44 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Kunden");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Merkmal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Aktiv")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Merkmale");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Aktiv = true,
+                            Name = "Insolvenz"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Aktiv = true,
+                            Name = "Einmalkauf"
+                        });
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Partner", b =>
                 {
                     b.Property<int>("Id")

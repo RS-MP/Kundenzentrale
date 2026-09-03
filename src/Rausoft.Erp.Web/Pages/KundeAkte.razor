@@ -220,12 +220,20 @@ else
                         <div class="zeile2"><span class="l">Notiz</span><span class="r">@_kunde.Notiz</span></div>
                     }
                     <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
-                        <div style="color:var(--muted); font-size:12.5px; margin-bottom:4px">
-                            Merkmale (manuell, z. B. „Insolvenz" — bleiben bis zur bewussten Änderung)
+                        <div style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
+                            Merkmale (Auswahl anklicken, bleiben bis zur bewussten Änderung)
+                        </div>
+                        <div class="chips" style="margin-bottom:8px">
+                            @foreach (var merkmal in _merkmalListe)
+                            {
+                                <button class="chip @(_gewaehlteMerkmale.Contains(merkmal) ? "aktiv" : "")"
+                                        @onclick="() => MerkmalUmschalten(merkmal)">@merkmal</button>
+                            }
                         </div>
                         <div style="display:flex; gap:8px">
-                            <input type="text" style="flex:1" @bind="_merkmalEingabe" placeholder="kein Merkmal" />
-                            <button class="knopf sekundaer" @onclick="MerkmaleSpeichernAsync">Speichern</button>
+                            <input type="text" style="flex:1" @bind="_neuesMerkmal" placeholder="Neues Merkmal für die Auswahl …" />
+                            <button class="knopf sekundaer" @onclick="MerkmalErgaenzenAsync">Hinzufügen</button>
+                            <button class="knopf" @onclick="MerkmaleSpeichernAsync">Speichern</button>
                         </div>
                         @if (_merkmalGespeichert)
                         {
@@ -249,7 +257,9 @@ else
     private List<AnsprechpartnerEintrag> _wichtige = [];
     private List<AnsprechpartnerEintrag> _weitere = [];
     private bool _weitereOffen;
-    private string _merkmalEingabe = "";
+    private List<string> _merkmalListe = [];
+    private HashSet<string> _gewaehlteMerkmale = [];
+    private string _neuesMerkmal = "";
     private bool _merkmalGespeichert;
     private string? _fehler;
 
@@ -261,7 +271,13 @@ else
         try
         {
             _kunde = await Http.GetFromJsonAsync<KundeDetail>($"api/kunden/{Id}");
-            _merkmalEingabe = _kunde?.Merkmale ?? "";
+            _merkmalListe = await Http.GetFromJsonAsync<List<string>>("api/merkmale") ?? [];
+            _gewaehlteMerkmale = (_kunde?.Merkmale ?? "")
+                .Split('·', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Bereits vergebene Merkmale, die (noch) nicht in der Stammliste stehen, mit anzeigen
+            foreach (var vorhanden in _gewaehlteMerkmale.Where(m => !_merkmalListe.Contains(m, StringComparer.OrdinalIgnoreCase)))
+                _merkmalListe.Add(vorhanden);
             _merkmalGespeichert = false;
             _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>($"api/kunden/{Id}/verlauf");
             var vertraege = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
@@ -346,15 +362,45 @@ else
         }
     }
 
+    private void MerkmalUmschalten(string merkmal)
+    {
+        if (!_gewaehlteMerkmale.Remove(merkmal))
+            _gewaehlteMerkmale.Add(merkmal);
+    }
+
+    private async Task MerkmalErgaenzenAsync()
+    {
+        var name = _neuesMerkmal.Trim();
+        if (name.Length == 0)
+            return;
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/merkmale", new MerkmalAnlegen(name));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            if (!_merkmalListe.Contains(name, StringComparer.OrdinalIgnoreCase))
+                _merkmalListe.Add(name);
+            _gewaehlteMerkmale.Add(name);
+            _neuesMerkmal = "";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Merkmal konnte nicht angelegt werden: {ex.Message}";
+        }
+    }
+
     private async Task MerkmaleSpeichernAsync()
     {
         _fehler = null;
         try
         {
-            var antwort = await Http.PutAsJsonAsync($"api/kunden/{Id}/merkmale",
-                new MerkmaleAenderung(string.IsNullOrWhiteSpace(_merkmalEingabe) ? null : _merkmalEingabe.Trim()));
+            var wert = _gewaehlteMerkmale.Count == 0 ? null : string.Join(" · ", _gewaehlteMerkmale.OrderBy(m => m));
+            var antwort = await Http.PutAsJsonAsync($"api/kunden/{Id}/merkmale", new MerkmaleAenderung(wert));
             antwort.EnsureSuccessStatusCode();
-            _merkmalGespeichert = true;
             await OnParametersSetAsync();
             _merkmalGespeichert = true;
         }

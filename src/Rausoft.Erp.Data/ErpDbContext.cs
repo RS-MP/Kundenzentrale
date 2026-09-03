@@ -28,6 +28,7 @@ public class ErpDbContext(
     public DbSet<Partner> Partner => Set<Partner>();
     public DbSet<Ansprechpartner> Ansprechpartner => Set<Ansprechpartner>();
     public DbSet<Adresse> Adressen => Set<Adresse>();
+    public DbSet<Merkmal> Merkmale => Set<Merkmal>();
 
     // Verträge
     public DbSet<Vertrag> Vertraege => Set<Vertrag>();
@@ -160,6 +161,15 @@ public class ErpDbContext(
             e.Property(a => a.Plz).HasMaxLength(10);
             e.Property(a => a.Land).HasMaxLength(2).IsFixedLength();
             e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+        });
+
+        modelBuilder.Entity<Merkmal>(e =>
+        {
+            e.HasIndex(m => m.Name).IsUnique();
+            e.Property(m => m.Name).HasMaxLength(100);
+            e.HasData(
+                new { Id = 1, Name = "Insolvenz", Aktiv = true },
+                new { Id = 2, Name = "Einmalkauf", Aktiv = true });
         });
 
         // --- Verträge --------------------------------------------------------
