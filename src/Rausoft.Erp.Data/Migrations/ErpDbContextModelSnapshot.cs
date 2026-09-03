@@ -297,6 +297,9 @@ namespace Rausoft.Erp.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ArchiviertAm")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("Betriebsart")
                         .HasColumnType("int");
 

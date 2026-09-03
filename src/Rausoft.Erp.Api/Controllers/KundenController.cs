@@ -35,6 +35,12 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
         if (mitPartner)
             query = query.Where(k => k.VermitteltDurchPartnerId != null || k.RechnungsempfaengerPartnerId != null);
 
+        // Archiv: Standard-Sichten blenden archivierte Kunden aus; die Archiv-Sicht zeigt nur sie.
+        if (kategorie == "archiv")
+            query = query.Where(k => k.ArchiviertAm != null);
+        else
+            query = query.Where(k => k.ArchiviertAm == null);
+
         // Kategorie ist berechnet, nie gepflegt: Kunde = laufendes Abo ODER aktiver Vertrag;
         // "Zu klären" = es gibt Artefakte (alte Bestellungen/Entwürfe), aber nichts Laufendes
         // und keine abgeschlossene Historie — die Gruppe leert sich beim Klären von selbst.
@@ -63,6 +69,7 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 k.Status,
                 k.Betriebsart,
                 k.Merkmale,
+                k.ArchiviertAm,
                 Ort = k.Adressen.Where(a => a.Typ == AdressTyp.Hauptsitz).Select(a => a.Ort).FirstOrDefault(),
                 Vermittelt = k.VermitteltDurchPartner!.Name,
                 RechnungAn = k.RechnungsempfaengerPartner!.Name,
@@ -84,7 +91,8 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 k.RechnungAn != null ? $"via {k.RechnungAn} · Rechnung an Partner"
                     : k.Vermittelt != null ? $"via {k.Vermittelt}" : "",
                 KategorieText(k.HatAktives, k.HatteFrueher, k.HatArtefakte),
-                k.Merkmale))
+                k.Merkmale,
+                k.ArchiviertAm != null))
             .ToList();
 
         return Ok(new SeitenErgebnis<KundeListenEintrag>(eintraege, gesamt, seite, proSeite));
@@ -141,7 +149,8 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 .ToList(),
             KategorieText(hatAktives, hatteFrueher, hatArtefakte),
             kunde.Merkmale,
-            kunde.MerkmalePruefen));
+            kunde.MerkmalePruefen,
+            kunde.ArchiviertAm));
     }
 
     /// <summary>
@@ -179,6 +188,38 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             });
         }
 
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Kunden ins Archiv verschieben bzw. zurückholen. Neue Geschäftsaktivität
+    /// (laufendes Abo aus dem Odoo-Import, neuer Vertrag) holt archivierte
+    /// Kunden automatisch zurück.
+    /// </summary>
+    [HttpPut("{id:int}/archiv")]
+    public async Task<IActionResult> ArchivAendern(int id, ArchivAenderung aenderung, CancellationToken ct)
+    {
+        var kunde = await db.Kunden.FirstOrDefaultAsync(k => k.Id == id, ct);
+        if (kunde is null)
+            return NotFound();
+
+        var istArchiviert = kunde.ArchiviertAm != null;
+        if (istArchiviert == aenderung.Archivieren)
+            return NoContent();
+
+        kunde.ArchiviertAm = aenderung.Archivieren ? DateTime.UtcNow : null;
+        db.Aktivitaeten.Add(new Domain.Shared.Aktivitaet
+        {
+            KundeId = kunde.Id,
+            Typ = Domain.Shared.AktivitaetsTyp.Notiz,
+            Zeitpunkt = DateTime.UtcNow,
+            MitarbeiterId = await AktuellerMitarbeiterId(ct),
+            Richtung = Domain.Shared.AktivitaetsRichtung.Intern,
+            Betreff = aenderung.Archivieren
+                ? $"Kunde ins Archiv verschoben{(kunde.Merkmale is not null ? $" (Merkmal: {kunde.Merkmale})" : "")}"
+                : "Kunde aus dem Archiv geholt",
+        });
         await db.SaveChangesAsync(ct);
         return NoContent();
     }

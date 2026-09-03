@@ -15,7 +15,8 @@ public record KundeListenEintrag(
     string? Ort,
     string? PartnerHinweis,
     string Kategorie,
-    string? Merkmale);
+    string? Merkmale,
+    bool Archiviert);
 
 public record KundeDetail(
     int Id,
@@ -33,7 +34,11 @@ public record KundeDetail(
     List<AdresseEintrag> Adressen,
     string Kategorie,
     string? Merkmale,
-    bool MerkmalePruefen);
+    bool MerkmalePruefen,
+    DateTime? ArchiviertAm);
+
+/// <summary>true = ins Archiv verschieben, false = aus dem Archiv holen.</summary>
+public record ArchivAenderung(bool Archivieren);
 
 /// <summary>Manuelle Merkmal-Pflege (z. B. "Insolvenz"); leer/null entfernt das Merkmal.</summary>
 public record MerkmaleAenderung(string? Wert);

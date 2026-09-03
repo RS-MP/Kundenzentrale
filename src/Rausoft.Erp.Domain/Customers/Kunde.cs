@@ -46,6 +46,14 @@ public class Kunde
     /// </summary>
     public bool MerkmalePruefen { get; set; }
 
+    /// <summary>
+    /// Manuell archiviert (z. B. Einmalkauf, Insolvenz). Archivierte Kunden
+    /// sind aus den Standard-Listen ausgeblendet. Neue Geschäftsaktivität
+    /// (laufendes Abo aus Odoo, neuer Vertrag) holt den Kunden automatisch
+    /// aus dem Archiv zurück.
+    /// </summary>
+    public DateTime? ArchiviertAm { get; set; }
+
     /// <summary>Referenz auf den Odoo-Datensatz für den Import und die Übergangszeit.</summary>
     public int? OdooId { get; set; }
 

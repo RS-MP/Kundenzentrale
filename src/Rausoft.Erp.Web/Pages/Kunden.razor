@@ -8,7 +8,7 @@
     <h1>Kunden</h1>
     @if (_ergebnis is not null)
     {
-        <span class="untertitel">@_ergebnis.Gesamt @(_filter switch { "kunden" => "Kunden", "interessenten" => "Interessenten", "zuklaeren" => "zu klären", "Partner" => "über Partner", _ => "Kontakte" })</span>
+        <span class="untertitel">@_ergebnis.Gesamt @(_filter switch { "kunden" => "Kunden", "interessenten" => "Interessenten", "zuklaeren" => "zu klären", "archiv" => "im Archiv", "partner" => "über Partner", _ => "Kontakte" })</span>
     }
 </div>
 
@@ -21,11 +21,12 @@
     <input type="search" placeholder="Firma oder Kundennummer …"
            @bind="_suche" @bind:event="oninput" @onkeydown="BeiTaste" />
     <div class="chips">
-        <button class="chip @(_filter == "kunden" ? "aktiv" : "")" @onclick='() => FilterAsync("kunden")'>Kunden</button>
-        <button class="chip @(_filter == "interessenten" ? "aktiv" : "")" @onclick='() => FilterAsync("interessenten")'>Interessenten</button>
-        <button class="chip @(_filter == "zuklaeren" ? "aktiv" : "")" @onclick='() => FilterAsync("zuklaeren")'>Zu klären</button>
-        <button class="chip @(_filter == "" ? "aktiv" : "")" @onclick='() => FilterAsync("")'>Alle</button>
-        <button class="chip @(_filter == "Partner" ? "aktiv" : "")" @onclick='() => FilterAsync("Partner")'>Mit Partner</button>
+        <button class="chip @(_filter == "kunden" ? "aktiv" : "")" @onclick='() => Navigiere("kunden")'>Kunden</button>
+        <button class="chip @(_filter == "interessenten" ? "aktiv" : "")" @onclick='() => Navigiere("interessenten")'>Interessenten</button>
+        <button class="chip @(_filter == "zuklaeren" ? "aktiv" : "")" @onclick='() => Navigiere("zuklaeren")'>Zu klären</button>
+        <button class="chip @(_filter == "alle" ? "aktiv" : "")" @onclick='() => Navigiere("alle")'>Alle</button>
+        <button class="chip @(_filter == "partner" ? "aktiv" : "")" @onclick='() => Navigiere("partner")'>Mit Partner</button>
+        <button class="chip @(_filter == "archiv" ? "aktiv" : "")" @onclick='() => Navigiere("archiv")'>Archiv</button>
     </div>
 </div>
 
@@ -80,10 +81,10 @@
             </table>
             <div class="paging">
                 <button class="knopf sekundaer" disabled="@(_ergebnis.Seite <= 1)"
-                        @onclick="() => LadenAsync(_ergebnis.Seite - 1)">‹ Zurück</button>
+                        @onclick="() => Navigiere(seite: _ergebnis.Seite - 1)">‹ Zurück</button>
                 <span>Seite @_ergebnis.Seite von @_ergebnis.SeitenAnzahl</span>
                 <button class="knopf sekundaer" disabled="@(_ergebnis.Seite >= _ergebnis.SeitenAnzahl)"
-                        @onclick="() => LadenAsync(_ergebnis.Seite + 1)">Weiter ›</button>
+                        @onclick="() => Navigiere(seite: _ergebnis.Seite + 1)">Weiter ›</button>
                 <span class="fueller"></span>
                 <span>25 pro Seite</span>
             </div>
@@ -92,12 +93,33 @@
 </div>
 
 @code {
+    // Filter, Suche und Seite leben in der URL — so überlebt die Auswahl
+    // den Sprung in die Akte und zurück (Browser-Zurück, Lesezeichen, Teilen).
+    [Parameter, SupplyParameterFromQuery(Name = "filter")] public string? FilterParam { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "suche")] public string? SucheParam { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "seite")] public int SeiteParam { get; set; }
+
     private SeitenErgebnis<KundeListenEintrag>? _ergebnis;
     private string _suche = "";
     private string _filter = "kunden"; // Standardsicht: echte Kunden (laufendes Abo/aktiver Vertrag)
     private string? _fehler;
 
-    protected override Task OnInitializedAsync() => LadenAsync(1);
+    protected override Task OnParametersSetAsync()
+    {
+        _filter = string.IsNullOrEmpty(FilterParam) ? "kunden" : FilterParam;
+        _suche = SucheParam ?? "";
+        return LadenAsync(Math.Max(1, SeiteParam));
+    }
+
+    private void Navigiere(string? filter = null, int seite = 1)
+    {
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["filter"] = (filter ?? _filter) == "kunden" ? null : filter ?? _filter,
+            ["suche"] = string.IsNullOrWhiteSpace(_suche) ? null : _suche.Trim(),
+            ["seite"] = seite <= 1 ? null : seite,
+        }));
+    }
 
     private static string? Nebenzeile(KundeListenEintrag kunde)
     {
@@ -112,8 +134,8 @@
         _fehler = null;
         try
         {
-            var kategorie = _filter is "kunden" or "interessenten" or "zuklaeren" ? _filter : "";
-            var mitPartner = _filter == "Partner";
+            var kategorie = _filter is "kunden" or "interessenten" or "zuklaeren" or "archiv" ? _filter : "";
+            var mitPartner = _filter == "partner";
             _ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
                 $"api/kunden?suche={Uri.EscapeDataString(_suche.Trim())}&kategorie={kategorie}" +
                 $"&mitPartner={mitPartner}&seite={seite}&proSeite=25");
@@ -124,14 +146,12 @@
         }
     }
 
-    private Task FilterAsync(string filter)
+    private Task BeiTaste(KeyboardEventArgs e)
     {
-        _filter = filter;
-        return LadenAsync(1);
+        if (e.Key == "Enter")
+            Navigiere();
+        return Task.CompletedTask;
     }
-
-    private Task BeiTaste(KeyboardEventArgs e) =>
-        e.Key == "Enter" ? LadenAsync(1) : Task.CompletedTask;
 
     private static string KategorieKlasse(string kategorie) => kategorie switch
     {

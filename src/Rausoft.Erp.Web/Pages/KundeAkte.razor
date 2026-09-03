@@ -17,10 +17,18 @@ else
         <div class="seitenkopf" style="margin-bottom:2px">
             <h1>@_kunde.Firmenname</h1>
             <span class="status @(_kunde.Kategorie == "Kunde" ? "gut" : _kunde.Kategorie == "Zu klären" ? "warnung" : "")">@_kunde.Kategorie</span>
+            @if (_kunde.ArchiviertAm is not null)
+            {
+                <span class="status warnung">Archiv seit @_kunde.ArchiviertAm.Value.ToLocalTime().ToString("dd.MM.yyyy")</span>
+            }
             @if (_kunde.Status == "Inaktiv")
             {
                 <span class="status kritisch">in Odoo archiviert</span>
             }
+            <span style="flex:1"></span>
+            <button class="knopf sekundaer" @onclick="ArchivUmschaltenAsync">
+                @(_kunde.ArchiviertAm is null ? "Ins Archiv verschieben" : "Aus dem Archiv holen")
+            </button>
         </div>
         <p class="faktenzeile2">
             @if (_kunde.Merkmale is not null)
@@ -321,6 +329,22 @@ else
             }
         </div>
     </div>;
+
+    private async Task ArchivUmschaltenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/kunden/{Id}/archiv",
+                new ArchivAenderung(_kunde!.ArchiviertAm is null));
+            antwort.EnsureSuccessStatusCode();
+            await OnParametersSetAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Archiv-Änderung fehlgeschlagen: {ex.Message}";
+        }
+    }
 
     private async Task MerkmaleSpeichernAsync()
     {

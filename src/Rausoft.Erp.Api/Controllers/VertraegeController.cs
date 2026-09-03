@@ -185,6 +185,14 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             Notiz = anlage.Notiz,
         };
         db.Vertraege.Add(vertrag);
+
+        // Ein neuer Vertrag holt archivierte Kunden automatisch aus dem Archiv
+        if (kunde.ArchiviertAm != null)
+        {
+            kunde.ArchiviertAm = null;
+            db.Aktivitaeten.Add(await TimelineEintrag(kunde.Id,
+                "Aus dem Archiv geholt — neuer Vertrag angelegt", null, null, ct));
+        }
         await db.SaveChangesAsync(ct);
 
         // Timeline-Eintrag mit Sprungziel — braucht die gespeicherte Vertrags-Id

@@ -146,6 +146,20 @@ public class AboImporter(OdooClient odoo, bool dryRun)
                     abo.Positionen.Add(new AboPosition { Produkt = Kuerzen(produkt, 300), Menge = menge });
             }
 
+            // Neues laufendes Abo holt archivierte Kunden automatisch aus dem Archiv
+            if (abo.Status == AboStatus.Laufend && kunde.ArchiviertAm != null)
+            {
+                kunde.ArchiviertAm = null;
+                db.Aktivitaeten.Add(new Rausoft.Erp.Domain.Shared.Aktivitaet
+                {
+                    KundeId = kunde.Id,
+                    Typ = Rausoft.Erp.Domain.Shared.AktivitaetsTyp.System,
+                    Zeitpunkt = DateTime.UtcNow,
+                    Richtung = Rausoft.Erp.Domain.Shared.AktivitaetsRichtung.Intern,
+                    Betreff = $"Aus dem Archiv geholt — laufendes Abo {abo.Nummer} aus Odoo",
+                });
+            }
+
             // Bestands-Vertragsakte anreichern: nur laufende Abos, nie manuelle Pflege überschreiben
             if (abo.Status == AboStatus.Laufend
                 && bestandsVertraege.TryGetValue(kunde.Id, out var vertraege))

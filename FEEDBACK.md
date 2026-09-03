@@ -113,6 +113,28 @@ Merkmal-Trägers, wird das Merkmal gelb als „(prüfen)" markiert + Timeline-
 Eintrag — Speichern setzt die Markierung zurück. Jede Vergabe/Änderung
 erzeugt einen Verlaufseintrag. Air Berlin (12439) trägt „Insolvenz".
 
+## Nr. 10 · Kunden-Archiv (2026-09-03, MP)
+
+Kunden mit Merkmal (Einmalkauf, Insolvenz …) sollen in ein Archiv verschoben
+werden können — per Button am Kunden; Rückkehr automatisch bei neuer
+Geschäftsaktivität (z. B. neues Abo).
+
+Status: erledigt (03.09.2026) — Button „Ins Archiv verschieben"/„Aus dem
+Archiv holen" im Akten-Kopf, Archiv-Chip in der Kundenliste, archivierte
+Kunden sind aus allen Standard-Sichten ausgeblendet. Automatische Rückkehr
+bei laufendem Abo aus dem Odoo-Import oder neuem Vertrag (mit Timeline-
+Eintrag); bewusst NICHT bei bloßen Stammdaten-Änderungen in Odoo. Air Berlin
+(12439) ist archiviert.
+
+## Nr. 11 · Filter geht beim Zurückspringen verloren (2026-09-03, MP)
+
+Nach Kunde öffnen + Browser-zurück war die Chip-Auswahl (Kunden/Alle/Zu
+klären …) wieder auf Standard.
+
+Status: erledigt (03.09.2026) — Filter, Suche und Seite stehen jetzt in der
+URL (?filter=…&suche=…&seite=…) und überleben Zurück-Navigation, Reload und
+Lesezeichen. (Verträge-Liste bei Bedarf analog — noch offen.)
+
 ## Backlog (bereits bekannt, kein neues Feedback)
 
 - Laufzeiten/Kündigungsfristen der 776 Bestandsverträge nachpflegen
