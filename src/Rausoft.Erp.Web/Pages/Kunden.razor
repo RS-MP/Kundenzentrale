@@ -8,7 +8,7 @@
     <h1>Kunden</h1>
     @if (_ergebnis is not null)
     {
-        <span class="untertitel">@_ergebnis.Gesamt @(_filter switch { "kunden" => "Kunden", "interessenten" => "Interessenten", "zuklaeren" => "zu klären", "archiv" => "im Archiv", "partner" => "über Partner", _ => "Kontakte" })</span>
+        <span class="untertitel">@_ergebnis.Gesamt @(_filter switch { "kunden" => "Kunden", "interessenten" => "Interessenten", "zuklaeren" => "zu klären", "einmalbestellung" => "Einmalbestellungen", "archiv" => "im Archiv", "partner" => "über Partner", _ => "Kontakte" })</span>
     }
 </div>
 
@@ -24,6 +24,7 @@
         <button class="chip @(_filter == "kunden" ? "aktiv" : "")" @onclick='() => Navigiere("kunden")'>Kunden</button>
         <button class="chip @(_filter == "interessenten" ? "aktiv" : "")" @onclick='() => Navigiere("interessenten")'>Interessenten</button>
         <button class="chip @(_filter == "zuklaeren" ? "aktiv" : "")" @onclick='() => Navigiere("zuklaeren")'>Zu klären</button>
+        <button class="chip @(_filter == "einmalbestellung" ? "aktiv" : "")" @onclick='() => Navigiere("einmalbestellung")'>Einmalbestellung</button>
         <button class="chip @(_filter == "alle" ? "aktiv" : "")" @onclick='() => Navigiere("alle")'>Alle</button>
         <button class="chip @(_filter == "partner" ? "aktiv" : "")" @onclick='() => Navigiere("partner")'>Mit Partner</button>
         <button class="chip @(_filter == "archiv" ? "aktiv" : "")" @onclick='() => Navigiere("archiv")'>Archiv</button>
@@ -134,7 +135,7 @@
         _fehler = null;
         try
         {
-            var kategorie = _filter is "kunden" or "interessenten" or "zuklaeren" or "archiv" ? _filter : "";
+            var kategorie = _filter is "kunden" or "interessenten" or "zuklaeren" or "einmalbestellung" or "archiv" ? _filter : "";
             var mitPartner = _filter == "partner";
             _ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
                 $"api/kunden?suche={Uri.EscapeDataString(_suche.Trim())}&kategorie={kategorie}" +

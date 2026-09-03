@@ -41,16 +41,36 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
         else
             query = query.Where(k => k.ArchiviertAm == null);
 
-        // Kategorie ist berechnet, nie gepflegt: Kunde = laufendes Abo ODER aktiver Vertrag;
-        // "Zu klären" = es gibt Artefakte (alte Bestellungen/Entwürfe), aber nichts Laufendes
-        // und keine abgeschlossene Historie — die Gruppe leert sich beim Klären von selbst.
+        // Kategorie ist berechnet, nie gepflegt (Regel V2, 09/2026):
+        //  Kunde           = laufendes Abo ODER aktiver Vertrag MIT gepflegter Laufzeit
+        //  Ehemaliger Kunde = beendetes/abgelöstes Abo oder gekündigter/beendeter Vertrag, nichts läuft
+        //  Einmalbestellung = nur Bestellungen, nie ein Abo
+        //  Zu klären        = übrige Artefakte ohne gültige laufende Beziehung (z. B. aktiver
+        //                     Vertrag ohne Laufzeit — dahinter stecken oft unerkannte Kündigungen)
         if (kategorie == "kunden")
             query = query.Where(KundenRegel(db));
+        else if (kategorie == "einmalbestellung")
+            query = query.Where(k =>
+                !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id
+                    && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))
+                && db.Vertraege.Any(v => v.KundeId == k.Id)
+                && !db.Abos.Any(a => a.KundeId == k.Id)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id
+                    && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung)));
         else if (kategorie == "zuklaeren")
             query = query.Where(k =>
-                !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
-                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status != Domain.Contracts.VertragsStatus.Entwurf)
-                && (db.Abos.Any(a => a.KundeId == k.Id) || db.Vertraege.Any(v => v.KundeId == k.Id)));
+                !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
+                && !db.Abos.Any(a => a.KundeId == k.Id
+                    && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
+                && !db.Vertraege.Any(v => v.KundeId == k.Id
+                    && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))
+                && (db.Abos.Any(a => a.KundeId == k.Id) || db.Vertraege.Any(v => v.KundeId == k.Id))
+                && (db.Abos.Any(a => a.KundeId == k.Id)
+                    || db.Vertraege.Any(v => v.KundeId == k.Id
+                        && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung))));
         else if (kategorie == "interessenten")
             query = query.Where(k =>
                 !db.Abos.Any(a => a.KundeId == k.Id)
@@ -74,9 +94,16 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 Vermittelt = k.VermitteltDurchPartner!.Name,
                 RechnungAn = k.RechnungsempfaengerPartner!.Name,
                 HatAktives = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
-                    || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv),
-                HatteFrueher = db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
-                    || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status != Domain.Contracts.VertragsStatus.Entwurf),
+                    || db.Vertraege.Any(v => v.KundeId == k.Id
+                        && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
+                IstEhemalig = db.Abos.Any(a => a.KundeId == k.Id
+                        && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
+                    || db.Vertraege.Any(v => v.KundeId == k.Id
+                        && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet)),
+                IstEinmalbestellung = db.Vertraege.Any(v => v.KundeId == k.Id)
+                    && !db.Abos.Any(a => a.KundeId == k.Id)
+                    && !db.Vertraege.Any(v => v.KundeId == k.Id
+                        && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung)),
                 HatArtefakte = db.Abos.Any(a => a.KundeId == k.Id) || db.Vertraege.Any(v => v.KundeId == k.Id),
             })
             .ToListAsync(ct);
@@ -90,7 +117,7 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 k.Ort,
                 k.RechnungAn != null ? $"via {k.RechnungAn} · Rechnung an Partner"
                     : k.Vermittelt != null ? $"via {k.Vermittelt}" : "",
-                KategorieText(k.HatAktives, k.HatteFrueher, k.HatArtefakte),
+                KategorieText(k.HatAktives, k.IstEhemalig, k.IstEinmalbestellung, k.HatArtefakte),
                 k.Merkmale,
                 k.ArchiviertAm != null))
             .ToList();
@@ -113,12 +140,16 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
 
         var hatAktives = await db.Abos.AnyAsync(
                 a => a.KundeId == id && a.Status == Domain.Subscriptions.AboStatus.Laufend, ct)
-            || await db.Vertraege.AnyAsync(
-                v => v.KundeId == id && v.Status == Domain.Contracts.VertragsStatus.Aktiv, ct);
-        var hatteFrueher = await db.Abos.AnyAsync(
-                a => a.KundeId == id && a.Status != Domain.Subscriptions.AboStatus.Entwurf, ct)
-            || await db.Vertraege.AnyAsync(
-                v => v.KundeId == id && v.Status != Domain.Contracts.VertragsStatus.Entwurf, ct);
+            || await db.Vertraege.AnyAsync(v => v.KundeId == id
+                && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null, ct);
+        var istEhemalig = await db.Abos.AnyAsync(a => a.KundeId == id
+                && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet), ct)
+            || await db.Vertraege.AnyAsync(v => v.KundeId == id
+                && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet), ct);
+        var istEinmalbestellung = await db.Vertraege.AnyAsync(v => v.KundeId == id, ct)
+            && !await db.Abos.AnyAsync(a => a.KundeId == id, ct)
+            && !await db.Vertraege.AnyAsync(v => v.KundeId == id
+                && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung), ct);
         var hatArtefakte = await db.Abos.AnyAsync(a => a.KundeId == id, ct)
             || await db.Vertraege.AnyAsync(v => v.KundeId == id, ct);
 
@@ -147,7 +178,7 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 .Select(a => new AdresseEintrag(
                     a.Id, AdressTypText(a.Typ), a.Strasse, a.Zusatz, a.Plz, a.Ort, a.Land))
                 .ToList(),
-            KategorieText(hatAktives, hatteFrueher, hatArtefakte),
+            KategorieText(hatAktives, istEhemalig, istEinmalbestellung, hatArtefakte),
             kunde.Merkmale,
             kunde.MerkmalePruefen,
             kunde.ArchiviertAm));
@@ -281,14 +312,20 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             a.Betreff, a.Inhalt, a.VerweisTyp?.ToString(), a.VerweisId)).ToList());
     }
 
-    /// <summary>Berechnete Kategorie: Kunde = laufendes Abo oder aktiver Vertrag (Regel 09/2026).</summary>
+    /// <summary>
+    /// Berechnete Kategorie (Regel V2, 09/2026): Kunde = laufendes Abo oder
+    /// aktiver Vertrag MIT gepflegter Laufzeit — aktive Verträge ohne Laufzeit
+    /// gelten als ungeklärt (oft unerkannte Kündigungen im Bestand).
+    /// </summary>
     private static System.Linq.Expressions.Expression<Func<Kunde, bool>> KundenRegel(ErpDbContext db) =>
         k => db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
-             || db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv);
+             || db.Vertraege.Any(v => v.KundeId == k.Id
+                 && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null);
 
-    private static string KategorieText(bool hatAktives, bool hatteFrueher, bool hatArtefakte) =>
+    private static string KategorieText(bool hatAktives, bool istEhemalig, bool istEinmalbestellung, bool hatArtefakte) =>
         hatAktives ? "Kunde"
-        : hatteFrueher ? "Ehemaliger Kunde"
+        : istEhemalig ? "Ehemaliger Kunde"
+        : istEinmalbestellung ? "Einmalbestellung"
         : hatArtefakte ? "Zu klären"
         : "Interessent";
 
