@@ -106,6 +106,37 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 .ToList()));
     }
 
+    /// <summary>Abos des Kunden mit Lizenz-Positionen — Basis der Karte „Betrieb &amp; Lizenzen".</summary>
+    [HttpGet("{id:int}/abos")]
+    public async Task<ActionResult<List<AboEintrag>>> Abos(int id, CancellationToken ct)
+    {
+        var abos = await db.Abos
+            .AsNoTracking()
+            .Where(a => a.KundeId == id)
+            .Include(a => a.Positionen)
+            .OrderBy(a => a.Status)
+            .ThenByDescending(a => a.Nummer)
+            .ToListAsync(ct);
+
+        return Ok(abos.Select(a => new AboEintrag(
+            a.Id,
+            a.Nummer,
+            a.Status switch
+            {
+                Domain.Subscriptions.AboStatus.Laufend => "Laufend",
+                Domain.Subscriptions.AboStatus.Abgeloest => "Abgelöst",
+                Domain.Subscriptions.AboStatus.Beendet => "Beendet",
+                _ => "Entwurf",
+            },
+            a.IntervallMonate,
+            a.LaufzeitBeginn ?? a.Beginn,
+            a.NaechsteVerlaengerung,
+            a.Positionen
+                .OrderByDescending(p => p.Menge)
+                .Select(p => new AboPositionEintrag(p.Produkt, p.Menge))
+                .ToList())).ToList());
+    }
+
     /// <summary>Timeline der Kundenakte — neueste Einträge zuerst.</summary>
     [HttpGet("{id:int}/verlauf")]
     public async Task<ActionResult<List<VerlaufEintrag>>> Verlauf(int id, CancellationToken ct)

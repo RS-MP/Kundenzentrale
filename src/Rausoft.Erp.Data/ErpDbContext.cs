@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Rausoft.Erp.Domain.Contracts;
 using Rausoft.Erp.Domain.Customers;
 using Rausoft.Erp.Domain.Shared;
+using Rausoft.Erp.Domain.Subscriptions;
 
 namespace Rausoft.Erp.Data;
 
@@ -32,6 +33,10 @@ public class ErpDbContext(
     public DbSet<Vertrag> Vertraege => Set<Vertrag>();
     public DbSet<Vertragsbestandteil> Vertragsbestandteile => Set<Vertragsbestandteil>();
     public DbSet<Vertragsdokument> Vertragsdokumente => Set<Vertragsdokument>();
+
+    // Abos
+    public DbSet<Abo> Abos => Set<Abo>();
+    public DbSet<AboPosition> AboPositionen => Set<AboPosition>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -176,6 +181,21 @@ public class ErpDbContext(
             // Bestandteile mit Dokumenten sind nicht löschbar (Unveränderlichkeit).
             e.HasMany(b => b.Dokumente).WithOne(d => d.Vertragsbestandteil!)
                 .HasForeignKey(d => d.VertragsbestandteilId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Abo>(e =>
+        {
+            e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+            e.Property(a => a.Nummer).HasMaxLength(20);
+            e.HasOne(a => a.Kunde).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(a => a.Positionen).WithOne(p => p.Abo!)
+                .HasForeignKey(p => p.AboId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AboPosition>(e =>
+        {
+            e.Property(p => p.Produkt).HasMaxLength(300);
+            e.Property(p => p.Menge).HasPrecision(9, 2);
         });
 
         modelBuilder.Entity<Vertragsdokument>(e =>

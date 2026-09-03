@@ -97,6 +97,39 @@ else
 
         <div>
             <details class="gruppe" open>
+                <summary>Betrieb &amp; Lizenzen<span class="zahl">@(_laufendeAbos.Count) Abo@(_laufendeAbos.Count == 1 ? "" : "s")</span></summary>
+                <div class="gruppe-inhalt">
+                    @if (_laufendeAbos.Count == 0)
+                    {
+                        <div style="color:var(--muted)">Kein laufendes Abo@(_abos?.Count > 0 ? $" ({_abos.Count} frühere/abgelöste)" : "").</div>
+                    }
+                    @foreach (var abo in _laufendeAbos)
+                    {
+                        <div style="padding:4px 0 8px">
+                            <div style="display:flex; gap:10px; align-items:baseline">
+                                <span style="font-weight:600">@abo.Nummer</span>
+                                <span class="status gut" style="font-size:13px">@abo.Status</span>
+                                <span style="margin-left:auto; color:var(--muted); font-size:12.5px">@IntervallText(abo.IntervallMonate)</span>
+                            </div>
+                            @if (abo.LaufzeitBeginn is not null || abo.NaechsteVerlaengerung is not null)
+                            {
+                                <div class="neben" style="font-variant-numeric:tabular-nums">
+                                    @(abo.LaufzeitBeginn is not null ? $"seit {abo.LaufzeitBeginn.Value:dd.MM.yyyy}" : "")@(abo.NaechsteVerlaengerung is not null ? $" · Verlängerung {abo.NaechsteVerlaengerung.Value:dd.MM.yyyy}" : "")
+                                </div>
+                            }
+                            @foreach (var position in abo.Positionen)
+                            {
+                                <div class="zeile2">
+                                    <span>@position.Produkt</span>
+                                    <span class="r" style="color:var(--muted)">@(position.Menge == 1 ? "" : $"{position.Menge:0.#} ×")</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </details>
+
+            <details class="gruppe" open>
                 <summary>Verträge<span class="zahl">@(_vertraege?.Count ?? 0)</span></summary>
                 <div class="gruppe-inhalt">
                     @if (_vertraege is null || _vertraege.Count == 0)
@@ -172,6 +205,8 @@ else
     private KundeDetail? _kunde;
     private List<VerlaufEintrag>? _verlauf;
     private List<VertragListenEintrag>? _vertraege;
+    private List<AboEintrag>? _abos;
+    private List<AboEintrag> _laufendeAbos = [];
     private List<AnsprechpartnerEintrag> _wichtige = [];
     private List<AnsprechpartnerEintrag> _weitere = [];
     private bool _weitereOffen;
@@ -189,6 +224,8 @@ else
             var vertraege = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
                 $"api/vertraege?kundeId={Id}&seite=1&proSeite=50");
             _vertraege = vertraege?.Eintraege;
+            _abos = await Http.GetFromJsonAsync<List<AboEintrag>>($"api/kunden/{Id}/abos");
+            _laufendeAbos = _abos?.Where(a => a.Status == "Laufend").ToList() ?? [];
 
             // Wichtige zuerst: aktive Ansprechpartner mit Rolle; ohne Rollen die ersten zwei.
             var aktive = _kunde!.Ansprechpartner.Where(a => a.Aktiv).ToList();
@@ -249,6 +286,15 @@ else
             }
         </div>
     </div>;
+
+    private static string IntervallText(int monate) => monate switch
+    {
+        1 => "monatlich",
+        3 => "vierteljährlich",
+        6 => "halbjährlich",
+        12 => "jährlich",
+        _ => $"alle {monate} Monate",
+    };
 
     private static string StatusKlasse(string status) => status switch
     {

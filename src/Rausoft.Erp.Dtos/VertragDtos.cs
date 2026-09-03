@@ -81,6 +81,17 @@ public record VerlaufEintrag(
     string? VerweisTyp,
     int? VerweisId);
 
+public record AboEintrag(
+    int Id,
+    string Nummer,
+    string Status,
+    int IntervallMonate,
+    DateOnly? LaufzeitBeginn,
+    DateOnly? NaechsteVerlaengerung,
+    List<AboPositionEintrag> Positionen);
+
+public record AboPositionEintrag(string Produkt, decimal Menge);
+
 public record VertragsKennzahlen(
     int Gesamt,
     int LaufzeitFehlt,

@@ -28,11 +28,17 @@ if (url is null || db is null || benutzer is null || apiKey is null)
 
 var odoo = new OdooClient(url, db, benutzer, apiKey);
 
-// Modus "import": Daten übernehmen (mit --dry-run nur Vorschau, nichts speichern).
+// Modus "import": Kontakte übernehmen (mit --dry-run nur Vorschau).
+// Modus "abos": Abonnements + Lizenzen übernehmen, Laufzeiten anreichern.
 // Ohne Argumente läuft die Analyse (Verbindungstest + Datenprofil).
 if (args.Contains("import"))
 {
     await new OdooImporter(odoo, dryRun: args.Contains("--dry-run")).AusfuehrenAsync();
+    return 0;
+}
+if (args.Contains("abos"))
+{
+    await new AboImporter(odoo, dryRun: args.Contains("--dry-run")).AusfuehrenAsync();
     return 0;
 }
 

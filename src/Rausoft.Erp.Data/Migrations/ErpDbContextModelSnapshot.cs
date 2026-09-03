@@ -683,6 +683,81 @@ namespace Rausoft.Erp.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.Abo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly?>("Beginn")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("Ende")
+                        .HasColumnType("date");
+
+                    b.Property<int>("IntervallMonate")
+                        .HasColumnType("int");
+
+                    b.Property<int>("KundeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("LaufzeitBeginn")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("NaechsteVerlaengerung")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Nummer")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("OdooId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KundeId");
+
+                    b.HasIndex("OdooId")
+                        .IsUnique()
+                        .HasFilter("[OdooId] IS NOT NULL");
+
+                    b.ToTable("Abos");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.AboPosition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AboId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Menge")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
+                    b.Property<string>("Produkt")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AboId");
+
+                    b.ToTable("AboPositionen");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
@@ -798,6 +873,28 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Bereich");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.Abo", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
+                        .WithMany()
+                        .HasForeignKey("KundeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Kunde");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.AboPosition", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Subscriptions.Abo", "Abo")
+                        .WithMany("Positionen")
+                        .HasForeignKey("AboId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Abo");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
                 {
                     b.Navigation("Bestandteile");
@@ -813,6 +910,11 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Adressen");
 
                     b.Navigation("Ansprechpartner");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.Abo", b =>
+                {
+                    b.Navigation("Positionen");
                 });
 #pragma warning restore 612, 618
         }
