@@ -92,11 +92,12 @@ else
                     @foreach (var bestandteil in _vertrag.Bestandteile)
                     {
                         <div style="margin-bottom:18px">
+                            @* Einheitlich: der Typ ist immer die fette Überschrift, der Titel dezent dahinter *@
                             <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap">
-                                <strong>@bestandteil.Titel</strong>
+                                <strong>@bestandteil.Typ</strong>
                                 @if (!string.Equals(bestandteil.Titel, bestandteil.Typ, StringComparison.OrdinalIgnoreCase))
                                 {
-                                    <span class="pill">@bestandteil.Typ</span>
+                                    <span style="color:var(--ink2)">@bestandteil.Titel</span>
                                 }
                                 @if (bestandteil.UnterzeichnetAm is not null)
                                 {

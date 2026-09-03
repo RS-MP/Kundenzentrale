@@ -45,7 +45,7 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
             [new object[] { "is_company", "=", true }],
             ["id", "name", "active", "x_studio_kundenr", "email", "phone", "street", "street2", "zip", "city",
              "country_id", "vat", "lang", "x_studio_hosting", "x_studio_vertriebspartner",
-             "x_studio_e_mail_rechnungen", "x_studio_blocked",
+             "x_studio_e_mail_rechnungen", "x_studio_blocked", "x_studio_wartung",
              "x_studio_hauptansprechpartner", "x_studio_technischer_ansprechpartner"]);
         var personen = await LadeAlleAsync(
             [new object[] { "is_company", "=", false }],
@@ -60,6 +60,18 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
         var kundenNachOdooId = kunden.Where(k => k.OdooId is not null)
             .ToDictionary(k => k.OdooId!.Value);
         var partnerNachName = await db.Partner.ToDictionaryAsync(p => p.Name, StringComparer.OrdinalIgnoreCase);
+        // Für die automatische Kündigungs-Erkennung (Odoo-Prozess: Kündigung = Wartungs-Haken raus)
+        var kundenMitLaufendemAbo = (await db.Abos
+                .Where(a => a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                .Select(a => a.KundeId).Distinct().ToListAsync())
+            .ToHashSet();
+        var aktiveBestandsVertraege = (await db.Vertraege
+                .Where(v => v.Status == Domain.Contracts.VertragsStatus.Aktiv
+                    && v.Notiz != null && v.Notiz.StartsWith("Bestandsimport"))
+                .ToListAsync())
+            .GroupBy(v => v.KundeId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var vertraegeGekuendigt = 0;
         var vergebeneNummern = kunden.Select(k => k.Kundennummer).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // 1) Partner aus x_studio_vertriebspartner
@@ -150,6 +162,29 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
                 // Nur "Finesolutions" (nicht "…-Direktkunde") bekommt die Rechnung
                 kunde.RechnungsempfaengerPartner =
                     partnerLabel!.Equals("Finesolutions", StringComparison.OrdinalIgnoreCase) ? partner : null;
+            }
+
+            // Odoo-Prozess: Kündigung = Wartungs-Haken entfernt. Aktive Bestandsverträge
+            // ohne laufendes Abo werden dann automatisch auf Gekündigt gesetzt.
+            if (!istNeu && !Wahr(firma, "x_studio_wartung")
+                && !kundenMitLaufendemAbo.Contains(kunde.Id)
+                && aktiveBestandsVertraege.TryGetValue(kunde.Id, out var kuendbare))
+            {
+                foreach (var vertrag in kuendbare.Where(v => v.Status == Domain.Contracts.VertragsStatus.Aktiv))
+                {
+                    vertrag.Status = Domain.Contracts.VertragsStatus.Gekuendigt;
+                    db.Aktivitaeten.Add(new Domain.Shared.Aktivitaet
+                    {
+                        KundeId = kunde.Id,
+                        Typ = Domain.Shared.AktivitaetsTyp.Vertrag,
+                        Zeitpunkt = DateTime.UtcNow,
+                        Richtung = Domain.Shared.AktivitaetsRichtung.Intern,
+                        Betreff = $"Vertrag {vertrag.Vertragsnummer} auf Gekündigt gesetzt — Wartung in Odoo beendet (Haken entfernt)",
+                        VerweisTyp = Domain.Shared.AktivitaetsVerweisTyp.Vertrag,
+                        VerweisId = vertrag.Id,
+                    });
+                    vertraegeGekuendigt++;
+                }
             }
 
             // Merkmal-Träger, dessen Odoo-Daten sich geändert haben → zur Prüfung markieren
@@ -301,6 +336,8 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
         }
 
         _stat.Ausgeben();
+        if (vertraegeGekuendigt > 0)
+            Console.WriteLine($"Verträge auf Gekündigt gesetzt (Wartungs-Haken in Odoo entfernt): {vertraegeGekuendigt}");
 
         if (dryRun)
         {

@@ -72,6 +72,14 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 && (db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                     || db.Vertraege.Any(v => v.KundeId == k.Id
                         && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung))));
+        else if (kategorie == "ehemalige")
+            query = query.Where(k =>
+                !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
+                && (db.Abos.Any(a => a.KundeId == k.Id
+                        && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
+                    || db.Vertraege.Any(v => v.KundeId == k.Id
+                        && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))));
         else if (kategorie == "interessenten")
             query = query.Where(k =>
                 !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
