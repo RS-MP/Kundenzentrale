@@ -62,6 +62,39 @@ ohne Nummer (v. a. Schweizer „Bestellung_Abfrageversion …_<Firma>.pdf") und
 20 mit unbekannter Nummer — Liste per Dry-Run (`vertragsscan --dry-run`) abrufbar.
 Odoo-Bestellungen (sale.order) und Rechnungen bleiben für Phase 2/4.
 
+## Nr. 6 · Ansprechpartner-Rollen aus Odoo (2026-09-03, MP)
+
+Hinweis: In Odoo gibt es Hauptansprechpartner und Technische Ansprechpartner
+(x_studio_hauptansprechpartner / x_studio_technischer_ansprechpartner).
+Stand heute: beide werden beim Kontakt-Import als Rollen übernommen und in
+der Akte bevorzugt angezeigt. ZU KLÄREN mit MP: Was fehlt konkret — sollen
+die Rollen prominenter erscheinen, in Odoo gepflegte Änderungen schneller
+ankommen (Import-Rhythmus), oder gibt es Kunden, bei denen die Rolle fehlt?
+
+Status: Rückfrage offen
+
+## Nr. 7 · Vertragsseite unübersichtlich (2026-09-03, MP, Screenshot)
+
+Beobachtungen am Beispiel V00435 (Abel + Schäfer):
+- Typ-Pill und Titel doppeln sich („Wartungsvertrag Wartungsvertrag").
+- Das Eingabefeld „Neue Version … / Version registrieren" steht unter JEDEM
+  Bestandteil → viel Formular-Rauschen; besser erst auf Klick zeigen
+  (z. B. kleiner Link „Version hinzufügen").
+- Bestellungs-Bestandteile heißen wie die Datei („6816") — nichtssagend;
+  zudem heißen Wartungsvertrag- und Bestellungs-Datei beide „6816.pdf"
+  (verschiedene Ordner) → verwechselbar. Ordner/Dokumentart am Dokument
+  anzeigen, Titel sprechender machen (z. B. „Bestellung vom <Dateidatum>").
+
+Status: offen (Sammelphase)
+
+## Nr. 8 · Karte Betrieb & Lizenzen zu luftig (2026-09-03, MP, Screenshot)
+
+Die Lizenz-Positionen wirken verstreut (große Abstände zwischen den Zeilen,
+Beispiel S00919). Kompakter setzen, Positionen optisch als Block unter dem
+Abo-Kopf gruppieren.
+
+Status: offen (Sammelphase)
+
 ## Backlog (bereits bekannt, kein neues Feedback)
 
 - Laufzeiten/Kündigungsfristen der 776 Bestandsverträge nachpflegen
