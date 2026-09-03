@@ -32,6 +32,12 @@ public class Kunde
     /// <summary>Umsatzsteuer-Identifikationsnummer, z. B. "DE262976662" — für Rechnungen/ZUGFeRD.</summary>
     public string? UStIdNr { get; set; }
 
+    /// <summary>
+    /// Merkmale/Stichwörter aus Odoo (category_id), mit " · " getrennt —
+    /// z. B. "Insolvenz". Odoo bleibt das führende System für die Pflege.
+    /// </summary>
+    public string? Merkmale { get; set; }
+
     /// <summary>Referenz auf den Odoo-Datensatz für den Import und die Übergangszeit.</summary>
     public int? OdooId { get; set; }
 

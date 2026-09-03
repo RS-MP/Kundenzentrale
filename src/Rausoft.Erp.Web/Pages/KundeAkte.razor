@@ -23,6 +23,10 @@ else
             }
         </div>
         <p class="faktenzeile2">
+            @if (_kunde.Merkmale is not null)
+            {
+                <span class="krittext" style="font-weight:600">@_kunde.Merkmale</span><span class="trenn">·</span>
+            }
             Kunden-Nr. <b>@_kunde.Kundennummer</b>
             @if (_kunde.Betriebsart is not null)
             {
@@ -121,13 +125,18 @@ else
                                     @(abo.LaufzeitBeginn is not null ? $"seit {abo.LaufzeitBeginn.Value:dd.MM.yyyy}" : "")@(abo.NaechsteVerlaengerung is not null ? $" · Verlängerung {abo.NaechsteVerlaengerung.Value:dd.MM.yyyy}" : "")
                                 </div>
                             }
-                            @foreach (var position in abo.Positionen)
-                            {
-                                <div class="zeile2">
-                                    <span>@position.Produkt</span>
-                                    <span class="r" style="color:var(--muted)">@(position.Menge == 1 ? "" : $"{position.Menge:0.#} ×")</span>
-                                </div>
-                            }
+                            <div class="lizenzblock">
+                                @foreach (var position in abo.Positionen)
+                                {
+                                    <div class="lizenz">
+                                        <span>@position.Produkt</span>
+                                        @if (position.Menge != 1)
+                                        {
+                                            <span class="menge">@position.Menge.ToString("0.#") ×</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
                         </div>
                     }
                 </div>

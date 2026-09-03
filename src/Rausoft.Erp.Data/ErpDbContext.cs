@@ -122,6 +122,7 @@ public class ErpDbContext(
             e.HasIndex(k => k.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
             e.Property(k => k.Kundennummer).HasMaxLength(20);
             e.Property(k => k.UStIdNr).HasMaxLength(20);
+            e.Property(k => k.Merkmale).HasMaxLength(500);
             e.Property(k => k.Notiz).HasColumnType("nvarchar(max)");
             e.Property(k => k.RowVersion).IsRowVersion();
             e.HasOne(k => k.VermitteltDurchPartner).WithMany()

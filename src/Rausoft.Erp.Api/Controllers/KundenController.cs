@@ -62,6 +62,7 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 k.Firmenname,
                 k.Status,
                 k.Betriebsart,
+                k.Merkmale,
                 Ort = k.Adressen.Where(a => a.Typ == AdressTyp.Hauptsitz).Select(a => a.Ort).FirstOrDefault(),
                 Vermittelt = k.VermitteltDurchPartner!.Name,
                 RechnungAn = k.RechnungsempfaengerPartner!.Name,
@@ -82,7 +83,8 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 k.Ort,
                 k.RechnungAn != null ? $"via {k.RechnungAn} · Rechnung an Partner"
                     : k.Vermittelt != null ? $"via {k.Vermittelt}" : "",
-                KategorieText(k.HatAktives, k.HatteFrueher, k.HatArtefakte)))
+                KategorieText(k.HatAktives, k.HatteFrueher, k.HatArtefakte),
+                k.Merkmale))
             .ToList();
 
         return Ok(new SeitenErgebnis<KundeListenEintrag>(eintraege, gesamt, seite, proSeite));
@@ -137,7 +139,8 @@ public class KundenController(ErpDbContext db) : ControllerBase
                 .Select(a => new AdresseEintrag(
                     a.Id, AdressTypText(a.Typ), a.Strasse, a.Zusatz, a.Plz, a.Ort, a.Land))
                 .ToList(),
-            KategorieText(hatAktives, hatteFrueher, hatArtefakte)));
+            KategorieText(hatAktives, hatteFrueher, hatArtefakte),
+            kunde.Merkmale));
     }
 
     /// <summary>Abos des Kunden mit Lizenz-Positionen — Basis der Karte „Betrieb &amp; Lizenzen".</summary>

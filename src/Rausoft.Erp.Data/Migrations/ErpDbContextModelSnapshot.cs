@@ -314,6 +314,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("Merkmale")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Notiz")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(max)");

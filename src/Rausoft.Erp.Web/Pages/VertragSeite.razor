@@ -93,8 +93,11 @@ else
                     {
                         <div style="margin-bottom:18px">
                             <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap">
-                                <span class="pill akzent">@bestandteil.Typ</span>
                                 <strong>@bestandteil.Titel</strong>
+                                @if (!string.Equals(bestandteil.Titel, bestandteil.Typ, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <span class="pill">@bestandteil.Typ</span>
+                                }
                                 @if (bestandteil.UnterzeichnetAm is not null)
                                 {
                                     <span style="color:var(--muted)">unterzeichnet @bestandteil.UnterzeichnetAm.Value.ToString("dd.MM.yyyy")</span>
@@ -108,22 +111,27 @@ else
                             {
                                 <div class="dokument">
                                     <span class="pill">v@(dokument.Version)</span>
-                                    <span class="pfad" title="@dokument.Dateipfad">@dokument.DateinameOriginal</span>
-                                    <span class="hash" title="SHA-256: @dokument.Sha256">@dokument.Sha256[..12]…</span>
-                                    <span style="color:var(--muted); white-space:nowrap">
-                                        @dokument.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm") · @dokument.ErstelltVon
+                                    <span class="pfad" title="@dokument.Dateipfad">@dokument.DateinameOriginal
+                                        <span style="color:var(--muted)"> — @Ordner(dokument.Dateipfad)</span>
                                     </span>
+                                    <span class="hash" title="SHA-256: @dokument.Sha256">@dokument.Sha256[..12]…</span>
                                     <button class="knopf sekundaer" @onclick="() => VorschauAsync(dokument)">Ansehen</button>
                                 </div>
                             }
-                            <div style="display:flex; gap:8px; margin-top:8px">
-                                <input type="text" style="flex:1; font-family:Consolas,monospace; font-size:13px"
-                                       placeholder="Neue Version: Pfad relativ zum Ablageverzeichnis, z. B. 2_Wartungsverträge\4228-2.pdf"
-                                       @bind="_dokumentPfade[bestandteil.Id]" />
-                                <button class="knopf sekundaer" @onclick="() => DokumentRegistrierenAsync(bestandteil.Id)">
-                                    Version registrieren
-                                </button>
-                            </div>
+                            @if (_versionOffen.Contains(bestandteil.Id))
+                            {
+                                <div style="display:flex; gap:8px; margin-top:8px">
+                                    <input type="text" style="flex:1; font-family:Consolas,monospace; font-size:13px"
+                                           placeholder="Pfad relativ zum Ablageverzeichnis, z. B. 2_Wartungsverträge\4228-2.pdf"
+                                           @bind="_dokumentPfade[bestandteil.Id]" />
+                                    <button class="knopf" @onclick="() => DokumentRegistrierenAsync(bestandteil.Id)">Registrieren</button>
+                                    <button class="knopf sekundaer" @onclick="() => _versionOffen.Remove(bestandteil.Id)">Abbrechen</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="mehr" @onclick="() => _versionOffen.Add(bestandteil.Id)">+ Version hinzufügen</button>
+                            }
                         </div>
                     }
                     <div style="color:var(--muted); font-size:12px; margin-top:8px">
@@ -210,6 +218,14 @@ else
     private readonly Bearbeitung _bearbeitung = new();
     private readonly NeuerBestandteil _neuerBestandteil = new();
     private readonly Dictionary<int, string> _dokumentPfade = [];
+    private readonly HashSet<int> _versionOffen = [];
+
+    /// <summary>Übergeordneter Ordner der Datei — unterscheidet gleichnamige Dateien aus verschiedenen Ablage-Ordnern.</summary>
+    private static string Ordner(string pfad)
+    {
+        var teile = pfad.Split('\\', StringSplitOptions.RemoveEmptyEntries);
+        return teile.Length >= 2 ? teile[^2] : "";
+    }
 
     protected override Task OnParametersSetAsync() => LadenAsync();
 
@@ -300,6 +316,7 @@ else
                 return;
             }
             _dokumentPfade[bestandteilId] = "";
+            _versionOffen.Remove(bestandteilId);
             await LadenAsync();
         }
         catch (Exception ex)

@@ -85,7 +85,9 @@ Beobachtungen am Beispiel V00435 (Abel + Schäfer):
   (verschiedene Ordner) → verwechselbar. Ordner/Dokumentart am Dokument
   anzeigen, Titel sprechender machen (z. B. „Bestellung vom <Dateidatum>").
 
-Status: offen (Sammelphase)
+Status: erledigt (03.09.2026) — Titel-Dopplung entfernt (Typ-Pill nur noch,
+wenn er nicht schon im Titel steht), Versions-Formular hinter „+ Version
+hinzufügen", Herkunfts-Ordner steht jetzt am Dokument („— 1_Bestellungen").
 
 ## Nr. 8 · Karte Betrieb & Lizenzen zu luftig (2026-09-03, MP, Screenshot)
 
@@ -93,7 +95,19 @@ Die Lizenz-Positionen wirken verstreut (große Abstände zwischen den Zeilen,
 Beispiel S00919). Kompakter setzen, Positionen optisch als Block unter dem
 Abo-Kopf gruppieren.
 
-Status: offen (Sammelphase)
+Status: erledigt (03.09.2026) — Positionen als kompakter, dezent hinterlegter
+Block unter dem Abo-Kopf.
+
+## Nr. 9 · Insolvenz-Kennzeichnung über Odoo-Stichwörter (2026-09-03, MP)
+
+Prozess: In Odoo Stichwort „Insolvenz" am Kunden setzen (Kontakte →
+Stichwörter), Details in die interne Notiz; Vertragsfolge über Abo-Kündigung
+(Kategorie wird automatisch „Ehemaliger Kunde").
+
+Status: technisch fertig (03.09.2026) — der Kontakt-Import übernimmt Odoo-
+Stichwörter generisch als Merkmale am Kunden, Anzeige rot in Kundenliste und
+Akten-Kopf. OFFEN bei MP: Stichwort „Insolvenz" in Odoo anlegen und bei
+12439 (Air Berlin) setzen, dann Import laufen lassen.
 
 ## Backlog (bereits bekannt, kein neues Feedback)
 

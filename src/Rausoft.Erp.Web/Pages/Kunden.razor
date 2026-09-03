@@ -57,6 +57,10 @@
                             <td>@kunde.Kundennummer</td>
                             <td>
                                 <span class="haupt">@kunde.Firmenname</span>
+                                @if (kunde.Merkmale is not null)
+                                {
+                                    <span class="krittext" style="margin-left:8px; font-size:12.5px">@kunde.Merkmale</span>
+                                }
                                 @if (Nebenzeile(kunde) is { } neben)
                                 {
                                     <div class="neben">@neben</div>
