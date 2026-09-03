@@ -135,6 +135,18 @@ Status: erledigt (03.09.2026) — Filter, Suche und Seite stehen jetzt in der
 URL (?filter=…&suche=…&seite=…) und überleben Zurück-Navigation, Reload und
 Lesezeichen. (Verträge-Liste bei Bedarf analog — noch offen.)
 
+## Nr. 12 · Merkmale als Auswahlliste statt Freitext (2026-09-03, MP)
+
+Bei den Merkmalen (Tags) soll eine Auswahl angeboten werden statt Freitext —
+vordefiniert mindestens „Insolvenz" und „Einmalkauf"; neue Tags können zur
+Auswahl hinzugefügt werden (und stehen dann allen zur Verfügung).
+
+Umsetzungsidee: Merkmal-Stammliste als Einstellung/eigene Tabelle, Pflege im
+Admin-Bereich; in der Akte Auswahl (Mehrfachauswahl?) + „Neues Merkmal…".
+Freitext-Wildwuchs („Insolvent", „insolvenz", „Insolvenz!") wird so vermieden.
+
+Status: offen (Sammelphase)
+
 ## Backlog (bereits bekannt, kein neues Feedback)
 
 - Laufzeiten/Kündigungsfristen der 776 Bestandsverträge nachpflegen
