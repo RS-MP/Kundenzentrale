@@ -104,10 +104,14 @@ Prozess: In Odoo Stichwort „Insolvenz" am Kunden setzen (Kontakte →
 Stichwörter), Details in die interne Notiz; Vertragsfolge über Abo-Kündigung
 (Kategorie wird automatisch „Ehemaliger Kunde").
 
-Status: technisch fertig (03.09.2026) — der Kontakt-Import übernimmt Odoo-
-Stichwörter generisch als Merkmale am Kunden, Anzeige rot in Kundenliste und
-Akten-Kopf. OFFEN bei MP: Stichwort „Insolvenz" in Odoo anlegen und bei
-12439 (Air Berlin) setzen, dann Import laufen lassen.
+Status: NEU ENTSCHIEDEN (03.09.2026, MP): Odoo-Stichwörter enthalten zu viele
+fremde Infos (147 Kunden hätten Tags mitgebracht) → Übernahme zurückgebaut,
+importierte Werte bereinigt. Stattdessen: Merkmale werden MANUELL in der
+Kundenzentrale gepflegt (Akte → Stammdaten & Adressen → Merkmale), bleiben
+bis zur bewussten Änderung; ändert der Odoo-Import Kundendaten eines
+Merkmal-Trägers, wird das Merkmal gelb als „(prüfen)" markiert + Timeline-
+Eintrag — Speichern setzt die Markierung zurück. Jede Vergabe/Änderung
+erzeugt einen Verlaufseintrag. Air Berlin (12439) trägt „Insolvenz".
 
 ## Backlog (bereits bekannt, kein neues Feedback)
 

@@ -318,6 +318,9 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<bool>("MerkmalePruefen")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Notiz")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(max)");

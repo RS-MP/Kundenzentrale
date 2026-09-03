@@ -32,7 +32,11 @@ public record KundeDetail(
     List<AnsprechpartnerEintrag> Ansprechpartner,
     List<AdresseEintrag> Adressen,
     string Kategorie,
-    string? Merkmale);
+    string? Merkmale,
+    bool MerkmalePruefen);
+
+/// <summary>Manuelle Merkmal-Pflege (z. B. "Insolvenz"); leer/null entfernt das Merkmal.</summary>
+public record MerkmaleAenderung(string? Wert);
 
 public record AnsprechpartnerEintrag(
     int Id,

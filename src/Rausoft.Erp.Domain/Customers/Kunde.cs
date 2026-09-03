@@ -33,10 +33,18 @@ public class Kunde
     public string? UStIdNr { get; set; }
 
     /// <summary>
-    /// Merkmale/Stichwörter aus Odoo (category_id), mit " · " getrennt —
-    /// z. B. "Insolvenz". Odoo bleibt das führende System für die Pflege.
+    /// Manuell in der Kundenzentrale gepflegte Merkmale (z. B. "Insolvenz"),
+    /// mit " · " getrennt. Bleiben stehen, bis sie bewusst geändert werden;
+    /// kein Import überschreibt sie.
     /// </summary>
     public string? Merkmale { get; set; }
+
+    /// <summary>
+    /// Wird vom Import gesetzt, wenn sich der Kunde in Odoo geändert hat,
+    /// während ein Merkmal vergeben ist — Signal, das Merkmal zu prüfen.
+    /// Manuelles Speichern der Merkmale setzt es zurück.
+    /// </summary>
+    public bool MerkmalePruefen { get; set; }
 
     /// <summary>Referenz auf den Odoo-Datensatz für den Import und die Übergangszeit.</summary>
     public int? OdooId { get; set; }

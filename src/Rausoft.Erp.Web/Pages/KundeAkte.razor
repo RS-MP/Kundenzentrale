@@ -25,7 +25,12 @@ else
         <p class="faktenzeile2">
             @if (_kunde.Merkmale is not null)
             {
-                <span class="krittext" style="font-weight:600">@_kunde.Merkmale</span><span class="trenn">·</span>
+                <span class="krittext" style="font-weight:600">@_kunde.Merkmale</span>
+                @if (_kunde.MerkmalePruefen)
+                {
+                    <span class="warntext" title="Die Kundendaten haben sich in Odoo geändert — bitte prüfen, ob das Merkmal noch stimmt."> (prüfen)</span>
+                }
+                <span class="trenn">·</span>
             }
             Kunden-Nr. <b>@_kunde.Kundennummer</b>
             @if (_kunde.Betriebsart is not null)
@@ -206,6 +211,19 @@ else
                     {
                         <div class="zeile2"><span class="l">Notiz</span><span class="r">@_kunde.Notiz</span></div>
                     }
+                    <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
+                        <div style="color:var(--muted); font-size:12.5px; margin-bottom:4px">
+                            Merkmale (manuell, z. B. „Insolvenz" — bleiben bis zur bewussten Änderung)
+                        </div>
+                        <div style="display:flex; gap:8px">
+                            <input type="text" style="flex:1" @bind="_merkmalEingabe" placeholder="kein Merkmal" />
+                            <button class="knopf sekundaer" @onclick="MerkmaleSpeichernAsync">Speichern</button>
+                        </div>
+                        @if (_merkmalGespeichert)
+                        {
+                            <div style="color:var(--good); font-size:13px; margin-top:4px">✓ gespeichert</div>
+                        }
+                    </div>
                 </div>
             </details>
         </div>
@@ -223,6 +241,8 @@ else
     private List<AnsprechpartnerEintrag> _wichtige = [];
     private List<AnsprechpartnerEintrag> _weitere = [];
     private bool _weitereOffen;
+    private string _merkmalEingabe = "";
+    private bool _merkmalGespeichert;
     private string? _fehler;
 
     protected override async Task OnParametersSetAsync()
@@ -233,6 +253,8 @@ else
         try
         {
             _kunde = await Http.GetFromJsonAsync<KundeDetail>($"api/kunden/{Id}");
+            _merkmalEingabe = _kunde?.Merkmale ?? "";
+            _merkmalGespeichert = false;
             _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>($"api/kunden/{Id}/verlauf");
             var vertraege = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
                 $"api/vertraege?kundeId={Id}&seite=1&proSeite=50");
@@ -299,6 +321,24 @@ else
             }
         </div>
     </div>;
+
+    private async Task MerkmaleSpeichernAsync()
+    {
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/kunden/{Id}/merkmale",
+                new MerkmaleAenderung(string.IsNullOrWhiteSpace(_merkmalEingabe) ? null : _merkmalEingabe.Trim()));
+            antwort.EnsureSuccessStatusCode();
+            _merkmalGespeichert = true;
+            await OnParametersSetAsync();
+            _merkmalGespeichert = true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Merkmal konnte nicht gespeichert werden: {ex.Message}";
+        }
+    }
 
     private static string IntervallText(int monate) => monate switch
     {

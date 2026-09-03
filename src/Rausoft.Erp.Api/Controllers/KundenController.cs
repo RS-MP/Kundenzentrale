@@ -8,7 +8,7 @@ namespace Rausoft.Erp.Api.Controllers;
 
 [ApiController]
 [Route("api/kunden")]
-public class KundenController(ErpDbContext db) : ControllerBase
+public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuellerBenutzer benutzer) : ControllerBase
 {
     private const int MaxProSeite = 100;
 
@@ -140,8 +140,53 @@ public class KundenController(ErpDbContext db) : ControllerBase
                     a.Id, AdressTypText(a.Typ), a.Strasse, a.Zusatz, a.Plz, a.Ort, a.Land))
                 .ToList(),
             KategorieText(hatAktives, hatteFrueher, hatArtefakte),
-            kunde.Merkmale));
+            kunde.Merkmale,
+            kunde.MerkmalePruefen));
     }
+
+    /// <summary>
+    /// Manuelle Merkmal-Pflege (z. B. "Insolvenz"). Merkmale werden nur hier
+    /// geändert — kein Import überschreibt sie; Speichern setzt die
+    /// Prüfen-Markierung zurück. Änderungen laufen durchs Audit-Log.
+    /// </summary>
+    [HttpPut("{id:int}/merkmale")]
+    public async Task<IActionResult> MerkmaleAendern(int id, MerkmaleAenderung aenderung, CancellationToken ct)
+    {
+        var kunde = await db.Kunden.FirstOrDefaultAsync(k => k.Id == id, ct);
+        if (kunde is null)
+            return NotFound();
+
+        var wert = string.IsNullOrWhiteSpace(aenderung.Wert) ? null : aenderung.Wert.Trim();
+        if (wert is { Length: > 500 })
+            return BadRequest("Merkmale dürfen höchstens 500 Zeichen lang sein.");
+
+        var alt = kunde.Merkmale;
+        kunde.Merkmale = wert;
+        kunde.MerkmalePruefen = false;
+
+        if (alt != wert)
+        {
+            db.Aktivitaeten.Add(new Domain.Shared.Aktivitaet
+            {
+                KundeId = kunde.Id,
+                Typ = Domain.Shared.AktivitaetsTyp.Notiz,
+                Zeitpunkt = DateTime.UtcNow,
+                MitarbeiterId = await AktuellerMitarbeiterId(ct),
+                Richtung = Domain.Shared.AktivitaetsRichtung.Intern,
+                Betreff = wert is null
+                    ? $"Merkmal „{alt}“ entfernt"
+                    : alt is null ? $"Merkmal „{wert}“ vergeben" : $"Merkmal geändert: „{alt}“ → „{wert}“",
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) =>
+        benutzer.EntraObjectId is Guid oid
+            ? db.Mitarbeiter.Where(m => m.EntraObjectId == oid).Select(m => (int?)m.Id).FirstOrDefaultAsync(ct)
+            : Task.FromResult<int?>(null);
 
     /// <summary>Abos des Kunden mit Lizenz-Positionen — Basis der Karte „Betrieb &amp; Lizenzen".</summary>
     [HttpGet("{id:int}/abos")]

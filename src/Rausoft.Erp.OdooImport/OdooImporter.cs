@@ -27,7 +27,6 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
     private const int BatchGroesse = 1000;
 
     private readonly Dictionary<int, string> _laender = [];
-    private readonly Dictionary<int, string> _stichwoerter = [];
     private readonly Statistik _stat = new();
 
     public async Task AusfuehrenAsync()
@@ -42,12 +41,11 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
         await using var db = new ErpDbContext(options);
 
         await LadeLaenderAsync();
-        await LadeStichwoerterAsync();
         var firmen = await LadeAlleAsync(
             [new object[] { "is_company", "=", true }],
             ["id", "name", "active", "x_studio_kundenr", "email", "phone", "street", "street2", "zip", "city",
              "country_id", "vat", "lang", "x_studio_hosting", "x_studio_vertriebspartner",
-             "x_studio_e_mail_rechnungen", "x_studio_blocked", "category_id",
+             "x_studio_e_mail_rechnungen", "x_studio_blocked",
              "x_studio_hauptansprechpartner", "x_studio_technischer_ansprechpartner"]);
         var personen = await LadeAlleAsync(
             [new object[] { "is_company", "=", false }],
@@ -122,19 +120,19 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
                 _stat.KundenAktualisiert++;
             }
 
+            // Für Merkmal-Träger: erkennen, ob Odoo den Kunden geändert hat (→ Merkmal prüfen)
+            var vorher = istNeu ? null
+                : $"{kunde!.Firmenname}|{kunde.UStIdNr}|{kunde.Status}|{kunde.Betriebsart}";
+
             kunde!.Firmenname = Kuerzen(Text(firma, "name"), 200) ?? $"(ohne Name, Odoo {odooId})";
             kunde.UStIdNr = Kuerzen(Text(firma, "vat"), 20);
             kunde.Status = firma.GetProperty("active").GetBoolean() && !Wahr(firma, "x_studio_blocked")
                 ? KundenStatus.Aktiv
                 : KundenStatus.Inaktiv;
-            // Stichwörter (z. B. "Insolvenz") — Odoo pflegt, wir zeigen an
-            var merkmale = firma.TryGetProperty("category_id", out var kategorien)
-                && kategorien.ValueKind == JsonValueKind.Array
-                    ? string.Join(" · ", kategorien.EnumerateArray()
-                        .Select(k => _stichwoerter.GetValueOrDefault(k.GetInt32()))
-                        .Where(n => n is not null))
-                    : "";
-            kunde.Merkmale = Kuerzen(merkmale.Length == 0 ? null : merkmale, 500);
+            // Kunde.Merkmale wird bewusst NICHT importiert — Merkmale (z. B. "Insolvenz")
+            // werden manuell in der Kundenzentrale gepflegt und bleiben stehen,
+            // bis sie bewusst geändert werden (Entscheidung 09/2026: Odoo-Stichwörter
+            // enthalten zu viele fremde Informationen).
 
             kunde.Betriebsart = Text(firma, "x_studio_hosting") switch
             {
@@ -152,6 +150,21 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
                 // Nur "Finesolutions" (nicht "…-Direktkunde") bekommt die Rechnung
                 kunde.RechnungsempfaengerPartner =
                     partnerLabel!.Equals("Finesolutions", StringComparison.OrdinalIgnoreCase) ? partner : null;
+            }
+
+            // Merkmal-Träger, dessen Odoo-Daten sich geändert haben → zur Prüfung markieren
+            if (!istNeu && kunde.Merkmale is not null && !kunde.MerkmalePruefen
+                && vorher != $"{kunde.Firmenname}|{kunde.UStIdNr}|{kunde.Status}|{kunde.Betriebsart}")
+            {
+                kunde.MerkmalePruefen = true;
+                db.Aktivitaeten.Add(new Domain.Shared.Aktivitaet
+                {
+                    KundeId = kunde.Id,
+                    Typ = Domain.Shared.AktivitaetsTyp.System,
+                    Zeitpunkt = DateTime.UtcNow,
+                    Richtung = Domain.Shared.AktivitaetsRichtung.Intern,
+                    Betreff = $"Kundendaten in Odoo geändert — Merkmal „{kunde.Merkmale}“ bitte prüfen",
+                });
             }
 
             // Hauptsitz-Adresse aus den Firmenfeldern (kein eigener Odoo-Datensatz)
@@ -314,17 +327,6 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
         {
             if (land.GetProperty("code").ValueKind == JsonValueKind.String)
                 _laender[land.GetProperty("id").GetInt32()] = land.GetProperty("code").GetString()!;
-        }
-    }
-
-    private async Task LadeStichwoerterAsync()
-    {
-        var stichwoerter = await odoo.AusfuehrenAsync("res.partner.category", "search_read", [new object[] { }],
-            new Dictionary<string, object> { ["fields"] = new[] { "id", "name" } });
-        foreach (var stichwort in stichwoerter.EnumerateArray())
-        {
-            if (stichwort.GetProperty("name").ValueKind == JsonValueKind.String)
-                _stichwoerter[stichwort.GetProperty("id").GetInt32()] = stichwort.GetProperty("name").GetString()!;
         }
     }
 
