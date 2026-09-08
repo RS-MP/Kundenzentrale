@@ -175,6 +175,32 @@ else
                             <div class="neben">@string.Join(" · ", vertrag.Bestandteile)</div>
                         </div>
                     }
+                    @if (_vorlagen.Count > 0)
+                    {
+                        <div style="display:flex; gap:8px; margin-top:10px">
+                            <select style="flex:1" @bind="_gewaehlteVorlage">
+                                @foreach (var vorlage in _vorlagen)
+                                {
+                                    <option value="@vorlage">@System.IO.Path.GetFileNameWithoutExtension(vorlage)</option>
+                                }
+                            </select>
+                            <button class="knopf sekundaer" disabled="@_erzeugeVertrag" @onclick="VertragAusVorlageAsync">
+                                @(_erzeugeVertrag ? "Erstelle …" : "Aus Vorlage erstellen")
+                            </button>
+                        </div>
+                        @if (_erzeugt is not null)
+                        {
+                            <div style="color:var(--good); font-size:13px; margin-top:6px">
+                                ✓ <a href="vertraege/@_erzeugt.VertragId">@_erzeugt.Vertragsnummer</a> erstellt: @_erzeugt.Datei
+                            </div>
+                            @if (_erzeugt.OffenePlatzhalter.Count > 0)
+                            {
+                                <div class="warntext" style="font-size:13px">
+                                    Nicht gefüllte Platzhalter: @string.Join(", ", _erzeugt.OffenePlatzhalter)
+                                </div>
+                            }
+                        }
+                    }
                 </div>
             </details>
 
@@ -257,6 +283,10 @@ else
     private List<AnsprechpartnerEintrag> _wichtige = [];
     private List<AnsprechpartnerEintrag> _weitere = [];
     private bool _weitereOffen;
+    private List<string> _vorlagen = [];
+    private string _gewaehlteVorlage = "";
+    private bool _erzeugeVertrag;
+    private VorlagenErgebnis? _erzeugt;
     private List<string> _merkmalListe = [];
     private HashSet<string> _gewaehlteMerkmale = [];
     private string _neuesMerkmal = "";
@@ -285,6 +315,10 @@ else
             _vertraege = vertraege?.Eintraege;
             _abos = await Http.GetFromJsonAsync<List<AboEintrag>>($"api/kunden/{Id}/abos");
             _laufendeAbos = _abos?.Where(a => a.Status == "Laufend").ToList() ?? [];
+            _vorlagen = await Http.GetFromJsonAsync<List<string>>("api/vertraege/vorlagen") ?? [];
+            if (_gewaehlteVorlage == "" && _vorlagen.Count > 0)
+                _gewaehlteVorlage = _vorlagen[0];
+            _erzeugt = null;
 
             // Wichtige zuerst: aktive Ansprechpartner mit Rolle; ohne Rollen die ersten zwei.
             var aktive = _kunde!.Ansprechpartner.Where(a => a.Aktiv).ToList();
@@ -345,6 +379,37 @@ else
             }
         </div>
     </div>;
+
+    private async Task VertragAusVorlageAsync()
+    {
+        if (_gewaehlteVorlage == "")
+            return;
+        _fehler = null;
+        _erzeugeVertrag = true;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/vertraege/aus-vorlage",
+                new VertragAusVorlage(Id, _gewaehlteVorlage));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var ergebnis = await antwort.Content.ReadFromJsonAsync<VorlagenErgebnis>();
+            var vorlage = _gewaehlteVorlage;
+            await OnParametersSetAsync();   // Verträge + Verlauf neu laden
+            _gewaehlteVorlage = vorlage;
+            _erzeugt = ergebnis;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vertrag konnte nicht erstellt werden: {ex.Message}";
+        }
+        finally
+        {
+            _erzeugeVertrag = false;
+        }
+    }
 
     private async Task ArchivUmschaltenAsync()
     {

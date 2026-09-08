@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # Lokales Test-Ablageverzeichnis fuer die Entwicklung
 .dev-ablage/
+
+# Vorlagen-Rohdateien gehoeren in die Ablage, nicht ins Repo
+/*.docx

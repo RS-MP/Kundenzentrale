@@ -164,6 +164,28 @@ Verteilung: 810 Kunden / 304 zu klären / 140 Einmalbestellung / 4.225
 Interessenten. adquas: Vertrag auf Gekündigt gesetzt → Ehemaliger Kunde.
 Beim Klären gilt: Kündigung gefunden → Vertragsstatus „Gekündigt" setzen.
 
+## Nr. 14 · Standardverträge aus Word-Vorlage erstellen (2026-09-08, MP)
+
+Anforderung: Verträge aus Word-Vorlagen im Portal erzeugen (Kundendaten
+automatisch eingesetzt), als PDF, optional direkt per E-Mail an einen
+Ansprechpartner verschicken und den Rücklauf überwachen.
+
+Stufenplan:
+- Stufe 1a (umgesetzt): Vorlagen-Verzeichnis als Admin-Einstellung
+  (\\RS-W2019-01\Orga\13_Lizenzbedingungen - Vertrag IDprove, nur
+  Root-Dateien = aktive Vorlagen); „Vertrag aus Vorlage" in der Kundenakte
+  füllt die Word-Datei (bestehende Muster-Texte UND {{Platzhalter}}),
+  legt sie im Zielverzeichnis ab, registriert sie an einer neuen
+  Vertragsakte (Entwurf) mit Prüfsumme + Timeline. Ausgabe vorerst .docx.
+- Stufe 1b (wartet auf Telerik-Zugang, Entwicklungsleiter im Urlaub):
+  PDF-Export über Telerik Document Processing (RadWordsProcessing,
+  von der Reporting-Lizenz abgedeckt).
+- Stufe 2 (Phase-2-Bausteine): Versand über die E-Mail-Warteschlange
+  (SMTP-Zugangsdaten verschlüsselt!) + Rücklauf-Überwachung über
+  Aufgaben/Wiedervorlage.
+
+Status: Stufe 1a umgesetzt · 1b und 2 offen
+
 ## Backlog (Aufgaben beim Nutzer / für später)
 
 - **Entra + IIS:** Klick-Anleitung liegt in `DEPLOYMENT.md` — sobald die

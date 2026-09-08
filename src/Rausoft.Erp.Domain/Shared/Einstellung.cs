@@ -24,4 +24,6 @@ public static class EinstellungsSchluessel
 {
     public const string VertragsablageVerzeichnis = "Vertragsablage.Verzeichnis";
     public const string DokumentablageVerzeichnis = "Dokumentablage.Verzeichnis";
+    public const string VorlagenVerzeichnis = "Vorlagen.Verzeichnis";
+    public const string VertragserzeugungZielverzeichnis = "Vertragserzeugung.Zielverzeichnis";
 }

@@ -70,6 +70,15 @@ public record BestandteilAnlegen(
 /// <summary>Registriert eine Dokumentversion: Pfad relativ zum Vertragsablage-Verzeichnis.</summary>
 public record DokumentRegistrieren(string RelativerPfad);
 
+/// <summary>Vertrag aus einer Word-Vorlage erzeugen (Dateiname aus dem Vorlagen-Verzeichnis).</summary>
+public record VertragAusVorlage(int KundeId, string Vorlage);
+
+public record VorlagenErgebnis(
+    int VertragId,
+    string Vertragsnummer,
+    string Datei,
+    List<string> OffenePlatzhalter);
+
 public record VerlaufEintrag(
     int Id,
     string Typ,

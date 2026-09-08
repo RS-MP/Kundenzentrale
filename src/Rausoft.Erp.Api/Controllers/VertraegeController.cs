@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Rausoft.Erp.Data;
 using Rausoft.Erp.Domain.Contracts;
+using Rausoft.Erp.Domain.Customers;
 using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Dtos;
 
@@ -316,6 +317,161 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
+
+    /// <summary>Aktive Word-Vorlagen: Dateien direkt im Vorlagen-Verzeichnis (keine Unterordner).</summary>
+    [HttpGet("vorlagen")]
+    public async Task<ActionResult<List<string>>> Vorlagen(CancellationToken ct)
+    {
+        var verzeichnis = await Einstellung(EinstellungsSchluessel.VorlagenVerzeichnis, ct);
+        if (string.IsNullOrWhiteSpace(verzeichnis) || !Directory.Exists(verzeichnis))
+            return Ok(new List<string>());
+        return Ok(Directory.EnumerateFiles(verzeichnis, "*.docx", SearchOption.TopDirectoryOnly)
+            .Select(Path.GetFileName)
+            .Where(n => n is not null && !n.StartsWith("~$"))
+            .OrderBy(n => n)
+            .ToList());
+    }
+
+    /// <summary>
+    /// Erzeugt einen Vertrag aus einer Word-Vorlage: füllt Kundendaten ein
+    /// (Muster-Texte der Bestandsvorlage und {{Platzhalter}}), legt die Datei im
+    /// Zielverzeichnis ab und registriert sie an einer neuen Vertragsakte (Entwurf).
+    /// Ausgabe vorerst .docx; PDF-Export folgt mit Telerik (Stufe 1b).
+    /// </summary>
+    [HttpPost("aus-vorlage")]
+    public async Task<ActionResult<VorlagenErgebnis>> AusVorlage(VertragAusVorlage anlage, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(anlage.Vorlage) || Path.GetFileName(anlage.Vorlage) != anlage.Vorlage)
+            return BadRequest("Ungültiger Vorlagenname.");
+
+        var kunde = await db.Kunden
+            .Include(k => k.Adressen)
+            .Include(k => k.Ansprechpartner)
+            .FirstOrDefaultAsync(k => k.Id == anlage.KundeId, ct);
+        if (kunde is null)
+            return BadRequest("Der angegebene Kunde existiert nicht.");
+
+        var vorlagenVerzeichnis = await Einstellung(EinstellungsSchluessel.VorlagenVerzeichnis, ct);
+        var zielVerzeichnis = await Einstellung(EinstellungsSchluessel.VertragserzeugungZielverzeichnis, ct);
+        var basis = await Einstellung(EinstellungsSchluessel.VertragsablageVerzeichnis, ct);
+        if (string.IsNullOrWhiteSpace(vorlagenVerzeichnis) || string.IsNullOrWhiteSpace(zielVerzeichnis)
+            || string.IsNullOrWhiteSpace(basis))
+            return BadRequest("Vorlagen-, Ziel- oder Ablageverzeichnis ist nicht konfiguriert (Administration).");
+
+        var vorlagenPfad = Path.Combine(vorlagenVerzeichnis, anlage.Vorlage);
+        if (!System.IO.File.Exists(vorlagenPfad))
+            return BadRequest($"Vorlage nicht gefunden: {anlage.Vorlage}");
+
+        // Zielverzeichnis muss in der Vertragsablage liegen (Viewer/Registrierung)
+        var basisVoll = Path.GetFullPath(basis).TrimEnd(Path.DirectorySeparatorChar);
+        var zielVoll = Path.GetFullPath(zielVerzeichnis);
+        if (!zielVoll.StartsWith(basisVoll + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            && !zielVoll.Equals(basisVoll, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Das Zielverzeichnis liegt außerhalb des Vertragsablage-Verzeichnisses.");
+        if (!Directory.Exists(zielVoll))
+            return BadRequest($"Zielverzeichnis nicht erreichbar: {zielVerzeichnis}");
+
+        var mitarbeiterId = await AktuellerMitarbeiterId(ct);
+        if (mitarbeiterId is null)
+            return BadRequest("Für den angemeldeten Benutzer existiert kein Mitarbeiter-Datensatz.");
+
+        // Vorlage füllen
+        using var speicher = new MemoryStream();
+        await using (var quelle = System.IO.File.OpenRead(vorlagenPfad))
+            await quelle.CopyToAsync(speicher, ct);
+        var offene = Dienste.VorlagenDienst.Fuellen(speicher, await PlatzhalterWerte(kunde, ct));
+
+        // Ablegen (eindeutiger Dateiname)
+        var basisName = $"{kunde.Kundennummer} - {Path.GetFileNameWithoutExtension(anlage.Vorlage)} {DateTime.Today:yyyy-MM-dd}";
+        var zielPfad = Path.Combine(zielVoll, basisName + ".docx");
+        for (var n = 2; System.IO.File.Exists(zielPfad); n++)
+            zielPfad = Path.Combine(zielVoll, $"{basisName} ({n}).docx");
+        await System.IO.File.WriteAllBytesAsync(zielPfad, speicher.ToArray(), ct);
+
+        string pruefsumme;
+        await using (var stream = System.IO.File.OpenRead(zielPfad))
+            pruefsumme = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(stream, ct))
+                .ToLowerInvariant();
+
+        // Vertragsakte (Entwurf) + Bestandteil + Dokumentversion
+        var nummer = await nummernkreis.NaechsteNummerAsync("Vertrag", ct);
+        var vertrag = new Vertrag
+        {
+            Vertragsnummer = nummer,
+            KundeId = kunde.Id,
+            Status = VertragsStatus.Entwurf,
+            Beginn = DateOnly.FromDateTime(DateTime.Today),
+            Notiz = $"Aus Vorlage „{anlage.Vorlage}“ erstellt — nach Unterschrift Status und Laufzeit pflegen.",
+        };
+        vertrag.Bestandteile.Add(new Vertragsbestandteil
+        {
+            Typ = BestandteilTyp.Lizenzvertrag,
+            Titel = Path.GetFileNameWithoutExtension(anlage.Vorlage),
+            Vertrag = vertrag,
+            Dokumente =
+            {
+                new Vertragsdokument
+                {
+                    Version = 1,
+                    Dateipfad = zielPfad,
+                    DateinameOriginal = Path.GetFileName(zielPfad),
+                    Sha256 = pruefsumme,
+                    ErstelltAm = DateTime.UtcNow,
+                    ErstelltVonId = mitarbeiterId.Value,
+                },
+            },
+        });
+        db.Vertraege.Add(vertrag);
+        await db.SaveChangesAsync(ct);
+
+        db.Aktivitaeten.Add(await TimelineEintrag(kunde.Id,
+            $"Vertrag {nummer} aus Vorlage „{anlage.Vorlage}“ erstellt", null, vertrag.Id, ct));
+        await db.SaveChangesAsync(ct);
+
+        return Ok(new VorlagenErgebnis(vertrag.Id, nummer, Path.GetFileName(zielPfad), offene));
+    }
+
+    private async Task<Dictionary<string, string>> PlatzhalterWerte(Domain.Customers.Kunde kunde, CancellationToken ct)
+    {
+        var hauptsitz = kunde.Adressen.FirstOrDefault(a => a.Typ == AdressTyp.Hauptsitz && a.Aktiv);
+        var ansprechpartner = kunde.Ansprechpartner
+            .Where(a => a.Aktiv)
+            .OrderByDescending(a => a.Rollen.HasFlag(AnsprechpartnerRolle.Hauptansprechpartner))
+            .ThenByDescending(a => a.Rollen != AnsprechpartnerRolle.Keine)
+            .FirstOrDefault();
+        var aboNummer = await db.Abos
+            .Where(a => a.KundeId == kunde.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+            .OrderByDescending(a => a.Id)
+            .Select(a => a.Nummer)
+            .FirstOrDefaultAsync(ct);
+
+        return new Dictionary<string, string>
+        {
+            // {{Platzhalter}} für neue/überarbeitete Vorlagen
+            ["{{Kundennummer}}"] = kunde.Kundennummer,
+            ["{{Firmenname}}"] = kunde.Firmenname,
+            ["{{Strasse}}"] = hauptsitz?.Strasse ?? "",
+            ["{{Plz}}"] = hauptsitz?.Plz ?? "",
+            ["{{Ort}}"] = hauptsitz?.Ort ?? "",
+            ["{{PlzOrt}}"] = hauptsitz is null ? "" : $"{hauptsitz.Plz} {hauptsitz.Ort}".Trim(),
+            ["{{Briefanrede}}"] = ansprechpartner?.Briefanrede() ?? "Sehr geehrte Damen und Herren",
+            ["{{Ansprechpartner}}"] = ansprechpartner?.Anzeigename() ?? "",
+            ["{{Email}}"] = ansprechpartner?.Email ?? "",
+            ["{{UStIdNr}}"] = kunde.UStIdNr ?? "",
+            ["{{AboNummer}}"] = aboNummer ?? "",
+            ["{{Datum}}"] = DateTime.Today.ToString("dd.MM.yyyy"),
+            // Muster-Texte der bestehenden Lizenzbedingungen-Vorlage
+            ["Muster Straße 70"] = hauptsitz?.Strasse ?? "",
+            ["Bad Musterburg"] = hauptsitz?.Ort ?? "",
+            ["Muster GmbH"] = kunde.Firmenname,
+            ["S0xxxx"] = aboNummer ?? "S0____",
+            ["xxxxx"] = kunde.Kundennummer,
+            ["57319"] = hauptsitz?.Plz ?? "",
+        };
+    }
+
+    private async Task<string?> Einstellung(string schluessel, CancellationToken ct) =>
+        (await db.Einstellungen.AsNoTracking().FirstOrDefaultAsync(e => e.Schluessel == schluessel, ct))?.Wert;
 
     /// <summary>
     /// Liefert die Datei einer registrierten Dokumentversion aus (Vorschau/Download).

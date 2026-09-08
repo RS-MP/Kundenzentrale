@@ -113,6 +113,22 @@ public class ErpDbContext(
                     Schluessel = EinstellungsSchluessel.DokumentablageVerzeichnis,
                     Wert = "",
                     Beschreibung = "Basisverzeichnis für sonstige Dokumente (z. B. E-Mail-Anhänge ab Phase 2).",
+                },
+                new
+                {
+                    Id = 3,
+                    Schluessel = EinstellungsSchluessel.VorlagenVerzeichnis,
+                    Wert = @"\\RS-W2019-01\Kunden Archiv\0_Vorlagen",
+                    Beschreibung = "Verzeichnis der Word-Vorlagen für die Vertragserzeugung. " +
+                                   "Nur Dateien direkt im Verzeichnis gelten als aktive Vorlagen (keine Unterordner).",
+                },
+                new
+                {
+                    Id = 4,
+                    Schluessel = EinstellungsSchluessel.VertragserzeugungZielverzeichnis,
+                    Wert = @"\\RS-W2019-01\Kunden Archiv\2_Wartungsverträge",
+                    Beschreibung = "Zielverzeichnis für aus Vorlagen erzeugte Verträge — muss innerhalb " +
+                                   "des Vertragsablage-Verzeichnisses liegen.",
                 });
         });
 

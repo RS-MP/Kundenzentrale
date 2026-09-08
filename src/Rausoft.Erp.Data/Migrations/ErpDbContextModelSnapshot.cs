@@ -627,6 +627,20 @@ namespace Rausoft.Erp.Data.Migrations
                             Beschreibung = "Basisverzeichnis für sonstige Dokumente (z. B. E-Mail-Anhänge ab Phase 2).",
                             Schluessel = "Dokumentablage.Verzeichnis",
                             Wert = ""
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Beschreibung = "Verzeichnis der Word-Vorlagen für die Vertragserzeugung. Nur Dateien direkt im Verzeichnis gelten als aktive Vorlagen (keine Unterordner).",
+                            Schluessel = "Vorlagen.Verzeichnis",
+                            Wert = "\\\\RS-W2019-01\\Kunden Archiv\\0_Vorlagen"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Beschreibung = "Zielverzeichnis für aus Vorlagen erzeugte Verträge — muss innerhalb des Vertragsablage-Verzeichnisses liegen.",
+                            Schluessel = "Vertragserzeugung.Zielverzeichnis",
+                            Wert = "\\\\RS-W2019-01\\Kunden Archiv\\2_Wartungsverträge"
                         });
                 });
 
