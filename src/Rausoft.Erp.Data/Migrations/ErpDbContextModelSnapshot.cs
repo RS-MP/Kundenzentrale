@@ -471,6 +471,57 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Partner");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Servers.Server", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Aktiv")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Alias")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool?>("ConnectorAktiv")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Fehlertext")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("GeprueftAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool?>("IstErreichbar")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PruefMandant")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SanktionslistenStand")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Alias")
+                        .IsUnique();
+
+                    b.ToTable("Server");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Aktivitaet", b =>
                 {
                     b.Property<int>("Id")
@@ -641,7 +692,50 @@ namespace Rausoft.Erp.Data.Migrations
                             Beschreibung = "Zielverzeichnis für aus Vorlagen erzeugte Verträge — muss innerhalb des Vertragsablage-Verzeichnisses liegen.",
                             Schluessel = "Vertragserzeugung.Zielverzeichnis",
                             Wert = "\\\\RS-W2019-01\\Kunden Archiv\\2_Wartungsverträge"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Beschreibung = "Basis-URL des ID.prove Service Portals (Push-Ziel der Server-Status-Meldung).",
+                            Schluessel = "ServicePortal.Url",
+                            Wert = "https://serviceportal.idprove.de"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Beschreibung = "Automatische Server-Status-Meldung ans Portal alle n Minuten (0 = aus; empfohlen 60 oder 120, sobald die Anwendung auf dem Server läuft).",
+                            Schluessel = "ServicePortal.IntervallMinuten",
+                            Wert = "0"
                         });
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.GeheimeEinstellung", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("GesetztAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Schluessel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("WertVerschluesselt")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Schluessel")
+                        .IsUnique();
+
+                    b.ToTable("GeheimeEinstellungen");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Mitarbeiter", b =>

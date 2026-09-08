@@ -39,6 +39,10 @@ public class ErpDbContext(
     public DbSet<Abo> Abos => Set<Abo>();
     public DbSet<AboPosition> AboPositionen => Set<AboPosition>();
 
+    // Server & Geheimnisse
+    public DbSet<Domain.Servers.Server> Server => Set<Domain.Servers.Server>();
+    public DbSet<GeheimeEinstellung> GeheimeEinstellungen => Set<GeheimeEinstellung>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         // Konservativer Default; längere Felder werden gezielt konfiguriert.
@@ -129,6 +133,21 @@ public class ErpDbContext(
                     Wert = @"\\RS-W2019-01\Kunden Archiv\2_Wartungsverträge",
                     Beschreibung = "Zielverzeichnis für aus Vorlagen erzeugte Verträge — muss innerhalb " +
                                    "des Vertragsablage-Verzeichnisses liegen.",
+                },
+                new
+                {
+                    Id = 5,
+                    Schluessel = EinstellungsSchluessel.ServicePortalUrl,
+                    Wert = "https://serviceportal.idprove.de",
+                    Beschreibung = "Basis-URL des ID.prove Service Portals (Push-Ziel der Server-Status-Meldung).",
+                },
+                new
+                {
+                    Id = 6,
+                    Schluessel = EinstellungsSchluessel.ServicePortalIntervallMinuten,
+                    Wert = "0",
+                    Beschreibung = "Automatische Server-Status-Meldung ans Portal alle n Minuten " +
+                                   "(0 = aus; empfohlen 60 oder 120, sobald die Anwendung auf dem Server läuft).",
                 });
         });
 
@@ -177,6 +196,23 @@ public class ErpDbContext(
             e.Property(a => a.Plz).HasMaxLength(10);
             e.Property(a => a.Land).HasMaxLength(2).IsFixedLength();
             e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+        });
+
+        modelBuilder.Entity<Domain.Servers.Server>(e =>
+        {
+            e.HasIndex(s => s.Alias).IsUnique();
+            e.Property(s => s.Alias).HasMaxLength(100);
+            e.Property(s => s.Url).HasMaxLength(300);
+            e.Property(s => s.PruefMandant).HasMaxLength(100);
+            e.Property(s => s.SanktionslistenStand).HasMaxLength(50);
+            e.Property(s => s.Fehlertext).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<GeheimeEinstellung>(e =>
+        {
+            e.HasIndex(g => g.Schluessel).IsUnique();
+            e.Property(g => g.Schluessel).HasMaxLength(100);
+            e.Property(g => g.WertVerschluesselt).HasMaxLength(2000);
         });
 
         modelBuilder.Entity<Merkmal>(e =>
@@ -285,8 +321,11 @@ public class ErpDbContext(
     }
 
     // Entitäten, die selbst Protokollcharakter haben, werden nicht auditiert.
+    // GeheimeEinstellung: NIE auditieren — sonst landet der (verschlüsselte)
+    // Wert im Audit-JSON. Server: der Healthcheck-Takt würde das Log fluten.
     private static readonly HashSet<Type> NichtAuditieren =
-        [typeof(AuditLogEintrag), typeof(Aktivitaet), typeof(Nummernkreis)];
+        [typeof(AuditLogEintrag), typeof(Aktivitaet), typeof(Nummernkreis),
+         typeof(GeheimeEinstellung), typeof(Domain.Servers.Server)];
 
     private List<(EntityEntry Entry, AuditLogEintrag Eintrag)> SammleAuditEintraege()
     {

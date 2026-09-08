@@ -14,6 +14,96 @@
 }
 
 <div class="karte">
+    <div class="karte-kopf">
+        <h2>Server &amp; Service-Portal-Meldung</h2>
+        <span style="display:flex; gap:8px">
+            <button class="knopf sekundaer" disabled="@_melde" @onclick="StatusPruefenAsync">Nur prüfen</button>
+            <button class="knopf" disabled="@_melde" @onclick="StatusMeldenAsync">@(_melde ? "Läuft …" : "Prüfen & ans Portal melden")</button>
+        </span>
+    </div>
+    <div class="karte-koerper eng">
+        @if (_server is null)
+        {
+            <div class="leer-hinweis">Lade Server …</div>
+        }
+        else
+        {
+            @if (_meldeBericht is not null)
+            {
+                <div style="padding:10px 16px; border-bottom:1px solid var(--border); font-size:13px">
+                    Gemeldet @_meldeBericht.Zeitpunkt.ToString("HH:mm:ss") ·
+                    verarbeitet: @_meldeBericht.Verarbeitet.Count
+                    @if (_meldeBericht.Unbekannt.Count > 0)
+                    {
+                        <span class="krittext"> · im Portal unbekannt: @string.Join(", ", _meldeBericht.Unbekannt) — Schreibweise mit dem Portal (Menü „Server") abgleichen!</span>
+                    }
+                </div>
+            }
+            @if (_server.Count == 0)
+            {
+                <div class="leer-hinweis">Noch keine Server angelegt — unten den ersten erfassen (Alias exakt wie im Portal).</div>
+            }
+            @foreach (var server in _server)
+            {
+                <div class="person" style="cursor:pointer" @onclick="() => Bearbeiten(server)">
+                    <div class="name">
+                        <span class="status @ServerAmpel(server)">@server.Alias</span>
+                        @if (!server.Aktiv)
+                        {
+                            <span style="color:var(--muted); font-weight:400; margin-left:6px">inaktiv</span>
+                        }
+                    </div>
+                    <div class="details">
+                        @server.Url · Mandant: @(server.PruefMandant == "" ? "—" : server.PruefMandant)
+                        @if (server.GeprueftAm is not null)
+                        {
+                            <span> · geprüft @server.GeprueftAm.Value.ToLocalTime().ToString("dd.MM. HH:mm")</span>
+                            <span> · Sanktionsliste: @(server.SanktionslistenStand ?? "—")</span>
+                        }
+                        @if (server.Fehlertext is not null)
+                        {
+                            <span class="krittext"> · @server.Fehlertext</span>
+                        }
+                    </div>
+                </div>
+            }
+            <div style="padding:12px 16px; border-top:1px solid var(--border)">
+                <div class="formular">
+                    <label>Alias (exakt wie im Portal)<input type="text" @bind="_bearb.Alias" placeholder="z. B. Shared-01" /></label>
+                    <label>Interne URL<input type="text" @bind="_bearb.Url" placeholder="https://…" /></label>
+                    <label>Prüf-Mandant<input type="text" @bind="_bearb.PruefMandant" placeholder="customer-Kennung" /></label>
+                    <label style="justify-content:end">
+                        <span><input type="checkbox" @bind="_bearb.Aktiv" /> aktiv</span>
+                    </label>
+                </div>
+                <div class="formular-aktionen">
+                    <button class="knopf" @onclick="ServerSpeichernAsync">@(_bearbId is null ? "Server anlegen" : "Änderungen speichern")</button>
+                    @if (_bearbId is not null)
+                    {
+                        <button class="knopf sekundaer" @onclick="NeuerServer">Neu</button>
+                        <button class="knopf sekundaer krittext" @onclick="ServerLoeschenAsync">Löschen</button>
+                    }
+                </div>
+            </div>
+            <div style="padding:12px 16px; border-top:1px solid var(--border)">
+                <div style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
+                    Push-Token des Service Portals (Portal: Admin → Einstellungen → „Server-Status (Push-API)") —
+                    wird verschlüsselt gespeichert und ist nie wieder einsehbar.
+                    @if (_tokenGesetztAm is not null)
+                    {
+                        <span class="status gut" style="margin-left:6px">gesetzt am @_tokenGesetztAm.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                    }
+                </div>
+                <div style="display:flex; gap:8px">
+                    <input type="password" style="flex:1" @bind="_tokenEingabe" placeholder="@(_tokenGesetztAm is null ? "Token einfügen …" : "Neuen Token einfügen (ersetzt den gespeicherten) …")" />
+                    <button class="knopf sekundaer" @onclick="TokenSpeichernAsync">Token speichern</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="karte" style="margin-top:16px">
     <div class="karte-kopf"><h2>Verzeichnisse &amp; Einstellungen</h2></div>
     <div class="karte-koerper eng">
         @if (_einstellungen is null)
@@ -51,6 +141,14 @@
     private string? _gespeichert;
     private string? _fehler;
 
+    private List<ServerEintrag>? _server;
+    private int? _bearbId;
+    private ServerFormular _bearb = new();
+    private bool _melde;
+    private MeldeBericht? _meldeBericht;
+    private string _tokenEingabe = "";
+    private DateTime? _tokenGesetztAm;
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -58,6 +156,9 @@
             _einstellungen = await Http.GetFromJsonAsync<List<EinstellungEintrag>>("api/einstellungen");
             foreach (var einstellung in _einstellungen ?? [])
                 _werte[einstellung.Schluessel] = einstellung.Wert;
+            await ServerLadenAsync();
+            var geheimnisse = await Http.GetFromJsonAsync<List<GeheimnisStatus>>("api/server/geheimnisse") ?? [];
+            _tokenGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "ServicePortal.PushToken")?.GesetztAm;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
@@ -67,6 +168,138 @@
         {
             _fehler = $"Einstellungen konnten nicht geladen werden: {ex.Message}";
         }
+    }
+
+    private async Task ServerLadenAsync() =>
+        _server = await Http.GetFromJsonAsync<List<ServerEintrag>>("api/server") ?? [];
+
+    private static string ServerAmpel(ServerEintrag s) =>
+        s.IstErreichbar is null ? ""
+        : s.IstErreichbar == false ? "kritisch"
+        : s.ConnectorAktiv == false ? "warnung"
+        : "gut";
+
+    private void Bearbeiten(ServerEintrag server)
+    {
+        _bearbId = server.Id;
+        _bearb = new ServerFormular
+        {
+            Alias = server.Alias, Url = server.Url,
+            PruefMandant = server.PruefMandant, Aktiv = server.Aktiv,
+        };
+    }
+
+    private void NeuerServer()
+    {
+        _bearbId = null;
+        _bearb = new ServerFormular();
+    }
+
+    private async Task ServerSpeichernAsync()
+    {
+        _fehler = null;
+        try
+        {
+            var daten = new ServerAendern(_bearb.Alias, _bearb.Url, _bearb.PruefMandant, _bearb.Aktiv);
+            var antwort = _bearbId is null
+                ? await Http.PostAsJsonAsync("api/server", daten)
+                : await Http.PutAsJsonAsync($"api/server/{_bearbId}", daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            NeuerServer();
+            await ServerLadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Server konnte nicht gespeichert werden: {ex.Message}";
+        }
+    }
+
+    private async Task ServerLoeschenAsync()
+    {
+        if (_bearbId is null)
+            return;
+        _fehler = null;
+        var antwort = await Http.DeleteAsync($"api/server/{_bearbId}");
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        NeuerServer();
+        await ServerLadenAsync();
+    }
+
+    private async Task StatusPruefenAsync()
+    {
+        _fehler = null;
+        _melde = true;
+        try
+        {
+            _server = await (await Http.PostAsync("api/server/status-pruefen", null))
+                .Content.ReadFromJsonAsync<List<ServerEintrag>>();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Prüfen fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _melde = false;
+        }
+    }
+
+    private async Task StatusMeldenAsync()
+    {
+        _fehler = null;
+        _melde = true;
+        _meldeBericht = null;
+        try
+        {
+            var antwort = await Http.PostAsync("api/server/status-melden", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _meldeBericht = await antwort.Content.ReadFromJsonAsync<MeldeBericht>();
+            _server = _meldeBericht?.Server;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Meldung fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _melde = false;
+        }
+    }
+
+    private async Task TokenSpeichernAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_tokenEingabe))
+            return;
+        _fehler = null;
+        var antwort = await Http.PutAsJsonAsync("api/server/geheimnisse/ServicePortal.PushToken",
+            new GeheimnisSetzen(_tokenEingabe.Trim()));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        _tokenEingabe = "";
+        _tokenGesetztAm = DateTime.UtcNow;
+    }
+
+    private class ServerFormular
+    {
+        public string Alias { get; set; } = "";
+        public string Url { get; set; } = "";
+        public string PruefMandant { get; set; } = "";
+        public bool Aktiv { get; set; } = true;
     }
 
     private async Task SpeichernAsync(string schluessel)

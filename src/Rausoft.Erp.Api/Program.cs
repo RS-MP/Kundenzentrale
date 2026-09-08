@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Rausoft.Erp.Api.Dienste;
@@ -51,6 +52,15 @@ builder.Services.AddDbContext<ErpDbContext>(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAktuellerBenutzer, AktuellerBenutzer>();
 builder.Services.AddScoped<NummernkreisDienst>();
+
+// Geheimnisse verschlüsselt at rest (Sicherheitsregel): Data-Protection-Schlüssel
+// liegen DPAPI-geschützt auf der Maschine; fester Anwendungsname, damit ein
+// Deployment-Update die Geheimnisse nicht invalidiert.
+builder.Services.AddDataProtection().SetApplicationName("Kundenzentrale");
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<GeheimnisDienst>();
+builder.Services.AddScoped<ServerStatusDienst>();
+builder.Services.AddHostedService<ServerStatusHintergrund>();
 
 builder.Services.AddControllers().AddJsonOptions(options =>
     // Übergangslösung bis zur DTO-Schicht: Navigations-Zyklen (Kunde ↔ Ansprechpartner) kappen
