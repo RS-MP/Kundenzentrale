@@ -5,7 +5,7 @@
 
 <div class="seitenkopf">
     <h1>Administration</h1>
-    <span class="untertitel">Systemeinstellungen — Änderungen werden protokolliert</span>
+    <span class="untertitel">Änderungen werden protokolliert</span>
 </div>
 
 @if (_fehler is not null)
@@ -13,37 +13,32 @@
     <div class="fehler">@_fehler</div>
 }
 
-<div class="karte">
-    <div class="karte-kopf">
-        <h2>Server &amp; Service-Portal-Meldung</h2>
-        <span style="display:flex; gap:8px">
-            <button class="knopf sekundaer" disabled="@_melde" @onclick="StatusPruefenAsync">Nur prüfen</button>
+@* ---------- Server & Portal-Meldung ---------- *@
+<details class="gruppe" open>
+    <summary>Server &amp; Service-Portal-Meldung<span class="zahl">@(_server?.Count ?? 0) Server</span></summary>
+    <div class="gruppe-inhalt">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
             <button class="knopf" disabled="@_melde" @onclick="StatusMeldenAsync">@(_melde ? "Läuft …" : "Prüfen & ans Portal melden")</button>
-        </span>
-    </div>
-    <div class="karte-koerper eng">
-        @if (_server is null)
+            <button class="knopf sekundaer" disabled="@_melde" @onclick="StatusPruefenAsync">Nur prüfen</button>
+            <span style="color:var(--muted); font-size:13px">@LetzterPushText()</span>
+        </div>
+        @if (_meldeBericht is not null && _meldeBericht.Unbekannt.Count > 0)
         {
-            <div class="leer-hinweis">Lade Server …</div>
+            <div class="krittext" style="margin-top:6px; font-size:13px">
+                Im Portal unbekannt: @string.Join(", ", _meldeBericht.Unbekannt) — Schreibweise im Portal (Menü „Server") abgleichen!
+            </div>
         }
-        else
-        {
-            @if (_meldeBericht is not null)
+
+        <div style="margin-top:10px">
+            @if (_server is null)
             {
-                <div style="padding:10px 16px; border-bottom:1px solid var(--border); font-size:13px">
-                    Gemeldet @_meldeBericht.Zeitpunkt.ToString("HH:mm:ss") ·
-                    verarbeitet: @_meldeBericht.Verarbeitet.Count
-                    @if (_meldeBericht.Unbekannt.Count > 0)
-                    {
-                        <span class="krittext"> · im Portal unbekannt: @string.Join(", ", _meldeBericht.Unbekannt) — Schreibweise mit dem Portal (Menü „Server") abgleichen!</span>
-                    }
-                </div>
+                <div style="color:var(--muted)">Lade Server …</div>
             }
-            @if (_server.Count == 0)
+            else if (_server.Count == 0)
             {
-                <div class="leer-hinweis">Noch keine Server angelegt — unten den ersten erfassen (Alias exakt wie im Portal).</div>
+                <div style="color:var(--muted)">Noch keine Server angelegt.</div>
             }
-            @foreach (var server in _server)
+            @foreach (var server in _server ?? [])
             {
                 <div class="person" style="cursor:pointer" @onclick="() => Bearbeiten(server)">
                     <div class="name">
@@ -52,88 +47,109 @@
                         {
                             <span style="color:var(--muted); font-weight:400; margin-left:6px">inaktiv</span>
                         }
+                        <span style="float:right; color:var(--muted); font-weight:400; font-size:12.5px; font-variant-numeric:tabular-nums">
+                            @(server.GeprueftAm is not null ? $"geprüft {server.GeprueftAm.Value.ToLocalTime():dd.MM. HH:mm}" : "noch nie geprüft")
+                        </span>
                     </div>
                     <div class="details">
-                        @server.Url · Mandant: @(server.PruefMandant == "" ? "—" : server.PruefMandant)
-                        @if (server.GeprueftAm is not null)
-                        {
-                            <span> · geprüft @server.GeprueftAm.Value.ToLocalTime().ToString("dd.MM. HH:mm")</span>
-                            <span> · Sanktionsliste: @(server.SanktionslistenStand ?? "—")</span>
-                        }
+                        @(server.SanktionslistenStand is not null ? $"Sanktionsliste: {server.SanktionslistenStand}" : "")
                         @if (server.Fehlertext is not null)
                         {
-                            <span class="krittext"> · @server.Fehlertext</span>
+                            <span class="krittext"> @server.Fehlertext</span>
                         }
                     </div>
                 </div>
             }
-            <div style="padding:12px 16px; border-top:1px solid var(--border)">
+            @if (!_serverFormOffen)
+            {
+                <button class="mehr" @onclick="NeuerServer">+ Server hinzufügen</button>
+            }
+        </div>
+
+        @if (_serverFormOffen)
+        {
+            <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:10px">
                 <div class="formular">
                     <label>Alias (exakt wie im Portal)<input type="text" @bind="_bearb.Alias" placeholder="z. B. Shared-01" /></label>
                     <label>Interne URL<input type="text" @bind="_bearb.Url" placeholder="https://…" /></label>
                     <label>Prüf-Mandant<input type="text" @bind="_bearb.PruefMandant" placeholder="customer-Kennung" /></label>
-                    <label style="justify-content:end">
-                        <span><input type="checkbox" @bind="_bearb.Aktiv" /> aktiv</span>
-                    </label>
+                    <label style="justify-content:center"><span><input type="checkbox" @bind="_bearb.Aktiv" /> aktiv</span></label>
                 </div>
                 <div class="formular-aktionen">
-                    <button class="knopf" @onclick="ServerSpeichernAsync">@(_bearbId is null ? "Server anlegen" : "Änderungen speichern")</button>
+                    <button class="knopf" @onclick="ServerSpeichernAsync">@(_bearbId is null ? "Anlegen" : "Speichern")</button>
+                    <button class="knopf sekundaer" @onclick="FormularSchliessen">Abbrechen</button>
                     @if (_bearbId is not null)
                     {
-                        <button class="knopf sekundaer" @onclick="NeuerServer">Neu</button>
+                        <span style="flex:1"></span>
                         <button class="knopf sekundaer krittext" @onclick="ServerLoeschenAsync">Löschen</button>
                     }
                 </div>
             </div>
-            <div style="padding:12px 16px; border-top:1px solid var(--border)">
-                <div style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
-                    Push-Token des Service Portals (Portal: Admin → Einstellungen → „Server-Status (Push-API)") —
-                    wird verschlüsselt gespeichert und ist nie wieder einsehbar.
+        }
+
+        <div style="border-top:1px dashed var(--border); margin-top:12px; padding-top:10px">
+            @foreach (var einstellung in PortalEinstellungen())
+            {
+                <div class="zeile2">
+                    <span class="l" title="@einstellung.Beschreibung">@KurzName(einstellung.Schluessel)</span>
+                    <span style="display:flex; gap:6px; flex:1; max-width:420px; justify-content:end">
+                        <input type="text" style="flex:1; text-align:right" @bind="_werte[einstellung.Schluessel]" />
+                        <button class="knopf sekundaer" @onclick="() => SpeichernAsync(einstellung.Schluessel)">
+                            @(_gespeichert == einstellung.Schluessel ? "✓" : "Speichern")
+                        </button>
+                    </span>
+                </div>
+            }
+            <div class="zeile2">
+                <span class="l">Push-Token</span>
+                <span style="display:flex; gap:6px; align-items:center">
                     @if (_tokenGesetztAm is not null)
                     {
-                        <span class="status gut" style="margin-left:6px">gesetzt am @_tokenGesetztAm.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                        <span class="status gut" style="font-size:13px">gesetzt @_tokenGesetztAm.Value.ToLocalTime().ToString("dd.MM.yyyy")</span>
                     }
+                    else
+                    {
+                        <span class="status kritisch" style="font-size:13px">nicht gesetzt</span>
+                    }
+                    <button class="mehr" style="padding:0" @onclick="() => _tokenOffen = !_tokenOffen">ändern</button>
+                </span>
+            </div>
+            @if (_tokenOffen)
+            {
+                <div style="display:flex; gap:8px; margin-top:4px">
+                    <input type="password" style="flex:1" @bind="_tokenEingabe"
+                           placeholder="Token aus Portal-Admin → Einstellungen → Server-Status (Push-API) — wird verschlüsselt gespeichert" />
+                    <button class="knopf sekundaer" @onclick="TokenSpeichernAsync">Speichern</button>
                 </div>
+            }
+        </div>
+    </div>
+</details>
+
+@* ---------- Verzeichnisse ---------- *@
+<details class="gruppe">
+    <summary>Verzeichnisse<span class="zahl">@VerzeichnisEinstellungen().Count()</span></summary>
+    <div class="gruppe-inhalt">
+        @if (_einstellungen is null)
+        {
+            <div style="color:var(--muted)">Lade Einstellungen …</div>
+        }
+        @foreach (var einstellung in VerzeichnisEinstellungen())
+        {
+            <div style="padding:8px 0; border-bottom:1px dashed var(--border)">
+                <div style="font-weight:600; font-size:13px">@KurzName(einstellung.Schluessel)</div>
+                <div style="color:var(--muted); font-size:12.5px; margin:2px 0 6px">@einstellung.Beschreibung</div>
                 <div style="display:flex; gap:8px">
-                    <input type="password" style="flex:1" @bind="_tokenEingabe" placeholder="@(_tokenGesetztAm is null ? "Token einfügen …" : "Neuen Token einfügen (ersetzt den gespeicherten) …")" />
-                    <button class="knopf sekundaer" @onclick="TokenSpeichernAsync">Token speichern</button>
+                    <input type="text" style="flex:1; font-family:Consolas,monospace; font-size:13px"
+                           @bind="_werte[einstellung.Schluessel]" placeholder="z. B. \\server\freigabe\ordner" />
+                    <button class="knopf sekundaer" @onclick="() => SpeichernAsync(einstellung.Schluessel)">
+                        @(_gespeichert == einstellung.Schluessel ? "✓ gespeichert" : "Speichern")
+                    </button>
                 </div>
             </div>
         }
     </div>
-</div>
-
-<div class="karte" style="margin-top:16px">
-    <div class="karte-kopf"><h2>Verzeichnisse &amp; Einstellungen</h2></div>
-    <div class="karte-koerper eng">
-        @if (_einstellungen is null)
-        {
-            <div class="leer-hinweis">Lade Einstellungen …</div>
-        }
-        else
-        {
-            @foreach (var einstellung in _einstellungen)
-            {
-                <div class="einstellung">
-                    <div class="schluessel">@einstellung.Schluessel</div>
-                    @if (einstellung.Beschreibung is not null)
-                    {
-                        <div class="beschreibung">@einstellung.Beschreibung</div>
-                    }
-                    <div class="zeile">
-                        <input type="text" @bind="_werte[einstellung.Schluessel]"
-                               placeholder="z. B. \\server\ablage\vertraege" />
-                        <button class="knopf" @onclick="() => SpeichernAsync(einstellung.Schluessel)">Speichern</button>
-                        @if (_gespeichert == einstellung.Schluessel)
-                        {
-                            <span class="gespeichert">✓ gespeichert</span>
-                        }
-                    </div>
-                </div>
-            }
-        }
-    </div>
-</div>
+</details>
 
 @code {
     private List<EinstellungEintrag>? _einstellungen;
@@ -144,10 +160,37 @@
     private List<ServerEintrag>? _server;
     private int? _bearbId;
     private ServerFormular _bearb = new();
+    private bool _serverFormOffen;
     private bool _melde;
     private MeldeBericht? _meldeBericht;
+    private bool _tokenOffen;
     private string _tokenEingabe = "";
     private DateTime? _tokenGesetztAm;
+
+    // Gruppierung: ServicePortal-Einstellungen wohnen bei den Servern, Pfade unter Verzeichnisse
+    private IEnumerable<EinstellungEintrag> PortalEinstellungen() =>
+        (_einstellungen ?? []).Where(e => e.Schluessel.StartsWith("ServicePortal.")
+            && e.Schluessel != "ServicePortal.LetzterPush");
+
+    private IEnumerable<EinstellungEintrag> VerzeichnisEinstellungen() =>
+        (_einstellungen ?? []).Where(e => !e.Schluessel.StartsWith("ServicePortal."));
+
+    private string LetzterPushText()
+    {
+        var wert = _werte.GetValueOrDefault("ServicePortal.LetzterPush", "");
+        return wert == "" ? "noch nie gemeldet" : $"zuletzt gemeldet: {wert}";
+    }
+
+    private static string KurzName(string schluessel) => schluessel switch
+    {
+        "ServicePortal.Url" => "Portal-URL",
+        "ServicePortal.IntervallMinuten" => "Automatik-Intervall (Minuten, 0 = aus)",
+        "Vertragsablage.Verzeichnis" => "Vertragsablage",
+        "Dokumentablage.Verzeichnis" => "Dokumentablage",
+        "Vorlagen.Verzeichnis" => "Word-Vorlagen",
+        "Vertragserzeugung.Zielverzeichnis" => "Ziel für erzeugte Verträge",
+        _ => schluessel,
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,6 +225,7 @@
     private void Bearbeiten(ServerEintrag server)
     {
         _bearbId = server.Id;
+        _serverFormOffen = true;
         _bearb = new ServerFormular
         {
             Alias = server.Alias, Url = server.Url,
@@ -192,7 +236,14 @@
     private void NeuerServer()
     {
         _bearbId = null;
+        _serverFormOffen = true;
         _bearb = new ServerFormular();
+    }
+
+    private void FormularSchliessen()
+    {
+        _serverFormOffen = false;
+        _bearbId = null;
     }
 
     private async Task ServerSpeichernAsync()
@@ -209,7 +260,7 @@
                 _fehler = await antwort.Content.ReadAsStringAsync();
                 return;
             }
-            NeuerServer();
+            FormularSchliessen();
             await ServerLadenAsync();
         }
         catch (Exception ex)
@@ -229,7 +280,7 @@
             _fehler = await antwort.Content.ReadAsStringAsync();
             return;
         }
-        NeuerServer();
+        FormularSchliessen();
         await ServerLadenAsync();
     }
 
@@ -267,6 +318,10 @@
             }
             _meldeBericht = await antwort.Content.ReadFromJsonAsync<MeldeBericht>();
             _server = _meldeBericht?.Server;
+            var einstellungen = await Http.GetFromJsonAsync<List<EinstellungEintrag>>("api/einstellungen") ?? [];
+            var letzter = einstellungen.FirstOrDefault(e => e.Schluessel == "ServicePortal.LetzterPush");
+            if (letzter is not null)
+                _werte[letzter.Schluessel] = letzter.Wert;
         }
         catch (Exception ex)
         {
@@ -291,15 +346,8 @@
             return;
         }
         _tokenEingabe = "";
+        _tokenOffen = false;
         _tokenGesetztAm = DateTime.UtcNow;
-    }
-
-    private class ServerFormular
-    {
-        public string Alias { get; set; } = "";
-        public string Url { get; set; } = "";
-        public string PruefMandant { get; set; } = "";
-        public bool Aktiv { get; set; } = true;
     }
 
     private async Task SpeichernAsync(string schluessel)
@@ -310,7 +358,7 @@
         {
             var antwort = await Http.PutAsJsonAsync(
                 $"api/einstellungen/{Uri.EscapeDataString(schluessel)}",
-                new EinstellungAenderung(_werte[schluessel]));
+                new EinstellungAenderung(_werte.GetValueOrDefault(schluessel, "")));
             antwort.EnsureSuccessStatusCode();
             _gespeichert = schluessel;
         }
@@ -318,5 +366,13 @@
         {
             _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
         }
+    }
+
+    private class ServerFormular
+    {
+        public string Alias { get; set; } = "";
+        public string Url { get; set; } = "";
+        public string PruefMandant { get; set; } = "";
+        public bool Aktiv { get; set; } = true;
     }
 }
