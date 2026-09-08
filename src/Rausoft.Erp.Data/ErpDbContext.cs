@@ -264,13 +264,21 @@ public class ErpDbContext(
     }
 
     /// <summary>
+    /// Einziger legitimer Weg an der Dokument-Unveränderlichkeit vorbei:
+    /// die explizite Admin-Löschung einer kompletten Vertragsakte
+    /// (z. B. Testdaten). Muss unmittelbar vor dem Löschvorgang gesetzt werden.
+    /// </summary>
+    public bool ErlaubeVertragsdokumentLoeschung { get; set; }
+
+    /// <summary>
     /// Leitplanke „Dokumente unveränderlich versionieren": Vertragsdokumente
     /// dürfen nur eingefügt, nie geändert oder gelöscht werden.
     /// </summary>
     private void PruefeDokumentUnveraenderlichkeit()
     {
         var verstoss = ChangeTracker.Entries<Vertragsdokument>()
-            .FirstOrDefault(e => e.State is EntityState.Modified or EntityState.Deleted);
+            .FirstOrDefault(e => e.State == EntityState.Modified
+                || (e.State == EntityState.Deleted && !ErlaubeVertragsdokumentLoeschung));
         if (verstoss is not null)
             throw new InvalidOperationException(
                 "Vertragsdokumente sind unveränderlich — statt Ändern/Löschen eine neue Version anlegen.");

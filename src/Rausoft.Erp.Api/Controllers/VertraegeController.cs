@@ -318,6 +318,47 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         return NoContent();
     }
 
+    /// <summary>
+    /// Admin-Löschung einer kompletten Vertragsakte (z. B. Testdaten):
+    /// entfernt Vertrag, Bestandteile, Dokument-Registrierungen und die
+    /// zugehörigen Timeline-Verweise — die Dateien im Ablageverzeichnis
+    /// bleiben liegen (Leitplanke) und werden im Ergebnis aufgelistet.
+    /// Die Löschung selbst wird in Timeline und Audit-Log protokolliert.
+    /// </summary>
+    [HttpDelete("{id:int}")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Admin")]
+    public async Task<ActionResult<VertragGeloescht>> Loeschen(int id, CancellationToken ct)
+    {
+        var vertrag = await db.Vertraege
+            .Include(v => v.Bestandteile).ThenInclude(b => b.Dokumente)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
+        if (vertrag is null)
+            return NotFound();
+
+        var dateien = vertrag.Bestandteile.SelectMany(b => b.Dokumente)
+            .Select(d => d.Dateipfad).Distinct().ToList();
+
+        // Timeline-Einträge, die auf diesen Vertrag zeigen, mit entfernen (tote Links)
+        var verweise = await db.Aktivitaeten
+            .Where(a => a.VerweisTyp == AktivitaetsVerweisTyp.Vertrag && a.VerweisId == id)
+            .ToListAsync(ct);
+        db.Aktivitaeten.RemoveRange(verweise);
+
+        db.Aktivitaeten.Add(await TimelineEintrag(vertrag.KundeId,
+            $"Vertrag {vertrag.Vertragsnummer} gelöscht (Admin)",
+            dateien.Count > 0 ? "Dateien verbleiben in der Ablage: " + string.Join("; ", dateien) : null,
+            null, ct));
+
+        db.ErlaubeVertragsdokumentLoeschung = true;
+        db.Vertragsdokumente.RemoveRange(vertrag.Bestandteile.SelectMany(b => b.Dokumente));
+        db.Vertragsbestandteile.RemoveRange(vertrag.Bestandteile);
+        db.Vertraege.Remove(vertrag);
+        await db.SaveChangesAsync(ct);
+        db.ErlaubeVertragsdokumentLoeschung = false;
+
+        return Ok(new VertragGeloescht(vertrag.Vertragsnummer, dateien));
+    }
+
     /// <summary>Aktive Word-Vorlagen: Dateien direkt im Vorlagen-Verzeichnis (keine Unterordner).</summary>
     [HttpGet("vorlagen")]
     public async Task<ActionResult<List<string>>> Vorlagen(CancellationToken ct)
@@ -381,11 +422,11 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             await quelle.CopyToAsync(speicher, ct);
         var offene = Dienste.VorlagenDienst.Fuellen(speicher, await PlatzhalterWerte(kunde, ct));
 
-        // Ablegen (eindeutiger Dateiname)
-        var basisName = $"{kunde.Kundennummer} - {Path.GetFileNameWithoutExtension(anlage.Vorlage)} {DateTime.Today:yyyy-MM-dd}";
-        var zielPfad = Path.Combine(zielVoll, basisName + ".docx");
-        for (var n = 2; System.IO.File.Exists(zielPfad); n++)
-            zielPfad = Path.Combine(zielVoll, $"{basisName} ({n}).docx");
+        // Ablegen — Dateiname nach dem gewachsenen Ablage-Prinzip:
+        // <KundenNr>.docx, bei Bestehen <KundenNr>-1.docx usw.
+        var zielPfad = Path.Combine(zielVoll, kunde.Kundennummer + ".docx");
+        for (var n = 1; System.IO.File.Exists(zielPfad); n++)
+            zielPfad = Path.Combine(zielVoll, $"{kunde.Kundennummer}-{n}.docx");
         await System.IO.File.WriteAllBytesAsync(zielPfad, speicher.ToArray(), ct);
 
         string pruefsumme;

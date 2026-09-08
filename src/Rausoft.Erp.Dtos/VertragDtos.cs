@@ -79,6 +79,9 @@ public record VorlagenErgebnis(
     string Datei,
     List<string> OffenePlatzhalter);
 
+/// <summary>Ergebnis der Admin-Löschung: Dateien bleiben im Ablageverzeichnis liegen.</summary>
+public record VertragGeloescht(string Vertragsnummer, List<string> VerbleibendeDateien);
+
 public record VerlaufEintrag(
     int Id,
     string Typ,
