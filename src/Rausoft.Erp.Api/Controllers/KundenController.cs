@@ -145,6 +145,7 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             .Include(k => k.Adressen)
             .Include(k => k.VermitteltDurchPartner)
             .Include(k => k.RechnungsempfaengerPartner)
+            .Include(k => k.Server)
             .FirstOrDefaultAsync(k => k.Id == id, ct);
         if (kunde is null)
             return NotFound();
@@ -194,7 +195,10 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             KategorieText(hatAktives, istEhemalig, istEinmalbestellung, hatArtefakte),
             kunde.Merkmale,
             kunde.MerkmalePruefen,
-            kunde.ArchiviertAm));
+            kunde.ArchiviertAm,
+            kunde.ServerId,
+            kunde.Server?.Alias,
+            kunde.MandantenKennung));
     }
 
     /// <summary>
@@ -229,6 +233,48 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 Betreff = wert is null
                     ? $"Merkmal „{alt}“ entfernt"
                     : alt is null ? $"Merkmal „{wert}“ vergeben" : $"Merkmal geändert: „{alt}“ → „{wert}“",
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>Server-Zuordnung des Kunden (Betriebs-Stammdaten, intern).</summary>
+    [HttpPut("{id:int}/server")]
+    public async Task<IActionResult> ServerZuordnen(int id, KundeServerZuordnung zuordnung, CancellationToken ct)
+    {
+        var kunde = await db.Kunden.Include(k => k.Server).FirstOrDefaultAsync(k => k.Id == id, ct);
+        if (kunde is null)
+            return NotFound();
+
+        Domain.Servers.Server? neuerServer = null;
+        if (zuordnung.ServerId is { } serverId)
+        {
+            neuerServer = await db.Server.FirstOrDefaultAsync(s => s.Id == serverId, ct);
+            if (neuerServer is null)
+                return BadRequest("Der angegebene Server existiert nicht.");
+        }
+
+        var alterAlias = kunde.Server?.Alias;
+        kunde.ServerId = zuordnung.ServerId;
+        kunde.MandantenKennung = string.IsNullOrWhiteSpace(zuordnung.MandantenKennung)
+            ? null : zuordnung.MandantenKennung.Trim();
+
+        if (alterAlias != neuerServer?.Alias)
+        {
+            db.Aktivitaeten.Add(new Domain.Shared.Aktivitaet
+            {
+                KundeId = kunde.Id,
+                Typ = Domain.Shared.AktivitaetsTyp.Notiz,
+                Zeitpunkt = DateTime.UtcNow,
+                MitarbeiterId = await AktuellerMitarbeiterId(ct),
+                Richtung = Domain.Shared.AktivitaetsRichtung.Intern,
+                Betreff = neuerServer is null
+                    ? $"Server-Zuordnung entfernt (vorher {alterAlias})"
+                    : alterAlias is null
+                        ? $"Server zugeordnet: {neuerServer.Alias}"
+                        : $"Server-Umzug: {alterAlias} → {neuerServer.Alias}",
             });
         }
 

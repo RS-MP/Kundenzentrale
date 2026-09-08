@@ -159,6 +159,9 @@ public class ErpDbContext(
             e.Property(k => k.Kundennummer).HasMaxLength(20);
             e.Property(k => k.UStIdNr).HasMaxLength(20);
             e.Property(k => k.Merkmale).HasMaxLength(500);
+            e.Property(k => k.MandantenKennung).HasMaxLength(100);
+            e.HasOne(k => k.Server).WithMany()
+                .HasForeignKey(k => k.ServerId).OnDelete(DeleteBehavior.SetNull);
             e.Property(k => k.Notiz).HasColumnType("nvarchar(max)");
             e.Property(k => k.RowVersion).IsRowVersion();
             e.HasOne(k => k.VermitteltDurchPartner).WithMany()

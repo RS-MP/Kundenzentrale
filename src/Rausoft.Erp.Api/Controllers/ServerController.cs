@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Rausoft.Erp.Api.Dienste;
@@ -9,21 +9,51 @@ using Rausoft.Erp.Dtos;
 namespace Rausoft.Erp.Api.Controllers;
 
 /// <summary>
-/// Server-Verwaltung + Status-Meldung ans Service Portal — nur für Admins.
-/// URLs und Prüf-Mandanten sind interne Daten und verlassen die API nur
-/// Richtung Frontend (interne Nutzer), nie Richtung Portal.
+/// Server-Verwaltung + Status-Meldung ans Service Portal. Lesen dürfen alle
+/// Mitarbeiter (Server-Übersicht), Verwalten/Melden nur Admins. URLs und
+/// Mandanten-Kennungen sind interne Daten und verlassen die API nur Richtung
+/// Frontend (interne Nutzer), nie Richtung Portal.
 /// </summary>
 [ApiController]
 [Route("api/server")]
-[Authorize(Policy = "Admin")]
 public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, GeheimnisDienst geheimnisse)
     : ControllerBase
 {
+    /// <summary>Übersicht für alle Mitarbeiter (Verwaltung nur für Admins).</summary>
     [HttpGet]
-    public async Task<ActionResult<List<ServerEintrag>>> Liste(CancellationToken ct) =>
-        Ok((await db.Server.AsNoTracking().OrderBy(s => s.Alias).ToListAsync(ct))
-            .Select(NachEintrag).ToList());
+    public async Task<ActionResult<List<ServerEintrag>>> Liste(CancellationToken ct)
+    {
+        var kundenProServer = await db.Kunden
+            .Where(k => k.ServerId != null)
+            .GroupBy(k => k.ServerId!.Value)
+            .Select(g => new { ServerId = g.Key, Anzahl = g.Count() })
+            .ToDictionaryAsync(g => g.ServerId, g => g.Anzahl, ct);
+        return Ok((await db.Server.AsNoTracking().OrderBy(s => s.Alias).ToListAsync(ct))
+            .Select(s => NachEintrag(s, kundenProServer.GetValueOrDefault(s.Id)))
+            .ToList());
+    }
 
+    /// <summary>Zugeordnete Kunden eines Servers (interne Sicht).</summary>
+    [HttpGet("{id:int}/kunden")]
+    public async Task<ActionResult<List<ServerKunde>>> Kunden(int id, CancellationToken ct)
+    {
+        var roh = await db.Kunden.AsNoTracking()
+            .Where(k => k.ServerId == id)
+            .OrderBy(k => k.Firmenname)
+            .Select(k => new
+            {
+                k.Id, k.Kundennummer, k.Firmenname, k.MandantenKennung,
+                HatAktives = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                    || db.Vertraege.Any(v => v.KundeId == k.Id
+                        && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
+            })
+            .ToListAsync(ct);
+        return Ok(roh.Select(k => new ServerKunde(
+            k.Id, k.Kundennummer, k.Firmenname, k.MandantenKennung,
+            k.HatAktives ? "Kunde" : "kein aktiver Vertrag")).ToList());
+    }
+
+    [Authorize(Policy = "Admin")]
     [HttpPost]
     public async Task<ActionResult<ServerEintrag>> Anlegen(ServerAendern anlage, CancellationToken ct)
     {
@@ -39,6 +69,7 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
         return Ok(NachEintrag(server));
     }
 
+    [Authorize(Policy = "Admin")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Aendern(int id, ServerAendern aenderung, CancellationToken ct)
     {
@@ -55,6 +86,7 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
         return NoContent();
     }
 
+    [Authorize(Policy = "Admin")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Loeschen(int id, CancellationToken ct)
     {
@@ -67,6 +99,7 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
     }
 
     /// <summary>Healthchecks abfragen und Ergebnis als Batch ans Portal melden.</summary>
+    [Authorize(Policy = "Admin")]
     [HttpPost("status-melden")]
     public async Task<ActionResult<MeldeBericht>> StatusMelden(CancellationToken ct)
     {
@@ -89,6 +122,7 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
     }
 
     /// <summary>Nur Healthchecks abfragen (ohne Portal-Push) — z. B. zum Testen der Server-Einträge.</summary>
+    [Authorize(Policy = "Admin")]
     [HttpPost("status-pruefen")]
     public async Task<ActionResult<List<ServerEintrag>>> StatusPruefen(CancellationToken ct)
     {
@@ -99,11 +133,13 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
 
     // --- Geheimnisse (write-only) -------------------------------------------
 
+    [Authorize(Policy = "Admin")]
     [HttpGet("geheimnisse")]
     public async Task<ActionResult<List<GeheimnisStatus>>> Geheimnisse(CancellationToken ct) =>
         Ok((await geheimnisse.StatusAsync(ct))
             .Select(g => new GeheimnisStatus(g.Schluessel, g.GesetztAm)).ToList());
 
+    [Authorize(Policy = "Admin")]
     [HttpPut("geheimnisse/{schluessel}")]
     public async Task<IActionResult> GeheimnisSetzen(string schluessel, Dtos.GeheimnisSetzen setzen, CancellationToken ct)
     {
@@ -131,7 +167,7 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
         server.Aktiv = daten.Aktiv;
     }
 
-    private static ServerEintrag NachEintrag(Domain.Servers.Server s) => new(
+    private static ServerEintrag NachEintrag(Domain.Servers.Server s, int kundenAnzahl = 0) => new(
         s.Id, s.Alias, s.Url, s.PruefMandant, s.Aktiv,
-        s.IstErreichbar, s.ConnectorAktiv, s.SanktionslistenStand, s.Fehlertext, s.GeprueftAm);
+        s.IstErreichbar, s.ConnectorAktiv, s.SanktionslistenStand, s.Fehlertext, s.GeprueftAm, kundenAnzahl);
 }

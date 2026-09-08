@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject IJSRuntime JS
 
 <div class="topbar">
     <div class="topbar-inhalt">
@@ -6,11 +7,40 @@
         <nav class="hauptnav">
             <NavLink href="kunden">Kunden</NavLink>
             <NavLink href="vertraege">Verträge</NavLink>
+            <NavLink href="server">Server</NavLink>
             <NavLink href="admin">Administration</NavLink>
         </nav>
+        <button class="thema-knopf" title="Darstellung umschalten (Automatisch / Hell / Dunkel)"
+                @onclick="ThemaWechselnAsync">@ThemaText</button>
     </div>
 </div>
 
 <main class="inhalt">
     @Body
 </main>
+
+@code {
+    private string? _thema; // null = Automatisch (Systemeinstellung), "light", "dark"
+
+    private string ThemaText => _thema switch
+    {
+        "light" => "☀ Hell",
+        "dark" => "🌙 Dunkel",
+        _ => "◐ Auto",
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _thema = await JS.InvokeAsync<string?>("themaLesen");
+            StateHasChanged();
+        }
+    }
+
+    private async Task ThemaWechselnAsync()
+    {
+        _thema = _thema switch { null => "light", "light" => "dark", _ => null };
+        await JS.InvokeVoidAsync("themaSetzen", _thema);
+    }
+}

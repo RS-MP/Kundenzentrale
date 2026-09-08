@@ -10,7 +10,13 @@ public record ServerEintrag(
     bool? ConnectorAktiv,
     string? SanktionslistenStand,
     string? Fehlertext,
-    DateTime? GeprueftAm);
+    DateTime? GeprueftAm,
+    int KundenAnzahl);
+
+public record ServerKunde(int Id, string Kundennummer, string Firmenname, string? MandantenKennung, string Kategorie);
+
+/// <summary>Server-Zuordnung eines Kunden ändern (null = keinem Server zugeordnet).</summary>
+public record KundeServerZuordnung(int? ServerId, string? MandantenKennung);
 
 public record ServerAendern(string Alias, string Url, string PruefMandant, bool Aktiv);
 

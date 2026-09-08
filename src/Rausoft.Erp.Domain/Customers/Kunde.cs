@@ -54,6 +54,13 @@ public class Kunde
     /// </summary>
     public DateTime? ArchiviertAm { get; set; }
 
+    /// <summary>ID.prove-Server, auf dem der Kunde betrieben wird (Shared/Private Cloud).</summary>
+    public int? ServerId { get; set; }
+    public Domain.Servers.Server? Server { get; set; }
+
+    /// <summary>Mandanten-Kennung des Kunden auf dem Server (intern — verlässt das Haus nie).</summary>
+    public string? MandantenKennung { get; set; }
+
     /// <summary>Referenz auf den Odoo-Datensatz für den Import und die Übergangszeit.</summary>
     public int? OdooId { get; set; }
 

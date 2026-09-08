@@ -23,6 +23,22 @@
         <span class="dismiss">🗙</span>
     </div>
     <script>
+        // Darstellungsmodus: gewählten Modus vor dem ersten Rendern anwenden (kein Aufblitzen)
+        (function () {
+            var modus = null;
+            try { modus = localStorage.getItem('theme'); } catch (e) { }
+            if (modus === 'light' || modus === 'dark') document.documentElement.dataset.theme = modus;
+        })();
+        window.themaSetzen = function (modus) {
+            try {
+                if (modus) localStorage.setItem('theme', modus); else localStorage.removeItem('theme');
+            } catch (e) { }
+            if (modus) document.documentElement.dataset.theme = modus;
+            else delete document.documentElement.dataset.theme;
+        };
+        window.themaLesen = function () {
+            try { return localStorage.getItem('theme'); } catch (e) { return null; }
+        };
         // Dokument-Vorschau: erzeugt eine Blob-URL aus geladenen Dateibytes,
         // damit die Datei im iframe angezeigt werden kann (UNC-Pfade kann der
         // Browser nicht öffnen; der Abruf läuft über die API).

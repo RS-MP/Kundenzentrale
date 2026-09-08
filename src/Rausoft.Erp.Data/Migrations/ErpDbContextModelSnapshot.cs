@@ -317,6 +317,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("MandantenKennung")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Merkmale")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -340,6 +344,9 @@ namespace Rausoft.Erp.Data.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<int?>("ServerId")
+                        .HasColumnType("int");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -360,6 +367,8 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasFilter("[OdooId] IS NOT NULL");
 
                     b.HasIndex("RechnungsempfaengerPartnerId");
+
+                    b.HasIndex("ServerId");
 
                     b.HasIndex("VermitteltDurchPartnerId");
 
@@ -984,12 +993,19 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasForeignKey("RechnungsempfaengerPartnerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Rausoft.Erp.Domain.Servers.Server", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Rausoft.Erp.Domain.Customers.Partner", "VermitteltDurchPartner")
                         .WithMany()
                         .HasForeignKey("VermitteltDurchPartnerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("RechnungsempfaengerPartner");
+
+                    b.Navigation("Server");
 
                     b.Navigation("VermitteltDurchPartner");
                 });

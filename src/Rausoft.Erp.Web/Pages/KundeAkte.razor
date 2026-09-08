@@ -45,6 +45,10 @@ else
             {
                 <span class="trenn">·</span>@_kunde.Betriebsart
             }
+            @if (_kunde.ServerAlias is not null)
+            {
+                <span class="trenn">·</span><span>Server <b>@_kunde.ServerAlias</b></span>
+            }
             @if (_kunde.RechnungsempfaengerPartner is not null)
             {
                 <span class="trenn">·</span><span>Endkunde via @_kunde.RechnungsempfaengerPartner — Rechnung an Partner</span>
@@ -247,6 +251,22 @@ else
                     }
                     <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
                         <div style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
+                            Betrieb: Server &amp; Mandanten-Kennung (intern)
+                        </div>
+                        <div style="display:flex; gap:8px">
+                            <select style="flex:1" @bind="_serverAuswahl">
+                                <option value="">— kein Server —</option>
+                                @foreach (var server in _serverListe)
+                                {
+                                    <option value="@server.Id">@server.Alias</option>
+                                }
+                            </select>
+                            <input type="text" style="flex:1" @bind="_mandantenKennung" placeholder="Mandanten-Kennung" />
+                            <button class="knopf sekundaer" @onclick="ServerSpeichernAsync">Speichern</button>
+                        </div>
+                    </div>
+                    <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
+                        <div style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
                             Merkmale (Auswahl anklicken, bleiben bis zur bewussten Änderung)
                         </div>
                         <div class="chips" style="margin-bottom:8px">
@@ -283,6 +303,9 @@ else
     private List<AnsprechpartnerEintrag> _wichtige = [];
     private List<AnsprechpartnerEintrag> _weitere = [];
     private bool _weitereOffen;
+    private List<ServerEintrag> _serverListe = [];
+    private string _serverAuswahl = "";
+    private string _mandantenKennung = "";
     private List<string> _vorlagen = [];
     private string _gewaehlteVorlage = "";
     private bool _erzeugeVertrag;
@@ -316,6 +339,9 @@ else
             _abos = await Http.GetFromJsonAsync<List<AboEintrag>>($"api/kunden/{Id}/abos");
             _laufendeAbos = _abos?.Where(a => a.Status == "Laufend").ToList() ?? [];
             _vorlagen = await Http.GetFromJsonAsync<List<string>>("api/vertraege/vorlagen") ?? [];
+            _serverListe = await Http.GetFromJsonAsync<List<ServerEintrag>>("api/server") ?? [];
+            _serverAuswahl = _kunde?.ServerId?.ToString() ?? "";
+            _mandantenKennung = _kunde?.MandantenKennung ?? "";
             if (_gewaehlteVorlage == "" && _vorlagen.Count > 0)
                 _gewaehlteVorlage = _vorlagen[0];
             _erzeugt = null;
@@ -408,6 +434,27 @@ else
         finally
         {
             _erzeugeVertrag = false;
+        }
+    }
+
+    private async Task ServerSpeichernAsync()
+    {
+        _fehler = null;
+        try
+        {
+            int? serverId = int.TryParse(_serverAuswahl, out var id) ? id : null;
+            var antwort = await Http.PutAsJsonAsync($"api/kunden/{Id}/server",
+                new KundeServerZuordnung(serverId, string.IsNullOrWhiteSpace(_mandantenKennung) ? null : _mandantenKennung.Trim()));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            await OnParametersSetAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Server-Zuordnung fehlgeschlagen: {ex.Message}";
         }
     }
 

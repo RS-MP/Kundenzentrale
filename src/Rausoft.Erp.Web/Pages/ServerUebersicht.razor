@@ -1,0 +1,108 @@
+@page "/server"
+@inject HttpClient Http
+
+<PageTitle>Server · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Server</h1>
+    <span class="untertitel">Betriebsübersicht — Verwaltung und Portal-Meldung unter Administration</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (_server is null)
+{
+    <div class="leer-hinweis">Lade Server …</div>
+}
+else if (_server.Count == 0)
+{
+    <div class="karte"><div class="karte-koerper">
+        <div class="leer-hinweis">Noch keine Server angelegt — unter <a href="admin">Administration</a> erfassen.</div>
+    </div></div>
+}
+else
+{
+    @foreach (var server in _server)
+    {
+        <details class="gruppe" @ontoggle="() => KundenLadenAsync(server.Id)">
+            <summary>
+                <span class="status @Ampel(server)" style="text-transform:none; letter-spacing:0; font-size:14px; font-weight:600">@server.Alias</span>
+                @if (!server.Aktiv)
+                {
+                    <span style="text-transform:none; letter-spacing:0">· inaktiv</span>
+                }
+                <span style="text-transform:none; letter-spacing:0; font-weight:400">
+                    @(server.SanktionslistenStand is not null ? $"· Sanktionsliste {server.SanktionslistenStand}" : "")
+                    @(server.Fehlertext is not null ? $"· {server.Fehlertext}" : "")
+                </span>
+                <span class="zahl">@server.KundenAnzahl Kunden</span>
+            </summary>
+            <div class="gruppe-inhalt">
+                <div class="neben" style="margin-bottom:8px; font-variant-numeric:tabular-nums">
+                    @(server.GeprueftAm is not null ? $"Zuletzt geprüft {server.GeprueftAm.Value.ToLocalTime():dd.MM.yyyy HH:mm}" : "Noch nie geprüft")
+                </div>
+                @if (!_kunden.TryGetValue(server.Id, out var kunden))
+                {
+                    <div style="color:var(--muted)">Lade Kunden …</div>
+                }
+                else if (kunden.Count == 0)
+                {
+                    <div style="color:var(--muted)">Diesem Server sind noch keine Kunden zugeordnet (Zuordnung in der Kundenakte).</div>
+                }
+                else
+                {
+                    @foreach (var kunde in kunden)
+                    {
+                        <div class="zeile2">
+                            <span><a href="kunden/@kunde.Id">@kunde.Firmenname</a>
+                                <span class="neben" style="display:inline; margin-left:6px">@kunde.Kundennummer@(kunde.MandantenKennung is not null ? $" · Mandant {kunde.MandantenKennung}" : "")</span>
+                            </span>
+                            <span class="r" style="color:var(--muted); font-size:12.5px">@kunde.Kategorie</span>
+                        </div>
+                    }
+                }
+            </div>
+        </details>
+    }
+}
+
+@code {
+    private List<ServerEintrag>? _server;
+    private readonly Dictionary<int, List<ServerKunde>> _kunden = [];
+    private string? _fehler;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _server = await Http.GetFromJsonAsync<List<ServerEintrag>>("api/server") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Server konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task KundenLadenAsync(int serverId)
+    {
+        if (_kunden.ContainsKey(serverId))
+            return;
+        try
+        {
+            _kunden[serverId] = await Http.GetFromJsonAsync<List<ServerKunde>>($"api/server/{serverId}/kunden") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Kunden konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private static string Ampel(ServerEintrag s) =>
+        s.IstErreichbar is null ? ""
+        : s.IstErreichbar == false ? "kritisch"
+        : s.ConnectorAktiv == false ? "warnung"
+        : "gut";
+}

@@ -35,7 +35,10 @@ public record KundeDetail(
     string Kategorie,
     string? Merkmale,
     bool MerkmalePruefen,
-    DateTime? ArchiviertAm);
+    DateTime? ArchiviertAm,
+    int? ServerId,
+    string? ServerAlias,
+    string? MandantenKennung);
 
 /// <summary>true = ins Archiv verschieben, false = aus dem Archiv holen.</summary>
 public record ArchivAenderung(bool Archivieren);
