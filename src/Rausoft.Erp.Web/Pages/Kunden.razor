@@ -50,6 +50,7 @@
                         <th style="width:90px">Nr.</th>
                         <th>Firma</th>
                         <th style="width:180px">Ort</th>
+                        <th style="width:150px">Server</th>
                         <th style="width:150px">Kategorie</th>
                     </tr>
                 </thead>
@@ -70,6 +71,17 @@
                                 }
                             </td>
                             <td>@kunde.Ort</td>
+                            <td>
+                                @if (kunde.ServerAlias is not null)
+                                {
+                                    <span class="status @kunde.ServerAmpel"
+                                          title="@(kunde.ServerHinweis ?? (kunde.ServerAmpel is null ? "Noch nicht geprüft" : "Server in Ordnung"))">@kunde.ServerAlias</span>
+                                    @if (kunde.ServerAmpel is "kritisch" or "warnung" && kunde.ServerHinweis is not null)
+                                    {
+                                        <div class="neben">@kunde.ServerHinweis</div>
+                                    }
+                                }
+                            </td>
                             <td>
                                 <span class="status @KategorieKlasse(kunde.Kategorie)">@kunde.Kategorie</span>
                                 @if (kunde.Status == "Inaktiv")

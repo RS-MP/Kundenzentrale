@@ -100,6 +100,10 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 k.Merkmale,
                 k.ArchiviertAm,
                 Ort = k.Adressen.Where(a => a.Typ == AdressTyp.Hauptsitz).Select(a => a.Ort).FirstOrDefault(),
+                ServerAlias = k.Server!.Alias,
+                ServerErreichbar = k.Server!.IstErreichbar,
+                ServerConnector = k.Server!.ConnectorAktiv,
+                ServerFehler = k.Server!.Fehlertext,
                 Vermittelt = k.VermitteltDurchPartner!.Name,
                 RechnungAn = k.RechnungsempfaengerPartner!.Name,
                 HatAktives = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
@@ -130,7 +134,10 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                     : k.Vermittelt != null ? $"via {k.Vermittelt}" : "",
                 KategorieText(k.HatAktives, k.IstEhemalig, k.IstEinmalbestellung, k.HatArtefakte),
                 k.Merkmale,
-                k.ArchiviertAm != null))
+                k.ArchiviertAm != null,
+                k.ServerAlias,
+                k.ServerAlias == null ? null : ServerAmpel.Berechne(k.ServerErreichbar, k.ServerConnector),
+                k.ServerFehler))
             .ToList();
 
         return Ok(new SeitenErgebnis<KundeListenEintrag>(eintraege, gesamt, seite, proSeite));
@@ -198,7 +205,9 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             kunde.ArchiviertAm,
             kunde.ServerId,
             kunde.Server?.Alias,
-            kunde.MandantenKennung));
+            kunde.MandantenKennung,
+            kunde.Server is null ? null : ServerAmpel.Berechne(kunde.Server.IstErreichbar, kunde.Server.ConnectorAktiv),
+            kunde.Server?.Fehlertext));
     }
 
     /// <summary>

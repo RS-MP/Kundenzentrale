@@ -16,6 +16,20 @@ public record ServerEintrag(
 
 public record ServerKunde(int Id, string Kundennummer, string Firmenname, string? MandantenKennung, string Kategorie);
 
+/// <summary>
+/// Ampel-Logik eines Servers — eine Stelle für API und Frontend, damit
+/// Kundenliste, Kundenakte und Server-Übersicht identisch urteilen.
+/// </summary>
+public static class ServerAmpel
+{
+    /// <summary>"gut" | "warnung" | "kritisch" | null (noch nie geprüft).</summary>
+    public static string? Berechne(bool? istErreichbar, bool? connectorAktiv) =>
+        istErreichbar is null ? null
+        : istErreichbar == false ? "kritisch"
+        : connectorAktiv == false ? "warnung"
+        : "gut";
+}
+
 /// <summary>Server-Zuordnung eines Kunden ändern (null = keinem Server zugeordnet).</summary>
 public record KundeServerZuordnung(int? ServerId, string? MandantenKennung);
 

@@ -16,7 +16,10 @@ public record KundeListenEintrag(
     string? PartnerHinweis,
     string Kategorie,
     string? Merkmale,
-    bool Archiviert);
+    bool Archiviert,
+    string? ServerAlias,
+    string? ServerAmpel,
+    string? ServerHinweis);
 
 public record KundeDetail(
     int Id,
@@ -38,7 +41,9 @@ public record KundeDetail(
     DateTime? ArchiviertAm,
     int? ServerId,
     string? ServerAlias,
-    string? MandantenKennung);
+    string? MandantenKennung,
+    string? ServerAmpel,
+    string? ServerHinweis);
 
 /// <summary>true = ins Archiv verschieben, false = aus dem Archiv holen.</summary>
 public record ArchivAenderung(bool Archivieren);

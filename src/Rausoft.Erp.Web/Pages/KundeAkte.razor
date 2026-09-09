@@ -47,7 +47,14 @@ else
             }
             @if (_kunde.ServerAlias is not null)
             {
-                <span class="trenn">·</span><span>Server <b>@_kunde.ServerAlias</b></span>
+                <span class="trenn">·</span>
+                <span class="status @_kunde.ServerAmpel"
+                      title="@(_kunde.ServerHinweis ?? (_kunde.ServerAmpel is null ? "Noch nicht geprüft" : "Server in Ordnung"))">Server <b>@_kunde.ServerAlias</b></span>
+                @if (_kunde.ServerAmpel is "kritisch" or "warnung" && _kunde.ServerHinweis is not null)
+                {
+                    <span class="trenn">·</span>
+                    <span class="@(_kunde.ServerAmpel == "kritisch" ? "krittext" : "")" style="font-weight:600">@_kunde.ServerHinweis</span>
+                }
             }
             @if (_kunde.RechnungsempfaengerPartner is not null)
             {
