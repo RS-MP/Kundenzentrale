@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design-Vorschläge 09/2026</title>
+<style>
+  /* ============ Kalibrierte Paletten (Vorschlag 3) ============ */
+  :root{
+    --bg:#F3F4F6; --surface:#FFFFFF; --surface2:#ECEEF1; --border:#DDE1E6; --border-strong:#C3CBD4;
+    --ink:#18222C; --ink2:#42566A; --muted:#5F7080;
+    --accent:#0B6875; --accent-strong:#084F5A; --accent-soft:#DCEEF1; --accent-line:#AFD8DE;
+    --good:#1B7A44; --warn:#8A6100; --crit:#B23730;
+    --schatten:0 1px 2px rgba(20,30,40,.05), 0 8px 24px rgba(20,30,40,.06);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F141A; --surface:#161D25; --surface2:#1C242E; --border:#2B3543; --border-strong:#404E5F;
+    --ink:#E9EEF3; --ink2:#B4C1CD; --muted:#7E8D9B;
+    --accent:#56BDCB; --accent-strong:#8AD4DF; --accent-soft:#0F3138; --accent-line:#1D4A53;
+    --good:#59C78F; --warn:#E3B75E; --crit:#EB8078;
+    --schatten:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif}
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ============ Steuerleiste des Mockups ============ */
+  .steuer{
+    position:sticky; top:0; z-index:50; background:var(--surface);
+    border-bottom:1px solid var(--border); padding:10px 20px;
+    display:flex; gap:18px; align-items:center; flex-wrap:wrap;
+  }
+  .steuer b{font-size:14px}
+  .segment{display:inline-flex; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden}
+  .segment button{
+    font:inherit; font-size:13px; border:none; background:var(--surface); color:var(--ink2);
+    padding:5px 14px; cursor:pointer; border-right:1px solid var(--border);
+  }
+  .segment button:last-child{border-right:none}
+  .segment button.an{background:var(--accent); color:#fff}
+  :root[data-theme="dark"] .segment button.an{color:#08252B}
+  .steuer .hinweis{color:var(--muted); font-size:12.5px}
+
+  /* ============ App-Rahmen: zwei Navigations-Varianten ============ */
+  .app{max-width:1360px; margin:18px auto; border:1px solid var(--border); border-radius:12px;
+    overflow:hidden; background:var(--bg); box-shadow:var(--schatten); min-height:640px}
+
+  /* Variante A: Seitennavigation */
+  .va .app{display:grid; grid-template-columns:212px 1fr}
+  .seitennav{background:var(--surface); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; padding:14px 10px}
+  .seitennav .marke{font-weight:700; font-size:15px; padding:4px 12px 16px}
+  .seitennav .marke span{color:var(--accent)}
+  .seitennav a{
+    display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px;
+    color:var(--ink2); font-weight:500; margin-bottom:2px; position:relative;
+  }
+  .seitennav a:hover{background:var(--surface2); text-decoration:none}
+  .seitennav a.aktiv{background:var(--accent-soft); color:var(--accent-strong); font-weight:600}
+  .seitennav a.aktiv::before{content:""; position:absolute; left:-10px; top:6px; bottom:6px;
+    width:3px; border-radius:2px; background:var(--accent)}
+  .seitennav .ikone{width:17px; height:17px; flex-shrink:0; opacity:.85}
+  .seitennav .fuss{margin-top:auto; padding:10px 12px; border-top:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; color:var(--muted); font-size:12.5px}
+  .vb .seitennav{display:none}
+
+  /* Variante B: verfeinerte Topbar */
+  .kopfnav{display:none}
+  .vb .kopfnav{display:flex; background:var(--surface); border-bottom:1px solid var(--border);
+    padding:0 22px; height:52px; align-items:center; gap:26px}
+  .vb .kopfnav .marke{font-weight:700; font-size:15px}
+  .vb .kopfnav .marke span{color:var(--accent)}
+  .vb .kopfnav nav{display:flex; gap:2px; height:100%}
+  .vb .kopfnav nav a{display:flex; align-items:center; padding:0 14px; color:var(--ink2);
+    font-weight:500; border-bottom:2.5px solid transparent}
+  .vb .kopfnav nav a.aktiv{color:var(--accent-strong); border-bottom-color:var(--accent); font-weight:600}
+  .vb .kopfnav nav a:hover{text-decoration:none; color:var(--ink)}
+
+  .arbeitsflaeche{padding:22px 26px 30px; min-width:0}
+
+  /* ============ Stärkere Hierarchie (Vorschlag 1) ============ */
+  .seitenkopf{display:flex; align-items:flex-end; gap:14px; margin-bottom:18px; flex-wrap:wrap}
+  .seitenkopf h1{font-size:22px; font-weight:650; margin:0; letter-spacing:-.01em}
+  .seitenkopf .unter{color:var(--muted); padding-bottom:3px}
+  .seitenkopf .aktionen{margin-left:auto; display:flex; gap:8px}
+
+  .karte{background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    box-shadow:var(--schatten); overflow:hidden}
+  .karte + .karte{margin-top:14px}
+  .kartekopf{padding:11px 16px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:10px}
+  .kartekopf b{font-size:13.5px; font-weight:650}
+  .kartekopf .zahl{margin-left:auto; color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums}
+
+  input[type=search],select{font:inherit; color:var(--ink); background:var(--surface);
+    border:1px solid var(--border-strong); border-radius:8px; padding:7px 11px}
+  input[type=search]{min-width:300px}
+  input[type=search]:focus{outline:2px solid var(--accent-line); border-color:var(--accent)}
+  .knopf{background:var(--accent); color:#fff; border:none; border-radius:8px;
+    padding:7px 14px; font:inherit; font-weight:600; cursor:pointer}
+  :root[data-theme="dark"] .knopf{color:#08252B}
+  .knopf.zweit{background:var(--surface); color:var(--ink2); border:1px solid var(--border-strong)}
+  .chips{display:flex; gap:6px; flex-wrap:wrap}
+  .chip{font:inherit; font-size:13px; cursor:pointer; border:1px solid var(--border-strong);
+    background:var(--surface); color:var(--ink2); border-radius:999px; padding:4px 13px}
+  .chip.an{background:var(--ink); border-color:var(--ink); color:var(--surface); font-weight:600}
+
+  table{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums}
+  th{text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); font-weight:650; padding:9px 16px; border-bottom:1px solid var(--border);
+    background:var(--surface2); position:sticky; top:0}
+  td{padding:10px 16px; border-bottom:1px solid var(--border)}
+  tbody tr:hover{background:var(--accent-soft); cursor:pointer}
+  tbody tr:last-child td{border-bottom:none}
+  .haupt{font-weight:600}
+  .neben{color:var(--muted); font-size:12.5px; margin-top:1px}
+
+  .status{display:inline-flex; align-items:center; gap:7px; white-space:nowrap}
+  .status::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--muted)}
+  .status.gut::before{background:var(--good)}
+  .status.warnung::before{background:var(--warn)}
+  .status.kritisch::before{background:var(--crit)}
+
+  /* Akte: kräftiger Kopf */
+  .aktekopf{background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    box-shadow:var(--schatten); padding:16px 18px; margin-bottom:14px}
+  .aktekopf h2{margin:0; font-size:19px; font-weight:650; display:flex; gap:12px; align-items:center}
+  .aktekopf .fakten{color:var(--ink2); margin-top:5px}
+  .aktekopf .fakten b{color:var(--ink)}
+  .aktekopf .trenn{color:var(--border-strong); margin:0 7px}
+  .aktegrid{display:grid; grid-template-columns:1.6fr 1fr; gap:14px; align-items:start}
+
+  .erklaer{max-width:1360px; margin:6px auto 40px; padding:0 4px; color:var(--ink2)}
+  .erklaer h3{font-size:15px; margin:20px 0 6px; color:var(--ink)}
+  .erklaer ul{margin:4px 0; padding-left:20px}
+  .erklaer li{margin:3px 0}
+  .erklaer .tag{display:inline-block; background:var(--accent-soft); color:var(--accent-strong);
+    border-radius:5px; padding:1px 8px; font-size:12px; font-weight:600; margin-right:6px}
+</style>
+</head>
+<body>
+
+<div class="steuer">
+  <b>Design-Vorschläge 09/2026</b>
+  <span class="segment" id="var-schalter">
+    <button class="an" data-v="va">A · Seitennavigation</button>
+    <button data-v="vb">B · Topbar verfeinert</button>
+  </span>
+  <span class="segment" id="thema-schalter">
+    <button class="an" data-t="">☀ Hell</button>
+    <button data-t="dark">🌙 Dunkel</button>
+  </span>
+  <span class="hinweis">Beides umschaltbar — Inhalte identisch, nur der Rahmen ändert sich.</span>
+</div>
+
+<div class="rahmen va" id="rahmen">
+<div class="app">
+  <!-- Variante A: Seitennavigation -->
+  <aside class="seitennav">
+    <div class="marke"><span>rausoft</span> Kundenzentrale</div>
+    <a class="aktiv" href="#">
+      <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c.7-2.6 2.8-4 5.2-4s4.5 1.4 5.2 4"/></svg>
+      Kunden</a>
+    <a href="#">
+      <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.2" width="9.6" height="11.6" rx="1.4"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3"/></svg>
+      Verträge</a>
+    <a href="#">
+      <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="11" height="4.2" rx="1.2"/><rect x="2.5" y="8.8" width="11" height="4.2" rx="1.2"/><circle cx="5" cy="5.1" r=".9" fill="currentColor" stroke="none"/><circle cx="5" cy="10.9" r=".9" fill="currentColor" stroke="none"/></svg>
+      Server</a>
+    <a href="#">
+      <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2M3.8 3.8l1.4 1.4M10.8 10.8l1.4 1.4M12.2 3.8l-1.4 1.4M5.2 10.8l-1.4 1.4"/></svg>
+      Administration</a>
+    <div class="fuss"><span>M. Pätzold</span><span title="Darstellung">◐</span></div>
+  </aside>
+
+  <!-- Variante B: Topbar -->
+  <div style="display:contents">
+  <div class="kopfnav">
+    <span class="marke"><span>rausoft</span> Kundenzentrale</span>
+    <nav>
+      <a class="aktiv" href="#">Kunden</a><a href="#">Verträge</a><a href="#">Server</a><a href="#">Administration</a>
+    </nav>
+    <span style="margin-left:auto; color:var(--muted); font-size:12.5px">M. Pätzold · ◐</span>
+  </div>
+
+  <div class="arbeitsflaeche">
+    <div class="seitenkopf">
+      <h1>Kunden</h1><span class="unter">810 Kunden</span>
+      <span class="aktionen">
+        <input type="search" placeholder="Firma oder Kundennummer …">
+        <button class="knopf zweit">Filter</button>
+      </span>
+    </div>
+    <div class="chips" style="margin-bottom:12px">
+      <button class="chip an">Kunden</button><button class="chip">Gekündigt/Ehemalig</button>
+      <button class="chip">Interessenten</button><button class="chip">Zu klären</button>
+      <button class="chip">Einmalbestellung</button><button class="chip">Archiv</button>
+    </div>
+
+    <div class="karte" style="margin-bottom:20px">
+      <table>
+        <thead><tr><th style="width:86px">Nr.</th><th>Firma</th><th style="width:160px">Ort</th><th style="width:130px">Kategorie</th></tr></thead>
+        <tbody>
+          <tr><td>4228</td><td><span class="haupt">Berghoff Logistik GmbH</span><div class="neben">Shared Cloud · via Finesolutions — Rechnung an Partner</div></td><td>Ravensburg</td><td><span class="status gut">Kunde</span></td></tr>
+          <tr><td>10079</td><td><span class="haupt">Ruck Medizintechnik GmbH</span><div class="neben">Server Test-01 · Mandant hellmut-ruck</div></td><td>Neuenbürg</td><td><span class="status gut">Kunde</span></td></tr>
+          <tr><td>5730</td><td><span class="haupt">Micromac Systems AG</span></td><td>Chemnitz</td><td><span class="status warnung">Zu klären</span></td></tr>
+          <tr><td>11304</td><td><span class="haupt">adquas GmbH</span></td><td>Stuttgart</td><td><span class="status">Ehemaliger Kunde</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="aktekopf">
+      <h2>Berghoff Logistik GmbH <span class="status gut" style="font-size:13.5px; font-weight:500">Kunde</span>
+        <span style="margin-left:auto"><button class="knopf zweit" style="font-size:13px">Ins Archiv verschieben</button></span></h2>
+      <div class="fakten">Kunden-Nr. <b>4228</b><span class="trenn">·</span>Shared Cloud
+        <span class="trenn">·</span>Server <b>Test-01</b><span class="trenn">·</span>USt-IdNr. DE812345678</div>
+    </div>
+    <div class="aktegrid">
+      <div class="karte">
+        <div class="kartekopf"><b>Verlauf</b><span class="zahl">31 Einträge</span></div>
+        <div style="padding:11px 16px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:96px 1fr; gap:12px">
+          <span style="color:var(--muted); font-size:12.5px">28.08.2026</span>
+          <div><a href="#">Vertrag V00123: Kündigungsfrist endet in 90 Tagen</a>
+            <div class="neben">Vertrag · System → Vertrieb</div></div>
+        </div>
+        <div style="padding:11px 16px; display:grid; grid-template-columns:96px 1fr; gap:12px">
+          <span style="color:var(--muted); font-size:12.5px">21.08.2026</span>
+          <div>Zollanbindung Schweiz — Rückfrage zur Testumgebung
+            <div class="neben">E-Mail · D. Stauch ↔ Frau Berghoff (GF)</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="karte">
+          <div class="kartekopf"><b>Betrieb &amp; Lizenzen</b><span class="zahl">1 Abo</span></div>
+          <div style="padding:12px 16px">
+            <div style="display:flex; gap:10px; align-items:baseline"><b>S00522</b>
+              <span class="status gut" style="font-size:13px">Laufend</span>
+              <span style="margin-left:auto; color:var(--muted); font-size:12.5px">jährlich</span></div>
+            <div style="margin-top:6px; padding:7px 11px; background:var(--surface2); border-radius:8px; font-size:13px; color:var(--ink2)">
+              ID.prove SaaS PROFESSIONAL 5.000<br>Sanktionslisten (2 ×)</div>
+          </div>
+        </div>
+        <div class="karte">
+          <div class="kartekopf"><b>Verträge</b><span class="zahl">1</span></div>
+          <div style="padding:12px 16px">
+            <div style="display:flex; gap:10px; align-items:baseline">
+              <a href="#" style="font-weight:600">V00123</a>
+              <span class="status gut" style="font-size:13px">Aktiv</span>
+              <span style="margin-left:auto; color:var(--muted); font-size:12.5px">Ende 01.01.2027</span></div>
+            <div class="neben">Wartungsvertrag + Nachtrag · 3 Bestellungen</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+</div>
+
+<div class="erklaer">
+  <h3><span class="tag">Vorschlag 1</span>Struktur &amp; Hierarchie</h3>
+  <ul>
+    <li><b>Seitennavigation (Variante A):</b> gibt der App ein Rückgrat — man sieht immer, wo man ist; Platz für künftige Bereiche (Aufgaben, Angebote, Tickets aus Phase 2/3) ohne dass die Kopfzeile platzt. Benutzer &amp; Theme-Umschalter unten.</li>
+    <li><b>Alternativ Variante B:</b> Topbar bleibt, aber mit kräftigem Aktiv-Zustand (Unterstreichung in Akzentfarbe) statt der bisher kaum sichtbaren Hinterlegung.</li>
+    <li><b>Kräftige Seitenköpfe:</b> Titel 22 px, Aktionen (Suche, Knöpfe) konsequent rechts oben — bisher wirkt alles gleich groß und gleich grau.</li>
+    <li><b>Kartenköpfe in Schriftfarbe</b> statt grauer Versalien: die Sektionen tragen wieder.</li>
+  </ul>
+  <h3><span class="tag">Vorschlag 2</span>Akten-Kopf als eigene Karte</h3>
+  <ul>
+    <li>Firmenname + Status + wichtigste Aktion (Archiv/…) in einer hervorgehobenen Kopf-Karte, Faktenzeile darunter — der Einstieg in die Akte bekommt Gewicht.</li>
+  </ul>
+  <h3><span class="tag">Vorschlag 3</span>Kalibriertes Hell/Dunkel (oben umschaltbar)</h3>
+  <ul>
+    <li><b>Hell:</b> neutralerer Grund, sichtbarere Kartenränder und weichere, tiefere Schatten — Karten heben sich endlich ab; Sekundärtexte dunkler (lesbar statt blass).</li>
+    <li><b>Dunkel:</b> weniger Blaustich, hellerer Fließtext, kräftigerer Akzent; primäre Knöpfe mit dunkler Schrift auf Akzent (bessere Lesbarkeit).</li>
+    <li><b>Theme-Umschalter als Segment</b> (Auto/Hell/Dunkel nebeneinander) statt des Zyklus-Knopfs — man sieht alle Optionen.</li>
+  </ul>
+  <h3>Nicht angefasst</h3>
+  <ul>
+    <li>Layout-Entscheidung „Verlauf links, Fakten rechts" und die Farbe-nur-für-Status-Regel bleiben.</li>
+  </ul>
+</div>
+
+<script>
+  document.getElementById('var-schalter').addEventListener('click', e => {
+    const knopf = e.target.closest('button'); if (!knopf) return;
+    document.querySelectorAll('#var-schalter button').forEach(b => b.classList.toggle('an', b === knopf));
+    const rahmen = document.getElementById('rahmen');
+    rahmen.classList.remove('va', 'vb'); rahmen.classList.add(knopf.dataset.v);
+  });
+  document.getElementById('thema-schalter').addEventListener('click', e => {
+    const knopf = e.target.closest('button'); if (!knopf) return;
+    document.querySelectorAll('#thema-schalter button').forEach(b => b.classList.toggle('an', b === knopf));
+    if (knopf.dataset.t) document.documentElement.dataset.theme = knopf.dataset.t;
+    else delete document.documentElement.dataset.theme;
+  });
+</script>
+</body>
+</html>

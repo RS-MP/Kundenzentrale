@@ -35,12 +35,12 @@ else
     {
         <details class="gruppe" @ontoggle="() => KundenLadenAsync(server.Id)">
             <summary>
-                <span class="status @Ampel(server)" style="text-transform:none; letter-spacing:0; font-size:14px; font-weight:600">@server.Alias</span>
+                <span class="status @Ampel(server)">@server.Alias</span>
                 @if (!server.Aktiv)
                 {
-                    <span style="text-transform:none; letter-spacing:0">· inaktiv</span>
+                    <span class="zusatz">· inaktiv</span>
                 }
-                <span style="text-transform:none; letter-spacing:0; font-weight:400">
+                <span class="zusatz">
                     @(server.ReleaseStand is not null ? $"· Release {server.ReleaseStand}" : "")
                     @(server.SanktionslistenStand is not null ? $"· Sanktionsliste {server.SanktionslistenStand}" : "")
                     @(server.Fehlertext is not null ? $"· {server.Fehlertext}" : "")
