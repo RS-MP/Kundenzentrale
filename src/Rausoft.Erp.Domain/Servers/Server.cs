@@ -30,4 +30,10 @@ public class Server
     /// <summary>Generischer Fehlertext — keine internen URLs/Kundennamen (geht ans Portal).</summary>
     public string? Fehlertext { get; set; }
     public DateTime? GeprueftAm { get; set; }
+
+    /// <summary>
+    /// Release-Stand laut Service Portal (dort vom Techniker gepflegt) —
+    /// kommt als Antwort der Status-Meldung zurück.
+    /// </summary>
+    public string? ReleaseStand { get; set; }
 }

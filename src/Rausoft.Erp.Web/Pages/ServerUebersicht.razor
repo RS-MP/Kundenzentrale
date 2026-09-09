@@ -6,6 +6,12 @@
 <div class="seitenkopf">
     <h1>Server</h1>
     <span class="untertitel">Betriebsübersicht — Verwaltung und Portal-Meldung unter Administration</span>
+    <span style="flex:1"></span>
+    @if (!string.IsNullOrEmpty(_portalUrl))
+    {
+        <a class="knopf sekundaer" href="@_portalUrl" target="_blank" rel="noopener"
+           title="Release-Stände werden im Service Portal gepflegt">Service Portal ↗</a>
+    }
 </div>
 
 @if (_fehler is not null)
@@ -35,6 +41,7 @@ else
                     <span style="text-transform:none; letter-spacing:0">· inaktiv</span>
                 }
                 <span style="text-transform:none; letter-spacing:0; font-weight:400">
+                    @(server.ReleaseStand is not null ? $"· Release {server.ReleaseStand}" : "")
                     @(server.SanktionslistenStand is not null ? $"· Sanktionsliste {server.SanktionslistenStand}" : "")
                     @(server.Fehlertext is not null ? $"· {server.Fehlertext}" : "")
                 </span>
@@ -72,6 +79,7 @@ else
 @code {
     private List<ServerEintrag>? _server;
     private readonly Dictionary<int, List<ServerKunde>> _kunden = [];
+    private string _portalUrl = "";
     private string? _fehler;
 
     protected override async Task OnInitializedAsync()
@@ -79,6 +87,7 @@ else
         try
         {
             _server = await Http.GetFromJsonAsync<List<ServerEintrag>>("api/server") ?? [];
+            _portalUrl = await Http.GetStringAsync("api/server/portal-url");
         }
         catch (Exception ex)
         {

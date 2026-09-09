@@ -514,6 +514,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ReleaseStand")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("SanktionslistenStand")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");

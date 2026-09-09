@@ -113,6 +113,20 @@ public class ServerStatusDienst(
         if (unbekannt.Count > 0)
             log.LogWarning("Service Portal kennt folgende Server-Aliase nicht: {Aliase}", string.Join(", ", unbekannt));
 
+        // Optional (siehe ANLEITUNG-SERVICEPORTAL-RELEASE-ANTWORT.md): das Portal
+        // liefert je Alias den dort gepflegten Release-Stand zurück — übernehmen.
+        if (ergebnis.RootElement.TryGetProperty("releases", out var releases)
+            && releases.ValueKind == JsonValueKind.Object)
+        {
+            var nachAlias = await db.Server.Where(s => s.Aktiv).ToDictionaryAsync(s => s.Alias, ct);
+            foreach (var eintrag in releases.EnumerateObject())
+            {
+                if (nachAlias.TryGetValue(eintrag.Name, out var passend)
+                    && eintrag.Value.ValueKind == JsonValueKind.String)
+                    passend.ReleaseStand = Kuerzen(eintrag.Value.GetString(), 50);
+            }
+        }
+
         await SchreibeLetztenPush(verarbeitet.Count, unbekannt, ct);
         return (verarbeitet, unbekannt);
 

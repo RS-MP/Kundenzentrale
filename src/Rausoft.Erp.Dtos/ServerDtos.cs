@@ -11,6 +11,7 @@ public record ServerEintrag(
     string? SanktionslistenStand,
     string? Fehlertext,
     DateTime? GeprueftAm,
+    string? ReleaseStand,
     int KundenAnzahl);
 
 public record ServerKunde(int Id, string Kundennummer, string Firmenname, string? MandantenKennung, string Kategorie);

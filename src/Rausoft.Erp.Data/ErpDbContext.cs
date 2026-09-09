@@ -209,6 +209,7 @@ public class ErpDbContext(
             e.Property(s => s.PruefMandant).HasMaxLength(100);
             e.Property(s => s.SanktionslistenStand).HasMaxLength(50);
             e.Property(s => s.Fehlertext).HasMaxLength(500);
+            e.Property(s => s.ReleaseStand).HasMaxLength(50);
         });
 
         modelBuilder.Entity<GeheimeEinstellung>(e =>

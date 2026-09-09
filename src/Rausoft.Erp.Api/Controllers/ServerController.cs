@@ -33,6 +33,12 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
             .ToList());
     }
 
+    /// <summary>URL des Service Portals — für den Absprung-Link in der Server-Übersicht.</summary>
+    [HttpGet("portal-url")]
+    public async Task<ActionResult<string>> PortalUrl(CancellationToken ct) =>
+        Ok((await db.Einstellungen.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Schluessel == EinstellungsSchluessel.ServicePortalUrl, ct))?.Wert ?? "");
+
     /// <summary>Zugeordnete Kunden eines Servers (interne Sicht).</summary>
     [HttpGet("{id:int}/kunden")]
     public async Task<ActionResult<List<ServerKunde>>> Kunden(int id, CancellationToken ct)
@@ -169,5 +175,6 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
 
     private static ServerEintrag NachEintrag(Domain.Servers.Server s, int kundenAnzahl = 0) => new(
         s.Id, s.Alias, s.Url, s.PruefMandant, s.Aktiv,
-        s.IstErreichbar, s.ConnectorAktiv, s.SanktionslistenStand, s.Fehlertext, s.GeprueftAm, kundenAnzahl);
+        s.IstErreichbar, s.ConnectorAktiv, s.SanktionslistenStand, s.Fehlertext, s.GeprueftAm,
+        s.ReleaseStand, kundenAnzahl);
 }
