@@ -20,12 +20,14 @@
 <div class="werkzeugleiste">
     <input type="search" placeholder="Firma oder Kundennummer …"
            @bind="_suche" @bind:event="oninput" @onkeydown="BeiTaste" />
+    @* Reihenfolge = Lebenszyklus, dahinter die Meta-Sichten (FEEDBACK Nr. 15) *@
     <div class="chips">
         <button class="chip @(_filter == "kunden" ? "aktiv" : "")" @onclick='() => Navigiere("kunden")'>Kunden</button>
-        <button class="chip @(_filter == "ehemalige" ? "aktiv" : "")" @onclick='() => Navigiere("ehemalige")'>Gekündigt/Ehemalig</button>
         <button class="chip @(_filter == "interessenten" ? "aktiv" : "")" @onclick='() => Navigiere("interessenten")'>Interessenten</button>
         <button class="chip @(_filter == "zuklaeren" ? "aktiv" : "")" @onclick='() => Navigiere("zuklaeren")'>Zu klären</button>
         <button class="chip @(_filter == "einmalbestellung" ? "aktiv" : "")" @onclick='() => Navigiere("einmalbestellung")'>Einmalbestellung</button>
+        <button class="chip @(_filter == "ehemalige" ? "aktiv" : "")" @onclick='() => Navigiere("ehemalige")'>Gekündigt/Ehemalig</button>
+        <span class="chip-trenner"></span>
         <button class="chip @(_filter == "alle" ? "aktiv" : "")" @onclick='() => Navigiere("alle")'>Alle</button>
         <button class="chip @(_filter == "partner" ? "aktiv" : "")" @onclick='() => Navigiere("partner")'>Mit Partner</button>
         <button class="chip @(_filter == "archiv" ? "aktiv" : "")" @onclick='() => Navigiere("archiv")'>Archiv</button>

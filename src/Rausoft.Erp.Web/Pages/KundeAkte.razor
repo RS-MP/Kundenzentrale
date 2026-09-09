@@ -26,8 +26,10 @@ else
                 <span class="status kritisch">in Odoo archiviert</span>
             }
             <span style="flex:1"></span>
-            <button class="knopf sekundaer" @onclick="ArchivUmschaltenAsync">
-                @(_kunde.ArchiviertAm is null ? "Ins Archiv verschieben" : "Aus dem Archiv holen")
+            @* Archivieren ist eine seltene Aktion → dezenter Kleinknopf; das
+               Zurückholen ist im Archiv-Kontext die Hauptaktion und bleibt sichtbar. *@
+            <button class="knopf sekundaer @(_kunde.ArchiviertAm is null ? "klein" : "")" @onclick="ArchivUmschaltenAsync">
+                @(_kunde.ArchiviertAm is null ? "Ins Archiv" : "Aus dem Archiv holen")
             </button>
         </div>
         <p class="faktenzeile2">
@@ -55,6 +57,11 @@ else
                     <span class="trenn">·</span>
                     <span class="@(_kunde.ServerAmpel == "kritisch" ? "krittext" : "")" style="font-weight:600">@_kunde.ServerHinweis</span>
                 }
+            }
+            @if (_kunde.Individualentwicklung is not null)
+            {
+                <span class="trenn">·</span>
+                <span class="merkmal" title="@_kunde.Individualentwicklung">Individualentwicklung</span>
             }
             @if (_kunde.RechnungsempfaengerPartner is not null)
             {
@@ -293,6 +300,20 @@ else
                             <div style="color:var(--good); font-size:13px; margin-top:4px">✓ gespeichert</div>
                         }
                     </div>
+                    <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
+                        <div style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
+                            Individualentwicklung — was wurde für diesen Kunden entwickelt? (leer = keine)
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:flex-start">
+                            <textarea rows="2" style="flex:1" @bind="_individualentwicklung"
+                                      placeholder="z. B. Zoll-Schnittstelle Schweiz, Sonderreport XY …"></textarea>
+                            <button class="knopf" @onclick="IndividualentwicklungSpeichernAsync">Speichern</button>
+                        </div>
+                        @if (_individualGespeichert)
+                        {
+                            <div style="color:var(--good); font-size:13px; margin-top:4px">✓ gespeichert</div>
+                        }
+                    </div>
                 </div>
             </details>
         </div>
@@ -321,6 +342,8 @@ else
     private HashSet<string> _gewaehlteMerkmale = [];
     private string _neuesMerkmal = "";
     private bool _merkmalGespeichert;
+    private string _individualentwicklung = "";
+    private bool _individualGespeichert;
     private string? _fehler;
 
     protected override async Task OnParametersSetAsync()
@@ -339,6 +362,8 @@ else
             foreach (var vorhanden in _gewaehlteMerkmale.Where(m => !_merkmalListe.Contains(m, StringComparer.OrdinalIgnoreCase)))
                 _merkmalListe.Add(vorhanden);
             _merkmalGespeichert = false;
+            _individualentwicklung = _kunde?.Individualentwicklung ?? "";
+            _individualGespeichert = false;
             _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>($"api/kunden/{Id}/verlauf");
             var vertraege = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
                 $"api/vertraege?kundeId={Id}&seite=1&proSeite=50");
@@ -526,6 +551,24 @@ else
         catch (Exception ex)
         {
             _fehler = $"Merkmal konnte nicht gespeichert werden: {ex.Message}";
+        }
+    }
+
+    private async Task IndividualentwicklungSpeichernAsync()
+    {
+        _fehler = null;
+        try
+        {
+            var wert = string.IsNullOrWhiteSpace(_individualentwicklung) ? null : _individualentwicklung.Trim();
+            var antwort = await Http.PutAsJsonAsync($"api/kunden/{Id}/individualentwicklung",
+                new IndividualentwicklungAenderung(wert));
+            antwort.EnsureSuccessStatusCode();
+            await OnParametersSetAsync();
+            _individualGespeichert = true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Individualentwicklung konnte nicht gespeichert werden: {ex.Message}";
         }
     }
 

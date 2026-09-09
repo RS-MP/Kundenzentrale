@@ -207,7 +207,8 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             kunde.Server?.Alias,
             kunde.MandantenKennung,
             kunde.Server is null ? null : ServerAmpel.Berechne(kunde.Server.IstErreichbar, kunde.Server.ConnectorAktiv),
-            kunde.Server?.Fehlertext));
+            kunde.Server?.Fehlertext,
+            kunde.Individualentwicklung));
     }
 
     /// <summary>
@@ -242,6 +243,44 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 Betreff = wert is null
                     ? $"Merkmal „{alt}“ entfernt"
                     : alt is null ? $"Merkmal „{wert}“ vergeben" : $"Merkmal geändert: „{alt}“ → „{wert}“",
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Individualentwicklung pflegen (FEEDBACK Nr. 2) — gesetzter Text ist
+    /// zugleich das Kennzeichen. Manuell gepflegt, mit Verlaufseintrag.
+    /// </summary>
+    [HttpPut("{id:int}/individualentwicklung")]
+    public async Task<IActionResult> IndividualentwicklungAendern(int id, IndividualentwicklungAenderung aenderung, CancellationToken ct)
+    {
+        var kunde = await db.Kunden.FirstOrDefaultAsync(k => k.Id == id, ct);
+        if (kunde is null)
+            return NotFound();
+
+        var wert = string.IsNullOrWhiteSpace(aenderung.Wert) ? null : aenderung.Wert.Trim();
+        if (wert is { Length: > 2000 })
+            return BadRequest("Die Beschreibung darf höchstens 2000 Zeichen lang sein.");
+
+        var alt = kunde.Individualentwicklung;
+        kunde.Individualentwicklung = wert;
+
+        if (alt != wert)
+        {
+            db.Aktivitaeten.Add(new Domain.Shared.Aktivitaet
+            {
+                KundeId = kunde.Id,
+                Typ = Domain.Shared.AktivitaetsTyp.Notiz,
+                Zeitpunkt = DateTime.UtcNow,
+                MitarbeiterId = await AktuellerMitarbeiterId(ct),
+                Richtung = Domain.Shared.AktivitaetsRichtung.Intern,
+                Betreff = wert is null
+                    ? "Kennzeichen Individualentwicklung entfernt"
+                    : alt is null ? "Individualentwicklung hinterlegt" : "Individualentwicklung geändert",
+                Inhalt = wert,
             });
         }
 

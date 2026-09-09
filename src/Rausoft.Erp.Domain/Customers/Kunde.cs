@@ -47,6 +47,13 @@ public class Kunde
     public bool MerkmalePruefen { get; set; }
 
     /// <summary>
+    /// Gesetzt = der Kunde hat eine Individualentwicklung erhalten; der Text
+    /// beschreibt, was entwickelt wurde (FEEDBACK Nr. 2). Manuell gepflegt,
+    /// kein Import überschreibt das Feld.
+    /// </summary>
+    public string? Individualentwicklung { get; set; }
+
+    /// <summary>
     /// Manuell archiviert (z. B. Einmalkauf, Insolvenz). Archivierte Kunden
     /// sind aus den Standard-Listen ausgeblendet. Neue Geschäftsaktivität
     /// (laufendes Abo aus Odoo, neuer Vertrag) holt den Kunden automatisch

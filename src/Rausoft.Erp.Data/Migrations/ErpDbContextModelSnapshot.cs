@@ -308,6 +308,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("Individualentwicklung")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("Kundengruppe")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");

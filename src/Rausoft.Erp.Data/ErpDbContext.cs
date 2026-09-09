@@ -159,6 +159,7 @@ public class ErpDbContext(
             e.Property(k => k.Kundennummer).HasMaxLength(20);
             e.Property(k => k.UStIdNr).HasMaxLength(20);
             e.Property(k => k.Merkmale).HasMaxLength(500);
+            e.Property(k => k.Individualentwicklung).HasMaxLength(2000);
             e.Property(k => k.MandantenKennung).HasMaxLength(100);
             e.HasOne(k => k.Server).WithMany()
                 .HasForeignKey(k => k.ServerId).OnDelete(DeleteBehavior.SetNull);

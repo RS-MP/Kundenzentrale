@@ -43,13 +43,17 @@ public record KundeDetail(
     string? ServerAlias,
     string? MandantenKennung,
     string? ServerAmpel,
-    string? ServerHinweis);
+    string? ServerHinweis,
+    string? Individualentwicklung);
 
 /// <summary>true = ins Archiv verschieben, false = aus dem Archiv holen.</summary>
 public record ArchivAenderung(bool Archivieren);
 
 /// <summary>Manuelle Merkmal-Pflege (z. B. "Insolvenz"); leer/null entfernt das Merkmal.</summary>
 public record MerkmaleAenderung(string? Wert);
+
+/// <summary>Individualentwicklung beschreiben; leer/null entfernt das Kennzeichen.</summary>
+public record IndividualentwicklungAenderung(string? Wert);
 
 /// <summary>Neues Merkmal für die Stammliste.</summary>
 public record MerkmalAnlegen(string Name);

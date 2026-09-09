@@ -20,7 +20,10 @@ Einige Kunden haben eine Individualentwicklung erhalten. Das muss am Kunden
 gekennzeichnet und hinterlegt werden können (was wurde entwickelt), sichtbar
 in der Kundenakte.
 
-Status: offen (Anforderung, umsetzen nach der Sammelphase)
+Status: erledigt (09.09.2026) — Feld „Individualentwicklung" am Kunden
+(max. 2000 Zeichen), Pflege in der Akte unter Stammdaten & Adressen; gesetzter
+Text = Kennzeichen, erscheint in der Faktenzeile (Beschreibung als Tooltip);
+jede Änderung erzeugt einen Verlaufseintrag. Kein Import überschreibt das Feld.
 
 ## Nr. 3 · Preis-Sonderabsprachen zeitlich befristet (2026-09-01, MP)
 
@@ -135,7 +138,7 @@ klären …) wieder auf Standard.
 
 Status: erledigt (03.09.2026) — Filter, Suche und Seite stehen jetzt in der
 URL (?filter=…&suche=…&seite=…) und überleben Zurück-Navigation, Reload und
-Lesezeichen. (Verträge-Liste bei Bedarf analog — noch offen.)
+Lesezeichen. Verträge-Liste seit 08.09.2026 analog.
 
 ## Nr. 12 · Merkmale als Auswahlliste statt Freitext (2026-09-03, MP)
 
@@ -185,6 +188,32 @@ Stufenplan:
   Aufgaben/Wiedervorlage.
 
 Status: Stufe 1a umgesetzt · 1b und 2 offen
+
+## Nr. 15 · Chip-Reihenfolge in der Kundenliste durcheinander (2026-09-09, MP)
+
+Die Reihenfolge der Filter-Chips wirkt unsortiert: „Alle" steht mitten drin,
+„Gekündigt/Ehemalig" gleich an zweiter Stelle.
+
+Idee: nach Arbeitslogik ordnen — erst die Kategorien im Lebenszyklus
+(Kunden → Interessenten → Zu klären → Einmalbestellung → Gekündigt/Ehemalig),
+dann die Meta-Sichten ans Ende (Alle · Mit Partner · Archiv), ggf. optisch
+leicht abgesetzt.
+
+Status: erledigt (09.09.2026) — Reihenfolge Kunden → Interessenten → Zu klären
+→ Einmalbestellung → Gekündigt/Ehemalig, danach Trennstrich und die
+Meta-Sichten Alle · Mit Partner · Archiv.
+
+## Nr. 16 · „Ins Archiv verschieben" zu dominant in der Kundenakte (2026-09-09, MP)
+
+Der Archiv-Button im Akten-Kopf ist ein riesiger Knopf — für eine seltene
+Aktion viel zu präsent.
+
+Idee: als kleinen, dezenten Textlink/Kleinknopf rechts im Akten-Kopf setzen
+(oder in ein „…"-Menü), Beschriftung kürzen; „Aus dem Archiv holen" darf
+sichtbarer bleiben, weil es im Archiv-Kontext die Hauptaktion ist.
+
+Status: erledigt (09.09.2026) — „Ins Archiv" als dezenter Kleinknopf;
+„Aus dem Archiv holen" bleibt in normaler Größe.
 
 ## Backlog (Aufgaben beim Nutzer / für später)
 
