@@ -215,6 +215,46 @@ sichtbarer bleiben, weil es im Archiv-Kontext die Hauptaktion ist.
 Status: erledigt (09.09.2026) — „Ins Archiv" als dezenter Kleinknopf;
 „Aus dem Archiv holen" bleibt in normaler Größe.
 
+## Nr. 17 · Vertragsvorlagen-Verwaltung mit Compliance-Rolle (2026-09-10, MP)
+
+Anforderung (MP):
+- Verwaltung für Vertragsvorlagen: Compliance erstellt eine neue Word-Vorlage,
+  ordnet sie einem Typ zu (z. B. NDA) und schaltet sie **produktiv**.
+- Vorlagen werden **versioniert**; eine Version wird für die Verwendung durch
+  bestimmte Rollen freigeschaltet (z. B. Vertrieb).
+- In der Vertragsverwaltung sichtbar, **welcher Kunde welchen Versionsstand**
+  (z. B. des NDA) unterschrieben/erhalten hat.
+- Neue Rolle **Compliance** — nur sie verwaltet die Vorlagen.
+- Quelle bleibt ein Server-Verzeichnis (heute Vorlagen.Verzeichnis).
+
+Ergänzungsvorschläge (Claude, zur Diskussion beim Abarbeiten):
+1. **Vorlagen-Stammsatz in der DB** (Name, Vertragstyp/BestandteilTyp,
+   Beschreibung) + je Version eine eingefrorene Dateikopie mit SHA-256 in einer
+   Versionsablage — nachträgliche Änderungen an der Word-Datei können so nie
+   unbemerkt in eine freigegebene Version fließen (gleiches Prinzip wie bei
+   Vertragsdokumenten).
+2. **Status-Workflow je Version:** Entwurf → Produktiv → Zurückgezogen;
+   höchstens eine produktive Version je Vorlage; beim Produktivschalten
+   Pflichtfeld „Änderungsnotiz" (was ist neu) + Gültig-ab-Datum.
+3. **Platzhalter-Prüfung vor Freigabe:** System meldet unbekannte {{…}}-Platz-
+   halter (VorlagenDienst kann das schon) — Compliance sieht Warnungen, bevor
+   die Version produktiv geht.
+4. **Versionsstand am erzeugten Dokument speichern** → Auswertungen:
+   „Welcher Kunde hat welche NDA-Version?" und Arbeitsliste „Kunden mit
+   veralteter Version" (für Nachversand bei relevanten Änderungen).
+5. **Nutzungsfreigabe je Rolle und Vorlage** (Vertrieb darf NDA + Wartungs-
+   vertrag, Support nur X …); Erzeugen-Knopf in der Akte zeigt nur, was die
+   eigene Rolle darf.
+6. Optional **Vier-Augen-Prinzip**: Produktivschalten erfordert Zweitfreigabe
+   durch eine zweite Compliance-Person.
+7. **Bestandsübernahme:** heutige Root-Dateien im Vorlagen-Verzeichnis werden
+   als jeweils Version 1 (produktiv) übernommen.
+8. Rolle Compliance als neues Flag in MitarbeiterRolle (Benutzerverwaltung
+   existiert seit 10.09.); Vorlagen-Verwaltung als eigener Admin-/Compliance-
+   Bereich.
+
+Status: offen (Sammelphase; Umfang eher eigenes Arbeitspaket als Einzelpunkt)
+
 ## Backlog (Aufgaben beim Nutzer / für später)
 
 - **Entra + IIS:** Klick-Anleitung liegt in `DEPLOYMENT.md` — sobald die
