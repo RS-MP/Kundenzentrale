@@ -254,6 +254,36 @@ Ergänzungsvorschläge (Claude, zur Diskussion beim Abarbeiten):
 
 Status: offen (Sammelphase; Umfang eher eigenes Arbeitspaket als Einzelpunkt)
 
+## Nr. 18 · Aktualität/Reihenfolge der Vertragsdokumente erkennen (2026-09-10, MP)
+
+Beim Einlesen der Verträge (Bestandsscanner) soll erkennbar werden, welcher
+Stand der aktuellste ist — z. B. bei 3 Bestellungen die zeitliche Reihenfolge
+abbilden.
+
+Umsetzungsidee:
+- Je Dokument ein **Dokumentdatum** speichern. Quellen in dieser Reihenfolge:
+  Datum im Dateinamen (z. B. „… 2026-09-08.docx"), sonst Datei-Änderungsdatum
+  aus dem Dateisystem; -1/-2-Suffixe als Nachtrags-/Kündigungsreihenfolge.
+- Bestandteile in Vertragsakte danach sortieren (neuestes oben), Bestellungen
+  nummerieren („Bestellung 3 · 08.09.2026"), aktuellsten Stand im
+  Vertragskopf und in der Vertragsliste ausweisen.
+- Nachrüstung für den Bestand: Scanner-Lauf ergänzt das Datum idempotent an
+  bereits importierten Dokumenten.
+
+Status: offen (Sammelphase)
+
+## Nr. 19 · Dokumentart deutlicher kennzeichnen (2026-09-10, MP)
+
+Bestellung, Wartungsvertrag, NDA usw. sollen auf einen Blick unterscheidbar
+sein (Vertragsakte, Verträge-Karte in der Kundenakte, Vertragsliste).
+
+Umsetzungsidee (im Ruhig-Konzept, Farbe bleibt dem Status vorbehalten):
+kompakte Typ-Kürzel-Pills je Bestandteil (WV · BE · NDA · AVV · KÜ · NT …)
+mit vollem Namen als Tooltip, in der Vertragsakte optional Gruppierung nach
+Dokumentart, in Listen das Kürzel vor dem Titel.
+
+Status: offen (Sammelphase)
+
 ## Backlog (Aufgaben beim Nutzer / für später)
 
 - **Entra + IIS:** Klick-Anleitung liegt in `DEPLOYMENT.md` — sobald die
