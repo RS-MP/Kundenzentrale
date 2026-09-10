@@ -20,6 +20,17 @@
         "ConnectionStrings__Kundenzentrale": "Server=RS-W2019-01;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True"
       }
     },
+    "http-windows": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5307",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Production",
+        "Authentifizierung__Modus": "Windows",
+        "Authentifizierung__ErstAdminKonto": "RS\\mp"
+      }
+    },
     "https": {
       "commandName": "Project",
       "dotnetRunMessages": true,

@@ -555,9 +555,10 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         };
 
     private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) =>
-        benutzer.EntraObjectId is Guid oid
-            ? db.Mitarbeiter.Where(m => m.EntraObjectId == oid).Select(m => (int?)m.Id).FirstOrDefaultAsync(ct)
-            : Task.FromResult<int?>(null);
+        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
+            ? Task.FromResult<int?>(null)
+            : db.Mitarbeiter.Where(Domain.Shared.Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
+                .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
 
     private static VertragDetail NachDetail(Vertrag vertrag) => new(
         vertrag.Id,

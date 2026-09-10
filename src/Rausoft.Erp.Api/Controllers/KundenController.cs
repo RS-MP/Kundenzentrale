@@ -363,9 +363,10 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
     }
 
     private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) =>
-        benutzer.EntraObjectId is Guid oid
-            ? db.Mitarbeiter.Where(m => m.EntraObjectId == oid).Select(m => (int?)m.Id).FirstOrDefaultAsync(ct)
-            : Task.FromResult<int?>(null);
+        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
+            ? Task.FromResult<int?>(null)
+            : db.Mitarbeiter.Where(Domain.Shared.Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
+                .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
 
     /// <summary>Abos des Kunden mit Lizenz-Positionen — Basis der Karte „Betrieb &amp; Lizenzen".</summary>
     [HttpGet("{id:int}/abos")]

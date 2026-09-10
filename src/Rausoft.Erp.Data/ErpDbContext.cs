@@ -54,7 +54,9 @@ public class ErpDbContext(
         // --- Querschnitt -----------------------------------------------------
         modelBuilder.Entity<Mitarbeiter>(e =>
         {
-            e.HasIndex(m => m.EntraObjectId).IsUnique();
+            e.HasIndex(m => m.EntraObjectId).IsUnique().HasFilter("[EntraObjectId] IS NOT NULL");
+            e.HasIndex(m => m.WindowsKonto).IsUnique().HasFilter("[WindowsKonto] IS NOT NULL");
+            e.Property(m => m.WindowsKonto).HasMaxLength(100);
             e.HasIndex(m => m.Email).IsUnique();
             e.Property(m => m.Anzeigename).HasMaxLength(100);
             e.HasOne(m => m.Bereich).WithMany().OnDelete(DeleteBehavior.Restrict);
@@ -411,10 +413,10 @@ public class ErpDbContext(
             return _mitarbeiterId;
 
         _mitarbeiterIdErmittelt = true;
-        if (aktuellerBenutzer?.EntraObjectId is Guid oid)
+        if (aktuellerBenutzer is { } b && (b.EntraObjectId is not null || b.WindowsKonto is not null))
         {
             _mitarbeiterId = Mitarbeiter
-                .Where(m => m.EntraObjectId == oid)
+                .Where(Domain.Shared.Mitarbeiter.KontoFilter(b.EntraObjectId, b.WindowsKonto))
                 .Select(m => (int?)m.Id)
                 .FirstOrDefault();
         }

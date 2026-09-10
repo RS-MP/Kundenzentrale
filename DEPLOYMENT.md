@@ -1,15 +1,98 @@
-# Deployment: Entra ID + IIS auf RS-W2019-01
+# Deployment auf RS-W2019-01
 
-Stand 03.09.2026 · Ziel: Ablösung des Interimsbetriebs (lokal, ohne Anmeldung)
-durch den IIS-Betrieb mit Entra-ID-Anmeldung. Reihenfolge einhalten —
-**erst Entra, dann IIS**, sonst kann sich nach dem Deployment niemand anmelden.
+Stand 10.09.2026 · Es gibt **zwei Wege** — Weg A ist der beschlossene
+Sofort-Weg (wie beim Urlaubsplaner), Weg B (Entra ID) bleibt als spätere
+Option dokumentiert.
 
-## 1 · Entra-ID-App-Registrierungen (Azure-Portal, einmalig)
+## Weg A · Windows-Authentifizierung über die lokale AD (Sofort-Deployment)
+
+Ein einziger IIS-Site: die API liefert das Blazor-Frontend gleich mit aus
+(kein CORS, keine zweite Site). Anmeldung per Domänen-Konto — der Browser
+meldet Intranet-Benutzer automatisch an (SSO), keine Passwörter/Tokens bei uns.
+
+### A1 · Einmalig auf dem Server
+
+1. **ASP.NET Core Hosting Bundle** (Version 10.x) installieren:
+   https://dotnet.microsoft.com/download/dotnet/10.0 → „Hosting Bundle" →
+   danach `iisreset`.
+2. In IIS unter *Server → Windows-Authentifizierung*: Feature installiert?
+   (Server-Manager → Rollen → Webserver → Sicherheit → Windows-Authentifizierung.)
+
+### A2 · Veröffentlichen (vom Entwicklungsrechner, je Release)
+
+```bash
+dotnet publish src/Rausoft.Erp.Api -c Release -o \\RS-W2019-01\<Freigabe>\Kundenzentrale
+```
+
+(Zielordner z. B. `D:\Apps\Kundenzentrale` auf dem Server. Der Publish-Output
+enthält Frontend + web.config; Migrationen wendet die App beim Start selbst an.)
+
+### A3 · Konfiguration im Zielordner
+
+`appsettings.Production.json` neben die appsettings.json legen (bleibt bei
+späteren Publishes liegen, wenn man den Ordnerinhalt nicht löscht — sonst
+vorher sichern):
+
+```json
+{
+  "Authentifizierung": {
+    "Modus": "Windows",
+    "ErstAdminKonto": "RS\\mp"
+  },
+  "ConnectionStrings": {
+    "Kundenzentrale": "Server=RS-W2019-01;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True"
+  }
+}
+```
+
+- `ErstAdminKonto` bekommt beim App-Start automatisch die Admin-Rolle.
+- Alle anderen Domänen-Benutzer werden beim ersten Zugriff automatisch als
+  Mitarbeiter **ohne Rollen** angelegt (Timeline-/Audit-Zuordnung); Rollen
+  vergibt später ein Admin (Pflege-UI noch offen, übergangsweise SQL).
+
+### A4 · IIS-Site anlegen
+
+1. Site „Kundenzentrale": physischer Pfad = Zielordner, eigener App-Pool
+   (.NET CLR: *No Managed Code*), Binding z. B. `http://kundenzentrale.rs.local`
+   (DNS-Eintrag/HOSTS nicht vergessen; HTTPS mit internem Zertifikat gern später).
+2. Site → **Authentifizierung**: *Windows-Authentifizierung = Aktiviert*,
+   *Anonyme Authentifizierung = Deaktiviert*.
+3. **App-Pool-Identität → Datenzugriff** (die App greift mit dieser Identität
+   auf SQL und die Freigabe zu):
+   - Standard `ApplicationPoolIdentity`: in SSMS Login `IIS APPPOOL\Kundenzentrale`
+     anlegen → DB `Kundenzentrale`: `db_datareader` + `db_datawriter` + `db_ddladmin`
+     (ddladmin, weil die App Migrationen selbst anwendet).
+   - Zugriff auf `\\RS-W2019-01\Kunden Archiv`: bei ApplicationPoolIdentity
+     zählt das **Computerkonto** — einfacher ist ein Domänen-Dienstkonto
+     (z. B. `RS\svc-kundenzentrale`) als App-Pool-Identität: SQL-Rechte wie
+     oben + Lese-/Schreibzugriff auf die Freigabe (Schreiben für die
+     Vertragserzeugung nach `2_Wartungsverträge`).
+4. Browser-Test von einem Arbeitsplatz: `http://kundenzentrale.rs.local` —
+   Anmeldung läuft unsichtbar über das Domänen-Konto (Intranet-Zone).
+   Edge/Chrome behandeln `*.rs.local` automatisch als Intranet; falls ein
+   Anmeldedialog erscheint, die URL in den Internetoptionen zur Intranet-Zone
+   hinzufügen (GPO oder lokal).
+
+### A5 · Nacharbeiten nach dem ersten Start
+
+- **Geheimnisse neu eintragen** (Service-Portal-Push-Token): DPAPI ist
+  maschinengebunden — Administration → Server & Portal-Meldung → Token setzen.
+- `ServicePortal.IntervallMinuten` auf 60 oder 120 stellen (Auto-Meldung).
+- Test-Server (Test-01/02/03, localhost-Healthcheck) löschen oder auf die
+  echten Abfragepunkte umstellen, sobald sie vorliegen.
+- Backups einrichten (siehe unten).
+
+## Weg B · Entra ID (spätere Option, z. B. für Zugriff von außen/M365-SSO)
+
+<details>
+<summary>Anleitung aufklappen (Stand 03.09.2026)</summary>
+
+### B1 · Entra-ID-App-Registrierungen (Azure-Portal, einmalig)
 
 Portal: https://entra.microsoft.com → Anwendungen → App-Registrierungen.
 Es braucht **zwei** Registrierungen:
 
-### 1a · API („Kundenzentrale API")
+**API („Kundenzentrale API")**
 
 1. Neue Registrierung → Name `Kundenzentrale API`, Konten: *nur dieses
    Organisationsverzeichnis*, ohne Redirect-URI → Registrieren.
@@ -20,7 +103,7 @@ Es braucht **zwei** Registrierungen:
    Name `Zugriff`, wer kann einwilligen: Administratoren und Benutzer,
    Anzeigename/Beschreibung z. B. „Zugriff auf die Kundenzentrale".
 
-### 1b · Frontend („Kundenzentrale Web")
+**Frontend („Kundenzentrale Web")**
 
 1. Neue Registrierung → Name `Kundenzentrale Web`, Konten: *nur dieses
    Organisationsverzeichnis*, Redirect-URI: Typ **Single-Page-Anwendung (SPA)**,
@@ -32,59 +115,28 @@ Es braucht **zwei** Registrierungen:
    **Administratorzustimmung erteilen** (Button).
 3. Client-ID dieser Registrierung ebenfalls notieren.
 
-### 1c · Werte eintragen
+**Werte eintragen**
 
-- `src/Rausoft.Erp.Api/appsettings.json` → Sektion `EntraId`: TenantId +
-  ClientId der **API**-Registrierung (keine Secrets nötig — die API validiert
-  nur Tokens).
+- `appsettings.Production.json` → `Authentifizierung:Modus` auf `EntraId`,
+  Sektion `EntraId`: TenantId + ClientId der **API**-Registrierung
+  (keine Secrets nötig — die API validiert nur Tokens).
 - Frontend: MSAL-Konfiguration (TenantId, ClientId **Web**, Scope
   `api://…/Zugriff`) — der MSAL-Einbau in Blazor ist noch offen und wird
-  gemacht, sobald die IDs vorliegen (dann entfällt der Entwicklungs-Auth-Modus
-  für den Serverbetrieb).
+  gemacht, sobald die IDs vorliegen.
+- Mitarbeiter brauchen dann ihre Entra-Objekt-ID am Datensatz (Feld
+  `EntraObjectId`); das Windows-Konto kann parallel bestehen bleiben.
 - CTI/Service-Portal später: je eigene Registrierung mit Client Credentials.
 
-### 1d · Mitarbeiter anlegen
+</details>
 
-Die Benutzertabelle referenziert die Entra-Objekt-ID. Je Mitarbeiter:
-Objekt-ID aus Entra (Benutzer → Übersicht) in `Mitarbeiter` eintragen
-(Anzeigename, E-Mail, Rollen) — Pflege-UI dafür ist noch offen; übergangsweise
-per SQL/Import.
-
-## 2 · IIS auf RS-W2019-01
-
-1. **ASP.NET Core Hosting Bundle** (Version 10.x) auf dem Server installieren:
-   https://dotnet.microsoft.com/download/dotnet/10.0 → „Hosting Bundle" →
-   danach `iisreset`.
-2. **Dienstkonto** (gMSA oder Domänenkonto, z. B. `RS\svc-kundenzentrale`):
-   - SQL Server: Login + in DB `Kundenzentrale` nur `db_datareader` +
-     `db_datawriter` (Migrationen laufen beim Deployment unter deinem Konto,
-     nicht unter dem Dienstkonto — Least Privilege).
-   - Dateifreigabe: **Lesezugriff** auf `\\RS-W2019-01\Kunden Archiv`.
-3. **Site „Kundenzentrale API"**: Ordner z. B. `D:\Apps\Kundenzentrale\Api`,
-   eigener App-Pool (.NET CLR: *No Managed Code*), Identität = Dienstkonto,
-   Binding z. B. `https://kundenzentrale-api.rs.local` (internes Zertifikat).
-   Veröffentlichen vom Entwicklungsrechner:
-   `dotnet publish src/Rausoft.Erp.Api -c Release -o <Zielordner>`
-4. **Site „Kundenzentrale Web"** (statisch): Ordner `D:\Apps\Kundenzentrale\Web`,
-   Inhalt aus `dotnet publish src/Rausoft.Erp.Web -c Release` →
-   `publish/wwwroot`. `wwwroot/appsettings.json` der Web-App auf die
-   API-URL stellen. URL-Rewrite für Blazor-Routing (alle Pfade → index.html);
-   das Publish legt eine passende web.config bei.
-5. **Produktions-CORS**: in `Program.cs` der API die Web-URL freigeben
-   (der Development-CORS greift in Produktion nicht) — kleiner Codeschritt,
-   zusammen mit MSAL.
-6. **Migrationen** je Release vom Entwicklungsrechner:
-   `dotnet ef database update --project src/Rausoft.Erp.Data --startup-project src/Rausoft.Erp.Api --connection "Server=RS-W2019-01;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True"`
-
-## 3 · Datenbank-Betrieb
+## Datenbank-Betrieb
 
 - **Backups einrichten** (SSMS → Verwaltung → Wartungspläne, oder Agent-Jobs):
   täglich Vollsicherung + Transaktionsprotokoll alle 1–4 h
   (Recovery-Modell FULL), Sicherungen auf ein anderes Volume/Share.
 - SQL Server 2017: erweiterter Support endet **Okt 2027** — Upgrade einplanen.
 
-## 4 · Offene Code-Schritte vor dem Go-Live (macht Claude, sobald IDs da sind)
+## Offen (Code-Schritte, macht Claude bei Bedarf)
 
-- MSAL/Entra-Anmeldung im Blazor-Frontend (Login, Token an API-Aufrufe)
-- Produktions-CORS auf die echte Web-URL
-- Mitarbeiter-Pflege (Entra-Objekt-IDs) — UI oder Import aus Entra
+- Mitarbeiter-Pflege-UI (Rollen, Anzeigename, E-Mail) im Admin-Bereich
+- Bei Wechsel auf Entra: MSAL im Blazor-Frontend + Produktions-CORS

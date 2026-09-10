@@ -31,10 +31,14 @@ Artifact-Tool übergeben, sonst entsteht eine neue URL.
 ## Kickoff-Entscheidungen Phase 1 (2026-08-13)
 
 - **.NET 10 LTS** (SDK 10.0.400 installiert; .NET 8 wäre Nov 2026 aus dem Support).
-- **Authentifizierung: Entra ID pur** — die API validiert Entra-ID-Tokens
-  (`Microsoft.Identity.Web`), Mitarbeiter-SSO per M365-Konto, CTI/Service-Portal
-  über eigene App-Registrierungen (Client Credentials). Keine Passwörter/Tokens
-  in eigener DB; Benutzertabelle referenziert nur die Entra-Objekt-ID.
+- **Authentifizierung** (geändert 2026-09-10): **Windows-Auth über die lokale
+  AD** für den Hausbetrieb (wie Urlaubsplaner; `Authentifizierung:Modus` =
+  `Windows`, Negotiate/IIS, Auto-Anlage unbekannter Domänen-Konten ohne Rollen,
+  `ErstAdminKonto` wird beim Start Admin). Entra ID bleibt als zweiter Modus
+  erhalten (Standard, `Microsoft.Identity.Web`) für später. Keine
+  Passwörter/Tokens in eigener DB; Benutzertabelle referenziert Entra-Objekt-ID
+  bzw. Windows-Konto. Deployment: eine IIS-Site, die API liefert das Frontend
+  mit aus (`DEPLOYMENT.md`, Weg A).
 - **Frontend: Blazor WebAssembly (standalone)**, spricht ausschließlich über
   die REST API.
 - **Namespace-Basis `Rausoft.Erp`**, Themen als Unter-Namespaces

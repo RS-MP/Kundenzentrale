@@ -1,16 +1,25 @@
 namespace Rausoft.Erp.Domain.Shared;
 
 /// <summary>
-/// rausoft-Benutzer. Authentifizierung läuft vollständig über Entra ID —
-/// hier liegen keine Passwörter oder Tokens, nur die Zuordnung
-/// Entra-Konto → interner Datensatz.
+/// rausoft-Benutzer. Authentifizierung läuft über die lokale AD
+/// (Windows-Authentifizierung) oder Entra ID — hier liegen keine Passwörter
+/// oder Tokens, nur die Zuordnung Konto → interner Datensatz.
 /// </summary>
 public class Mitarbeiter
 {
     public int Id { get; set; }
 
-    /// <summary>Objekt-ID des M365-Kontos in Entra ID.</summary>
-    public Guid EntraObjectId { get; set; }
+    /// <summary>Objekt-ID des M365-Kontos in Entra ID (falls Entra genutzt wird).</summary>
+    public Guid? EntraObjectId { get; set; }
+
+    /// <summary>Windows-Konto in der lokalen AD, z. B. "RS\mp" (falls Windows-Auth genutzt wird).</summary>
+    public string? WindowsKonto { get; set; }
+
+    /// <summary>Filter „gehört dieses Konto zu diesem Mitarbeiter?" — eine Stelle für alle Abfragen.</summary>
+    public static System.Linq.Expressions.Expression<Func<Mitarbeiter, bool>> KontoFilter(
+        Guid? entraObjectId, string? windowsKonto) =>
+        m => (entraObjectId != null && m.EntraObjectId == entraObjectId)
+             || (windowsKonto != null && m.WindowsKonto == windowsKonto);
 
     public required string Anzeigename { get; set; }
 

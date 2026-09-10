@@ -7,7 +7,7 @@ namespace Rausoft.Erp.Api.Dienste;
 
 /// <summary>
 /// Autorisierung "Admin": Die Rolle wird serverseitig aus der Mitarbeiter-
-/// Tabelle geprüft (über die Entra-Objekt-ID des Tokens), nie aus Claims
+/// Tabelle geprüft (über Entra-Objekt-ID bzw. Windows-Konto), nie aus Claims
 /// des Frontends — Berechtigungen werden nie nur im Frontend durchgesetzt.
 /// </summary>
 public class AdminAnforderung : IAuthorizationRequirement;
@@ -18,11 +18,12 @@ public class AdminAnforderungHandler(ErpDbContext db, IAktuellerBenutzer benutze
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context, AdminAnforderung anforderung)
     {
-        if (benutzer.EntraObjectId is not Guid oid)
+        if (benutzer.EntraObjectId is null && benutzer.WindowsKonto is null)
             return;
 
         var rollen = await db.Mitarbeiter
-            .Where(m => m.EntraObjectId == oid && m.Aktiv)
+            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
+            .Where(m => m.Aktiv)
             .Select(m => m.Rollen)
             .FirstOrDefaultAsync();
 

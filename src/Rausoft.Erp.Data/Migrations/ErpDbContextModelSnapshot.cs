@@ -779,11 +779,15 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid>("EntraObjectId")
+                    b.Property<Guid?>("EntraObjectId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Rollen")
                         .HasColumnType("int");
+
+                    b.Property<string>("WindowsKonto")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
@@ -793,7 +797,12 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsUnique();
 
                     b.HasIndex("EntraObjectId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[EntraObjectId] IS NOT NULL");
+
+                    b.HasIndex("WindowsKonto")
+                        .IsUnique()
+                        .HasFilter("[WindowsKonto] IS NOT NULL");
 
                     b.ToTable("Mitarbeiter");
                 });
