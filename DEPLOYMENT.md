@@ -4,6 +4,14 @@ Stand 10.09.2026 · Es gibt **zwei Wege** — Weg A ist der beschlossene
 Sofort-Weg (wie beim Urlaubsplaner), Weg B (Entra ID) bleibt als spätere
 Option dokumentiert.
 
+> **Ist-Stand: seit 10.09.2026 produktiv über Weg A.**
+> Ordner `C:\Kundenzentrale`, IIS-Site/App-Pool „Kundenzentrale",
+> Binding Port **8081** ohne Hostname → `http://rs-w2019-01:8081`.
+> Update-Ritual: App-Pool beenden → Inhalt von `publish` (frisch per
+> `dotnet publish src/Rausoft.Erp.Api -c Release -o publish`) drüberkopieren
+> (`appsettings.Production.json` liegen lassen) → App-Pool starten.
+> Noch offen: DNS-Name + Port 80, Intranet-Zone per GPO, Nacharbeiten A5.
+
 ## Weg A · Windows-Authentifizierung über die lokale AD (Sofort-Deployment)
 
 Ein einziger IIS-Site: die API liefert das Blazor-Frontend gleich mit aus
