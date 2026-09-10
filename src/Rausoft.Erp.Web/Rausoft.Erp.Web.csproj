@@ -4,7 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- Kein Asset-Fingerprinting: beim Publish über das API-Projekt (gehostetes
+         Frontend, DEPLOYMENT Weg A) wird der index.html-Platzhalter nicht ersetzt
+         und die App bleibt bei "wird geladen" hängen. Klassische Dateinamen sind
+         für den Intranet-Betrieb die robuste Wahl. -->
+    <StaticWebAssetFingerprintingEnabled>false</StaticWebAssetFingerprintingEnabled>
   </PropertyGroup>
 
   <ItemGroup>
