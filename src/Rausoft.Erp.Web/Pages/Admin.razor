@@ -126,6 +126,81 @@
     </div>
 </details>
 
+@* ---------- Benutzer & Rollen ---------- *@
+<details class="gruppe">
+    <summary>Benutzer &amp; Rollen<span class="zahl">@(_mitarbeiter?.Count ?? 0)</span></summary>
+    <div class="gruppe-inhalt">
+        <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
+            Domänen-Benutzer werden beim ersten Aufruf automatisch angelegt (ohne Rollen).
+            Nur die Rolle <b>Admin</b> schaltet diesen Bereich, die Server-Verwaltung und das Löschen von Verträgen frei.
+        </div>
+        @if (_mitarbeiter is null)
+        {
+            <div style="color:var(--muted)">Lade Benutzer …</div>
+        }
+        @foreach (var person in _mitarbeiter ?? [])
+        {
+            <div class="person @(person.Aktiv ? "" : "inaktiv")" style="cursor:pointer" @onclick="() => MitarbeiterBearbeiten(person)">
+                <div class="name">
+                    @person.Anzeigename
+                    @if (person.IstIch)
+                    {
+                        <span style="color:var(--muted); font-weight:400"> (ich)</span>
+                    }
+                    <span style="float:right; color:var(--muted); font-weight:400; font-size:12.5px">
+                        @(person.Rollen.Count > 0 ? string.Join(" · ", person.Rollen) : "keine Rollen")@(person.Aktiv ? "" : " · deaktiviert")
+                    </span>
+                </div>
+                <div class="details">@person.WindowsKonto @(person.Email.EndsWith("@ad.lokal") ? "" : $"· {person.Email}")</div>
+            </div>
+        }
+        @if (!_mitarbFormOffen)
+        {
+            <button class="mehr" @onclick="NeuerMitarbeiter">+ Benutzer vorab anlegen</button>
+        }
+        @if (_mitarbFormOffen)
+        {
+            <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:10px">
+                <div class="formular">
+                    @if (_mitarbBearb is null)
+                    {
+                        <label>Windows-Konto<input type="text" @bind="_mitarbKonto" placeholder="RS\benutzername" /></label>
+                    }
+                    <label>Anzeigename<input type="text" @bind="_mitarbName" /></label>
+                    @if (_mitarbBearb is not null)
+                    {
+                        <label>E-Mail<input type="text" @bind="_mitarbEmail" /></label>
+                    }
+                </div>
+                @if (_mitarbBearb is not null)
+                {
+                    <div class="chips" style="margin-top:10px">
+                        @foreach (var rolle in AlleRollen)
+                        {
+                            <button class="chip @(_mitarbRollen.Contains(rolle) ? "aktiv" : "")"
+                                    disabled="@(_mitarbBearb.IstIch && rolle == "Admin")"
+                                    @onclick="() => RolleUmschalten(rolle)">@rolle</button>
+                        }
+                        <label style="margin-left:12px; align-self:center; font-size:13px; color:var(--ink2)">
+                            <input type="checkbox" @bind="_mitarbAktiv" disabled="@_mitarbBearb.IstIch" /> aktiv
+                        </label>
+                    </div>
+                }
+                <div class="formular-aktionen">
+                    <button class="knopf" @onclick="MitarbeiterSpeichernAsync">@(_mitarbBearb is null ? "Anlegen" : "Speichern")</button>
+                    <button class="knopf sekundaer" @onclick="MitarbeiterFormSchliessen">Abbrechen</button>
+                    @if (_mitarbBearb is not null && !_mitarbBearb.IstIch)
+                    {
+                        <span style="flex:1"></span>
+                        <button class="knopf sekundaer krittext" @onclick="MitarbeiterLoeschenAsync"
+                                title="Nur möglich, solange der Benutzer keine Verlaufs-/Audit-Einträge hat">Löschen</button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</details>
+
 @* ---------- Verzeichnisse ---------- *@
 <details class="gruppe">
     <summary>Verzeichnisse<span class="zahl">@VerzeichnisEinstellungen().Count()</span></summary>
@@ -167,6 +242,16 @@
     private string _tokenEingabe = "";
     private DateTime? _tokenGesetztAm;
 
+    private static readonly string[] AlleRollen = ["Admin", "Vertrieb", "Support", "Buchhaltung"];
+    private List<MitarbeiterEintrag>? _mitarbeiter;
+    private MitarbeiterEintrag? _mitarbBearb;
+    private bool _mitarbFormOffen;
+    private string _mitarbKonto = "";
+    private string _mitarbName = "";
+    private string _mitarbEmail = "";
+    private bool _mitarbAktiv = true;
+    private HashSet<string> _mitarbRollen = [];
+
     // Gruppierung: ServicePortal-Einstellungen wohnen bei den Servern, Pfade unter Verzeichnisse
     private IEnumerable<EinstellungEintrag> PortalEinstellungen() =>
         (_einstellungen ?? []).Where(e => e.Schluessel.StartsWith("ServicePortal.")
@@ -200,6 +285,7 @@
             foreach (var einstellung in _einstellungen ?? [])
                 _werte[einstellung.Schluessel] = einstellung.Wert;
             await ServerLadenAsync();
+            _mitarbeiter = await Http.GetFromJsonAsync<List<MitarbeiterEintrag>>("api/mitarbeiter") ?? [];
             var geheimnisse = await Http.GetFromJsonAsync<List<GeheimnisStatus>>("api/server/geheimnisse") ?? [];
             _tokenGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "ServicePortal.PushToken")?.GesetztAm;
         }
@@ -366,6 +452,76 @@
         {
             _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
         }
+    }
+
+    // ---------- Benutzer & Rollen ----------
+
+    private void MitarbeiterBearbeiten(MitarbeiterEintrag person)
+    {
+        _mitarbBearb = person;
+        _mitarbFormOffen = true;
+        _mitarbName = person.Anzeigename;
+        _mitarbEmail = person.Email;
+        _mitarbAktiv = person.Aktiv;
+        _mitarbRollen = person.Rollen.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void NeuerMitarbeiter()
+    {
+        _mitarbBearb = null;
+        _mitarbFormOffen = true;
+        _mitarbKonto = "";
+        _mitarbName = "";
+    }
+
+    private void MitarbeiterFormSchliessen()
+    {
+        _mitarbFormOffen = false;
+        _mitarbBearb = null;
+    }
+
+    private void RolleUmschalten(string rolle)
+    {
+        if (!_mitarbRollen.Remove(rolle))
+            _mitarbRollen.Add(rolle);
+    }
+
+    private async Task MitarbeiterSpeichernAsync()
+    {
+        _fehler = null;
+        try
+        {
+            var antwort = _mitarbBearb is null
+                ? await Http.PostAsJsonAsync("api/mitarbeiter", new MitarbeiterAnlegen(_mitarbKonto, _mitarbName))
+                : await Http.PutAsJsonAsync($"api/mitarbeiter/{_mitarbBearb.Id}",
+                    new MitarbeiterAendern(_mitarbName, _mitarbEmail, _mitarbRollen.ToList(), _mitarbAktiv));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            MitarbeiterFormSchliessen();
+            _mitarbeiter = await Http.GetFromJsonAsync<List<MitarbeiterEintrag>>("api/mitarbeiter") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Benutzer konnte nicht gespeichert werden: {ex.Message}";
+        }
+    }
+
+    private async Task MitarbeiterLoeschenAsync()
+    {
+        if (_mitarbBearb is null)
+            return;
+        _fehler = null;
+        var antwort = await Http.DeleteAsync($"api/mitarbeiter/{_mitarbBearb.Id}");
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        MitarbeiterFormSchliessen();
+        _mitarbeiter = await Http.GetFromJsonAsync<List<MitarbeiterEintrag>>("api/mitarbeiter") ?? [];
     }
 
     private class ServerFormular

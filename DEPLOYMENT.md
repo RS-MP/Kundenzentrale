@@ -12,6 +12,15 @@ Option dokumentiert.
 > (`appsettings.Production.json` liegen lassen) → App-Pool starten.
 > Noch offen: DNS-Name + Port 80, Intranet-Zone per GPO, Nacharbeiten A5.
 
+## Nachzuziehende Schritte (Testbetrieb → Server)
+
+Laufende Liste aller Änderungen seit dem Go-Live vom 10.09.2026 — beim
+nächsten Server-Update Publish kopieren und die Punkte abhaken:
+
+- [ ] **Publish aktualisieren** (enthält: Benutzerverwaltung „Benutzer &
+  Rollen" im Admin-Bereich, 10.09.2026). Migrationen laufen automatisch,
+  manuelle Server-Schritte: keine.
+
 ## Weg A · Windows-Authentifizierung über die lokale AD (Sofort-Deployment)
 
 Ein einziger IIS-Site: die API liefert das Blazor-Frontend gleich mit aus
