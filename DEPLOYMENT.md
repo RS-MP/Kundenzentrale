@@ -20,6 +20,12 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
 - [ ] **Publish aktualisieren** (enthält: Benutzerverwaltung „Benutzer &
   Rollen" im Admin-Bereich, 10.09.2026). Migrationen laufen automatisch,
   manuelle Server-Schritte: keine.
+- [ ] **GPO: Intranetzone** (einmalig, AD-seitig) — damit KEIN Benutzer je
+  einen Anmeldedialog sieht: Benutzerkonfiguration → Administrative Vorlagen
+  → Windows-Komponenten → Internet Explorer → Internetsystemsteuerung →
+  Sicherheitsseite → „Liste der Site zu Zonenzuweisungen": `http://rs-w2019-01`
+  = `1` (Lokales Intranet); später auch den finalen DNS-Namen eintragen.
+  Gilt für Edge + Chrome; Firefox bräuchte `network.automatic-ntlm-auth.trusted-uris`.
 
 ## Weg A · Windows-Authentifizierung über die lokale AD (Sofort-Deployment)
 
