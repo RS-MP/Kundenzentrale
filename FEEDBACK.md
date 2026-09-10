@@ -245,8 +245,7 @@ Ergänzungsvorschläge (Claude, zur Diskussion beim Abarbeiten):
 5. **Nutzungsfreigabe je Rolle und Vorlage** (Vertrieb darf NDA + Wartungs-
    vertrag, Support nur X …); Erzeugen-Knopf in der Akte zeigt nur, was die
    eigene Rolle darf.
-6. Optional **Vier-Augen-Prinzip**: Produktivschalten erfordert Zweitfreigabe
-   durch eine zweite Compliance-Person.
+6. ~~Vier-Augen-Prinzip~~ — entschieden 10.09.2026 (MP): brauchen wir nicht.
 7. **Bestandsübernahme:** heutige Root-Dateien im Vorlagen-Verzeichnis werden
    als jeweils Version 1 (produktiv) übernommen.
 8. Rolle Compliance als neues Flag in MitarbeiterRolle (Benutzerverwaltung

@@ -152,6 +152,34 @@ Es braucht **zwei** Registrierungen:
 
 </details>
 
+## Produktiv-Reset zum Zeitpunkt X (beschlossen 10.09.2026)
+
+Das Live-System läuft zunächst als **offener Testbetrieb für alle** —
+zum Zeitpunkt X wird einmal sauber resettet und dann produktiv gearbeitet.
+Doppelarbeit ist einkalkuliert. Ablauf (macht Claude zusammen mit MP):
+
+1. **Vorher sichern:** DB-Vollbackup + Export der übernehmenswerten manuellen
+   Pflege per Skript (Schlüssel = Kundennummer/Vertragsnummer): Merkmale,
+   Archiv-Status, Server-Zuordnung + Mandanten-Kennung, Individualentwicklung,
+   manuell korrigierte Vertragsstatus (Kündigungs-Klärungen), Mitarbeiter-Rollen.
+2. App-Pool stoppen, Datenbank neu anlegen (DROP/CREATE) — der nächste
+   App-Start erzeugt Schema + Seeds (Nummernkreise, Einstellungen,
+   Merkmal-Stammliste) automatisch.
+3. **Importe neu laufen lassen:** Odoo-Kontakte (`import`), Abos (`abos`),
+   Vertragsbestand (`vertragsscan`) — inklusive Kündigungsautomatik.
+4. Gesicherte manuelle Pflege zurückspielen (Skript aus Schritt 1).
+5. Nacharbeiten: Portal-Token neu setzen (Geheimnisse überleben den Reset
+   nicht), echte Server anlegen (keine Test-Server mehr), Einstellungen prüfen.
+6. Testdateien aufräumen, die die Vertragserzeugung während der Testphase
+   erzeugt hat (siehe Empfehlung unten).
+
+**Empfehlung für die Testphase (am besten sofort):** In der Administration
+das `Vertragserzeugung.Zielverzeichnis` auf einen Testordner umstellen
+(z. B. `\\RS-W2019-01\Kunden Archiv\0_Test_Erzeugt`), damit Test-Verträge
+nicht zwischen den echten Dateien in `2_Wartungsverträge` landen — der
+Ordner wird beim Reset einfach komplett gelöscht und die Einstellung
+zurückgestellt.
+
 ## Datenbank-Betrieb
 
 - **Backups einrichten** (SSMS → Verwaltung → Wartungspläne, oder Agent-Jobs):
