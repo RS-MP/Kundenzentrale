@@ -20,7 +20,17 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
 - [ ] **Publish aktualisieren** (enthält: Benutzerverwaltung „Benutzer &
   Rollen" im Admin-Bereich, 10.09.2026). Migrationen laufen automatisch,
   manuelle Server-Schritte: keine.
-- [ ] **GPO: Intranetzone** (einmalig, AD-seitig) — damit KEIN Benutzer je
+- [ ] **Umzug auf /Kundenzentrale** (optional, 11.09.2026): Die App kann jetzt
+  wie der Urlaubsplaner als IIS-**Unteranwendung** laufen (`http://rs-w2019-01/Kundenzentrale`).
+  Dazu: neues Publish kopieren → im IIS unter der Default-Website
+  „Anwendung hinzufügen" (Alias `Kundenzentrale`, physischer Pfad
+  `C:\Kundenzentrale`, App-Pool „Kundenzentrale" auswählen) → auf der
+  Anwendung Windows-Auth aktivieren/Anonym deaktivieren → alte Site auf
+  Port 8081 löschen (und Firewall-Regel 8081 entfernen). Voraussetzung:
+  Auf der Default-Website läuft der Urlaubsplaner-Pool weiter — die
+  Unteranwendung nutzt ihren eigenen Pool, das stört sich nicht.
+- [x] ~~GPO: Intranetzone~~ — erledigt 11.09.2026 (eigene GPO
+  „Kundenzentrale Intranetzone", Benutzerkonfiguration, `http://rs-w2019-01` = 1). (einmalig, AD-seitig) — damit KEIN Benutzer je
   einen Anmeldedialog sieht: Benutzerkonfiguration → Administrative Vorlagen
   → Windows-Komponenten → Internet Explorer → Internetsystemsteuerung →
   Sicherheitsseite → „Liste der Site zu Zonenzuweisungen": `http://rs-w2019-01`
