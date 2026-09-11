@@ -127,6 +127,16 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Unterpfad-Betrieb ohne IIS (nur für Kestrel-Tests): unter IIS als
+// Unteranwendung setzt IIS den PathBase pro Request selbst — dort NICHT setzen.
+// UseRouting danach ist Pflicht, sonst matcht das automatisch vorgezogene
+// Routing die Routen VOR dem Abschneiden des Basispfads.
+if (builder.Configuration["Hosting:PfadBasis"] is { Length: > 0 } pfadBasis)
+{
+    app.UsePathBase(pfadBasis);
+    app.UseRouting();
+}
+
 app.UseHttpsRedirection();
 
 // Die API liefert auch das Blazor-Frontend aus (ein IIS-Site, kein CORS nötig);
@@ -171,7 +181,25 @@ if (windowsAuth)
 }
 
 app.MapControllers();
-app.MapFallbackToFile("index.html");
+
+// Fallback fürs Blazor-Frontend: index.html mit passender <base href> ausliefern.
+// So läuft die App an der Site-Wurzel UND als IIS-Unteranwendung (z. B.
+// /Kundenzentrale wie beim Urlaubsplaner) — der Basispfad kommt pro Request
+// aus PathBase, an den Dateien muss nichts angepasst werden.
+app.MapFallback(async context =>
+{
+    var datei = Path.Combine(app.Environment.WebRootPath ?? "", "index.html");
+    if (!File.Exists(datei))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+    var basis = context.Request.PathBase.HasValue ? context.Request.PathBase.Value + "/" : "/";
+    var html = (await File.ReadAllTextAsync(datei, context.RequestAborted))
+        .Replace("<base href=\"/\" />", $"<base href=\"{basis}\" />");
+    context.Response.ContentType = "text/html; charset=utf-8";
+    await context.Response.WriteAsync(html, context.RequestAborted);
+});
 
 app.Run();
 
