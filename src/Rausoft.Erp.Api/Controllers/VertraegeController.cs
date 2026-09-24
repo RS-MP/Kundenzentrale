@@ -503,6 +503,8 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             ["{{Datum}}"] = DateTime.Today.ToString("dd.MM.yyyy"),
             // Muster-Texte der bestehenden Lizenzbedingungen-Vorlage
             ["Muster Straße 70"] = hauptsitz?.Strasse ?? "",
+            // inkl. Muster-PLZ — sonst bliebe "57319" im erzeugten Vertrag stehen
+            ["57319 Bad Musterburg"] = hauptsitz is null ? "" : $"{hauptsitz.Plz} {hauptsitz.Ort}".Trim(),
             ["Bad Musterburg"] = hauptsitz?.Ort ?? "",
             ["Muster GmbH"] = kunde.Firmenname,
             ["S0xxxx"] = aboNummer ?? "S0____",
