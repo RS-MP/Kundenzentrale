@@ -9,24 +9,21 @@ if (args.Contains("vertragsscan"))
     return 0;
 }
 
-// Verbindungsdaten ausschließlich aus Umgebungsvariablen (keine Secrets in Dateien):
-//   ODOO_URL      z. B. https://rausoft.odoo.com oder http://odoo.intern:8069
-//   ODOO_DB       Name der Odoo-Datenbank
-//   ODOO_BENUTZER Login (E-Mail) des API-Benutzers — idealerweise ein eigener,
-//                 nur lesend berechtigter Benutzer
-//   ODOO_API_KEY  der in Odoo erzeugte API-Key (wirkt als Passwort)
-var url = Umgebungsvariable("ODOO_URL");
-var db = Umgebungsvariable("ODOO_DB");
-var benutzer = Umgebungsvariable("ODOO_BENUTZER");
-var apiKey = Umgebungsvariable("ODOO_API_KEY");
-
-if (url is null || db is null || benutzer is null || apiKey is null)
+// Zugangsdaten: bevorzugt aus der Kundenzentrale (Administration →
+// Odoo-Anbindung; API-Key verschlüsselt), ersatzweise aus Umgebungsvariablen —
+// nie aus Dateien. Modus "zugangstest" prüft nur die Auflösung.
+var zugang = await OdooZugang.ErmittelnAsync(ausgabe: args.Contains("zugangstest"));
+if (args.Contains("zugangstest"))
+    return zugang is null ? 1 : 0;
+if (zugang is null)
 {
-    Console.Error.WriteLine("Fehlende Umgebungsvariablen. Benötigt: ODOO_URL, ODOO_DB, ODOO_BENUTZER, ODOO_API_KEY.");
+    Console.Error.WriteLine("Odoo-Zugangsdaten unvollständig. In der Kundenzentrale unter " +
+        "Administration → Odoo-Anbindung pflegen (oder Umgebungsvariablen ODOO_URL, " +
+        "ODOO_DB, ODOO_BENUTZER, ODOO_API_KEY setzen). Diagnose: Modus 'zugangstest'.");
     return 1;
 }
-
-var odoo = new OdooClient(url, db, benutzer, apiKey);
+var benutzer = zugang.Benutzer;
+var odoo = new OdooClient(zugang.Url, zugang.Db, benutzer, zugang.ApiKey);
 
 // Modus "import": Kontakte übernehmen (mit --dry-run nur Vorschau).
 // Modus "abos": Abonnements + Lizenzen übernehmen, Laufzeiten anreichern.
@@ -218,9 +215,3 @@ foreach (var k in kundenNummern.EnumerateArray())
 Console.WriteLine();
 Console.WriteLine("Verbindungstest erfolgreich. Nächster Schritt: Feld-Zuordnung festlegen, dann Import.");
 return 0;
-
-static string? Umgebungsvariable(string name)
-{
-    var wert = Environment.GetEnvironmentVariable(name);
-    return string.IsNullOrWhiteSpace(wert) ? null : wert.Trim();
-}

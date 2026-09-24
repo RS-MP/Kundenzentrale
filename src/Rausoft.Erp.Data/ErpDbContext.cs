@@ -150,6 +150,29 @@ public class ErpDbContext(
                     Wert = "0",
                     Beschreibung = "Automatische Server-Status-Meldung ans Portal alle n Minuten " +
                                    "(0 = aus; empfohlen 60 oder 120, sobald die Anwendung auf dem Server läuft).",
+                },
+                new
+                {
+                    Id = 7,
+                    Schluessel = EinstellungsSchluessel.OdooUrl,
+                    Wert = "",
+                    Beschreibung = "Basis-URL der Odoo-Instanz für den Import, z. B. https://rausoft.odoo.com.",
+                },
+                new
+                {
+                    Id = 8,
+                    Schluessel = EinstellungsSchluessel.OdooDatenbank,
+                    Wert = "",
+                    Beschreibung = "Name der Odoo-Datenbank.",
+                },
+                new
+                {
+                    Id = 9,
+                    Schluessel = EinstellungsSchluessel.OdooBenutzer,
+                    Wert = "",
+                    Beschreibung = "Login (E-Mail) des Odoo-API-Benutzers — idealerweise ein eigener, " +
+                                   "nur lesend berechtigter Benutzer. Der API-Key wird als Geheimnis " +
+                                   "verschlüsselt gespeichert (nie im Klartext).",
                 });
         });
 

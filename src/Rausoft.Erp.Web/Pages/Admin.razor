@@ -201,6 +201,51 @@
     </div>
 </details>
 
+@* ---------- Odoo-Anbindung ---------- *@
+<details class="gruppe">
+    <summary>Odoo-Anbindung<span class="zahl">Import</span></summary>
+    <div class="gruppe-inhalt">
+        <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
+            Zugangsdaten für den Odoo-Import (nächtliche Aufgabe auf dem Server).
+            Der API-Key wird verschlüsselt gespeichert und nie wieder angezeigt.
+        </div>
+        @foreach (var einstellung in OdooEinstellungen())
+        {
+            <div class="zeile2">
+                <span class="l" title="@einstellung.Beschreibung">@KurzName(einstellung.Schluessel)</span>
+                <span style="display:flex; gap:6px; flex:1; max-width:420px; justify-content:end">
+                    <input type="text" style="flex:1; text-align:right" @bind="_werte[einstellung.Schluessel]" />
+                    <button class="knopf sekundaer" @onclick="() => SpeichernAsync(einstellung.Schluessel)">
+                        @(_gespeichert == einstellung.Schluessel ? "✓" : "Speichern")
+                    </button>
+                </span>
+            </div>
+        }
+        <div class="zeile2">
+            <span class="l">API-Key</span>
+            <span style="display:flex; gap:6px; align-items:center">
+                @if (_odooKeyGesetztAm is not null)
+                {
+                    <span class="status gut" style="font-size:13px">gesetzt @_odooKeyGesetztAm.Value.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                }
+                else
+                {
+                    <span class="status kritisch" style="font-size:13px">nicht gesetzt</span>
+                }
+                <button class="mehr" style="padding:0" @onclick="() => _odooKeyOffen = !_odooKeyOffen">ändern</button>
+            </span>
+        </div>
+        @if (_odooKeyOffen)
+        {
+            <div style="display:flex; gap:8px; margin-top:4px">
+                <input type="password" style="flex:1" @bind="_odooKeyEingabe"
+                       placeholder="API-Key aus Odoo (Mein Profil → Kontosicherheit → API-Schlüssel) — wird verschlüsselt gespeichert" />
+                <button class="knopf sekundaer" @onclick="OdooKeySpeichernAsync">Speichern</button>
+            </div>
+        }
+    </div>
+</details>
+
 @* ---------- Verzeichnisse ---------- *@
 <details class="gruppe">
     <summary>Verzeichnisse<span class="zahl">@VerzeichnisEinstellungen().Count()</span></summary>
@@ -241,6 +286,9 @@
     private bool _tokenOffen;
     private string _tokenEingabe = "";
     private DateTime? _tokenGesetztAm;
+    private bool _odooKeyOffen;
+    private string _odooKeyEingabe = "";
+    private DateTime? _odooKeyGesetztAm;
 
     private static readonly string[] AlleRollen = ["Admin", "Vertrieb", "Support", "Buchhaltung"];
     private List<MitarbeiterEintrag>? _mitarbeiter;
@@ -257,8 +305,12 @@
         (_einstellungen ?? []).Where(e => e.Schluessel.StartsWith("ServicePortal.")
             && e.Schluessel != "ServicePortal.LetzterPush");
 
+    private IEnumerable<EinstellungEintrag> OdooEinstellungen() =>
+        (_einstellungen ?? []).Where(e => e.Schluessel.StartsWith("Odoo."));
+
     private IEnumerable<EinstellungEintrag> VerzeichnisEinstellungen() =>
-        (_einstellungen ?? []).Where(e => !e.Schluessel.StartsWith("ServicePortal."));
+        (_einstellungen ?? []).Where(e => !e.Schluessel.StartsWith("ServicePortal.")
+            && !e.Schluessel.StartsWith("Odoo."));
 
     private string LetzterPushText()
     {
@@ -270,6 +322,9 @@
     {
         "ServicePortal.Url" => "Portal-URL",
         "ServicePortal.IntervallMinuten" => "Automatik-Intervall (Minuten, 0 = aus)",
+        "Odoo.Url" => "Odoo-URL",
+        "Odoo.Datenbank" => "Datenbank",
+        "Odoo.Benutzer" => "API-Benutzer (Login)",
         "Vertragsablage.Verzeichnis" => "Vertragsablage",
         "Dokumentablage.Verzeichnis" => "Dokumentablage",
         "Vorlagen.Verzeichnis" => "Word-Vorlagen",
@@ -288,6 +343,7 @@
             _mitarbeiter = await Http.GetFromJsonAsync<List<MitarbeiterEintrag>>("api/mitarbeiter") ?? [];
             var geheimnisse = await Http.GetFromJsonAsync<List<GeheimnisStatus>>("api/server/geheimnisse") ?? [];
             _tokenGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "ServicePortal.PushToken")?.GesetztAm;
+            _odooKeyGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "Odoo.ApiKey")?.GesetztAm;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
@@ -434,6 +490,23 @@
         _tokenEingabe = "";
         _tokenOffen = false;
         _tokenGesetztAm = DateTime.UtcNow;
+    }
+
+    private async Task OdooKeySpeichernAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_odooKeyEingabe))
+            return;
+        _fehler = null;
+        var antwort = await Http.PutAsJsonAsync("api/server/geheimnisse/Odoo.ApiKey",
+            new GeheimnisSetzen(_odooKeyEingabe.Trim()));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        _odooKeyEingabe = "";
+        _odooKeyOffen = false;
+        _odooKeyGesetztAm = DateTime.UtcNow;
     }
 
     private async Task SpeichernAsync(string schluessel)

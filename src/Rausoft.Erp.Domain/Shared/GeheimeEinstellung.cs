@@ -22,4 +22,22 @@ public class GeheimeEinstellung
 public static class GeheimnisSchluessel
 {
     public const string ServicePortalPushToken = "ServicePortal.PushToken";
+    public const string OdooApiKey = "Odoo.ApiKey";
+}
+
+/// <summary>
+/// Gemeinsame Data-Protection-Ablage von Web-App und Odoo-Import-Aufgabe:
+/// Der Schlüsselbund liegt maschinenweit unter ProgramData (DPAPI-geschützt,
+/// Machine-Scope), damit beide Prozesse — auch unter verschiedenen Konten —
+/// dieselben Geheimnisse entschlüsseln können. Zugriff auf den Ordner per
+/// NTFS-ACL einschränken (siehe DEPLOYMENT.md).
+/// </summary>
+public static class GeheimnisAblage
+{
+    public const string Anwendungsname = "Kundenzentrale";
+    public const string Zweck = "Kundenzentrale.GeheimeEinstellungen";
+
+    public static string SchluesselOrdner => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        "Rausoft", "Kundenzentrale", "Schluessel");
 }

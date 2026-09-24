@@ -14,7 +14,7 @@ namespace Rausoft.Erp.Api.Dienste;
 /// </summary>
 public class GeheimnisDienst(ErpDbContext db, IDataProtectionProvider schutz)
 {
-    private IDataProtector Protector => schutz.CreateProtector("Kundenzentrale.GeheimeEinstellungen");
+    private IDataProtector Protector => schutz.CreateProtector(GeheimnisAblage.Zweck);
 
     public async Task SetzenAsync(string schluessel, string wert, CancellationToken ct = default)
     {

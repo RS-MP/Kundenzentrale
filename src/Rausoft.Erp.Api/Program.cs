@@ -66,10 +66,18 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAktuellerBenutzer, AktuellerBenutzer>();
 builder.Services.AddScoped<NummernkreisDienst>();
 
-// Geheimnisse verschlüsselt at rest (Sicherheitsregel): Data-Protection-Schlüssel
-// liegen DPAPI-geschützt auf der Maschine; fester Anwendungsname, damit ein
-// Deployment-Update die Geheimnisse nicht invalidiert.
-builder.Services.AddDataProtection().SetApplicationName("Kundenzentrale");
+// Geheimnisse verschlüsselt at rest (Sicherheitsregel): Der Schlüsselbund liegt
+// maschinenweit unter ProgramData und ist DPAPI-geschützt (Machine-Scope), damit
+// Web-App UND Odoo-Import-Aufgabe (anderes Konto) dieselben Geheimnisse lesen.
+// Zugriff auf den Ordner per NTFS-ACL einschränken (DEPLOYMENT.md).
+var schluesselOrdner = new DirectoryInfo(GeheimnisAblage.SchluesselOrdner);
+schluesselOrdner.Create();
+#pragma warning disable CA1416 // DPAPI ist Windows-only — Betrieb ausschließlich auf Windows Server
+builder.Services.AddDataProtection()
+    .SetApplicationName(GeheimnisAblage.Anwendungsname)
+    .PersistKeysToFileSystem(schluesselOrdner)
+    .ProtectKeysWithDpapi(protectToLocalMachine: true);
+#pragma warning restore CA1416
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<GeheimnisDienst>();
 builder.Services.AddScoped<ServerStatusDienst>();

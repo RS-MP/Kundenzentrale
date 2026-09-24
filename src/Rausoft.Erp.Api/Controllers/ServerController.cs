@@ -149,7 +149,7 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
     [HttpPut("geheimnisse/{schluessel}")]
     public async Task<IActionResult> GeheimnisSetzen(string schluessel, Dtos.GeheimnisSetzen setzen, CancellationToken ct)
     {
-        if (schluessel != GeheimnisSchluessel.ServicePortalPushToken)
+        if (schluessel is not (GeheimnisSchluessel.ServicePortalPushToken or GeheimnisSchluessel.OdooApiKey))
             return BadRequest("Unbekannter Geheimnis-Schlüssel.");
         if (string.IsNullOrWhiteSpace(setzen.Wert))
             return BadRequest("Der Wert darf nicht leer sein.");

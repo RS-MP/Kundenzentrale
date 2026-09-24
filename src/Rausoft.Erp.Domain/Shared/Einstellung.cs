@@ -29,4 +29,7 @@ public static class EinstellungsSchluessel
     public const string ServicePortalUrl = "ServicePortal.Url";
     public const string ServicePortalIntervallMinuten = "ServicePortal.IntervallMinuten";
     public const string ServicePortalLetzterPush = "ServicePortal.LetzterPush";
+    public const string OdooUrl = "Odoo.Url";
+    public const string OdooDatenbank = "Odoo.Datenbank";
+    public const string OdooBenutzer = "Odoo.Benutzer";
 }

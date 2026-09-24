@@ -31,7 +31,9 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
   der „Pfad"-Knopf (kopieren + in Explorer-Adresszeile einfügen).
 - [ ] **Odoo-Import als geplante Aufgabe einrichten** (24.09.2026) — Anleitung
   im Abschnitt „Odoo-Import als geplante Aufgabe", Paket liegt in
-  `publish-import`.
+  `publish-import`. Zugangsdaten werden in der App gepflegt (Administration →
+  Odoo-Anbindung), NICHT mehr als Umgebungsvariablen. Nach dem App-Update den
+  Portal-Push-Token neu eintragen (Schlüsselbund-Umzug nach ProgramData).
 - [ ] **Umzug auf /Kundenzentrale** (optional, 11.09.2026): Die App kann jetzt
   wie der Urlaubsplaner als IIS-**Unteranwendung** laufen (`http://rs-w2019-01/Kundenzentrale`).
   Dazu: neues Publish kopieren → im IIS unter der Default-Website
@@ -178,22 +180,32 @@ Es braucht **zwei** Registrierungen:
 
 Der Import (Kontakte, Abos, Kündigungsautomatik, Archiv-Rückholung,
 Merkmal-Prüfhinweise) läuft nächtlich auf RS-W2019-01 statt manuell vom
-Entwicklungsrechner. Der Odoo-API-Key wird dabei **nie in Dateien oder der DB
-gespeichert** — nur als Umgebungsvariable auf dem Server.
+Entwicklungsrechner. **Die Odoo-Zugangsdaten werden in der Kundenzentrale
+gepflegt** (Administration → Odoo-Anbindung); der API-Key liegt verschlüsselt
+in der DB — keine Ini-Dateien, keine Secrets in Umgebungsvariablen. Web-App
+und Import teilen sich dafür den Data-Protection-Schlüsselbund unter
+`C:\ProgramData\Rausoft\Kundenzentrale\Schluessel` (DPAPI, maschinengebunden).
 
-1. **Paket kopieren:** `dotnet publish src/Rausoft.Erp.OdooImport -c Release -o publish-import`
+1. **Zugangsdaten eintragen:** Kundenzentrale → Administration →
+   **Odoo-Anbindung**: Odoo-URL, Datenbank, API-Benutzer speichern und den
+   API-Key setzen (wird verschlüsselt, nie wieder angezeigt).
+2. **Paket kopieren:** `dotnet publish src/Rausoft.Erp.OdooImport -c Release -o publish-import`
    (macht Claude) → Inhalt nach `C:\Kundenzentrale-Import` auf dem Server.
-2. **Umgebungsvariablen** auf dem Server setzen (PowerShell als Admin;
-   maschinenweit — lesbar nur für lokal angemeldete Konten, am Server also Admins):
+3. **Eine Umgebungsvariable** (kein Secret — nur der DB-Verweis mit Windows-Auth):
    ```powershell
-   [Environment]::SetEnvironmentVariable("ODOO_URL", "https://<eure-odoo-url>", "Machine")
-   [Environment]::SetEnvironmentVariable("ODOO_DB", "<odoo-datenbankname>", "Machine")
-   [Environment]::SetEnvironmentVariable("ODOO_BENUTZER", "<api-benutzer@rausoft.de>", "Machine")
-   [Environment]::SetEnvironmentVariable("ODOO_API_KEY", "<der-key>", "Machine")
    [Environment]::SetEnvironmentVariable("KUNDENZENTRALE_DB", "Server=RS-W2019-01;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True", "Machine")
    ```
-   (Werte stehen auf dem Entwicklungsrechner in denselben Variablen.)
-3. **Aufgabenplanung** → „Aufgabe erstellen":
+4. **Schlüsselbund-Ordner absichern** (einmalig; die Web-App legt ihn beim
+   ersten Start nach dem Update an):
+   ```powershell
+   icacls "C:\ProgramData\Rausoft\Kundenzentrale" /inheritance:r /grant "Administratoren:(OI)(CI)F" "IIS APPPOOL\Kundenzentrale:(OI)(CI)M" "<Aufgaben-Konto>:(OI)(CI)RX"
+   ```
+   (`<Aufgaben-Konto>` = das Konto der geplanten Aufgabe; bei deutschsprachigem
+   Server ggf. „VORDEFINIERT\Administratoren".)
+5. **Test:** `C:\Kundenzentrale-Import\Rausoft.Erp.OdooImport.exe zugangstest`
+   unter dem Aufgaben-Konto — zeigt, ob URL/DB/Benutzer/Key auflösbar sind
+   (der Key selbst wird nie ausgegeben).
+6. **Aufgabenplanung** → „Aufgabe erstellen":
    - Name `Kundenzentrale Odoo-Import`; Konto mit SQL-Rechten auf die DB
      (db_datareader + db_datawriter, z. B. dasselbe Dienstkonto wie der
      App-Pool); „Unabhängig von der Benutzeranmeldung ausführen".
@@ -201,10 +213,14 @@ gespeichert** — nur als Umgebungsvariable auf dem Server.
    - Aktion 1: Programm `cmd.exe`, Argumente
      `/c ""C:\Kundenzentrale-Import\Rausoft.Erp.OdooImport.exe" import >> "C:\Kundenzentrale-Import\import.log" 2>&1"`
    - Aktion 2: wie Aktion 1, nur mit `abos` statt `import`.
-4. Einmal per „Ausführen" testen und `import.log` prüfen.
-5. `vertragsscan` (neue Dateien im Kunden Archiv) bleibt bewusst manuell bzw.
+7. Einmal per „Ausführen" testen und `import.log` prüfen.
+8. `vertragsscan` (neue Dateien im Kunden Archiv) bleibt bewusst manuell bzw.
    kann als eigene wöchentliche Aufgabe ergänzt werden — das Konto braucht
    dafür Lesezugriff auf die Freigabe.
+
+**Wichtig nach diesem Update:** Der Schlüsselbund zieht in den
+ProgramData-Ordner um — zuvor gesetzte Geheimnisse (Portal-Push-Token) sind
+danach ungültig und müssen einmal neu eingetragen werden.
 
 ## Produktiv-Reset zum Zeitpunkt X (beschlossen 10.09.2026)
 

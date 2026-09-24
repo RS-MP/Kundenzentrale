@@ -4,6 +4,12 @@
     <ProjectReference Include="..\Rausoft.Erp.Data\Rausoft.Erp.Data.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Entschlüsselt den in der Kundenzentrale gepflegten Odoo-API-Key
+         (gemeinsamer Data-Protection-Schlüsselbund mit der Web-App) -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="10.0.11" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
