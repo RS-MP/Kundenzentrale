@@ -23,6 +23,8 @@
     <ProjectReference Include="..\Rausoft.Erp.Dtos\Rausoft.Erp.Dtos.csproj" />
     <!-- Die API liefert das Blazor-Frontend im Produktionsbetrieb selbst aus (ein IIS-Site) -->
     <ProjectReference Include="..\Rausoft.Erp.Web\Rausoft.Erp.Web.csproj" />
+    <!-- Manueller Odoo-Import aus der Administration (nutzt dieselben Importer wie das Konsolen-Tool) -->
+    <ProjectReference Include="..\Rausoft.Erp.OdooImport\Rausoft.Erp.OdooImport.csproj" />
   </ItemGroup>
 
 </Project>

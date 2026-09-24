@@ -32,4 +32,5 @@ public static class EinstellungsSchluessel
     public const string OdooUrl = "Odoo.Url";
     public const string OdooDatenbank = "Odoo.Datenbank";
     public const string OdooBenutzer = "Odoo.Benutzer";
+    public const string OdooLetzterImport = "Odoo.LetzterImport";
 }

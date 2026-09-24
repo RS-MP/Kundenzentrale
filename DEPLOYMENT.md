@@ -29,11 +29,14 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
   in Datei-Explorer geöffnet werden") aktivieren — braucht die Edge-ADMX-
   Vorlagen im Central Store. Ohne die Richtlinie funktioniert ersatzweise
   der „Pfad"-Knopf (kopieren + in Explorer-Adresszeile einfügen).
-- [ ] **Odoo-Import als geplante Aufgabe einrichten** (24.09.2026) — Anleitung
-  im Abschnitt „Odoo-Import als geplante Aufgabe", Paket liegt in
-  `publish-import`. Zugangsdaten werden in der App gepflegt (Administration →
-  Odoo-Anbindung), NICHT mehr als Umgebungsvariablen. Nach dem App-Update den
-  Portal-Push-Token neu eintragen (Schlüsselbund-Umzug nach ProgramData).
+- [ ] **Odoo-Zugangsdaten eintragen + Import manuell starten** (24.09.2026):
+  Administration → Odoo-Anbindung — URL/Datenbank/Benutzer speichern, API-Key
+  setzen, dann „Import jetzt ausführen" (Kontakte + Abos, Status wird
+  angezeigt). Nach dem App-Update außerdem den Portal-Push-Token neu eintragen
+  (Schlüsselbund-Umzug nach ProgramData).
+- [ ] *(optional, später)* **Odoo-Import als geplante Aufgabe** — erst nötig,
+  wenn der Import automatisch nachts laufen soll; Anleitung im Abschnitt
+  „Odoo-Import als geplante Aufgabe", Paket liegt in `publish-import`.
 - [ ] **Umzug auf /Kundenzentrale** (optional, 11.09.2026): Die App kann jetzt
   wie der Urlaubsplaner als IIS-**Unteranwendung** laufen (`http://rs-w2019-01/Kundenzentrale`).
   Dazu: neues Publish kopieren → im IIS unter der Default-Website

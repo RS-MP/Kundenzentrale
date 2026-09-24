@@ -81,6 +81,7 @@ builder.Services.AddDataProtection()
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<GeheimnisDienst>();
 builder.Services.AddScoped<ServerStatusDienst>();
+builder.Services.AddSingleton<OdooImportDienst>();
 builder.Services.AddHostedService<ServerStatusHintergrund>();
 
 builder.Services.AddControllers().AddJsonOptions(options =>

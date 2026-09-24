@@ -22,7 +22,7 @@ namespace Rausoft.Erp.OdooImport;
 /// - Rechnungs-E-Mail (x_studio_e_mail_rechnungen): Rolle Rechnungsempfang am
 ///   passenden Ansprechpartner, sonst eigener Sammel-Ansprechpartner.
 /// </summary>
-public class OdooImporter(OdooClient odoo, bool dryRun)
+public class OdooImporter(OdooClient odoo, bool dryRun, string? verbindung = null)
 {
     private const int BatchGroesse = 1000;
 
@@ -35,9 +35,10 @@ public class OdooImporter(OdooClient odoo, bool dryRun)
             ? "=== ODOO-IMPORT (DRY-RUN — es wird nichts gespeichert) ==="
             : "=== ODOO-IMPORT ===");
 
-        var verbindung = Environment.GetEnvironmentVariable("KUNDENZENTRALE_DB")
+        var verbindungsZeichenfolge = verbindung
+            ?? Environment.GetEnvironmentVariable("KUNDENZENTRALE_DB")
             ?? @"Server=(localdb)\MSSQLLocalDB;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=False";
-        var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(verbindung).Options;
+        var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(verbindungsZeichenfolge).Options;
         await using var db = new ErpDbContext(options);
 
         await LadeLaenderAsync();

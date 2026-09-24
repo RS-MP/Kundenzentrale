@@ -1,4 +1,5 @@
 @page "/admin"
+@implements IDisposable
 @inject HttpClient Http
 
 <PageTitle>Administration · Kundenzentrale</PageTitle>
@@ -243,6 +244,16 @@
                 <button class="knopf sekundaer" @onclick="OdooKeySpeichernAsync">Speichern</button>
             </div>
         }
+        <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+            <button class="knopf" disabled="@(_odooImport?.Laeuft == true)" @onclick="OdooImportStartenAsync">
+                @(_odooImport?.Laeuft == true ? "Import läuft …" : "Import jetzt ausführen")
+            </button>
+            <span style="color:var(--muted); font-size:13px">@OdooImportText()</span>
+        </div>
+        @if (_odooImport?.Fehler is not null)
+        {
+            <div class="krittext" style="margin-top:6px; font-size:13px">@_odooImport.Fehler</div>
+        }
     </div>
 </details>
 
@@ -289,6 +300,8 @@
     private bool _odooKeyOffen;
     private string _odooKeyEingabe = "";
     private DateTime? _odooKeyGesetztAm;
+    private OdooImportStatus? _odooImport;
+    private readonly CancellationTokenSource _seiteVerlassen = new();
 
     private static readonly string[] AlleRollen = ["Admin", "Vertrieb", "Support", "Buchhaltung"];
     private List<MitarbeiterEintrag>? _mitarbeiter;
@@ -344,6 +357,9 @@
             var geheimnisse = await Http.GetFromJsonAsync<List<GeheimnisStatus>>("api/server/geheimnisse") ?? [];
             _tokenGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "ServicePortal.PushToken")?.GesetztAm;
             _odooKeyGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "Odoo.ApiKey")?.GesetztAm;
+            _odooImport = await Http.GetFromJsonAsync<OdooImportStatus>("api/odoo-import");
+            if (_odooImport?.Laeuft == true)
+                _ = OdooImportVerfolgenAsync();
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
@@ -491,6 +507,43 @@
         _tokenOffen = false;
         _tokenGesetztAm = DateTime.UtcNow;
     }
+
+    private string OdooImportText() =>
+        _odooImport?.Laeuft == true
+            ? $"läuft seit {_odooImport.GestartetAm?.ToLocalTime():HH:mm} Uhr — importiert Kontakte und Abos, das dauert einige Minuten"
+            : _odooImport?.LetzterLauf is { Length: > 0 } letzter ? $"Zuletzt: {letzter}" : "Noch nie gelaufen";
+
+    private async Task OdooImportStartenAsync()
+    {
+        _fehler = null;
+        var antwort = await Http.PostAsync("api/odoo-import/start", null);
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        _odooImport = await antwort.Content.ReadFromJsonAsync<OdooImportStatus>();
+        _ = OdooImportVerfolgenAsync();
+    }
+
+    private async Task OdooImportVerfolgenAsync()
+    {
+        try
+        {
+            while (_odooImport?.Laeuft == true && !_seiteVerlassen.IsCancellationRequested)
+            {
+                await Task.Delay(3000, _seiteVerlassen.Token);
+                _odooImport = await Http.GetFromJsonAsync<OdooImportStatus>("api/odoo-import", _seiteVerlassen.Token);
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Seite verlassen — Import läuft serverseitig weiter
+        }
+    }
+
+    public void Dispose() => _seiteVerlassen.Cancel();
 
     private async Task OdooKeySpeichernAsync()
     {

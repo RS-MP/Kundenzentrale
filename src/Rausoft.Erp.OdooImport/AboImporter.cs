@@ -13,7 +13,7 @@ namespace Rausoft.Erp.OdooImport;
 /// gepflegt ist (manuelle Pflege wird nie überschrieben).
 /// Idempotent über die Odoo-Id des Abos.
 /// </summary>
-public class AboImporter(OdooClient odoo, bool dryRun)
+public class AboImporter(OdooClient odoo, bool dryRun, string? verbindung = null)
 {
     private const string NotizMarker = "Bestandsimport aus der Vertragsablage";
 
@@ -23,9 +23,10 @@ public class AboImporter(OdooClient odoo, bool dryRun)
             ? "=== ABO-IMPORT (DRY-RUN — es wird nichts gespeichert) ==="
             : "=== ABO-IMPORT ===");
 
-        var verbindung = Environment.GetEnvironmentVariable("KUNDENZENTRALE_DB")
+        var verbindungsZeichenfolge = verbindung
+            ?? Environment.GetEnvironmentVariable("KUNDENZENTRALE_DB")
             ?? @"Server=(localdb)\MSSQLLocalDB;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=False";
-        var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(verbindung).Options;
+        var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(verbindungsZeichenfolge).Options;
         await using var db = new ErpDbContext(options);
 
         // Abos aus Odoo laden
