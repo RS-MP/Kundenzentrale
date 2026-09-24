@@ -50,8 +50,10 @@ automatisch über euer Windows-Konto, es gibt kein Passwort.
 **Für neue Vorlagen** (bis zur Vorlagen-Verwaltung): Word-Datei in das
 Vorlagen-Verzeichnis legen (`…\Kunden Archiv\0_Vorlagen`, nur Dateien direkt
 im Ordner zählen). Platzhalter in der Vorlage: `{{Firmenname}}`,
-`{{Kundennummer}}`, `{{Strasse}}`, `{{PlzOrt}}`, `{{Briefanrede}}`,
-`{{Ansprechpartner}}`, `{{Email}}`, `{{UStIdNr}}`, `{{AboNummer}}`, `{{Datum}}`.
+`{{Kundennummer}}`, `{{Strasse}}`, `{{Plz}}`, `{{Ort}}`, `{{PlzOrt}}`,
+`{{Briefanrede}}`, `{{Ansprechpartner}}`, `{{Email}}`, `{{UStIdNr}}`,
+`{{AboNummer}}`, `{{Datum}}`. Nicht ersetzbare Platzhalter meldet das System
+nach dem Erzeugen als „offen".
 
 ## Dokumente ansehen und im Explorer öffnen
 
