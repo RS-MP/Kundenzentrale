@@ -12,7 +12,7 @@ using Rausoft.Erp.Data;
 namespace Rausoft.Erp.Data.Migrations
 {
     [DbContext(typeof(ErpDbContext))]
-    [Migration("20260924094927_OdooEinstellungen")]
+    [Migration("20260924131713_OdooEinstellungen")]
     partial class OdooEinstellungen
     {
         /// <inheritdoc />
@@ -726,27 +726,6 @@ namespace Rausoft.Erp.Data.Migrations
                             Beschreibung = "Automatische Server-Status-Meldung ans Portal alle n Minuten (0 = aus; empfohlen 60 oder 120, sobald die Anwendung auf dem Server läuft).",
                             Schluessel = "ServicePortal.IntervallMinuten",
                             Wert = "0"
-                        },
-                        new
-                        {
-                            Id = 7,
-                            Beschreibung = "Basis-URL der Odoo-Instanz für den Import, z. B. https://rausoft.odoo.com.",
-                            Schluessel = "Odoo.Url",
-                            Wert = ""
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Beschreibung = "Name der Odoo-Datenbank.",
-                            Schluessel = "Odoo.Datenbank",
-                            Wert = ""
-                        },
-                        new
-                        {
-                            Id = 9,
-                            Beschreibung = "Login (E-Mail) des Odoo-API-Benutzers — idealerweise ein eigener, nur lesend berechtigter Benutzer. Der API-Key wird als Geheimnis verschlüsselt gespeichert (nie im Klartext).",
-                            Schluessel = "Odoo.Benutzer",
-                            Wert = ""
                         });
                 });
 
