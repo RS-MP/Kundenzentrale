@@ -20,6 +20,18 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
 - [ ] **Publish aktualisieren** (enthält: Benutzerverwaltung „Benutzer &
   Rollen" im Admin-Bereich, 10.09.2026). Migrationen laufen automatisch,
   manuelle Server-Schritte: keine.
+- [ ] **Publish aktualisieren (24.09.2026):** „Ordner öffnen" + „Pfad kopieren"
+  an den Vertragsdokumenten — Anwender kommen direkt in den Ablage-Ordner statt
+  über den Download mit kryptischem Namen.
+- [ ] **Edge-GPO für „Ordner öffnen"** (einmalig, AD-seitig): Damit der
+  Ordner-Knopf den Explorer öffnet, in der GPO die Edge-Richtlinie
+  **„IntranetFileLinksEnabled"** („Zulassen, dass Dateilinks der Intranetzone
+  in Datei-Explorer geöffnet werden") aktivieren — braucht die Edge-ADMX-
+  Vorlagen im Central Store. Ohne die Richtlinie funktioniert ersatzweise
+  der „Pfad"-Knopf (kopieren + in Explorer-Adresszeile einfügen).
+- [ ] **Odoo-Import als geplante Aufgabe einrichten** (24.09.2026) — Anleitung
+  im Abschnitt „Odoo-Import als geplante Aufgabe", Paket liegt in
+  `publish-import`.
 - [ ] **Umzug auf /Kundenzentrale** (optional, 11.09.2026): Die App kann jetzt
   wie der Urlaubsplaner als IIS-**Unteranwendung** laufen (`http://rs-w2019-01/Kundenzentrale`).
   Dazu: neues Publish kopieren → im IIS unter der Default-Website
@@ -161,6 +173,38 @@ Es braucht **zwei** Registrierungen:
 - CTI/Service-Portal später: je eigene Registrierung mit Client Credentials.
 
 </details>
+
+## Odoo-Import als geplante Aufgabe auf dem Server (Variante B, beschlossen 24.09.2026)
+
+Der Import (Kontakte, Abos, Kündigungsautomatik, Archiv-Rückholung,
+Merkmal-Prüfhinweise) läuft nächtlich auf RS-W2019-01 statt manuell vom
+Entwicklungsrechner. Der Odoo-API-Key wird dabei **nie in Dateien oder der DB
+gespeichert** — nur als Umgebungsvariable auf dem Server.
+
+1. **Paket kopieren:** `dotnet publish src/Rausoft.Erp.OdooImport -c Release -o publish-import`
+   (macht Claude) → Inhalt nach `C:\Kundenzentrale-Import` auf dem Server.
+2. **Umgebungsvariablen** auf dem Server setzen (PowerShell als Admin;
+   maschinenweit — lesbar nur für lokal angemeldete Konten, am Server also Admins):
+   ```powershell
+   [Environment]::SetEnvironmentVariable("ODOO_URL", "https://<eure-odoo-url>", "Machine")
+   [Environment]::SetEnvironmentVariable("ODOO_DB", "<odoo-datenbankname>", "Machine")
+   [Environment]::SetEnvironmentVariable("ODOO_BENUTZER", "<api-benutzer@rausoft.de>", "Machine")
+   [Environment]::SetEnvironmentVariable("ODOO_API_KEY", "<der-key>", "Machine")
+   [Environment]::SetEnvironmentVariable("KUNDENZENTRALE_DB", "Server=RS-W2019-01;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True", "Machine")
+   ```
+   (Werte stehen auf dem Entwicklungsrechner in denselben Variablen.)
+3. **Aufgabenplanung** → „Aufgabe erstellen":
+   - Name `Kundenzentrale Odoo-Import`; Konto mit SQL-Rechten auf die DB
+     (db_datareader + db_datawriter, z. B. dasselbe Dienstkonto wie der
+     App-Pool); „Unabhängig von der Benutzeranmeldung ausführen".
+   - Trigger: täglich 03:00.
+   - Aktion 1: Programm `cmd.exe`, Argumente
+     `/c ""C:\Kundenzentrale-Import\Rausoft.Erp.OdooImport.exe" import >> "C:\Kundenzentrale-Import\import.log" 2>&1"`
+   - Aktion 2: wie Aktion 1, nur mit `abos` statt `import`.
+4. Einmal per „Ausführen" testen und `import.log` prüfen.
+5. `vertragsscan` (neue Dateien im Kunden Archiv) bleibt bewusst manuell bzw.
+   kann als eigene wöchentliche Aufgabe ergänzt werden — das Konto braucht
+   dafür Lesezugriff auf die Freigabe.
 
 ## Produktiv-Reset zum Zeitpunkt X (beschlossen 10.09.2026)
 

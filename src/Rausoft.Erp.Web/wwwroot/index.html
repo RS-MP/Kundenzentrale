@@ -40,6 +40,25 @@
         // Dokument-Vorschau: erzeugt eine Blob-URL aus geladenen Dateibytes,
         // damit die Datei im iframe angezeigt werden kann (UNC-Pfade kann der
         // Browser nicht öffnen; der Abruf läuft über die API).
+        // Zwischenablage: navigator.clipboard braucht einen Secure Context —
+        // im Intranet-Betrieb über http greift der execCommand-Fallback.
+        window.zwischenablage = {
+            kopieren: async function (text) {
+                try { await navigator.clipboard.writeText(text); return true; } catch (e) { }
+                const feld = document.createElement('textarea');
+                feld.value = text; feld.style.position = 'fixed'; feld.style.opacity = '0';
+                document.body.appendChild(feld); feld.select();
+                let ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) { }
+                feld.remove();
+                return ok;
+            },
+            // Letzter Ausweg, wenn der Browser das Kopieren blockiert:
+            // Dialog mit vormarkiertem Pfad — Strg+C genügt.
+            anzeigen: function (text) {
+                window.prompt('Kopieren blockiert — Pfad markieren und Strg+C drücken:', text);
+            }
+        };
         window.dateiVorschau = {
             erzeugeUrl: (base64, typ) => {
                 const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));

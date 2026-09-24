@@ -118,6 +118,15 @@ else
                                     </span>
                                     <span class="hash" title="SHA-256: @dokument.Sha256">@dokument.Sha256[..12]…</span>
                                     <button class="knopf sekundaer" @onclick="() => VorschauAsync(dokument)">Ansehen</button>
+                                    @if (dokument.OrdnerPfad is not null)
+                                    {
+                                        <a class="knopf sekundaer" href="@OrdnerLink(dokument.OrdnerPfad)"
+                                           title="@dokument.OrdnerPfad — öffnet den Ablage-Ordner im Explorer (falls nichts passiert: Intranet-Dateilinks im Browser freischalten oder „Pfad" nutzen)">Ordner</a>
+                                        <button class="knopf sekundaer" @onclick="() => PfadKopierenAsync(dokument)"
+                                                title="Vollständigen Dateipfad kopieren — in der Explorer-Adresszeile einfügen öffnet die Datei direkt">
+                                            @(_pfadKopiertId == dokument.Id ? "✓ kopiert" : "Pfad")
+                                        </button>
+                                    }
                                 </div>
                             }
                             @if (_versionOffen.Contains(bestandteil.Id))
@@ -229,6 +238,41 @@ else
     {
         var teile = pfad.Split('\\', StringSplitOptions.RemoveEmptyEntries);
         return teile.Length >= 2 ? teile[^2] : "";
+    }
+
+    private int? _pfadKopiertId;
+
+    // UNC-Ordner als file://-Link (öffnet den Explorer; braucht im Browser
+    // freigeschaltete Intranet-Dateilinks, sonst greift „Pfad kopieren")
+    private static string OrdnerLink(string ordner)
+    {
+        try { return new Uri(ordner).AbsoluteUri; }
+        catch { return ""; }
+    }
+
+    private async Task PfadKopierenAsync(DokumentEintrag dokument)
+    {
+        var dateiname = dokument.Dateipfad.Split('\\', StringSplitOptions.RemoveEmptyEntries)[^1];
+        var voll = $"{dokument.OrdnerPfad}\\{dateiname}";
+        if (await JS.InvokeAsync<bool>("zwischenablage.kopieren", voll))
+        {
+            _pfadKopiertId = dokument.Id;
+            _ = EntferneKopiertMarkierungAsync(dokument.Id);
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("zwischenablage.anzeigen", voll);
+        }
+    }
+
+    private async Task EntferneKopiertMarkierungAsync(int dokumentId)
+    {
+        await Task.Delay(2500);
+        if (_pfadKopiertId == dokumentId)
+        {
+            _pfadKopiertId = null;
+            StateHasChanged();
+        }
     }
 
     protected override Task OnParametersSetAsync() => LadenAsync();

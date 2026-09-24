@@ -161,7 +161,7 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         if (vertrag is null)
             return NotFound();
 
-        return Ok(NachDetail(vertrag));
+        return Ok(NachDetail(vertrag, await Einstellung(EinstellungsSchluessel.VertragsablageVerzeichnis, ct)));
     }
 
     [HttpPost]
@@ -560,7 +560,7 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             : db.Mitarbeiter.Where(Domain.Shared.Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
                 .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
 
-    private static VertragDetail NachDetail(Vertrag vertrag) => new(
+    private static VertragDetail NachDetail(Vertrag vertrag, string? ablage = null) => new(
         vertrag.Id,
         vertrag.Vertragsnummer,
         vertrag.KundeId,
@@ -582,7 +582,9 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
                     .OrderByDescending(d => d.Version)
                     .Select(d => new DokumentEintrag(
                         d.Id, d.Version, d.Dateipfad, d.DateinameOriginal, d.Sha256,
-                        d.ErstelltAm, d.ErstelltVon?.Anzeigename ?? ""))
+                        d.ErstelltAm, d.ErstelltVon?.Anzeigename ?? "",
+                        // Voller Ablage-Ordner (UNC) — fürs Öffnen im Explorer/Pfad-Kopieren im Frontend
+                        string.IsNullOrEmpty(ablage) ? null : Path.GetDirectoryName(Path.Combine(ablage, d.Dateipfad))))
                     .ToList()))
             .ToList());
 

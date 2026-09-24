@@ -42,7 +42,8 @@ public record DokumentEintrag(
     string DateinameOriginal,
     string Sha256,
     DateTime ErstelltAm,
-    string ErstelltVon);
+    string ErstelltVon,
+    string? OrdnerPfad);
 
 public record VertragAnlegen(
     int KundeId,
