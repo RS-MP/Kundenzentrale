@@ -11,7 +11,8 @@ namespace Rausoft.Erp.Api.Controllers;
 
 [ApiController]
 [Route("api/vertraege")]
-public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkreis, IAktuellerBenutzer benutzer)
+public class VertraegeController(
+    ErpDbContext db, NummernkreisDienst nummernkreis, IAktuellerBenutzer benutzer, Dienste.PdfDienst pdfDienst)
     : ControllerBase
 {
     private const int MaxProSeite = 100;
@@ -377,10 +378,10 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             .ToListAsync(ct));
 
     /// <summary>
-    /// Erzeugt einen Vertrag aus einer Word-Vorlage: füllt Kundendaten ein
-    /// (Muster-Texte der Bestandsvorlage und {{Platzhalter}}), legt die Datei im
-    /// Zielverzeichnis ab und registriert sie an einer neuen Vertragsakte (Entwurf).
-    /// Ausgabe vorerst .docx; PDF-Export folgt mit Telerik (Stufe 1b).
+    /// Erzeugt einen Vertrag aus einer freigegebenen Vorlagen-Version: füllt
+    /// Kundendaten ein, wandelt nach PDF (Telerik, Metadaten + optionale
+    /// digitale Signatur), legt PDF + docx-Quelle im Zielverzeichnis ab und
+    /// registriert das PDF an einer neuen Vertragsakte (Entwurf).
     /// </summary>
     [HttpPost("aus-vorlage")]
     public async Task<ActionResult<VorlagenErgebnis>> AusVorlage(VertragAusVorlage anlage, CancellationToken ct)
@@ -429,12 +430,30 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             await quelle.CopyToAsync(speicher, ct);
         var offene = Dienste.VorlagenDienst.Fuellen(speicher, await PlatzhalterWerte(kunde, ct));
 
-        // Ablegen — Dateiname nach dem gewachsenen Ablage-Prinzip:
-        // <KundenNr>.docx, bei Bestehen <KundenNr>-1.docx usw.
-        var zielPfad = Path.Combine(zielVoll, kunde.Kundennummer + ".docx");
-        for (var n = 1; System.IO.File.Exists(zielPfad); n++)
-            zielPfad = Path.Combine(zielVoll, $"{kunde.Kundennummer}-{n}.docx");
-        await System.IO.File.WriteAllBytesAsync(zielPfad, speicher.ToArray(), ct);
+        // Vertragsnummer vorab — sie steht in den PDF-Metadaten/der Signatur
+        var nummer = await nummernkreis.NaechsteNummerAsync("Vertrag", ct);
+
+        // Word → PDF (mit Metadaten, optional digital signiert — Stufe 1b)
+        byte[] pdfBytes;
+        try
+        {
+            pdfBytes = await pdfDienst.DocxZuPdfAsync(
+                speicher.ToArray(), nummer, vorlagenStand, kunde.Firmenname, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+
+        // Ablegen — Dateiname nach dem gewachsenen Ablage-Prinzip: <KundenNr>.pdf,
+        // bei Bestehen <KundenNr>-1.pdf usw.; die gefüllte .docx liegt als
+        // bearbeitbare Quelle gleichnamig daneben (registriert wird das PDF).
+        var zielPfad = Path.Combine(zielVoll, kunde.Kundennummer + ".pdf");
+        for (var n = 1; System.IO.File.Exists(zielPfad)
+             || System.IO.File.Exists(Path.ChangeExtension(zielPfad, ".docx")); n++)
+            zielPfad = Path.Combine(zielVoll, $"{kunde.Kundennummer}-{n}.pdf");
+        await System.IO.File.WriteAllBytesAsync(zielPfad, pdfBytes, ct);
+        await System.IO.File.WriteAllBytesAsync(Path.ChangeExtension(zielPfad, ".docx"), speicher.ToArray(), ct);
 
         string pruefsumme;
         await using (var stream = System.IO.File.OpenRead(zielPfad))
@@ -442,7 +461,6 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
                 .ToLowerInvariant();
 
         // Vertragsakte (Entwurf) + Bestandteil + Dokumentversion
-        var nummer = await nummernkreis.NaechsteNummerAsync("Vertrag", ct);
         var vertrag = new Vertrag
         {
             Vertragsnummer = nummer,

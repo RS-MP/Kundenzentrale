@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- net10.0-windows wegen Telerik Document Processing (Windows-Pakete);
+         Betrieb ist ohnehin ausschließlich Windows Server (IIS, DPAPI). -->
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
@@ -16,6 +18,15 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Identity.Web" Version="4.14.2" />
+    <!-- PDF-Erzeugung (FEEDBACK Nr. 14 Stufe 1b): docx → PDF + Signatur/Metadaten -->
+    <PackageReference Include="Telerik.Windows.Documents.Flow.FormatProviders.Pdf" Version="2026.3.923" />
+    <PackageReference Include="Telerik.Windows.Documents.Fixed" Version="2026.3.923" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Die Telerik-Windows-Pakete nutzen WPF-Typen (System.Windows.Rect) —
+         auf dem Server muss zusätzlich die .NET Desktop Runtime installiert sein. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
   </ItemGroup>
 
   <ItemGroup>

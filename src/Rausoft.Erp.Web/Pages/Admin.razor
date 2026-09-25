@@ -280,6 +280,27 @@
                 </div>
             </div>
         }
+        <div class="zeile2" style="margin-top:8px">
+            <span class="l" title="Passwort des Signatur-Zertifikats (PFX) — wird verschlüsselt gespeichert, nie angezeigt">Signatur-PFX-Passwort</span>
+            <span style="display:flex; gap:6px; align-items:center">
+                @if (_pfxGesetztAm is not null)
+                {
+                    <span class="status gut" style="font-size:13px">gesetzt @_pfxGesetztAm.Value.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                }
+                else
+                {
+                    <span class="status" style="font-size:13px">nicht gesetzt</span>
+                }
+                <button class="mehr" style="padding:0" @onclick="() => _pfxOffen = !_pfxOffen">ändern</button>
+            </span>
+        </div>
+        @if (_pfxOffen)
+        {
+            <div style="display:flex; gap:8px; margin-top:4px">
+                <input type="password" style="flex:1" @bind="_pfxEingabe" placeholder="Passwort der PFX-Datei — wird verschlüsselt gespeichert" />
+                <button class="knopf sekundaer" @onclick="PfxSpeichernAsync">Speichern</button>
+            </div>
+        }
     </div>
 </details>
 
@@ -301,6 +322,9 @@
     private bool _odooKeyOffen;
     private string _odooKeyEingabe = "";
     private DateTime? _odooKeyGesetztAm;
+    private bool _pfxOffen;
+    private string _pfxEingabe = "";
+    private DateTime? _pfxGesetztAm;
     private OdooImportStatus? _odooImport;
     private readonly CancellationTokenSource _seiteVerlassen = new();
 
@@ -343,6 +367,7 @@
         "Dokumentablage.Verzeichnis" => "Dokumentablage",
         "Vorlagen.Verzeichnis" => "Word-Vorlagen",
         "Vertragserzeugung.Zielverzeichnis" => "Ziel für erzeugte Verträge",
+        "Vertragserzeugung.SignaturZertifikat" => "Signatur-Zertifikat (PFX-Pfad, leer = ohne Signatur)",
         _ => schluessel,
     };
 
@@ -358,6 +383,7 @@
             var geheimnisse = await Http.GetFromJsonAsync<List<GeheimnisStatus>>("api/server/geheimnisse") ?? [];
             _tokenGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "ServicePortal.PushToken")?.GesetztAm;
             _odooKeyGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "Odoo.ApiKey")?.GesetztAm;
+            _pfxGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "Signatur.PfxPasswort")?.GesetztAm;
             _odooImport = await Http.GetFromJsonAsync<OdooImportStatus>("api/odoo-import");
             if (_odooImport?.Laeuft == true)
                 _ = OdooImportVerfolgenAsync();
@@ -561,6 +587,23 @@
         _odooKeyEingabe = "";
         _odooKeyOffen = false;
         _odooKeyGesetztAm = DateTime.UtcNow;
+    }
+
+    private async Task PfxSpeichernAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_pfxEingabe))
+            return;
+        _fehler = null;
+        var antwort = await Http.PutAsJsonAsync("api/server/geheimnisse/Signatur.PfxPasswort",
+            new GeheimnisSetzen(_pfxEingabe.Trim()));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        _pfxEingabe = "";
+        _pfxOffen = false;
+        _pfxGesetztAm = DateTime.UtcNow;
     }
 
     private async Task SpeichernAsync(string schluessel)

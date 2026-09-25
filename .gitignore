@@ -485,5 +485,9 @@ $RECYCLE.BIN/
 # Lokales Test-Ablageverzeichnis fuer die Entwicklung
 .dev-ablage/
 
+# Telerik: Lizenzschluessel und Offline-Pakete bleiben lokal (nie ins Repo)
+TelerikPDF/
+telerik-license.txt
+
 # Vorlagen-Rohdateien gehoeren in die Ablage, nicht ins Repo
 /*.docx
