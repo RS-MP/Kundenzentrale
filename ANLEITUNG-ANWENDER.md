@@ -1,7 +1,7 @@
 # Kundenzentrale — Kurzanleitung für Anwender
 
-Stand 24.09.2026 · Aufruf: **http://rs-w2019-01:8081** — die Anmeldung läuft
-automatisch über euer Windows-Konto, es gibt kein Passwort.
+Stand 25.09.2026 · Aufruf: **http://rs-w2019-01/Kundenzentrale** — die
+Anmeldung läuft automatisch über euer Windows-Konto, es gibt kein Passwort.
 
 > **Testphase:** Wir probieren das System gerade gemeinsam aus. Klickt euch
 > ruhig durch und testet alles — zum Produktivstart wird einmal sauber

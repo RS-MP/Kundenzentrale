@@ -4,13 +4,15 @@ Stand 10.09.2026 · Es gibt **zwei Wege** — Weg A ist der beschlossene
 Sofort-Weg (wie beim Urlaubsplaner), Weg B (Entra ID) bleibt als spätere
 Option dokumentiert.
 
-> **Ist-Stand: seit 10.09.2026 produktiv über Weg A.**
-> Ordner `C:\Kundenzentrale`, IIS-Site/App-Pool „Kundenzentrale",
-> Binding Port **8081** ohne Hostname → `http://rs-w2019-01:8081`.
+> **Ist-Stand: seit 10.09.2026 im Testbetrieb über Weg A; seit 25.09.2026
+> als IIS-Unteranwendung** unter der Default Web Site (wie der Urlaubsplaner):
+> **`http://rs-w2019-01/Kundenzentrale`** — Ordner `C:\Kundenzentrale`,
+> App-Pool „Kundenzentrale", Windows-Auth an/Anonym aus auf der Anwendung.
+> Intranet-Zone per GPO erledigt; nur intern erreichbar (kein HTTPS —
+> bei Bedarf internes Zertifikat + https-Binding an der Default Web Site).
 > Update-Ritual: App-Pool beenden → Inhalt von `publish` (frisch per
 > `dotnet publish src/Rausoft.Erp.Api -c Release -o publish`) drüberkopieren
 > (`appsettings.Production.json` liegen lassen) → App-Pool starten.
-> Noch offen: DNS-Name + Port 80, Intranet-Zone per GPO, Nacharbeiten A5.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
@@ -41,15 +43,9 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
 - [ ] *(optional, später)* **Odoo-Import als geplante Aufgabe** — erst nötig,
   wenn der Import automatisch nachts laufen soll; Anleitung im Abschnitt
   „Odoo-Import als geplante Aufgabe", Paket liegt in `publish-import`.
-- [ ] **Umzug auf /Kundenzentrale** (optional, 11.09.2026): Die App kann jetzt
-  wie der Urlaubsplaner als IIS-**Unteranwendung** laufen (`http://rs-w2019-01/Kundenzentrale`).
-  Dazu: neues Publish kopieren → im IIS unter der Default-Website
-  „Anwendung hinzufügen" (Alias `Kundenzentrale`, physischer Pfad
-  `C:\Kundenzentrale`, App-Pool „Kundenzentrale" auswählen) → auf der
-  Anwendung Windows-Auth aktivieren/Anonym deaktivieren → alte Site auf
-  Port 8081 löschen (und Firewall-Regel 8081 entfernen). Voraussetzung:
-  Auf der Default-Website läuft der Urlaubsplaner-Pool weiter — die
-  Unteranwendung nutzt ihren eigenen Pool, das stört sich nicht.
+- [x] ~~Umzug auf /Kundenzentrale~~ — erledigt 25.09.2026 (Unteranwendung
+  unter der Default Web Site, eigener App-Pool; alte 8081-Site + Firewall-Regel
+  entfernt).
 - [x] ~~GPO: Intranetzone~~ — erledigt 11.09.2026 (eigene GPO
   „Kundenzentrale Intranetzone", Benutzerkonfiguration, `http://rs-w2019-01` = 1). (einmalig, AD-seitig) — damit KEIN Benutzer je
   einen Anmeldedialog sieht: Benutzerkonfiguration → Administrative Vorlagen
