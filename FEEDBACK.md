@@ -252,7 +252,14 @@ Ergänzungsvorschläge (Claude, zur Diskussion beim Abarbeiten):
    existiert seit 10.09.); Vorlagen-Verwaltung als eigener Admin-/Compliance-
    Bereich.
 
-Status: offen (Sammelphase; Umfang eher eigenes Arbeitspaket als Einzelpunkt)
+Status: KERN UMGESETZT (25.09.2026) — Seite „Vorlagen" mit Freigabe durch
+Rolle Compliance (Admins dürfen auch): Entwurfsdateien im Vorlagen-Verzeichnis,
+Freigabe friert Kopie als Version vN ein (Unterordner Freigegeben, SHA-256,
+Freigeber + Änderungsnotiz); Kundenakte-Auswahl zeigt nur freigegebene
+aktuellste Versionen; erzeugte Dokumente speichern die VorlagenVersion →
+Auswertung „welcher Kunde hat welchen Stand" je Vorlage; Zurückziehen möglich.
+Noch offen aus den Ergänzungen: Typ-Zuordnung je Vorlage (mit Nr. 19),
+Nutzungsfreigabe je Rolle (Punkt 5), Gültig-ab-Datum.
 
 ## Nr. 18 · Aktualität/Reihenfolge der Vertragsdokumente erkennen (2026-09-10, MP)
 

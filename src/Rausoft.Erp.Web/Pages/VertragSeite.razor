@@ -114,7 +114,7 @@ else
                                 <div class="dokument">
                                     <span class="pill">v@(dokument.Version)</span>
                                     <span class="pfad" title="@dokument.Dateipfad">@dokument.DateinameOriginal
-                                        <span style="color:var(--muted)"> — @Ordner(dokument.Dateipfad)</span>
+                                        <span style="color:var(--muted)"> — @Ordner(dokument.Dateipfad)@(dokument.VorlagenStand is not null ? $" · aus {dokument.VorlagenStand}" : "")</span>
                                     </span>
                                     <span class="hash" title="SHA-256: @dokument.Sha256">@dokument.Sha256[..12]…</span>
                                     <button class="knopf sekundaer" @onclick="() => VorschauAsync(dokument)">Ansehen</button>

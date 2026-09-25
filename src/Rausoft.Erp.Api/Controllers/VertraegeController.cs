@@ -157,6 +157,10 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             .Include(v => v.Bestandteile)
                 .ThenInclude(b => b.Dokumente)
                     .ThenInclude(d => d.ErstelltVon)
+            .Include(v => v.Bestandteile)
+                .ThenInclude(b => b.Dokumente)
+                    .ThenInclude(d => d.VorlagenVersion!)
+                        .ThenInclude(x => x.Vorlage)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
         if (vertrag is null)
             return NotFound();
@@ -359,19 +363,18 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         return Ok(new VertragGeloescht(vertrag.Vertragsnummer, dateien));
     }
 
-    /// <summary>Aktive Word-Vorlagen: Dateien direkt im Vorlagen-Verzeichnis (keine Unterordner).</summary>
+    /// <summary>
+    /// Auswahl für die Vertragserzeugung: je aktiver Vorlage die aktuellste
+    /// freigegebene Version (Freigabe unter „Vorlagen", nur Compliance).
+    /// </summary>
     [HttpGet("vorlagen")]
-    public async Task<ActionResult<List<string>>> Vorlagen(CancellationToken ct)
-    {
-        var verzeichnis = await Einstellung(EinstellungsSchluessel.VorlagenVerzeichnis, ct);
-        if (string.IsNullOrWhiteSpace(verzeichnis) || !Directory.Exists(verzeichnis))
-            return Ok(new List<string>());
-        return Ok(Directory.EnumerateFiles(verzeichnis, "*.docx", SearchOption.TopDirectoryOnly)
-            .Select(Path.GetFileName)
-            .Where(n => n is not null && !n.StartsWith("~$"))
-            .OrderBy(n => n)
-            .ToList());
-    }
+    public async Task<ActionResult<List<VorlageAuswahl>>> Vorlagen(CancellationToken ct) =>
+        Ok(await db.Vorlagen.AsNoTracking()
+            .Where(v => v.Aktiv && v.Versionen.Any())
+            .OrderBy(v => v.Name)
+            .Select(v => v.Versionen.OrderByDescending(x => x.Nummer)
+                .Select(x => new VorlageAuswahl(x.Id, v.Name, x.Nummer)).First())
+            .ToListAsync(ct));
 
     /// <summary>
     /// Erzeugt einen Vertrag aus einer Word-Vorlage: füllt Kundendaten ein
@@ -382,8 +385,12 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
     [HttpPost("aus-vorlage")]
     public async Task<ActionResult<VorlagenErgebnis>> AusVorlage(VertragAusVorlage anlage, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(anlage.Vorlage) || Path.GetFileName(anlage.Vorlage) != anlage.Vorlage)
-            return BadRequest("Ungültiger Vorlagenname.");
+        var version = await db.VorlagenVersionen.AsNoTracking()
+            .Include(v => v.Vorlage)
+            .FirstOrDefaultAsync(v => v.Id == anlage.VorlagenVersionId, ct);
+        if (version?.Vorlage is null)
+            return BadRequest("Die angegebene Vorlagen-Version existiert nicht.");
+        var vorlagenStand = $"{version.Vorlage.Name} v{version.Nummer}";
 
         var kunde = await db.Kunden
             .Include(k => k.Adressen)
@@ -399,9 +406,9 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             || string.IsNullOrWhiteSpace(basis))
             return BadRequest("Vorlagen-, Ziel- oder Ablageverzeichnis ist nicht konfiguriert (Administration).");
 
-        var vorlagenPfad = Path.Combine(vorlagenVerzeichnis, anlage.Vorlage);
+        var vorlagenPfad = Path.Combine(vorlagenVerzeichnis, version.Dateipfad);
         if (!System.IO.File.Exists(vorlagenPfad))
-            return BadRequest($"Vorlage nicht gefunden: {anlage.Vorlage}");
+            return BadRequest($"Die eingefrorene Versionsdatei fehlt in der Ablage: {version.Dateipfad}");
 
         // Zielverzeichnis muss in der Vertragsablage liegen (Viewer/Registrierung)
         var basisVoll = Path.GetFullPath(basis).TrimEnd(Path.DirectorySeparatorChar);
@@ -442,12 +449,12 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
             KundeId = kunde.Id,
             Status = VertragsStatus.Entwurf,
             Beginn = DateOnly.FromDateTime(DateTime.Today),
-            Notiz = $"Aus Vorlage „{anlage.Vorlage}“ erstellt — nach Unterschrift Status und Laufzeit pflegen.",
+            Notiz = $"Aus Vorlage „{vorlagenStand}“ erstellt — nach Unterschrift Status und Laufzeit pflegen.",
         };
         vertrag.Bestandteile.Add(new Vertragsbestandteil
         {
             Typ = BestandteilTyp.Lizenzvertrag,
-            Titel = Path.GetFileNameWithoutExtension(anlage.Vorlage),
+            Titel = version.Vorlage.Name,
             Vertrag = vertrag,
             Dokumente =
             {
@@ -459,6 +466,8 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
                     Sha256 = pruefsumme,
                     ErstelltAm = DateTime.UtcNow,
                     ErstelltVonId = mitarbeiterId.Value,
+                    // Vorlagen-Stand am Dokument: welcher Kunde hat welche Version bekommen
+                    VorlagenVersionId = version.Id,
                 },
             },
         });
@@ -466,7 +475,7 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
         await db.SaveChangesAsync(ct);
 
         db.Aktivitaeten.Add(await TimelineEintrag(kunde.Id,
-            $"Vertrag {nummer} aus Vorlage „{anlage.Vorlage}“ erstellt", null, vertrag.Id, ct));
+            $"Vertrag {nummer} aus Vorlage „{vorlagenStand}“ erstellt", null, vertrag.Id, ct));
         await db.SaveChangesAsync(ct);
 
         return Ok(new VorlagenErgebnis(vertrag.Id, nummer, Path.GetFileName(zielPfad), offene));
@@ -586,7 +595,9 @@ public class VertraegeController(ErpDbContext db, NummernkreisDienst nummernkrei
                         d.Id, d.Version, d.Dateipfad, d.DateinameOriginal, d.Sha256,
                         d.ErstelltAm, d.ErstelltVon?.Anzeigename ?? "",
                         // Voller Ablage-Ordner (UNC) — fürs Öffnen im Explorer/Pfad-Kopieren im Frontend
-                        string.IsNullOrEmpty(ablage) ? null : Path.GetDirectoryName(Path.Combine(ablage, d.Dateipfad))))
+                        string.IsNullOrEmpty(ablage) ? null : Path.GetDirectoryName(Path.Combine(ablage, d.Dateipfad)),
+                        d.VorlagenVersion?.Vorlage is null ? null
+                            : $"{d.VorlagenVersion.Vorlage.Name} v{d.VorlagenVersion.Nummer}"))
                     .ToList()))
             .ToList());
 

@@ -30,4 +30,9 @@ public class Vertragsdokument
 
     public int ErstelltVonId { get; set; }
     public Mitarbeiter? ErstelltVon { get; set; }
+
+    /// <summary>Gesetzt, wenn das Dokument aus einer freigegebenen Vorlage erzeugt wurde —
+    /// so ist nachvollziehbar, welcher Kunde welchen Vorlagen-Stand bekommen hat.</summary>
+    public int? VorlagenVersionId { get; set; }
+    public VorlagenVersion? VorlagenVersion { get; set; }
 }

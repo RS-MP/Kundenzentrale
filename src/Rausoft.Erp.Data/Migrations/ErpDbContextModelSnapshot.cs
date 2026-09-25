@@ -152,14 +152,88 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int>("VertragsbestandteilId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("VorlagenVersionId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ErstelltVonId");
+
+                    b.HasIndex("VorlagenVersionId");
 
                     b.HasIndex("VertragsbestandteilId", "Version")
                         .IsUnique();
 
                     b.ToTable("Vertragsdokumente");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vorlage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Aktiv")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Vorlagen");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.VorlagenVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Dateipfad")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("FreigegebenAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("FreigegebenVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notiz")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Nummer")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<int>("VorlageId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FreigegebenVonId");
+
+                    b.HasIndex("VorlageId", "Nummer")
+                        .IsUnique();
+
+                    b.ToTable("VorlagenVersionen");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Adresse", b =>
@@ -976,9 +1050,34 @@ namespace Rausoft.Erp.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Rausoft.Erp.Domain.Contracts.VorlagenVersion", "VorlagenVersion")
+                        .WithMany()
+                        .HasForeignKey("VorlagenVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("ErstelltVon");
 
                     b.Navigation("Vertragsbestandteil");
+
+                    b.Navigation("VorlagenVersion");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.VorlagenVersion", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "FreigegebenVon")
+                        .WithMany()
+                        .HasForeignKey("FreigegebenVonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Rausoft.Erp.Domain.Contracts.Vorlage", "Vorlage")
+                        .WithMany("Versionen")
+                        .HasForeignKey("VorlageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FreigegebenVon");
+
+                    b.Navigation("Vorlage");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Adresse", b =>
@@ -1092,6 +1191,11 @@ namespace Rausoft.Erp.Data.Migrations
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertragsbestandteil", b =>
                 {
                     b.Navigation("Dokumente");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vorlage", b =>
+                {
+                    b.Navigation("Versionen");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Kunde", b =>

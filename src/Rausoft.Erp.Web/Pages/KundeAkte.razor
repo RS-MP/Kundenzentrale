@@ -199,7 +199,7 @@ else
                             <select style="flex:1" @bind="_gewaehlteVorlage">
                                 @foreach (var vorlage in _vorlagen)
                                 {
-                                    <option value="@vorlage">@System.IO.Path.GetFileNameWithoutExtension(vorlage)</option>
+                                    <option value="@vorlage.VorlagenVersionId">@vorlage.Name (v@(vorlage.Version))</option>
                                 }
                             </select>
                             <button class="knopf sekundaer" disabled="@_erzeugeVertrag" @onclick="VertragAusVorlageAsync">
@@ -334,8 +334,8 @@ else
     private List<ServerEintrag> _serverListe = [];
     private string _serverAuswahl = "";
     private string _mandantenKennung = "";
-    private List<string> _vorlagen = [];
-    private string _gewaehlteVorlage = "";
+    private List<VorlageAuswahl> _vorlagen = [];
+    private string _gewaehlteVorlage = ""; // VorlagenVersionId als Text (select-Bindung)
     private bool _erzeugeVertrag;
     private VorlagenErgebnis? _erzeugt;
     private List<string> _merkmalListe = [];
@@ -370,12 +370,12 @@ else
             _vertraege = vertraege?.Eintraege;
             _abos = await Http.GetFromJsonAsync<List<AboEintrag>>($"api/kunden/{Id}/abos");
             _laufendeAbos = _abos?.Where(a => a.Status == "Laufend").ToList() ?? [];
-            _vorlagen = await Http.GetFromJsonAsync<List<string>>("api/vertraege/vorlagen") ?? [];
+            _vorlagen = await Http.GetFromJsonAsync<List<VorlageAuswahl>>("api/vertraege/vorlagen") ?? [];
             _serverListe = await Http.GetFromJsonAsync<List<ServerEintrag>>("api/server") ?? [];
             _serverAuswahl = _kunde?.ServerId?.ToString() ?? "";
             _mandantenKennung = _kunde?.MandantenKennung ?? "";
             if (_gewaehlteVorlage == "" && _vorlagen.Count > 0)
-                _gewaehlteVorlage = _vorlagen[0];
+                _gewaehlteVorlage = _vorlagen[0].VorlagenVersionId.ToString();
             _erzeugt = null;
 
             // Wichtige zuerst: aktive Ansprechpartner mit Rolle; ohne Rollen die ersten zwei.
@@ -440,14 +440,14 @@ else
 
     private async Task VertragAusVorlageAsync()
     {
-        if (_gewaehlteVorlage == "")
+        if (!int.TryParse(_gewaehlteVorlage, out var versionId))
             return;
         _fehler = null;
         _erzeugeVertrag = true;
         try
         {
             var antwort = await Http.PostAsJsonAsync("api/vertraege/aus-vorlage",
-                new VertragAusVorlage(Id, _gewaehlteVorlage));
+                new VertragAusVorlage(Id, versionId));
             if (!antwort.IsSuccessStatusCode)
             {
                 _fehler = await antwort.Content.ReadAsStringAsync();

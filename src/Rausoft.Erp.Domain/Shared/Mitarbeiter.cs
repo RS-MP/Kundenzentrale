@@ -42,4 +42,6 @@ public enum MitarbeiterRolle
     Vertrieb = 2,
     Support = 4,
     Buchhaltung = 8,
+    /// <summary>Verwaltet und gibt Vertragsvorlagen frei.</summary>
+    Compliance = 16,
 }

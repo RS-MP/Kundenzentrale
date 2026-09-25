@@ -1,0 +1,258 @@
+@page "/vorlagen"
+@inject HttpClient Http
+
+<PageTitle>Vorlagen · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Vertragsvorlagen</h1>
+    <span class="untertitel">Freigegebene Versionen — wer welchen Stand bekommen hat, steht je Vorlage</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@* Freigabe-Bereich: nur sichtbar, wenn der Benutzer Compliance-Rechte hat *@
+@if (_entwuerfe is not null)
+{
+    <div class="karte" style="margin-bottom:16px">
+        <div class="karte-kopf"><h2>Neue Version freigeben</h2></div>
+        <div class="karte-koerper">
+            <div style="color:var(--muted); font-size:12.5px; margin-bottom:10px">
+                Entwurfsdateien liegen im Vorlagen-Verzeichnis (Administration → Word-Vorlagen).
+                Die Freigabe friert eine Kopie als nummerierte Version ein — erst dann ist sie
+                in der Kundenakte wählbar. Bereits erstellte Verträge behalten ihren Stand.
+            </div>
+            @if (_entwuerfe.Count == 0)
+            {
+                <div style="color:var(--muted)">Keine Entwurfsdateien im Vorlagen-Verzeichnis gefunden.</div>
+            }
+            else
+            {
+                <div class="formular">
+                    <label>
+                        Entwurfsdatei
+                        <select @bind="_freigabeDatei">
+                            @foreach (var entwurf in _entwuerfe)
+                            {
+                                <option value="@entwurf.Dateiname">@entwurf.Dateiname (geändert @entwurf.GeaendertAm.ToString("dd.MM.yyyy HH:mm"))</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Vorlage
+                        <select @bind="_freigabeVorlageId">
+                            <option value="">— neue Vorlage —</option>
+                            @foreach (var vorlage in _vorlagen ?? [])
+                            {
+                                <option value="@vorlage.Id">@vorlage.Name (bisher v@(vorlage.AktuelleVersion ?? 0))</option>
+                            }
+                        </select>
+                    </label>
+                    @if (_freigabeVorlageId == "")
+                    {
+                        <label>Name der neuen Vorlage<input type="text" @bind="_freigabeName" placeholder="z. B. NDA Standard" /></label>
+                    }
+                    <label class="breit">Änderungsnotiz (was ist neu?)<input type="text" @bind="_freigabeNotiz" /></label>
+                </div>
+                <div class="formular-aktionen">
+                    <button class="knopf" disabled="@_gebeFrei" @onclick="FreigebenAsync">@(_gebeFrei ? "Gebe frei …" : "Freigeben")</button>
+                    @if (_freigegeben is not null)
+                    {
+                        <span style="color:var(--good)">✓ @_freigegeben</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (_vorlagen is null)
+{
+    <div class="leer-hinweis">Lade Vorlagen …</div>
+}
+else if (_vorlagen.Count == 0)
+{
+    <div class="karte"><div class="karte-koerper">
+        <div class="leer-hinweis">
+            Noch keine Vorlage freigegeben. Entwurfsdatei ins Vorlagen-Verzeichnis legen
+            und hier freigeben (Compliance-Rolle erforderlich).
+        </div>
+    </div></div>
+}
+else
+{
+    @foreach (var vorlage in _vorlagen)
+    {
+        <details class="gruppe" @ontoggle="() => DetailsLadenAsync(vorlage.Id)">
+            <summary>
+                <span>@vorlage.Name</span>
+                @if (!vorlage.Aktiv)
+                {
+                    <span class="zusatz">· zurückgezogen</span>
+                }
+                <span class="zusatz">
+                    aktuell v@(vorlage.AktuelleVersion ?? 0)
+                    @(vorlage.FreigegebenAm is not null ? $"· freigegeben {vorlage.FreigegebenAm.Value.ToLocalTime():dd.MM.yyyy}" : "")
+                    @(vorlage.FreigegebenVon is not null ? $"von {vorlage.FreigegebenVon}" : "")
+                </span>
+                <span class="zahl">@vorlage.Verwendungen Verwendungen</span>
+            </summary>
+            <div class="gruppe-inhalt">
+                @if (vorlage.Notiz is not null)
+                {
+                    <div class="neben" style="margin-bottom:8px">Notiz zur aktuellen Version: @vorlage.Notiz</div>
+                }
+                @if (_versionen.TryGetValue(vorlage.Id, out var versionen))
+                {
+                    @foreach (var version in versionen)
+                    {
+                        <div class="zeile2">
+                            <span><b>v@(version.Nummer)</b>
+                                <span class="neben" style="display:inline; margin-left:6px">
+                                    @version.FreigegebenAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                    @(version.FreigegebenVon is not null ? $"· {version.FreigegebenVon}" : "")
+                                    @(version.Notiz is not null ? $"· {version.Notiz}" : "")
+                                </span>
+                            </span>
+                            <span class="r" style="color:var(--muted); font-size:12.5px">@version.Verwendungen Verwendungen</span>
+                        </div>
+                    }
+                }
+                @if (_verwendungen.TryGetValue(vorlage.Id, out var verwendungen))
+                {
+                    @if (verwendungen.Count > 0)
+                    {
+                        <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
+                            <div style="color:var(--muted); font-size:12.5px; margin-bottom:4px">Wer hat welchen Stand bekommen?</div>
+                            @foreach (var verwendung in verwendungen)
+                            {
+                                <div class="zeile2">
+                                    <span><a href="kunden/@verwendung.KundeId">@verwendung.Firmenname</a>
+                                        <span class="neben" style="display:inline; margin-left:6px">@verwendung.Kundennummer</span>
+                                    </span>
+                                    <span class="r"><b>v@(verwendung.Version)</b>
+                                        · <a href="vertraege/@verwendung.VertragId">@verwendung.Vertragsnummer</a>
+                                        <span style="color:var(--muted); font-size:12.5px"> @verwendung.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                @if (_entwuerfe is not null)
+                {
+                    <div style="margin-top:10px">
+                        <button class="knopf sekundaer klein" @onclick="() => AktivUmschaltenAsync(vorlage)">
+                            @(vorlage.Aktiv ? "Vorlage zurückziehen" : "Wieder aktivieren")
+                        </button>
+                    </div>
+                }
+            </div>
+        </details>
+    }
+}
+
+@code {
+    private List<VorlageEintrag>? _vorlagen;
+    private List<VorlagenEntwurf>? _entwuerfe; // null = keine Compliance-Rechte
+    private readonly Dictionary<int, List<VorlagenVersionEintrag>> _versionen = [];
+    private readonly Dictionary<int, List<VorlagenVerwendung>> _verwendungen = [];
+    private string _freigabeDatei = "";
+    private string _freigabeVorlageId = "";
+    private string _freigabeName = "";
+    private string _freigabeNotiz = "";
+    private bool _gebeFrei;
+    private string? _freigegeben;
+    private string? _fehler;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await VorlagenLadenAsync();
+            var antwort = await Http.GetAsync("api/vorlagen/entwuerfe");
+            if (antwort.IsSuccessStatusCode)
+            {
+                _entwuerfe = await antwort.Content.ReadFromJsonAsync<List<VorlagenEntwurf>>() ?? [];
+                if (_freigabeDatei == "" && _entwuerfe.Count > 0)
+                    _freigabeDatei = _entwuerfe[0].Dateiname;
+            }
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vorlagen konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task VorlagenLadenAsync() =>
+        _vorlagen = await Http.GetFromJsonAsync<List<VorlageEintrag>>("api/vorlagen") ?? [];
+
+    private async Task DetailsLadenAsync(int vorlageId)
+    {
+        if (_versionen.ContainsKey(vorlageId))
+            return;
+        try
+        {
+            _versionen[vorlageId] = await Http.GetFromJsonAsync<List<VorlagenVersionEintrag>>(
+                $"api/vorlagen/{vorlageId}/versionen") ?? [];
+            _verwendungen[vorlageId] = await Http.GetFromJsonAsync<List<VorlagenVerwendung>>(
+                $"api/vorlagen/{vorlageId}/verwendungen") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Details konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task FreigebenAsync()
+    {
+        if (_freigabeDatei == "")
+            return;
+        _fehler = null;
+        _freigegeben = null;
+        _gebeFrei = true;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/vorlagen/freigeben", new VorlageFreigeben(
+                _freigabeDatei,
+                int.TryParse(_freigabeVorlageId, out var id) ? id : null,
+                string.IsNullOrWhiteSpace(_freigabeName) ? null : _freigabeName.Trim(),
+                string.IsNullOrWhiteSpace(_freigabeNotiz) ? null : _freigabeNotiz.Trim()));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var ergebnis = await antwort.Content.ReadFromJsonAsync<VorlageEintrag>();
+            _freigegeben = $"{ergebnis!.Name} v{ergebnis.AktuelleVersion} freigegeben";
+            _freigabeNotiz = "";
+            _freigabeName = "";
+            _versionen.Clear();
+            _verwendungen.Clear();
+            await VorlagenLadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Freigabe fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _gebeFrei = false;
+        }
+    }
+
+    private async Task AktivUmschaltenAsync(VorlageEintrag vorlage)
+    {
+        _fehler = null;
+        var antwort = await Http.PutAsJsonAsync($"api/vorlagen/{vorlage.Id}/aktiv",
+            new VorlageAktivAenderung(!vorlage.Aktiv));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        await VorlagenLadenAsync();
+    }
+}

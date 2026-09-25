@@ -33,7 +33,8 @@ automatisch über euer Windows-Konto, es gibt kein Passwort.
 ## Vertrag aus Vorlage erstellen
 
 1. Kundenakte öffnen → Aufklapper **Verträge** → Vorlage im Auswahlfeld
-   wählen → **„Aus Vorlage erstellen"**.
+   wählen (zeigt immer die aktuell freigegebene Version, z. B.
+   „NDA Standard (v2)") → **„Aus Vorlage erstellen"**.
 2. Das System füllt die Kundendaten in die Word-Vorlage ein, legt die Datei
    im Ablageverzeichnis ab (Dateiname = Kundennummer, z. B. `4228.docx`,
    bei mehreren `4228-1.docx` …) und legt eine neue **Vertragsakte im Status
@@ -47,13 +48,16 @@ automatisch über euer Windows-Konto, es gibt kein Passwort.
    registrieren, dann den Vertrag auf **Aktiv** stellen und die Laufzeit
    pflegen.
 
-**Für neue Vorlagen** (bis zur Vorlagen-Verwaltung): Word-Datei in das
-Vorlagen-Verzeichnis legen (`…\Kunden Archiv\0_Vorlagen`, nur Dateien direkt
-im Ordner zählen). Platzhalter in der Vorlage: `{{Firmenname}}`,
+**Für neue Vorlagen:** Word-Datei mit Platzhaltern in das Vorlagen-Verzeichnis
+legen (`…\Kunden Archiv\0_Vorlagen`) — das ist zunächst nur ein **Entwurf**.
+Benutzbar wird sie erst nach der **Freigabe** im Bereich **Vorlagen**
+(Rolle Compliance): Dort bekommt sie eine Versionsnummer (v1, v2 …), die
+Datei wird eingefroren, und je Vorlage ist auswertbar, **welcher Kunde
+welchen Versionsstand bekommen hat**. Platzhalter: `{{Firmenname}}`,
 `{{Kundennummer}}`, `{{Strasse}}`, `{{Plz}}`, `{{Ort}}`, `{{PlzOrt}}`,
 `{{Briefanrede}}`, `{{Ansprechpartner}}`, `{{Email}}`, `{{UStIdNr}}`,
 `{{AboNummer}}`, `{{Datum}}`. Nicht ersetzbare Platzhalter meldet das System
-nach dem Erzeugen als „offen".
+nach dem Erzeugen als „offen". Details: Anleitung „Vertragsvorlagen erstellen".
 
 ## Dokumente ansehen und im Explorer öffnen
 

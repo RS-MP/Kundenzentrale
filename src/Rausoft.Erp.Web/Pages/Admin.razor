@@ -133,7 +133,8 @@
     <div class="gruppe-inhalt">
         <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
             Domänen-Benutzer werden beim ersten Aufruf automatisch angelegt (ohne Rollen).
-            Nur die Rolle <b>Admin</b> schaltet diesen Bereich, die Server-Verwaltung und das Löschen von Verträgen frei.
+            <b>Admin</b> schaltet diesen Bereich, Server-Verwaltung und Vertrags-Löschung frei;
+            <b>Compliance</b> gibt Vertragsvorlagen frei (Admins dürfen das auch).
         </div>
         @if (_mitarbeiter is null)
         {
@@ -303,7 +304,7 @@
     private OdooImportStatus? _odooImport;
     private readonly CancellationTokenSource _seiteVerlassen = new();
 
-    private static readonly string[] AlleRollen = ["Admin", "Vertrieb", "Support", "Buchhaltung"];
+    private static readonly string[] AlleRollen = ["Admin", "Compliance", "Vertrieb", "Support", "Buchhaltung"];
     private List<MitarbeiterEintrag>? _mitarbeiter;
     private MitarbeiterEintrag? _mitarbBearb;
     private bool _mitarbFormOffen;

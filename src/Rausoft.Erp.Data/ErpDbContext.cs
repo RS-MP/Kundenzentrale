@@ -34,6 +34,8 @@ public class ErpDbContext(
     public DbSet<Vertrag> Vertraege => Set<Vertrag>();
     public DbSet<Vertragsbestandteil> Vertragsbestandteile => Set<Vertragsbestandteil>();
     public DbSet<Vertragsdokument> Vertragsdokumente => Set<Vertragsdokument>();
+    public DbSet<Vorlage> Vorlagen => Set<Vorlage>();
+    public DbSet<VorlagenVersion> VorlagenVersionen => Set<VorlagenVersion>();
 
     // Abos
     public DbSet<Abo> Abos => Set<Abo>();
@@ -282,6 +284,26 @@ public class ErpDbContext(
             e.Property(d => d.Sha256).HasMaxLength(64).IsFixedLength();
             e.HasOne(d => d.ErstelltVon).WithMany()
                 .HasForeignKey(d => d.ErstelltVonId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(d => d.VorlagenVersion).WithMany()
+                .HasForeignKey(d => d.VorlagenVersionId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- Vertragsvorlagen (Freigabe-Versionierung) -----------------------
+        modelBuilder.Entity<Vorlage>(e =>
+        {
+            e.HasIndex(v => v.Name).IsUnique();
+            e.Property(v => v.Name).HasMaxLength(200);
+        });
+        modelBuilder.Entity<VorlagenVersion>(e =>
+        {
+            e.HasIndex(v => new { v.VorlageId, v.Nummer }).IsUnique();
+            e.Property(v => v.Dateipfad).HasMaxLength(500);
+            e.Property(v => v.Sha256).HasMaxLength(64).IsFixedLength();
+            e.Property(v => v.Notiz).HasMaxLength(500);
+            e.HasOne(v => v.Vorlage).WithMany(v => v.Versionen)
+                .HasForeignKey(v => v.VorlageId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(v => v.FreigegebenVon).WithMany()
+                .HasForeignKey(v => v.FreigegebenVonId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 

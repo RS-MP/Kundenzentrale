@@ -51,10 +51,12 @@ else
 builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = options.DefaultPolicy;
-    // "Admin" prüft die Mitarbeiter-Rolle aus der DB (AdminAnforderungHandler)
+    // "Admin"/"Compliance" prüfen die Mitarbeiter-Rolle aus der DB (serverseitig)
     options.AddPolicy("Admin", policy => policy.Requirements.Add(new AdminAnforderung()));
+    options.AddPolicy("Compliance", policy => policy.Requirements.Add(new ComplianceAnforderung()));
 });
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminAnforderungHandler>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, ComplianceAnforderungHandler>();
 
 // Blazor WASM (eigener Dev-Port) darf die API in der Entwicklung aufrufen
 builder.Services.AddCors();

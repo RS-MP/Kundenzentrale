@@ -20,6 +20,7 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
     private static readonly (MitarbeiterRolle Rolle, string Name)[] AlleRollen =
     [
         (MitarbeiterRolle.Admin, "Admin"),
+        (MitarbeiterRolle.Compliance, "Compliance"),
         (MitarbeiterRolle.Vertrieb, "Vertrieb"),
         (MitarbeiterRolle.Support, "Support"),
         (MitarbeiterRolle.Buchhaltung, "Buchhaltung"),

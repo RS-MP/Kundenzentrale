@@ -31,3 +31,26 @@ public class AdminAnforderungHandler(ErpDbContext db, IAktuellerBenutzer benutze
             context.Succeed(anforderung);
     }
 }
+
+/// <summary>Autorisierung "Compliance": Vorlagen verwalten/freigeben — Compliance-Rolle oder Admin.</summary>
+public class ComplianceAnforderung : IAuthorizationRequirement;
+
+public class ComplianceAnforderungHandler(ErpDbContext db, IAktuellerBenutzer benutzer)
+    : AuthorizationHandler<ComplianceAnforderung>
+{
+    protected override async Task HandleRequirementAsync(
+        AuthorizationHandlerContext context, ComplianceAnforderung anforderung)
+    {
+        if (benutzer.EntraObjectId is null && benutzer.WindowsKonto is null)
+            return;
+
+        var rollen = await db.Mitarbeiter
+            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
+            .Where(m => m.Aktiv)
+            .Select(m => m.Rollen)
+            .FirstOrDefaultAsync();
+
+        if (rollen.HasFlag(MitarbeiterRolle.Compliance) || rollen.HasFlag(MitarbeiterRolle.Admin))
+            context.Succeed(anforderung);
+    }
+}

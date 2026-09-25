@@ -20,9 +20,13 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
 - [ ] **Publish aktualisieren** (enthält: Benutzerverwaltung „Benutzer &
   Rollen" im Admin-Bereich, 10.09.2026). Migrationen laufen automatisch,
   manuelle Server-Schritte: keine.
-- [ ] **Publish aktualisieren (24.09.2026):** „Ordner öffnen" + „Pfad kopieren"
-  an den Vertragsdokumenten — Anwender kommen direkt in den Ablage-Ordner statt
-  über den Download mit kryptischem Namen.
+- [ ] **Publish aktualisieren (25.09.2026):** „Ordner öffnen" + „Pfad kopieren"
+  an den Vertragsdokumenten; **Vorlagen-Verwaltung mit Freigabe-Versionierung**
+  (Seite „Vorlagen", Rolle Compliance). Nach dem Update auf dem Server:
+  1) unter Administration → Benutzer & Rollen die Rolle **Compliance** an die
+  zuständige Person vergeben, 2) unter „Vorlagen" die Referenzvorlage
+  „Lizenzbedingungen SaaS + OnPrem.docx" als v1 freigeben — vorher ist in der
+  Kundenakte keine Vorlage mehr wählbar (Auswahl zeigt nur Freigegebenes).
 - [ ] **Edge-GPO für „Ordner öffnen"** (einmalig, AD-seitig): Damit der
   Ordner-Knopf den Explorer öffnet, in der GPO die Edge-Richtlinie
   **„IntranetFileLinksEnabled"** („Zulassen, dass Dateilinks der Intranetzone

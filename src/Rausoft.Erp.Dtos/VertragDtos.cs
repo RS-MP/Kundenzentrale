@@ -43,7 +43,8 @@ public record DokumentEintrag(
     string Sha256,
     DateTime ErstelltAm,
     string ErstelltVon,
-    string? OrdnerPfad);
+    string? OrdnerPfad,
+    string? VorlagenStand);
 
 public record VertragAnlegen(
     int KundeId,
@@ -72,7 +73,7 @@ public record BestandteilAnlegen(
 public record DokumentRegistrieren(string RelativerPfad);
 
 /// <summary>Vertrag aus einer Word-Vorlage erzeugen (Dateiname aus dem Vorlagen-Verzeichnis).</summary>
-public record VertragAusVorlage(int KundeId, string Vorlage);
+public record VertragAusVorlage(int KundeId, int VorlagenVersionId);
 
 public record VorlagenErgebnis(
     int VertragId,
