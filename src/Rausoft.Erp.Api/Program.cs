@@ -148,7 +148,11 @@ if (builder.Configuration["Hosting:PfadBasis"] is { Length: > 0 } pfadBasis)
     app.UseRouting();
 }
 
-app.UseHttpsRedirection();
+// Windows-/Intranet-Betrieb läuft bewusst über http (nur intern erreichbar) —
+// die erzwungene Umleitung würde aufs HTTPS-Binding der Default Web Site mit
+// fremdem Zertifikat umleiten und Zertifikatswarnungen erzeugen.
+if (!windowsAuth)
+    app.UseHttpsRedirection();
 
 // Die API liefert auch das Blazor-Frontend aus (ein IIS-Site, kein CORS nötig);
 // in der Entwicklung läuft das Frontend weiterhin auf dem eigenen Dev-Port.
