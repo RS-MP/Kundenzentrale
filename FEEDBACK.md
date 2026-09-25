@@ -180,9 +180,13 @@ Stufenplan:
   füllt die Word-Datei (bestehende Muster-Texte UND {{Platzhalter}}),
   legt sie im Zielverzeichnis ab, registriert sie an einer neuen
   Vertragsakte (Entwurf) mit Prüfsumme + Timeline. Ausgabe vorerst .docx.
-- Stufe 1b (wartet auf Telerik-Zugang, Entwicklungsleiter im Urlaub):
-  PDF-Export über Telerik Document Processing (RadWordsProcessing,
-  von der Reporting-Lizenz abgedeckt).
+- Stufe 1b (umgesetzt 25.09.2026): PDF-Export über Telerik Document
+  Processing — die Vertragserzeugung legt jetzt ein PDF ab (Metadaten:
+  rausoft GmbH, Vertragsnummer, Vorlagen-Stand) und registriert es; die
+  gefüllte .docx liegt als bearbeitbare Quelle gleichnamig daneben.
+  Optional wird das PDF digital signiert (PFX-Zertifikat als Einstellung,
+  Passwort verschlüsselt) — Änderungen an der Datei machen die Signatur
+  ungültig. Mit Testzertifikat verifiziert; echtes Zertifikat noch offen.
 - Stufe 2 (Phase-2-Bausteine): Versand über die E-Mail-Warteschlange
   (SMTP-Zugangsdaten verschlüsselt!) + Rücklauf-Überwachung über
   Aufgaben/Wiedervorlage.

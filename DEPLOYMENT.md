@@ -16,6 +16,21 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **VOR dem nächsten Publish: .NET Desktop Runtime 10 installieren!**
+  Die PDF-Erzeugung (Telerik) braucht WPF — ohne die Desktop Runtime startet
+  die App nach dem Update nicht mehr (500.30):
+  https://dotnet.microsoft.com/download/dotnet/10.0 → „.NET Desktop Runtime"
+  (x64) installieren, dann normal Publish kopieren (App-Pool stoppen/starten).
+- [ ] **Publish aktualisieren (25.09.2026 abends):** Vertragserzeugung liefert
+  PDF (+ docx-Quelle daneben), Metadaten, optionale digitale Signatur.
+- [ ] **PDF-Signatur produktiv schalten** (sobald gewünscht): Signatur-
+  Zertifikat als PFX beschaffen — internes AD-CS-Zertifikat (Warnhinweis bei
+  Externen) oder ein offizielles Dokumenten-Signaturzertifikat (extern gültig).
+  PFX auf den Server legen (z. B. `C:\Kundenzentrale-Zertifikat\signatur.pfx`,
+  NTFS nur Admins + App-Pool), dann Administration → Verzeichnisse:
+  Pfad in „Signatur-Zertifikat" eintragen + „Signatur-PFX-Passwort" setzen.
+  Leer lassen = PDFs ohne Signatur (funktioniert auch).
+
 Laufende Liste aller Änderungen seit dem Go-Live vom 10.09.2026 — beim
 nächsten Server-Update Publish kopieren und die Punkte abhaken:
 

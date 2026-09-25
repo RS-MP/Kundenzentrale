@@ -35,14 +35,16 @@ Anmeldung läuft automatisch über euer Windows-Konto, es gibt kein Passwort.
 1. Kundenakte öffnen → Aufklapper **Verträge** → Vorlage im Auswahlfeld
    wählen (zeigt immer die aktuell freigegebene Version, z. B.
    „NDA Standard (v2)") → **„Aus Vorlage erstellen"**.
-2. Das System füllt die Kundendaten in die Word-Vorlage ein, legt die Datei
-   im Ablageverzeichnis ab (Dateiname = Kundennummer, z. B. `4228.docx`,
-   bei mehreren `4228-1.docx` …) und legt eine neue **Vertragsakte im Status
-   Entwurf** an — mit Prüfsumme und Verlaufseintrag.
-3. Die fertige Datei bei Bedarf in Word öffnen (Knopf **Ordner** oder **Pfad**
-   am Dokument, siehe unten), prüfen und wie gewohnt verschicken.
-   *(PDF-Ausgabe und Versand direkt aus dem System folgen in einer späteren
-   Ausbaustufe.)*
+2. Das System füllt die Kundendaten in die Vorlage und legt den fertigen
+   Vertrag als **PDF** ab (Dateiname = Kundennummer, z. B. `4228.pdf`; die
+   bearbeitbare Word-Quelle liegt gleichnamig daneben). Gleichzeitig entsteht
+   eine **Vertragsakte im Status Entwurf** — mit Prüfsumme, Vorlagen-Version
+   und Verlaufseintrag. Das PDF trägt Metadaten (rausoft, Vertragsnummer,
+   Vorlagen-Stand) und kann digital signiert sein — nachträgliche Änderungen
+   an der Datei fallen dann sofort auf.
+3. PDF prüfen (Knopf **Ansehen**) und wie gewohnt per E-Mail verschicken;
+   für Textanpassungen die gleichnamige `.docx` bearbeiten (Knopf **Ordner**).
+   *(Versand direkt aus dem System folgt in einer späteren Ausbaustufe.)*
 4. Kommt der unterschriebene Vertrag zurück: unterschriebene Version in die
    Ablage legen und in der Vertragsakte über **„+ Version hinzufügen"**
    registrieren, dann den Vertrag auf **Aktiv** stellen und die Laufzeit
