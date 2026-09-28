@@ -44,6 +44,23 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
   zuständige Person vergeben, 2) unter „Vorlagen" die Referenzvorlage
   „Lizenzbedingungen SaaS + OnPrem.docx" als v1 freigeben — vorher ist in der
   Kundenakte keine Vorlage mehr wählbar (Auswahl zeigt nur Freigegebenes).
+- [ ] **Publish aktualisieren (25.09.2026, FEEDBACK 17-Reste/18/19):**
+  Dokumentart-Kürzel, Reihenfolge/Stand der Vertragsdokumente, Vorlagen mit
+  Dokumentart, Rollen-Freigabe und Gültig-ab. Migration läuft automatisch.
+  Nach dem Update: 1) Administration → Verzeichnisse → **„Dokumentdaten
+  nachtragen"** einmal klicken (liest Datum aus Dateinamen/Dateidatum für den
+  Bestand), 2) unter „Vorlagen" je Vorlage die **Dokumentart** prüfen
+  (Bestand steht auf Lizenzvertrag) und ggf. Rollen einschränken.
+  Import-Tool (`publish-import`) ebenfalls neu kopieren — `vertragsscan`
+  setzt das Datum dann bei neuen Dateien gleich mit.
+- [ ] **Publish aktualisieren (28.09.2026, FEEDBACK Nr. 20 Stufe 1):**
+  vertrauliche Vertragsbestandteile. Migration läuft automatisch. Nach dem
+  Update: 1) Administration → Verzeichnisse → **VertraulicheAblage.Verzeichnis**
+  auf den Ordner der vertraulichen Verträge setzen (UNC), 2) unter Benutzer &
+  Rollen die Rolle **„Vertrauliche Verträge"** an die berechtigten Personen
+  vergeben, 3) **NTFS-Rechte** des Ordners prüfen: Lesen nur App-Pool-Konto
+  „IIS APPPOOL\Kundenzentrale" (bzw. Computerkonto bei UNC) + berechtigte
+  Personen — die App schützt nur den Zugriff über die Kundenzentrale.
 - [ ] **Edge-GPO für „Ordner öffnen"** (einmalig, AD-seitig): Damit der
   Ordner-Knopf den Explorer öffnet, in der GPO die Edge-Richtlinie
   **„IntranetFileLinksEnabled"** („Zulassen, dass Dateilinks der Intranetzone

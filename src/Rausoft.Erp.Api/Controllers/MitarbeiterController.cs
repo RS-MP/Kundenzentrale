@@ -17,10 +17,11 @@ namespace Rausoft.Erp.Api.Controllers;
 [Authorize(Policy = "Admin")]
 public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer) : ControllerBase
 {
-    private static readonly (MitarbeiterRolle Rolle, string Name)[] AlleRollen =
+    internal static readonly (MitarbeiterRolle Rolle, string Name)[] AlleRollen =
     [
         (MitarbeiterRolle.Admin, "Admin"),
         (MitarbeiterRolle.Compliance, "Compliance"),
+        (MitarbeiterRolle.VertraulicheVertraege, "Vertrauliche Verträge"),
         (MitarbeiterRolle.Vertrieb, "Vertrieb"),
         (MitarbeiterRolle.Support, "Support"),
         (MitarbeiterRolle.Buchhaltung, "Buchhaltung"),
@@ -115,7 +116,7 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
         AlleRollen.Where(r => m.Rollen.HasFlag(r.Rolle)).Select(r => r.Name).ToList(),
         m.Aktiv, m.Id == eigeneId);
 
-    private static MitarbeiterRolle NachRollen(List<string> namen) =>
+    internal static MitarbeiterRolle NachRollen(List<string> namen) =>
         AlleRollen.Where(r => namen.Contains(r.Name, StringComparer.OrdinalIgnoreCase))
             .Aggregate(MitarbeiterRolle.Keine, (summe, r) => summe | r.Rolle);
 }

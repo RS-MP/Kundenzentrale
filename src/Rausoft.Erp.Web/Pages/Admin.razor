@@ -135,6 +135,7 @@
             Domänen-Benutzer werden beim ersten Aufruf automatisch angelegt (ohne Rollen).
             <b>Admin</b> schaltet diesen Bereich, Server-Verwaltung und Vertrags-Löschung frei;
             <b>Compliance</b> gibt Vertragsvorlagen frei (Admins dürfen das auch).
+            <b>Vertrauliche Verträge</b> sieht vertrauliche Bestandteile (Sondervereinbarungen, Partnerverträge) vollständig — Admins nicht automatisch.
         </div>
         @if (_mitarbeiter is null)
         {
@@ -301,10 +302,47 @@
                 <button class="knopf sekundaer" @onclick="PfxSpeichernAsync">Speichern</button>
             </div>
         }
+        <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+            <button class="knopf sekundaer" disabled="@_datenNachtragen" @onclick="DokumentdatenNachtragenAsync"
+                    title="Ermittelt für Vertragsbestandteile ohne Datum den Stand aus Dateiname bzw. Datei-Änderungsdatum (Reihenfolge der Dokumente). Gepflegte Daten bleiben unverändert.">
+                @(_datenNachtragen ? "Läuft …" : "Dokumentdaten nachtragen")
+            </button>
+            <span style="color:var(--muted); font-size:13px">@_datenErgebnis</span>
+        </div>
     </div>
 </details>
 
 @code {
+    private bool _datenNachtragen;
+    private string? _datenErgebnis;
+
+    private async Task DokumentdatenNachtragenAsync()
+    {
+        _datenNachtragen = true;
+        _datenErgebnis = null;
+        try
+        {
+            var antwort = await Http.PostAsync("api/vertraege/dokumentdaten-nachtragen", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _datenErgebnis = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var e = await antwort.Content.ReadFromJsonAsync<DokumentdatenNachgetragen>();
+            _datenErgebnis = e!.Geprueft == 0
+                ? "✓ Alle Bestandteile haben bereits ein Dokumentdatum."
+                : $"✓ {e.Geprueft} Bestandteile: {e.AusDateiname} aus Dateiname, {e.AusDateidatum} aus Dateidatum, {e.OhneDatei} ohne erreichbare Datei.";
+        }
+        catch (Exception ex)
+        {
+            _datenErgebnis = $"Fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _datenNachtragen = false;
+        }
+    }
+
     private List<EinstellungEintrag>? _einstellungen;
     private readonly Dictionary<string, string> _werte = [];
     private string? _gespeichert;
@@ -328,7 +366,7 @@
     private OdooImportStatus? _odooImport;
     private readonly CancellationTokenSource _seiteVerlassen = new();
 
-    private static readonly string[] AlleRollen = ["Admin", "Compliance", "Vertrieb", "Support", "Buchhaltung"];
+    private static readonly string[] AlleRollen = ["Admin", "Compliance", "Vertrauliche Verträge", "Vertrieb", "Support", "Buchhaltung"];
     private List<MitarbeiterEintrag>? _mitarbeiter;
     private MitarbeiterEintrag? _mitarbBearb;
     private bool _mitarbFormOffen;

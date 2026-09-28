@@ -9,7 +9,14 @@ public record VertragListenEintrag(
     string Status,
     DateOnly Beginn,
     DateOnly? NaechstesEnde,
-    List<string> Bestandteile);
+    List<BestandteilKurz> Bestandteile,
+    // Jüngstes Dokument der Akte (FEEDBACK Nr. 18), z. B. „Bestellung 3 · 08.09.2026".
+    StandEintrag? AktuellerStand);
+
+/// <summary>Dokumentart-Kürzel für Listen (FEEDBACK Nr. 19): „BE" · „Bestellungen" · 5.</summary>
+public record BestandteilKurz(string Kuerzel, string Name, int Anzahl);
+
+public record StandEintrag(string Kuerzel, string Bezeichnung, DateOnly Datum);
 
 public record VertragDetail(
     int Id,
@@ -25,15 +32,41 @@ public record VertragDetail(
     DateOnly? GekuendigtZum,
     DateOnly? NaechstesEnde,
     string? Notiz,
-    List<BestandteilDetail> Bestandteile);
+    List<BestandteilDetail> Bestandteile,
+    StandEintrag? AktuellerStand,
+    // Angemeldeter Benutzer hat die Rolle „Vertrauliche Verträge"
+    bool DarfVertrauliche);
 
 public record BestandteilDetail(
     int Id,
     string Typ,
+    string Kuerzel,
     string Titel,
     string? Beschreibung,
     DateOnly? UnterzeichnetAm,
+    DateOnly? Dokumentdatum,
+    // Herkunft des Dokumentdatums: „Dateiname", „Dateidatum", „Erzeugt", „Manuell".
+    string? DokumentdatumQuelle,
+    // Laufende Nummer innerhalb der Dokumentart (nur bei mehreren), z. B. Bestellung 3.
+    int? LaufendeNummer,
+    bool IstAktuellster,
+    // Vertraulich (FEEDBACK Nr. 20): Kurzinfo sehen alle; Gesperrt = Titel/Beschreibung/Dokumente ausgeblendet
+    bool Vertraulich,
+    bool Gesperrt,
+    string? Kurzinfo,
     List<DokumentEintrag> Dokumente);
+
+/// <summary>Bestandteil korrigieren — z. B. falsch erkanntes Dokumentdatum (Quelle wird „Manuell").</summary>
+public record BestandteilAendern(
+    string Typ,
+    string Titel,
+    string? Beschreibung,
+    DateOnly? UnterzeichnetAm,
+    DateOnly? Dokumentdatum,
+    bool Vertraulich = false,
+    string? Kurzinfo = null);
+
+public record DokumentdatenNachgetragen(int Geprueft, int AusDateiname, int AusDateidatum, int OhneDatei);
 
 public record DokumentEintrag(
     int Id,
@@ -67,7 +100,9 @@ public record BestandteilAnlegen(
     string Typ,
     string Titel,
     string? Beschreibung,
-    DateOnly? UnterzeichnetAm);
+    DateOnly? UnterzeichnetAm,
+    bool Vertraulich = false,
+    string? Kurzinfo = null);
 
 /// <summary>Registriert eine Dokumentversion: Pfad relativ zum Vertragsablage-Verzeichnis.</summary>
 public record DokumentRegistrieren(string RelativerPfad);

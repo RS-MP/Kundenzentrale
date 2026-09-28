@@ -20,27 +20,30 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
 {
     private const string FreigabeOrdner = "Freigegeben";
 
-    /// <summary>Übersicht aller Vorlagen mit aktueller Version und Verwendungszahl.</summary>
+    /// <summary>Übersicht aller Vorlagen mit aktuell gültiger Version und Verwendungen.</summary>
     [HttpGet]
     public async Task<ActionResult<List<VorlageEintrag>>> Liste(CancellationToken ct)
     {
+        var heute = DateOnly.FromDateTime(DateTime.Today);
         var vorlagen = await db.Vorlagen.AsNoTracking()
             .Include(v => v.Versionen).ThenInclude(x => x.FreigegebenVon)
             .OrderBy(v => v.Name)
             .ToListAsync(ct);
-        var verwendungen = await db.Vertragsdokumente.AsNoTracking()
-            .Where(d => d.VorlagenVersionId != null)
-            .GroupBy(d => d.VorlagenVersion!.VorlageId)
-            .Select(g => new { VorlageId = g.Key, Anzahl = g.Count() })
-            .ToDictionaryAsync(g => g.VorlageId, g => g.Anzahl, ct);
+        var verwendungen = await VerwendungenLaden(null, ct);
 
         return Ok(vorlagen.Select(v =>
         {
-            var aktuelle = v.Versionen.OrderByDescending(x => x.Nummer).FirstOrDefault();
+            var aktuelle = AktuelleVersion(v.Versionen, heute);
+            var kommende = v.Versionen.Where(x => x.GueltigAb > heute && x.Nummer > (aktuelle?.Nummer ?? 0))
+                .OrderByDescending(x => x.Nummer).FirstOrDefault();
+            var eigene = verwendungen.Where(x => x.VorlageId == v.Id).ToList();
             return new VorlageEintrag(
                 v.Id, v.Name, v.Aktiv,
-                aktuelle?.Nummer, aktuelle?.FreigegebenAm, aktuelle?.FreigegebenVon?.Anzeigename,
-                aktuelle?.Notiz, verwendungen.GetValueOrDefault(v.Id));
+                Dienste.Dokumentarten.Name(v.Typ), Dienste.Dokumentarten.Kuerzel(v.Typ),
+                RollenNamen(v.ErlaubteRollen),
+                aktuelle?.Nummer, aktuelle?.FreigegebenAm, aktuelle?.FreigegebenVon?.Anzeigename, aktuelle?.Notiz,
+                kommende?.Nummer, kommende?.GueltigAb,
+                eigene.Count);
         }).ToList());
     }
 
@@ -59,25 +62,67 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
             .Select(g => new { VersionId = g.Key, Anzahl = g.Count() })
             .ToDictionaryAsync(g => g.VersionId, g => g.Anzahl, ct);
         return Ok(versionen.Select(v => new VorlagenVersionEintrag(
-            v.Id, v.Nummer, v.FreigegebenAm, v.FreigegebenVon?.Anzeigename, v.Notiz,
+            v.Id, v.Nummer, v.FreigegebenAm, v.GueltigAb, v.FreigegebenVon?.Anzeigename, v.Notiz,
             verwendungen.GetValueOrDefault(v.Id))).ToList());
     }
 
-    /// <summary>Welcher Kunde hat welchen Versionsstand dieser Vorlage bekommen?</summary>
+    /// <summary>
+    /// Welcher Kunde hat welchen Versionsstand dieser Vorlage bekommen? Reine
+    /// Information — ein älterer Stand beim Kunden ist kein Mangel: unterschriebene
+    /// Verträge bleiben gültig, auch wenn es inzwischen eine neuere Vorlage gibt.
+    /// Neue Verträge entstehen ohnehin nur aus der aktuell gültigen Version.
+    /// </summary>
     [HttpGet("{id:int}/verwendungen")]
     public async Task<ActionResult<List<VorlagenVerwendung>>> Verwendungen(int id, CancellationToken ct) =>
-        Ok(await db.Vertragsdokumente.AsNoTracking()
-            .Where(d => d.VorlagenVersion!.VorlageId == id)
-            .OrderByDescending(d => d.ErstelltAm)
-            .Select(d => new VorlagenVerwendung(
-                d.VorlagenVersion!.Nummer,
+        Ok((await VerwendungenLaden(id, ct))
+            .OrderByDescending(v => v.ErstelltAm)
+            .Select(v => new VorlagenVerwendung(
+                v.Nummer, v.VertragId, v.Vertragsnummer, v.KundeId, v.Kundennummer, v.Firmenname, v.ErstelltAm))
+            .ToList());
+
+    /// <summary>Dokumentart und Nutzungsfreigabe je Rolle ändern.</summary>
+    [Authorize(Policy = "Compliance")]
+    [HttpPut("{id:int}/einstellungen")]
+    public async Task<IActionResult> EinstellungenAendern(int id, VorlageEinstellungen einstellungen, CancellationToken ct)
+    {
+        var vorlage = await db.Vorlagen.FirstOrDefaultAsync(v => v.Id == id, ct);
+        if (vorlage is null)
+            return NotFound();
+        if (Dienste.Dokumentarten.Wert(einstellungen.Typ) is not { } typ)
+            return BadRequest($"Unbekannte Dokumentart '{einstellungen.Typ}'.");
+        vorlage.Typ = typ;
+        vorlage.ErlaubteRollen = MitarbeiterController.NachRollen(einstellungen.ErlaubteRollen);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    // --- Hilfen ----------------------------------------------------------------
+
+    /// <summary>Aktuell gültig = höchste Version, deren Gültig-ab erreicht ist.</summary>
+    private static VorlagenVersion? AktuelleVersion(IEnumerable<VorlagenVersion> versionen, DateOnly heute) =>
+        versionen.Where(v => v.GueltigAb <= heute).OrderByDescending(v => v.Nummer).FirstOrDefault();
+
+    private record Verwendung(
+        int VorlageId, int Nummer, int VertragId, string Vertragsnummer,
+        int KundeId, string Kundennummer, string Firmenname, DateTime ErstelltAm);
+
+    private Task<List<Verwendung>> VerwendungenLaden(int? vorlageId, CancellationToken ct) =>
+        db.Vertragsdokumente.AsNoTracking()
+            .Where(d => d.VorlagenVersionId != null
+                && (vorlageId == null || d.VorlagenVersion!.VorlageId == vorlageId))
+            .Select(d => new Verwendung(
+                d.VorlagenVersion!.VorlageId,
+                d.VorlagenVersion.Nummer,
                 d.Vertragsbestandteil!.VertragId,
                 d.Vertragsbestandteil.Vertrag!.Vertragsnummer,
                 d.Vertragsbestandteil.Vertrag.KundeId,
                 d.Vertragsbestandteil.Vertrag.Kunde!.Kundennummer,
                 d.Vertragsbestandteil.Vertrag.Kunde.Firmenname,
                 d.ErstelltAm))
-            .ToListAsync(ct));
+            .ToListAsync(ct);
+
+    private static List<string> RollenNamen(MitarbeiterRolle rollen) =>
+        MitarbeiterController.AlleRollen.Where(r => rollen.HasFlag(r.Rolle)).Select(r => r.Name).ToList();
 
     /// <summary>Entwurfsdateien im Vorlagen-Verzeichnis (Root) — Kandidaten für eine Freigabe.</summary>
     [Authorize(Policy = "Compliance")]
@@ -129,9 +174,19 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
                 return BadRequest("Ungültiger Vorlagen-Name.");
             if (await db.Vorlagen.AnyAsync(v => v.Name == name, ct))
                 return BadRequest($"Eine Vorlage „{name}“ existiert bereits — dort eine neue Version freigeben.");
-            vorlage = new Vorlage { Name = name };
+            if (freigabe.Typ is not null && Dienste.Dokumentarten.Wert(freigabe.Typ) is null)
+                return BadRequest($"Unbekannte Dokumentart '{freigabe.Typ}'.");
+            vorlage = new Vorlage
+            {
+                Name = name,
+                Typ = Dienste.Dokumentarten.Wert(freigabe.Typ) ?? BestandteilTyp.Lizenzvertrag,
+            };
             db.Vorlagen.Add(vorlage);
         }
+
+        // Gültig-ab: leer oder in der Vergangenheit = sofort; sonst gilt bis dahin die Vorversion
+        var heute = DateOnly.FromDateTime(DateTime.Today);
+        var gueltigAb = freigabe.GueltigAb is { } datum && datum > heute ? datum : heute;
 
         var mitarbeiterId = await db.Mitarbeiter
             .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
@@ -158,13 +213,17 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
             Sha256 = pruefsumme,
             FreigegebenAm = DateTime.UtcNow,
             FreigegebenVonId = mitarbeiterId,
+            GueltigAb = gueltigAb,
             Notiz = string.IsNullOrWhiteSpace(freigabe.Notiz) ? null : freigabe.Notiz.Trim(),
         });
         await db.SaveChangesAsync(ct);
 
         var neueste = vorlage.Versionen.OrderByDescending(v => v.Nummer).First();
         return Ok(new VorlageEintrag(vorlage.Id, vorlage.Name, vorlage.Aktiv,
-            neueste.Nummer, neueste.FreigegebenAm, null, neueste.Notiz, 0));
+            Dienste.Dokumentarten.Name(vorlage.Typ), Dienste.Dokumentarten.Kuerzel(vorlage.Typ),
+            RollenNamen(vorlage.ErlaubteRollen),
+            neueste.Nummer, neueste.FreigegebenAm, null, neueste.Notiz,
+            gueltigAb > heute ? neueste.Nummer : null, gueltigAb > heute ? gueltigAb : null, 0));
     }
 
     /// <summary>Vorlage zurückziehen bzw. wieder aktivieren (Historie bleibt erhalten).</summary>

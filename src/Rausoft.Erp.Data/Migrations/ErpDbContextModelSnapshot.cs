@@ -95,6 +95,19 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateOnly?>("Dokumentdatum")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("DokumentdatumQuelle")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Folge")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kurzinfo")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<string>("Titel")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -108,6 +121,9 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.Property<int>("VertragId")
                         .HasColumnType("int");
+
+                    b.Property<bool>("Vertraulich")
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -178,10 +194,16 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<bool>("Aktiv")
                         .HasColumnType("bit");
 
+                    b.Property<int>("ErlaubteRollen")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Typ")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -209,6 +231,9 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.Property<int?>("FreigegebenVonId")
                         .HasColumnType("int");
+
+                    b.Property<DateOnly>("GueltigAb")
+                        .HasColumnType("date");
 
                     b.Property<string>("Notiz")
                         .HasMaxLength(500)

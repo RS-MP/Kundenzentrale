@@ -484,6 +484,7 @@ $RECYCLE.BIN/
 
 # Lokales Test-Ablageverzeichnis fuer die Entwicklung
 .dev-ablage/
+.dev-vertraulich/
 
 # Telerik: Lizenzschluessel und Offline-Pakete bleiben lokal (nie ins Repo)
 TelerikPDF/

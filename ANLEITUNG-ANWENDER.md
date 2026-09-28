@@ -33,8 +33,9 @@ Anmeldung läuft automatisch über euer Windows-Konto, es gibt kein Passwort.
 ## Vertrag aus Vorlage erstellen
 
 1. Kundenakte öffnen → Aufklapper **Verträge** → Vorlage im Auswahlfeld
-   wählen (zeigt immer die aktuell freigegebene Version, z. B.
-   „NDA Standard (v2)") → **„Aus Vorlage erstellen"**.
+   wählen (zeigt immer die aktuell gültige Version mit Dokumentart, z. B.
+   „NDA · NDA Standard (v2)") → **„Aus Vorlage erstellen"**. Angeboten werden
+   nur Vorlagen, die für die eigene Rolle freigegeben sind.
 2. Das System füllt die Kundendaten in die Vorlage und legt den fertigen
    Vertrag als **PDF** ab (Dateiname = Kundennummer, z. B. `4228.pdf`; die
    bearbeitbare Word-Quelle liegt gleichnamig daneben). Gleichzeitig entsteht
@@ -61,6 +62,37 @@ welchen Versionsstand bekommen hat**. Platzhalter: `{{Firmenname}}`,
 `{{AboNummer}}`, `{{Datum}}`. Nicht ersetzbare Platzhalter meldet das System
 nach dem Erzeugen als „offen". Details: Anleitung „Vertragsvorlagen erstellen".
 
+Beim Freigeben legt Compliance außerdem fest: **Dokumentart** (NDA,
+Lizenzvertrag … — so wird der erzeugte Bestandteil eingeordnet), **Gültig ab**
+(leer = sofort; bis zum Stichtag bleibt die Vorversion wählbar) und je
+Vorlage, **welche Rollen sie verwenden dürfen** (keine Auswahl = alle;
+Compliance und Admin immer).
+
+**Alte Vorlage oder alter Vertrag?** Neue Verträge entstehen immer nur aus der
+**aktuell gültigen** Vorlagen-Version — ältere Versionen sind nicht mehr
+wählbar. Unterschriebene Verträge im Archiv dürfen dagegen einen älteren Stand
+haben und **bleiben gültig**; die Liste „Wer hat welchen Stand bekommen?" ist
+reine Information, es wird nichts automatisch zum Nachversand markiert.
+Nachträge bei rechtlich notwendigen Änderungen entscheidet Compliance im
+Einzelfall.
+
+## Dokumentart und Reihenfolge erkennen
+
+- Jede Dokumentart hat ein **Kürzel** (WV Wartungsvertrag · LV Lizenzvertrag ·
+  AVV · NDA · SV Sondervereinbarung · NT Nachtrag · BE Bestellung ·
+  IP Installationsprotokoll · KÜ Kündigung · SO Sonstiges). In Vertragsliste
+  und Kundenakte stehen die Kürzel vor dem Vertrag, z. B. `WV` `NT ×2`
+  `BE ×5` — Maus darüber zeigt den vollen Namen.
+- In der **Vertragsakte** sind die Bestandteile nach Dokumentart gruppiert,
+  innerhalb jeder Gruppe steht das **neueste oben**; mehrere gleiche werden
+  nummeriert („Bestellung 3"). Der Akten-Kopf und die Listen zeigen den
+  **Stand** = das jüngste Dokument, z. B. „Stand: Bestellung 3 vom 08.09.2026".
+- Das Datum stammt aus „Unterzeichnet am", sonst aus dem **Dateinamen**
+  (z. B. `… 2026-09-08.pdf`, `… 08.09.2026.pdf`), sonst aus dem
+  Datei-Änderungsdatum — dann steht „ca." davor. Bei gleichem Datum
+  entscheidet die Endung `-1`, `-2` … Falsch erkannt? Am Bestandteil auf
+  **Korrigieren** klicken und Datum oder Dokumentart anpassen.
+
 ## Dokumente ansehen und im Explorer öffnen
 
 An jedem Vertragsdokument gibt es drei Knöpfe:
@@ -78,12 +110,28 @@ in 90 Tagen, gekündigt) — die Arbeitsfilter **Nachzupflegen** und **Ende in
 90 Tagen** sind die tägliche Arbeitsliste. Beim Klären gilt: Kündigung
 gefunden → Vertragsstatus auf **Gekündigt** setzen.
 
+## Vertrauliche Verträge
+
+Sondervereinbarungen oder Partnerverträge, die nicht alle lesen dürfen, werden
+am Bestandteil als **Vertraulich** markiert (🔒). Dann gilt:
+
+- **Alle** sehen die Dokumentart, das Datum und die **Kurzinfo** (z. B.
+  „Sonderpreis 10 % auf Wartung bis 2027" oder „Provision 15 %") — so ist das
+  Nötigste bekannt, ohne nachfragen zu müssen. Die Kurzinfo also bitte immer
+  pflegen.
+- Titel, Beschreibung und Dokumente sehen nur Mitarbeiter mit der Rolle
+  **„Vertrauliche Verträge"** (vergibt ein Admin; Admins haben sie nicht
+  automatisch).
+- Vertrauliche Dokumente liegen im eigenen vertraulichen Ordner und werden
+  relativ zu diesem registriert.
+
 ## Wer darf was
 
 Alle Mitarbeiter können mit Kunden und Verträgen arbeiten. Der Bereich
 **Administration** (Einstellungen, Server, Odoo-Import, Benutzer & Rollen,
 Verträge löschen) ist Admins vorbehalten — Rollen vergibt ein Admin unter
-Administration → Benutzer & Rollen.
+Administration → Benutzer & Rollen. Vertrauliche Verträge sieht vollständig nur,
+wer die Rolle „Vertrauliche Verträge" hat.
 
 ## Bei Problemen
 

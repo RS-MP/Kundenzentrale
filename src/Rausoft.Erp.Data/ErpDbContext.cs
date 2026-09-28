@@ -256,6 +256,7 @@ public class ErpDbContext(
         {
             e.Property(b => b.Titel).HasMaxLength(200);
             e.Property(b => b.Beschreibung).HasColumnType("nvarchar(max)");
+            e.Property(b => b.Kurzinfo).HasMaxLength(300);
             // Bestandteile mit Dokumenten sind nicht löschbar (Unveränderlichkeit).
             e.HasMany(b => b.Dokumente).WithOne(d => d.Vertragsbestandteil!)
                 .HasForeignKey(d => d.VertragsbestandteilId).OnDelete(DeleteBehavior.Restrict);

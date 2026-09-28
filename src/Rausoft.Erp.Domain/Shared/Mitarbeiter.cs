@@ -44,4 +44,10 @@ public enum MitarbeiterRolle
     Buchhaltung = 8,
     /// <summary>Verwaltet und gibt Vertragsvorlagen frei.</summary>
     Compliance = 16,
+    /// <summary>
+    /// Darf vertrauliche Vertragsbestandteile (z. B. Sondervereinbarungen, Partnerverträge)
+    /// vollständig lesen und pflegen. Bewusst NICHT in Admin enthalten — technische
+    /// Administration heißt nicht Einsicht in vertrauliche Verträge.
+    /// </summary>
+    VertraulicheVertraege = 32,
 }

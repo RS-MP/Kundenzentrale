@@ -244,8 +244,9 @@ Ergänzungsvorschläge (Claude, zur Diskussion beim Abarbeiten):
    halter (VorlagenDienst kann das schon) — Compliance sieht Warnungen, bevor
    die Version produktiv geht.
 4. **Versionsstand am erzeugten Dokument speichern** → Auswertungen:
-   „Welcher Kunde hat welche NDA-Version?" und Arbeitsliste „Kunden mit
-   veralteter Version" (für Nachversand bei relevanten Änderungen).
+   „Welcher Kunde hat welche NDA-Version?" — ~~Arbeitsliste „Kunden mit
+   veralteter Version"~~ entschieden 25.09.2026 (MP): nicht gewünscht, ältere
+   unterschriebene Stände bleiben gültig.
 5. **Nutzungsfreigabe je Rolle und Vorlage** (Vertrieb darf NDA + Wartungs-
    vertrag, Support nur X …); Erzeugen-Knopf in der Akte zeigt nur, was die
    eigene Rolle darf.
@@ -262,8 +263,19 @@ Freigabe friert Kopie als Version vN ein (Unterordner Freigegeben, SHA-256,
 Freigeber + Änderungsnotiz); Kundenakte-Auswahl zeigt nur freigegebene
 aktuellste Versionen; erzeugte Dokumente speichern die VorlagenVersion →
 Auswertung „welcher Kunde hat welchen Stand" je Vorlage; Zurückziehen möglich.
-Noch offen aus den Ergänzungen: Typ-Zuordnung je Vorlage (mit Nr. 19),
-Nutzungsfreigabe je Rolle (Punkt 5), Gültig-ab-Datum.
+Status: ERLEDIGT (25.09.2026) — Reste umgesetzt: **Dokumentart je Vorlage**
+(bei Freigabe/Einstellungen; der erzeugte Bestandteil bekommt diese Art statt
+pauschal „Lizenzvertrag"), **Nutzungsfreigabe je Rolle** (Vertrieb/Support/
+Buchhaltung; keine Auswahl = alle, Compliance/Admin immer — Auswahl in der
+Akte gefiltert UND serverseitig beim Erzeugen geprüft), **Gültig-ab-Datum**
+(bis zum Stichtag bleibt die Vorversion gültig; Übersicht zeigt „v3 gilt ab …").
+**Bewusst KEINE „veraltet"-Markierung** (Entscheidung MP 25.09.2026): Neue
+Verträge entstehen nur aus der gültigen Version; unterschriebene Verträge mit
+älterem Vorlagen-Stand bleiben gültig — Nachträge nur, wenn rechtlich nötig,
+im Einzelfall. Die Auswertung „wer hat welchen Stand" bleibt reine Info. Bestehende Versionen gelten ab
+ihrem Freigabedatum; Bestandsvorlagen stehen auf Lizenzvertrag — „NDA
+Standard" o. Ä. nach dem Update einmal unter Vorlagen auf die richtige Art
+stellen.
 
 ## Nr. 18 · Aktualität/Reihenfolge der Vertragsdokumente erkennen (2026-09-10, MP)
 
@@ -281,7 +293,16 @@ Umsetzungsidee:
 - Nachrüstung für den Bestand: Scanner-Lauf ergänzt das Datum idempotent an
   bereits importierten Dokumenten.
 
-Status: offen (Sammelphase)
+Status: ERLEDIGT (25.09.2026) — Dokumentdatum + Herkunft (Dateiname /
+Dateidatum / Erzeugt / Manuell) und Folgenummer (-1/-2) am Bestandteil;
+Erkennung von 2026-09-08, 08.09.2026, 8.9.26, 20260908 im Dateinamen, sonst
+Datei-Änderungsdatum („ca."). Vertragsakte gruppiert nach Dokumentart, darin
+neuestes oben, Nummerierung „Bestellung 3", „jüngstes Dokument"-Hinweis;
+Stand im Akten-Kopf, in Vertragsliste und Kundenakte. Korrektur je Bestandteil
+(„Korrigieren": Art, Titel, Datum; manuell gesetztes Datum hat Vorrang).
+Nachrüstung: `vertragsscan` ergänzt fehlende Daten idempotent, zusätzlich
+Knopf „Dokumentdaten nachtragen" unter Administration → Verzeichnisse
+(läuft direkt auf dem Server, kein Import-Tool nötig).
 
 ## Nr. 19 · Dokumentart deutlicher kennzeichnen (2026-09-10, MP)
 
@@ -293,7 +314,42 @@ kompakte Typ-Kürzel-Pills je Bestandteil (WV · BE · NDA · AVV · KÜ · NT �
 mit vollem Namen als Tooltip, in der Vertragsakte optional Gruppierung nach
 Dokumentart, in Listen das Kürzel vor dem Titel.
 
-Status: offen (Sammelphase)
+Status: ERLEDIGT (25.09.2026) — Kürzel WV · LV · AVV · NDA · SV · NT · BE ·
+IP · KÜ · SO als monochrome Pills (Tooltip = voller Name, Anzahl als „×5") in
+Vertragsliste und Verträge-Karte der Kundenakte; Vertragsakte gruppiert nach
+Dokumentart mit Kürzel je Bestandteil; Vorlagen-Auswahl zeigt die Art mit.
+Formular „+ Bestandteil" bietet jetzt alle Dokumentarten an.
+
+## Nr. 20 · Vertrauliche Verträge (Sondervereinbarungen, Partnerverträge) (2026-09-28, MP)
+
+Es gibt Verträge, die nicht alle lesen dürfen — Sondervereinbarungen mit
+Kunden und Verträge mit Partnern; sie liegen in einem eigenen Ordner.
+Entscheidungen (MP): eigene Rolle; alle anderen sehen, **dass** es den
+Vertrag gibt, plus manuell gepflegte Kurzinfos (Art, z. B. Provisionssatz),
+damit sie nicht sofort nachfragen müssen.
+
+Stufe 1 (umgesetzt 28.09.2026): Rolle **„Vertrauliche Verträge"** (bewusst
+nicht in Admin enthalten); Bestandteil-Kennzeichen **Vertraulich** + für alle
+sichtbare **Kurzinfo** (max. 300 Zeichen). Ohne Rolle liefert die API nur
+Art, Datum und Kurzinfo — Titel, Beschreibung, Dokumente und Pfade verlassen
+den Server nicht; Dateiabruf, Ändern und Registrieren → 403. Vertrauliche
+Dokumente nur aus der neuen Einstellung **VertraulicheAblage.Verzeichnis**
+(Administration → Verzeichnisse), normale Bestandteile dürfen keine Dateien
+von dort registrieren. Verlaufseinträge nennen keine vertraulichen Titel oder
+Dateinamen; Admin-Löschung listet vertrauliche Pfade nicht auf. Vertraulichkeit
+lässt sich nicht aufheben, sobald Dokumente registriert sind. Der
+`vertragsscan` liest den vertraulichen Ordner nicht.
+
+Stufe 2 (offen): **Verträge direkt am Partner** — braucht eine Partner-Akte
+(Partner haben heute keine eigene Seite, Verträge hängen fest am Kunden).
+Kurzinfo dort strukturiert: Vertragsart, Provisionsmodell + Satz (am Partner
+schon vorhanden), Laufzeit.
+
+Wichtig für den Betrieb: NTFS-Rechte auf dem vertraulichen Ordner zusätzlich
+einschränken (App-Pool-Konto + berechtigte Personen) — die App schützt nur den
+Zugriff über die Kundenzentrale.
+
+Status: Stufe 1 umgesetzt · Stufe 2 offen
 
 ## Backlog (Aufgaben beim Nutzer / für später)
 

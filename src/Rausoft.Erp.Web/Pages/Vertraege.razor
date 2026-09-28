@@ -142,7 +142,14 @@
                             <td>@vertrag.Vertragsnummer</td>
                             <td>
                                 <span class="haupt">@vertrag.KundeName</span>
-                                <div class="neben">@vertrag.Kundennummer · @string.Join(" · ", vertrag.Bestandteile)</div>
+                                <div class="neben" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+                                    <span>@vertrag.Kundennummer</span>
+                                    <TypPills Bestandteile="vertrag.Bestandteile" />
+                                    @if (vertrag.AktuellerStand is { } stand)
+                                    {
+                                        <span title="Jüngstes Dokument der Akte: @stand.Bezeichnung">Stand @(vertrag.Bestandteile.Sum(b => b.Anzahl) > 1 ? $"{stand.Bezeichnung} · " : "")@stand.Datum.ToString("dd.MM.yyyy")</span>
+                                    }
+                                </div>
                             </td>
                             <td>@vertrag.Beginn.ToString("dd.MM.yyyy")</td>
                             <td>

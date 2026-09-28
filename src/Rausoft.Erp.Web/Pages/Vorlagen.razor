@@ -53,7 +53,20 @@
                     @if (_freigabeVorlageId == "")
                     {
                         <label>Name der neuen Vorlage<input type="text" @bind="_freigabeName" placeholder="z. B. NDA Standard" /></label>
+                        <label>
+                            Dokumentart
+                            <select @bind="_freigabeTyp">
+                                @foreach (var art in Dokumentarten.Namen)
+                                {
+                                    <option>@art</option>
+                                }
+                            </select>
+                        </label>
                     }
+                    <label>
+                        Gültig ab
+                        <input type="date" @bind="_freigabeGueltigAb" title="Leer = sofort. Bis zum Stichtag bleibt die Vorversion in der Kundenakte wählbar." />
+                    </label>
                     <label class="breit">Änderungsnotiz (was ist neu?)<input type="text" @bind="_freigabeNotiz" /></label>
                 </div>
                 <div class="formular-aktionen">
@@ -87,6 +100,7 @@ else
     {
         <details class="gruppe" @ontoggle="() => DetailsLadenAsync(vorlage.Id)">
             <summary>
+                <span class="typ" title="@vorlage.Typ">@vorlage.Kuerzel</span>
                 <span>@vorlage.Name</span>
                 @if (!vorlage.Aktiv)
                 {
@@ -96,6 +110,8 @@ else
                     aktuell v@(vorlage.AktuelleVersion ?? 0)
                     @(vorlage.FreigegebenAm is not null ? $"· freigegeben {vorlage.FreigegebenAm.Value.ToLocalTime():dd.MM.yyyy}" : "")
                     @(vorlage.FreigegebenVon is not null ? $"von {vorlage.FreigegebenVon}" : "")
+                    @(vorlage.KommendeVersion is not null ? $"· v{vorlage.KommendeVersion} gilt ab {vorlage.KommendeGueltigAb:dd.MM.yyyy}" : "")
+                    · @(vorlage.ErlaubteRollen.Count == 0 ? "für alle" : "nur " + string.Join(", ", vorlage.ErlaubteRollen))
                 </span>
                 <span class="zahl">@vorlage.Verwendungen Verwendungen</span>
             </summary>
@@ -112,6 +128,7 @@ else
                             <span><b>v@(version.Nummer)</b>
                                 <span class="neben" style="display:inline; margin-left:6px">
                                     @version.FreigegebenAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                    @(version.GueltigAb > DateOnly.FromDateTime(version.FreigegebenAm.ToLocalTime()) ? $"· gilt ab {version.GueltigAb:dd.MM.yyyy}" : "")
                                     @(version.FreigegebenVon is not null ? $"· {version.FreigegebenVon}" : "")
                                     @(version.Notiz is not null ? $"· {version.Notiz}" : "")
                                 </span>
@@ -125,7 +142,10 @@ else
                     @if (verwendungen.Count > 0)
                     {
                         <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
-                            <div style="color:var(--muted); font-size:12.5px; margin-bottom:4px">Wer hat welchen Stand bekommen?</div>
+                            <div style="color:var(--muted); font-size:12.5px; margin-bottom:4px"
+                                 title="Reine Information: Unterschriebene Verträge bleiben gültig, auch wenn es inzwischen eine neuere Vorlage gibt.">
+                                Wer hat welchen Stand bekommen? <span style="font-size:12px">(ältere Stände bleiben gültig)</span>
+                            </div>
                             @foreach (var verwendung in verwendungen)
                             {
                                 <div class="zeile2">
@@ -140,6 +160,33 @@ else
                             }
                         </div>
                     }
+                }
+                @if (_entwuerfe is not null)
+                {
+                    <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+                        <label style="display:flex; gap:6px; align-items:center">
+                            Dokumentart
+                            <select value="@Einstellung(vorlage).Typ" @onchange="e => Einstellung(vorlage).Typ = e.Value?.ToString() ?? vorlage.Typ">
+                                @foreach (var art in Dokumentarten.Namen)
+                                {
+                                    <option selected="@(art == Einstellung(vorlage).Typ)">@art</option>
+                                }
+                            </select>
+                        </label>
+                        <span style="color:var(--muted); font-size:12.5px">Verwenden dürfen:</span>
+                        @foreach (var rolle in NutzungsRollen)
+                        {
+                            <label style="display:flex; gap:4px; align-items:center">
+                                <input type="checkbox" checked="@Einstellung(vorlage).Rollen.Contains(rolle)"
+                                       @onchange="e => RolleUmschalten(vorlage, rolle, e.Value is true)" />
+                                @rolle
+                            </label>
+                        }
+                        <span style="color:var(--muted); font-size:12px">(keine gewählt = alle; Compliance/Admin immer)</span>
+                        <button class="knopf sekundaer klein" @onclick="() => EinstellungenSpeichernAsync(vorlage)">
+                            @(_einstellungGespeichert == vorlage.Id ? "✓ gespeichert" : "Speichern")
+                        </button>
+                    </div>
                 }
                 @if (_entwuerfe is not null)
                 {
@@ -163,6 +210,52 @@ else
     private string _freigabeVorlageId = "";
     private string _freigabeName = "";
     private string _freigabeNotiz = "";
+    private string _freigabeTyp = "Lizenzvertrag";
+    private DateOnly? _freigabeGueltigAb;
+
+    // Rollen, die für die Nutzung freigegeben werden können (Compliance/Admin dürfen immer)
+    private static readonly string[] NutzungsRollen = ["Vertrieb", "Support", "Buchhaltung"];
+    private readonly Dictionary<int, EinstellungFormular> _einstellungen = [];
+    private int? _einstellungGespeichert;
+
+    private class EinstellungFormular
+    {
+        public string Typ { get; set; } = "";
+        public HashSet<string> Rollen { get; set; } = [];
+    }
+
+    private EinstellungFormular Einstellung(VorlageEintrag vorlage)
+    {
+        if (!_einstellungen.TryGetValue(vorlage.Id, out var formular))
+            _einstellungen[vorlage.Id] = formular = new EinstellungFormular
+            {
+                Typ = vorlage.Typ,
+                Rollen = vorlage.ErlaubteRollen.ToHashSet(),
+            };
+        return formular;
+    }
+
+    private void RolleUmschalten(VorlageEintrag vorlage, string rolle, bool an)
+    {
+        if (an) Einstellung(vorlage).Rollen.Add(rolle);
+        else Einstellung(vorlage).Rollen.Remove(rolle);
+    }
+
+    private async Task EinstellungenSpeichernAsync(VorlageEintrag vorlage)
+    {
+        _fehler = null;
+        var formular = Einstellung(vorlage);
+        var antwort = await Http.PutAsJsonAsync($"api/vorlagen/{vorlage.Id}/einstellungen",
+            new VorlageEinstellungen(formular.Typ, formular.Rollen.ToList()));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        _einstellungGespeichert = vorlage.Id;
+        _einstellungen.Remove(vorlage.Id);
+        await VorlagenLadenAsync();
+    }
     private bool _gebeFrei;
     private string? _freigegeben;
     private string? _fehler;
@@ -219,14 +312,19 @@ else
                 _freigabeDatei,
                 int.TryParse(_freigabeVorlageId, out var id) ? id : null,
                 string.IsNullOrWhiteSpace(_freigabeName) ? null : _freigabeName.Trim(),
-                string.IsNullOrWhiteSpace(_freigabeNotiz) ? null : _freigabeNotiz.Trim()));
+                string.IsNullOrWhiteSpace(_freigabeNotiz) ? null : _freigabeNotiz.Trim(),
+                _freigabeVorlageId == "" ? _freigabeTyp : null,
+                _freigabeGueltigAb));
             if (!antwort.IsSuccessStatusCode)
             {
                 _fehler = await antwort.Content.ReadAsStringAsync();
                 return;
             }
             var ergebnis = await antwort.Content.ReadFromJsonAsync<VorlageEintrag>();
-            _freigegeben = $"{ergebnis!.Name} v{ergebnis.AktuelleVersion} freigegeben";
+            _freigegeben = ergebnis!.KommendeVersion is not null
+                ? $"{ergebnis.Name} v{ergebnis.KommendeVersion} freigegeben — gilt ab {ergebnis.KommendeGueltigAb:dd.MM.yyyy}"
+                : $"{ergebnis.Name} v{ergebnis.AktuelleVersion} freigegeben";
+            _freigabeGueltigAb = null;
             _freigabeNotiz = "";
             _freigabeName = "";
             _versionen.Clear();

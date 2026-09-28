@@ -197,6 +197,8 @@ public partial class VertragsBestandScanner(bool dryRun)
                     bestandteil = new Vertragsbestandteil { Typ = typ, Titel = titel, Vertrag = vertrag };
                     vertrag.Bestandteile.Add(bestandteil);
                 }
+                // Stand für die Reihenfolge (Datum im Namen, sonst Dateidatum) — nur beim ersten Dokument
+                DokumentdatumDienst.Uebernehmen(bestandteil, fund.Datei.FullName, fund.Datei.LastWriteTime);
 
                 string pruefsumme;
                 await using (var stream = fund.Datei.OpenRead())
@@ -236,6 +238,12 @@ public partial class VertragsBestandScanner(bool dryRun)
 
         Console.WriteLine();
         Console.WriteLine($"Fertig: {vertraegeNeu} Vertragsakten neu, {dokumenteNeu} Dokumentversionen registriert.");
+
+        // Nachrüstung (FEEDBACK Nr. 18): Dokumentdatum an bereits importierten Bestandteilen ergänzen — idempotent
+        var daten = await new DokumentdatumDienst(db).NachtragenAsync();
+        if (daten.Geprueft > 0)
+            Console.WriteLine($"Dokumentdatum nachgetragen: {daten.Geprueft} Bestandteile " +
+                $"({daten.AusDateiname} aus Dateiname, {daten.AusDateidatum} aus Dateidatum, {daten.OhneDatei} ohne erreichbare Datei).");
         Listen("Ohne erkennbare Kundennummer (manuell zuordnen)", nichtZuordenbar);
         Listen("Nummer passt zu keinem Kunden", unbekannteNummer);
     }

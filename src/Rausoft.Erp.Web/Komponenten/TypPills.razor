@@ -1,0 +1,14 @@
+@* Dokumentart-Kürzel als kompakte Pills (FEEDBACK Nr. 19) — voller Name im Tooltip *@
+@if (Bestandteile is { Count: > 0 })
+{
+    <span class="typen">
+        @foreach (var teil in Bestandteile)
+        {
+            <span class="typ" title="@teil.Name">@teil.Kuerzel@if (teil.Anzahl > 1) {<span class="anz">×@teil.Anzahl</span>}</span>
+        }
+    </span>
+}
+
+@code {
+    [Parameter] public List<BestandteilKurz>? Bestandteile { get; set; }
+}

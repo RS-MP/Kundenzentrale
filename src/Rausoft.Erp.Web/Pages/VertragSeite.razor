@@ -35,9 +35,9 @@ else
             {
                 <span class="trenn">·</span><span class="warntext">Laufzeit fehlt — bitte nachpflegen</span>
             }
-            @if (_vertrag.Bestandteile.Count > 0)
+            @if (_vertrag.AktuellerStand is { } stand)
             {
-                <span class="trenn">·</span>@string.Join(" · ", _vertrag.Bestandteile.Select(b => b.Typ).Distinct())
+                <span class="trenn">·</span><span title="Jüngstes Dokument der Akte">Stand: @stand.Bezeichnung vom @stand.Datum.ToString("dd.MM.yyyy")</span>
             }
         </p>
     </div>
@@ -56,13 +56,10 @@ else
                             <label>
                                 Typ
                                 <select @bind="_neuerBestandteil.Typ">
-                                    <option>Lizenzvertrag</option>
-                                    <option>Wartungsvertrag</option>
-                                    <option>AVV</option>
-                                    <option>NDA</option>
-                                    <option>Sondervereinbarung</option>
-                                    <option>Nachtrag</option>
-                                    <option>Sonstiges</option>
+                                    @foreach (var art in Dokumentarten.Namen)
+                                    {
+                                        <option>@art</option>
+                                    }
                                 </select>
                             </label>
                             <label>
@@ -77,6 +74,18 @@ else
                                 Beschreibung
                                 <textarea rows="2" @bind="_neuerBestandteil.Beschreibung"></textarea>
                             </label>
+                            @if (_vertrag.DarfVertrauliche)
+                            {
+                                <label class="breit" style="flex-direction:row; align-items:center; gap:6px">
+                                    <input type="checkbox" @bind="_neuerBestandteil.Vertraulich" />
+                                    Vertraulich — Titel, Beschreibung und Dokumente nur für die Rolle „Vertrauliche Verträge"
+                                </label>
+                            }
+                            <label class="breit">
+                                Kurzinfo für alle (optional)
+                                <input type="text" maxlength="300" @bind="_neuerBestandteil.Kurzinfo"
+                                       placeholder="z. B. Sonderpreis 10 % auf Wartung bis 2027 · Provision 15 %" />
+                            </label>
                             <div class="formular-aktionen breit">
                                 <button class="knopf" @onclick="BestandteilAnlegenAsync">Hinzufügen</button>
                             </div>
@@ -90,13 +99,21 @@ else
                             optional NDA und Sondervereinbarungen.
                         </div>
                     }
+                    @{ var mehrereArten = _vertrag.Bestandteile.Select(b => b.Typ).Distinct().Count() > 1; string? letzteArt = null; }
                     @foreach (var bestandteil in _vertrag.Bestandteile)
                     {
+                        @* Gruppiert nach Dokumentart (API-Reihenfolge), innerhalb neuestes oben *@
+                        @if (mehrereArten && bestandteil.Typ != letzteArt)
+                        {
+                            <div class="dokart-gruppe">@Dokumentarten.Mehrzahl(bestandteil.Typ)</div>
+                        }
+                        letzteArt = bestandteil.Typ;
                         <div style="margin-bottom:18px">
-                            @* Einheitlich: der Typ ist immer die fette Überschrift, der Titel dezent dahinter *@
+                            @* Einheitlich: Kürzel + Typ (ggf. mit laufender Nummer) fett, Titel dezent dahinter *@
                             <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap">
-                                <strong>@bestandteil.Typ</strong>
-                                @if (!string.Equals(bestandteil.Titel, bestandteil.Typ, StringComparison.OrdinalIgnoreCase))
+                                <span class="typ" title="@bestandteil.Typ">@bestandteil.Kuerzel</span>
+                                <strong>@bestandteil.Typ@(bestandteil.LaufendeNummer is { } nr ? $" {nr}" : "")</strong>
+                                @if (!bestandteil.Gesperrt && !string.Equals(bestandteil.Titel, bestandteil.Typ, StringComparison.OrdinalIgnoreCase))
                                 {
                                     <span style="color:var(--ink2)">@bestandteil.Titel</span>
                                 }
@@ -104,7 +121,78 @@ else
                                 {
                                     <span style="color:var(--muted)">unterzeichnet @bestandteil.UnterzeichnetAm.Value.ToString("dd.MM.yyyy")</span>
                                 }
+                                else if (bestandteil.Dokumentdatum is not null)
+                                {
+                                    <span style="color:var(--muted)" title="@Dokumentarten.QuelleHinweis(bestandteil.DokumentdatumQuelle)">
+                                        @(bestandteil.DokumentdatumQuelle == "Dateidatum" ? "ca. " : "")@bestandteil.Dokumentdatum.Value.ToString("dd.MM.yyyy")
+                                    </span>
+                                }
+                                @if (bestandteil.IstAktuellster && _vertrag.Bestandteile.Count > 1)
+                                {
+                                    <span class="stand-neu">· jüngstes Dokument</span>
+                                }
+                                @if (bestandteil.Vertraulich)
+                                {
+                                    <span class="pill" title="Vertraulich — vollständig nur für die Rolle „Vertrauliche Verträge“">🔒 vertraulich</span>
+                                }
+                                @if (!bestandteil.Gesperrt)
+                                {
+                                    <button class="mehr" style="margin-left:auto" @onclick="() => BearbeitenOeffnen(bestandteil)">Korrigieren</button>
+                                }
                             </div>
+                            @if (bestandteil.Kurzinfo is not null)
+                            {
+                                <div style="color:var(--ink2); margin:4px 0">@bestandteil.Kurzinfo</div>
+                            }
+                            @if (bestandteil.Gesperrt)
+                            {
+                                <div style="color:var(--muted); font-size:12.5px; margin:2px 0">
+                                    Inhalt und Dokumente sind vertraulich — Einsicht über die Rolle „Vertrauliche Verträge"
+                                    (bei Bedarf bitte an Compliance/Geschäftsführung wenden).
+                                </div>
+                            }
+                            @if (_bearbeiteterBestandteil?.Id == bestandteil.Id)
+                            {
+                                <div class="formular" style="margin:10px 0 12px">
+                                    <label>
+                                        Dokumentart
+                                        <select @bind="_bestandteilAenderung.Typ">
+                                            @foreach (var art in Dokumentarten.Namen)
+                                            {
+                                                <option>@art</option>
+                                            }
+                                        </select>
+                                    </label>
+                                    <label>Titel<input type="text" @bind="_bestandteilAenderung.Titel" /></label>
+                                    <label>
+                                        Dokumentdatum
+                                        <input type="date" @bind="_bestandteilAenderung.Dokumentdatum" />
+                                    </label>
+                                    <label>
+                                        Unterzeichnet am
+                                        <input type="date" @bind="_bestandteilAenderung.UnterzeichnetAm" />
+                                    </label>
+                                    <label class="breit">Beschreibung<textarea rows="2" @bind="_bestandteilAenderung.Beschreibung"></textarea></label>
+                                    <label class="breit">
+                                        Kurzinfo für alle
+                                        <input type="text" maxlength="300" @bind="_bestandteilAenderung.Kurzinfo" />
+                                    </label>
+                                    @if (_vertrag.DarfVertrauliche)
+                                    {
+                                        <label class="breit" style="flex-direction:row; align-items:center; gap:6px">
+                                            <input type="checkbox" @bind="_bestandteilAenderung.Vertraulich" />
+                                            Vertraulich
+                                        </label>
+                                    }
+                                    <div class="formular-aktionen breit">
+                                        <button class="knopf" @onclick="BestandteilSpeichernAsync">Speichern</button>
+                                        <button class="knopf sekundaer" @onclick="() => _bearbeiteterBestandteil = null">Abbrechen</button>
+                                        <span style="color:var(--muted); font-size:12px">
+                                            Reihenfolge: „Unterzeichnet am" vor Dokumentdatum; ein hier gesetztes Datum überschreibt die automatische Erkennung.
+                                        </span>
+                                    </div>
+                                </div>
+                            }
                             @if (bestandteil.Beschreibung is not null)
                             {
                                 <div style="color:var(--ink2); margin:4px 0">@bestandteil.Beschreibung</div>
@@ -133,13 +221,15 @@ else
                             {
                                 <div style="display:flex; gap:8px; margin-top:8px">
                                     <input type="text" style="flex:1; font-family:Consolas,monospace; font-size:13px"
-                                           placeholder="Pfad relativ zum Ablageverzeichnis, z. B. 2_Wartungsverträge\4228-2.pdf"
+                                           placeholder="@(bestandteil.Vertraulich
+                                               ? "Pfad relativ zur vertraulichen Ablage, z. B. Partner\\CSB Vertriebsvertrag.pdf"
+                                               : "Pfad relativ zum Ablageverzeichnis, z. B. 2_Wartungsverträge\\4228-2.pdf")"
                                            @bind="_dokumentPfade[bestandteil.Id]" />
                                     <button class="knopf" @onclick="() => DokumentRegistrierenAsync(bestandteil.Id)">Registrieren</button>
                                     <button class="knopf sekundaer" @onclick="() => _versionOffen.Remove(bestandteil.Id)">Abbrechen</button>
                                 </div>
                             }
-                            else
+                            else if (!bestandteil.Gesperrt)
                             {
                                 <button class="mehr" @onclick="() => _versionOffen.Add(bestandteil.Id)">+ Version hinzufügen</button>
                             }
@@ -354,7 +444,9 @@ else
             var antwort = await Http.PostAsJsonAsync($"api/vertraege/{Id}/bestandteile", new BestandteilAnlegen(
                 _neuerBestandteil.Typ, _neuerBestandteil.Titel ?? "",
                 string.IsNullOrWhiteSpace(_neuerBestandteil.Beschreibung) ? null : _neuerBestandteil.Beschreibung,
-                _neuerBestandteil.UnterzeichnetAm));
+                _neuerBestandteil.UnterzeichnetAm,
+                _neuerBestandteil.Vertraulich,
+                string.IsNullOrWhiteSpace(_neuerBestandteil.Kurzinfo) ? null : _neuerBestandteil.Kurzinfo));
             if (!antwort.IsSuccessStatusCode)
             {
                 _fehler = await antwort.Content.ReadAsStringAsync();
@@ -363,11 +455,56 @@ else
             _bestandteilOffen = false;
             _neuerBestandteil.Titel = "";
             _neuerBestandteil.Beschreibung = null;
+            _neuerBestandteil.Kurzinfo = null;
+            _neuerBestandteil.Vertraulich = false;
             await LadenAsync();
         }
         catch (Exception ex)
         {
             _fehler = $"Bestandteil konnte nicht angelegt werden: {ex.Message}";
+        }
+    }
+
+    private BestandteilDetail? _bearbeiteterBestandteil;
+    private readonly NeuerBestandteil _bestandteilAenderung = new();
+
+    private void BearbeitenOeffnen(BestandteilDetail bestandteil)
+    {
+        _bearbeiteterBestandteil = bestandteil;
+        _bestandteilAenderung.Typ = bestandteil.Typ;
+        _bestandteilAenderung.Titel = bestandteil.Titel;
+        _bestandteilAenderung.Beschreibung = bestandteil.Beschreibung;
+        _bestandteilAenderung.UnterzeichnetAm = bestandteil.UnterzeichnetAm;
+        _bestandteilAenderung.Dokumentdatum = bestandteil.Dokumentdatum;
+        _bestandteilAenderung.Vertraulich = bestandteil.Vertraulich;
+        _bestandteilAenderung.Kurzinfo = bestandteil.Kurzinfo;
+    }
+
+    private async Task BestandteilSpeichernAsync()
+    {
+        if (_bearbeiteterBestandteil is null)
+            return;
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/vertraege/bestandteile/{_bearbeiteterBestandteil.Id}",
+                new BestandteilAendern(
+                    _bestandteilAenderung.Typ, _bestandteilAenderung.Titel ?? "",
+                    string.IsNullOrWhiteSpace(_bestandteilAenderung.Beschreibung) ? null : _bestandteilAenderung.Beschreibung,
+                    _bestandteilAenderung.UnterzeichnetAm, _bestandteilAenderung.Dokumentdatum,
+                    _bestandteilAenderung.Vertraulich,
+                    string.IsNullOrWhiteSpace(_bestandteilAenderung.Kurzinfo) ? null : _bestandteilAenderung.Kurzinfo));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _bearbeiteterBestandteil = null;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Bestandteil konnte nicht gespeichert werden: {ex.Message}";
         }
     }
 
@@ -465,5 +602,8 @@ else
         public string? Titel { get; set; }
         public string? Beschreibung { get; set; }
         public DateOnly? UnterzeichnetAm { get; set; }
+        public DateOnly? Dokumentdatum { get; set; }
+        public bool Vertraulich { get; set; }
+        public string? Kurzinfo { get; set; }
     }
 }
