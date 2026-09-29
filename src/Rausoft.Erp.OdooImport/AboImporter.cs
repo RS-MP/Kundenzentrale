@@ -99,9 +99,11 @@ public class AboImporter(OdooClient odoo, bool dryRun, string? verbindung = null
             .Where(a => a.OdooId is not null)
             .ToDictionary(a => a.OdooId!.Value);
         var bestandsVertraege = (await db.Vertraege
-                .Where(v => v.Notiz != null && v.Notiz.StartsWith(NotizMarker))
+                .Where(v => v.Notiz != null && v.Notiz.StartsWith(NotizMarker)
+                    // nur Kundenverträge — Partnerverträge haben keinen Kunden
+                    && v.KundeId != null)
                 .ToListAsync())
-            .GroupBy(v => v.KundeId)
+            .GroupBy(v => v.KundeId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         int neu = 0, aktualisiert = 0, ohneKunde = 0, vertraegeAngereichert = 0;

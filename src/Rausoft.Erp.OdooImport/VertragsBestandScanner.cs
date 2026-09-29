@@ -75,9 +75,11 @@ public partial class VertragsBestandScanner(bool dryRun)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var bestandsVertraege = (await db.Vertraege
                 .Include(v => v.Bestandteile).ThenInclude(b => b.Dokumente)
-                .Where(v => v.Notiz != null && v.Notiz.StartsWith(NotizMarker))
+                .Where(v => v.Notiz != null && v.Notiz.StartsWith(NotizMarker)
+                    // nur Kundenverträge — Partnerverträge haben keinen Kunden
+                    && v.KundeId != null)
                 .ToListAsync())
-            .ToDictionary(v => v.KundeId);
+            .ToDictionary(v => v.KundeId!.Value);
 
         // Dateien aus allen konfigurierten Ordnern einsammeln und zuordnen
         var proKunde = new Dictionary<int, List<Fund>>();

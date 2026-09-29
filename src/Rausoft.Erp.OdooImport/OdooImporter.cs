@@ -68,9 +68,11 @@ public class OdooImporter(OdooClient odoo, bool dryRun, string? verbindung = nul
             .ToHashSet();
         var aktiveBestandsVertraege = (await db.Vertraege
                 .Where(v => v.Status == Domain.Contracts.VertragsStatus.Aktiv
-                    && v.Notiz != null && v.Notiz.StartsWith("Bestandsimport"))
+                    && v.Notiz != null && v.Notiz.StartsWith("Bestandsimport")
+                    // nur Kundenverträge — Partnerverträge haben keinen Kunden
+                    && v.KundeId != null)
                 .ToListAsync())
-            .GroupBy(v => v.KundeId)
+            .GroupBy(v => v.KundeId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
         var vertraegeGekuendigt = 0;
         var vergebeneNummern = kunden.Select(k => k.Kundennummer).ToHashSet(StringComparer.OrdinalIgnoreCase);

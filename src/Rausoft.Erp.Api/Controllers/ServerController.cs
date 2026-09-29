@@ -154,7 +154,13 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
             return BadRequest("Unbekannter Geheimnis-Schlüssel.");
         if (string.IsNullOrWhiteSpace(setzen.Wert))
             return BadRequest("Der Wert darf nicht leer sein.");
-        await geheimnisse.SetzenAsync(schluessel, setzen.Wert.Trim(), ct);
+        var wert = setzen.Wert.Trim();
+        // „Bearer " setzt die Kundenzentrale selbst — mitkopiertes Präfix entfernen,
+        // sonst ginge „Bearer Bearer …" raus und das Portal antwortet mit 404
+        if (schluessel == GeheimnisSchluessel.ServicePortalPushToken
+            && wert.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            wert = wert["Bearer ".Length..].Trim();
+        await geheimnisse.SetzenAsync(schluessel, wert, ct);
         return NoContent();
     }
 

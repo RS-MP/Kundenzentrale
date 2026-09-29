@@ -269,7 +269,14 @@ Doppelarbeit ist einkalkuliert. Ablauf (macht Claude zusammen mit MP):
 1. **Vorher sichern:** DB-Vollbackup + Export der übernehmenswerten manuellen
    Pflege per Skript (Schlüssel = Kundennummer/Vertragsnummer): Merkmale,
    Archiv-Status, Server-Zuordnung + Mandanten-Kennung, Individualentwicklung,
-   manuell korrigierte Vertragsstatus (Kündigungs-Klärungen), Mitarbeiter-Rollen.
+   manuell korrigierte Vertragsstatus (Kündigungs-Klärungen), Mitarbeiter-Rollen
+   (inkl. Compliance / Vertrauliche Verträge). Seit 28.09.2026 zusätzlich:
+   Verknüpfung „Partner ist auch Kunde" (Schlüssel Partnername → Kundennummer),
+   manuell korrigierte Dokumentdaten/Dokumentarten (Quelle „Manuell"),
+   Vertraulich-Kennzeichen + Kurzinfos an Bestandteilen, Vorlagen-Einstellungen
+   (Dokumentart, Rollen-Freigabe). Vorlagen-Versionen selbst NICHT übernehmen —
+   produktiv neu freigeben, damit die Versionshistorie sauber bei v1 beginnt.
+   Partnerverträge aus der Testphase nur, wenn sie echte Verträge abbilden.
 2. App-Pool stoppen, Datenbank neu anlegen (DROP/CREATE) — der nächste
    App-Start erzeugt Schema + Seeds (Nummernkreise, Einstellungen,
    Merkmal-Stammliste) automatisch.
