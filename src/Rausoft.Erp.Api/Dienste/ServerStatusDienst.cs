@@ -97,14 +97,21 @@ public class ServerStatusDienst(
 
         var http = httpFactory.CreateClient();
         http.Timeout = TimeSpan.FromSeconds(30);
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{portalUrl.TrimEnd('/')}/api/server-status");
+        // Basis-URL erwartet — wurde versehentlich der volle Endpunkt eingetragen,
+        // nicht doppelt anhängen (sonst 404, das wie ein falscher Token aussieht)
+        var basisUrl = portalUrl.Trim().TrimEnd('/');
+        const string endpunkt = "/api/server-status";
+        if (basisUrl.EndsWith(endpunkt, StringComparison.OrdinalIgnoreCase))
+            basisUrl = basisUrl[..^endpunkt.Length];
+        using var request = new HttpRequestMessage(HttpMethod.Post, basisUrl + endpunkt);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Content = new StringContent(JsonSerializer.Serialize(meldungen), Encoding.UTF8, "application/json");
 
         using var antwort = await http.SendAsync(request, ct);
         if (antwort.StatusCode == System.Net.HttpStatusCode.NotFound)
             throw new InvalidOperationException(
-                "Das Portal meldet 404 — der Push-Token ist falsch (das Portal antwortet bei ungültigem Token bewusst mit 404).");
+                "Das Portal meldet 404 — meist ist der Push-Token falsch (das Portal antwortet bei ungültigem Token bewusst mit 404). " +
+                "Außerdem prüfen: ServicePortal.Url muss die Basis-Adresse sein, z. B. https://serviceportal.idprove.de.");
         antwort.EnsureSuccessStatusCode();
 
         using var ergebnis = JsonDocument.Parse(await antwort.Content.ReadAsStringAsync(ct));
