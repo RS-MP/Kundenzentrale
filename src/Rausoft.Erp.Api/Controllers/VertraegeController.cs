@@ -584,11 +584,36 @@ public class VertraegeController(
         if (mitarbeiterId is null)
             return BadRequest("Für den angemeldeten Benutzer existiert kein Mitarbeiter-Datensatz.");
 
+        // Angebot für „Angebot S0…": gewähltes, sonst neuestes offenes Angebot
+        // (Odoo-Abo im Entwurf), sonst laufendes Abo
+        var angebote = db.Abos.Where(a => a.KundeId == kunde.Id);
+        string? angebotsNummer;
+        if (anlage.AboId == 0)
+            angebotsNummer = null; // bewusst ohne Angebotsnummer
+        else if (anlage.AboId is { } aboId)
+        {
+            angebotsNummer = await angebote.Where(a => a.Id == aboId).Select(a => a.Nummer).FirstOrDefaultAsync(ct);
+            if (angebotsNummer is null)
+                return BadRequest("Das gewählte Angebot gehört nicht zu diesem Kunden.");
+        }
+        else
+        {
+            angebotsNummer = await angebote
+                .Where(a => a.Status == Domain.Subscriptions.AboStatus.Entwurf
+                    || a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                .OrderBy(a => a.Status)          // Entwurf (= Angebot) vor Laufend
+                .ThenByDescending(a => a.Id)     // neuestes zuerst
+                .Select(a => a.Nummer)
+                .FirstOrDefaultAsync(ct);
+        }
+
         // Vorlage füllen
         using var speicher = new MemoryStream();
         await using (var quelle = System.IO.File.OpenRead(vorlagenPfad))
             await quelle.CopyToAsync(speicher, ct);
-        var offene = Dienste.VorlagenDienst.Fuellen(speicher, await PlatzhalterWerte(kunde, ct));
+        var offene = Dienste.VorlagenDienst.Fuellen(speicher, PlatzhalterWerte(kunde, angebotsNummer));
+        if (angebotsNummer is null && anlage.AboId != 0)
+            offene.Add("Angebotsnummer (kein Angebot/Abo beim Kunden)");
 
         // Vertragsnummer vorab — sie steht in den PDF-Metadaten/der Signatur
         var nummer = await nummernkreis.NaechsteNummerAsync("Vertrag", ct);
@@ -627,7 +652,9 @@ public class VertraegeController(
             KundeId = kunde.Id,
             Status = VertragsStatus.Entwurf,
             Beginn = DateOnly.FromDateTime(DateTime.Today),
-            Notiz = $"Aus Vorlage „{vorlagenStand}“ erstellt — nach Unterschrift Status und Laufzeit pflegen.",
+            Notiz = $"Aus Vorlage „{vorlagenStand}“ erstellt"
+                + (angebotsNummer is null ? "" : $" zu Angebot {angebotsNummer}")
+                + " — nach Unterschrift Status und Laufzeit pflegen.",
         };
         vertrag.Bestandteile.Add(new Vertragsbestandteil
         {
@@ -662,7 +689,7 @@ public class VertraegeController(
         return Ok(new VorlagenErgebnis(vertrag.Id, nummer, Path.GetFileName(zielPfad), offene));
     }
 
-    private async Task<Dictionary<string, string>> PlatzhalterWerte(Domain.Customers.Kunde kunde, CancellationToken ct)
+    private static Dictionary<string, string> PlatzhalterWerte(Domain.Customers.Kunde kunde, string? aboNummer)
     {
         var hauptsitz = kunde.Adressen.FirstOrDefault(a => a.Typ == AdressTyp.Hauptsitz && a.Aktiv);
         var ansprechpartner = kunde.Ansprechpartner
@@ -670,12 +697,6 @@ public class VertraegeController(
             .OrderByDescending(a => a.Rollen.HasFlag(AnsprechpartnerRolle.Hauptansprechpartner))
             .ThenByDescending(a => a.Rollen != AnsprechpartnerRolle.Keine)
             .FirstOrDefault();
-        var aboNummer = await db.Abos
-            .Where(a => a.KundeId == kunde.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
-            .OrderByDescending(a => a.Id)
-            .Select(a => a.Nummer)
-            .FirstOrDefaultAsync(ct);
-
         return new Dictionary<string, string>
         {
             // {{Platzhalter}} für neue/überarbeitete Vorlagen

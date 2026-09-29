@@ -216,6 +216,14 @@ else
                                     <option value="@vorlage.VorlagenVersionId">@vorlage.Kuerzel · @vorlage.Name (v@(vorlage.Version))</option>
                                 }
                             </select>
+                            @* Angebotsnummer für „Angebot S0…" im Vertrag — Odoo-Entwürfe sind Angebote *@
+                            <select style="max-width:230px" @bind="_gewaehltesAngebot" title="Angebot, das im Vertrag genannt wird">
+                                @foreach (var abo in Angebote())
+                                {
+                                    <option value="@abo.Id">@abo.Nummer · @(abo.Status == "Entwurf" ? "Angebot" : "laufendes Abo")</option>
+                                }
+                                <option value="0">ohne Angebotsnummer</option>
+                            </select>
                             <button class="knopf sekundaer" disabled="@_erzeugeVertrag" @onclick="VertragAusVorlageAsync">
                                 @(_erzeugeVertrag ? "Erstelle …" : "Aus Vorlage erstellen")
                             </button>
@@ -384,6 +392,9 @@ else
             _vertraege = vertraege?.Eintraege;
             _abos = await Http.GetFromJsonAsync<List<AboEintrag>>($"api/kunden/{Id}/abos");
             _laufendeAbos = _abos?.Where(a => a.Status == "Laufend").ToList() ?? [];
+            // Vorbelegung: neuestes offenes Angebot, sonst laufendes Abo (API sortiert Entwurf zuerst, neueste Nummer oben)
+            if (_gewaehltesAngebot == "")
+                _gewaehltesAngebot = Angebote().FirstOrDefault()?.Id.ToString() ?? "";
             _vorlagen = await Http.GetFromJsonAsync<List<VorlageAuswahl>>("api/vertraege/vorlagen") ?? [];
             _serverListe = await Http.GetFromJsonAsync<List<ServerEintrag>>("api/server") ?? [];
             _serverAuswahl = _kunde?.ServerId?.ToString() ?? "";
@@ -452,6 +463,11 @@ else
         </div>
     </div>;
 
+    private string _gewaehltesAngebot = ""; // AboId als Text (select-Bindung); leer = ohne
+
+    private IEnumerable<AboEintrag> Angebote() =>
+        (_abos ?? []).Where(a => a.Status is "Entwurf" or "Laufend");
+
     private async Task VertragAusVorlageAsync()
     {
         if (!int.TryParse(_gewaehlteVorlage, out var versionId))
@@ -461,7 +477,7 @@ else
         try
         {
             var antwort = await Http.PostAsJsonAsync("api/vertraege/aus-vorlage",
-                new VertragAusVorlage(Id, versionId));
+                new VertragAusVorlage(Id, versionId, int.TryParse(_gewaehltesAngebot, out var aboId) ? aboId : null));
             if (!antwort.IsSuccessStatusCode)
             {
                 _fehler = await antwort.Content.ReadAsStringAsync();

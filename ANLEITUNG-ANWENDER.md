@@ -34,7 +34,10 @@ Anmeldung läuft automatisch über euer Windows-Konto, es gibt kein Passwort.
 
 1. Kundenakte öffnen → Aufklapper **Verträge** → Vorlage im Auswahlfeld
    wählen (zeigt immer die aktuell gültige Version mit Dokumentart, z. B.
-   „NDA · NDA Standard (v2)") → **„Aus Vorlage erstellen"**. Angeboten werden
+   „NDA · NDA Standard (v2)"), daneben das **Angebot**, das im Vertrag als
+   „Angebot S0…" genannt wird (vorbelegt: neuestes offenes Angebot aus Odoo,
+   sonst das laufende Abo; „ohne Angebotsnummer" ist auch möglich) →
+   **„Aus Vorlage erstellen"**. Angeboten werden
    nur Vorlagen, die für die eigene Rolle freigegeben sind.
 2. Das System füllt die Kundendaten in die Vorlage und legt den fertigen
    Vertrag als **PDF** ab (Dateiname = Kundennummer, z. B. `4228.pdf`; die
@@ -59,7 +62,7 @@ Datei wird eingefroren, und je Vorlage ist auswertbar, **welcher Kunde
 welchen Versionsstand bekommen hat**. Platzhalter: `{{Firmenname}}`,
 `{{Kundennummer}}`, `{{Strasse}}`, `{{Plz}}`, `{{Ort}}`, `{{PlzOrt}}`,
 `{{Briefanrede}}`, `{{Ansprechpartner}}`, `{{Email}}`, `{{UStIdNr}}`,
-`{{AboNummer}}`, `{{Datum}}`. Nicht ersetzbare Platzhalter meldet das System
+`{{AboNummer}}` (= gewähltes Angebot), `{{Datum}}`. Nicht ersetzbare Platzhalter meldet das System
 nach dem Erzeugen als „offen". Details: Anleitung „Vertragsvorlagen erstellen".
 
 Beim Freigeben legt Compliance außerdem fest: **Dokumentart** (NDA,

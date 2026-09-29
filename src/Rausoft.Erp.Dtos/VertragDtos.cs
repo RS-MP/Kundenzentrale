@@ -115,7 +115,11 @@ public record BestandteilAnlegen(
 public record DokumentRegistrieren(string RelativerPfad);
 
 /// <summary>Vertrag aus einer Word-Vorlage erzeugen (Dateiname aus dem Vorlagen-Verzeichnis).</summary>
-public record VertragAusVorlage(int KundeId, int VorlagenVersionId);
+public record VertragAusVorlage(
+    int KundeId,
+    int VorlagenVersionId,
+    // Angebot bzw. Abo für „Angebot S0…" im Vertrag; leer = neuestes offenes Angebot, sonst laufendes Abo; 0 = ohne
+    int? AboId = null);
 
 public record VorlagenErgebnis(
     int VertragId,
