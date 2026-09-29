@@ -14,8 +14,16 @@ public class Vertrag
     /// <summary>Aus dem zentralen Nummernkreis vergeben.</summary>
     public required string Vertragsnummer { get; set; }
 
-    public int KundeId { get; set; }
+    /// <summary>
+    /// Vertragspartei: genau eines von Kunde oder Partner (FEEDBACK Nr. 20 Stufe 2,
+    /// Partnerverträge — z. B. Vertriebs-/Provisionsvereinbarungen). Per
+    /// Check-Constraint in der DB erzwungen.
+    /// </summary>
+    public int? KundeId { get; set; }
     public Kunde? Kunde { get; set; }
+
+    public int? PartnerId { get; set; }
+    public Partner? Partner { get; set; }
 
     public VertragsStatus Status { get; set; } = VertragsStatus.Entwurf;
 

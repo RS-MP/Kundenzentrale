@@ -39,7 +39,7 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int?>("KuendigungsfristMonate")
                         .HasColumnType("int");
 
-                    b.Property<int>("KundeId")
+                    b.Property<int?>("KundeId")
                         .HasColumnType("int");
 
                     b.Property<int?>("MindestlaufzeitMonate")
@@ -50,6 +50,9 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("OdooId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PartnerId")
                         .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
@@ -77,10 +80,15 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsUnique()
                         .HasFilter("[OdooId] IS NOT NULL");
 
+                    b.HasIndex("PartnerId");
+
                     b.HasIndex("Vertragsnummer")
                         .IsUnique();
 
-                    b.ToTable("Vertraege");
+                    b.ToTable("Vertraege", t =>
+                        {
+                            t.HasCheckConstraint("CK_Vertraege_Partei", "([KundeId] IS NULL AND [PartnerId] IS NOT NULL) OR ([KundeId] IS NOT NULL AND [PartnerId] IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertragsbestandteil", b =>
@@ -531,6 +539,9 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int?>("KundeId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Land")
                         .IsRequired()
                         .HasMaxLength(2)
@@ -575,6 +586,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("KundeId")
+                        .IsUnique()
+                        .HasFilter("[KundeId] IS NOT NULL");
 
                     b.HasIndex("OdooId")
                         .IsUnique()
@@ -1044,10 +1059,16 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
                         .WithMany()
                         .HasForeignKey("KundeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Partner", "Partner")
+                        .WithMany()
+                        .HasForeignKey("PartnerId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Kunde");
+
+                    b.Navigation("Partner");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertragsbestandteil", b =>
@@ -1149,6 +1170,16 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Server");
 
                     b.Navigation("VermitteltDurchPartner");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Partner", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
+                        .WithMany()
+                        .HasForeignKey("KundeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Kunde");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Aktivitaet", b =>

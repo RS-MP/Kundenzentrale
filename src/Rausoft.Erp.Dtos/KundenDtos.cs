@@ -44,7 +44,13 @@ public record KundeDetail(
     string? MandantenKennung,
     string? ServerAmpel,
     string? ServerHinweis,
-    string? Individualentwicklung);
+    string? Individualentwicklung,
+    // Verlinkung in die Partner-Akte: vermittelnder / rechnungsempfangender Partner
+    int? VermitteltDurchPartnerId = null,
+    int? RechnungsempfaengerPartnerId = null,
+    // Dieser Kunde ist selbst Partner (nutzt die Software und vertreibt sie)
+    int? AuchPartnerId = null,
+    string? AuchPartnerName = null);
 
 /// <summary>true = ins Archiv verschieben, false = aus dem Archiv holen.</summary>
 public record ArchivAenderung(bool Archivieren);

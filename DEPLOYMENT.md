@@ -61,6 +61,9 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
   vergeben, 3) **NTFS-Rechte** des Ordners prüfen: Lesen nur App-Pool-Konto
   „IIS APPPOOL\Kundenzentrale" (bzw. Computerkonto bei UNC) + berechtigte
   Personen — die App schützt nur den Zugriff über die Kundenzentrale.
+- [ ] **Publish aktualisieren (28.09.2026, FEEDBACK Nr. 20 Stufe 2):** Bereich
+  „Partner" mit Partner-Akte und Partnerverträgen. Migration läuft automatisch
+  (Vertrag gehört Kunde ODER Partner). Manuelle Schritte: keine.
 - [ ] **Edge-GPO für „Ordner öffnen"** (einmalig, AD-seitig): Damit der
   Ordner-Knopf den Explorer öffnet, in der GPO die Edge-Richtlinie
   **„IntranetFileLinksEnabled"** („Zulassen, dass Dateilinks der Intranetzone

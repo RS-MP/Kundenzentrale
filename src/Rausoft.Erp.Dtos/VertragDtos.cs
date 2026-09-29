@@ -3,7 +3,8 @@ namespace Rausoft.Erp.Dtos;
 public record VertragListenEintrag(
     int Id,
     string Vertragsnummer,
-    int KundeId,
+    // Vertragspartei: Kunde ODER Partner (Partnerverträge) — KundeName/Kundennummer tragen dann den Partner
+    int? KundeId,
     string KundeName,
     string Kundennummer,
     string Status,
@@ -11,7 +12,10 @@ public record VertragListenEintrag(
     DateOnly? NaechstesEnde,
     List<BestandteilKurz> Bestandteile,
     // Jüngstes Dokument der Akte (FEEDBACK Nr. 18), z. B. „Bestellung 3 · 08.09.2026".
-    StandEintrag? AktuellerStand);
+    StandEintrag? AktuellerStand,
+    int? PartnerId,
+    // Für alle sichtbare Kurzinfos der Bestandteile (z. B. „Provision 15 %")
+    List<string> Kurzinfos);
 
 /// <summary>Dokumentart-Kürzel für Listen (FEEDBACK Nr. 19): „BE" · „Bestellungen" · 5.</summary>
 public record BestandteilKurz(string Kuerzel, string Name, int Anzahl);
@@ -21,7 +25,7 @@ public record StandEintrag(string Kuerzel, string Bezeichnung, DateOnly Datum);
 public record VertragDetail(
     int Id,
     string Vertragsnummer,
-    int KundeId,
+    int? KundeId,
     string KundeName,
     string Kundennummer,
     string Status,
@@ -35,7 +39,8 @@ public record VertragDetail(
     List<BestandteilDetail> Bestandteile,
     StandEintrag? AktuellerStand,
     // Angemeldeter Benutzer hat die Rolle „Vertrauliche Verträge"
-    bool DarfVertrauliche);
+    bool DarfVertrauliche,
+    int? PartnerId);
 
 public record BestandteilDetail(
     int Id,
@@ -80,12 +85,14 @@ public record DokumentEintrag(
     string? VorlagenStand);
 
 public record VertragAnlegen(
-    int KundeId,
+    int? KundeId,
     DateOnly Beginn,
     int? MindestlaufzeitMonate,
     int? VerlaengerungMonate,
     int? KuendigungsfristMonate,
-    string? Notiz);
+    string? Notiz,
+    // Statt KundeId: Partnervertrag
+    int? PartnerId = null);
 
 public record VertragAendern(
     string Status,

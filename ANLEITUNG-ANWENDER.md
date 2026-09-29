@@ -125,6 +125,20 @@ am Bestandteil als **Vertraulich** markiert (🔒). Dann gilt:
 - Vertrauliche Dokumente liegen im eigenen vertraulichen Ordner und werden
   relativ zu diesem registriert.
 
+**Partnerverträge:** Im Bereich **Partner** hat jeder Partner eine Akte mit
+seinen Kunden und Partnerverträgen. „+ Partnervertrag" legt einen neuen an;
+Bestandteile sind dort automatisch als vertraulich vorbelegt — die Kurzinfo
+(z. B. „Tipp-Provision 15 % auf Erstlizenz, 24 Monate") sehen alle. In der
+Vertragsliste zeigt der Chip **Partnerverträge** nur diese.
+Nutzt ein Partner die Software auch selbst, verknüpft man ihn in der
+Partner-Akte unter **„Ist auch Kunde"** mit seinem Kunden-Datensatz — seine
+eigenen Nutzungsverträge stehen dann in der Kundenakte, die
+Partnerverträge in der Partner-Akte; beide verlinken aufeinander.
+Nutzt ein Partner die Software auch selbst, wird er in der Partner-Akte unter
+**„Ist auch Kunde"** mit seinem Kunden-Datensatz verknüpft (Vorschlag per Name
+oder Suche). Seine eigenen Nutzungsverträge stehen dann in der Kundenakte, die
+Partnerverträge in der Partner-Akte — beide verlinken aufeinander.
+
 ## Wer darf was
 
 Alle Mitarbeiter können mit Kunden und Verträgen arbeiten. Der Bereich

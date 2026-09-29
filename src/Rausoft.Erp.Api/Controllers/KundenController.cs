@@ -170,6 +170,8 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 && a.Status != Domain.Subscriptions.AboStatus.Entwurf, ct)
             && !await db.Vertraege.AnyAsync(v => v.KundeId == id
                 && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung), ct);
+        var auchPartner = await db.Partner.AsNoTracking()
+            .Where(p => p.KundeId == id).Select(p => new { p.Id, p.Name }).FirstOrDefaultAsync(ct);
         var hatArtefakte = await db.Abos.AnyAsync(a => a.KundeId == id
                 && a.Status != Domain.Subscriptions.AboStatus.Entwurf, ct)
             || await db.Vertraege.AnyAsync(v => v.KundeId == id, ct);
@@ -208,7 +210,11 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             kunde.MandantenKennung,
             kunde.Server is null ? null : ServerAmpel.Berechne(kunde.Server.IstErreichbar, kunde.Server.ConnectorAktiv),
             kunde.Server?.Fehlertext,
-            kunde.Individualentwicklung));
+            kunde.Individualentwicklung,
+            kunde.VermitteltDurchPartnerId,
+            kunde.RechnungsempfaengerPartnerId,
+            auchPartner?.Id,
+            auchPartner?.Name));
     }
 
     /// <summary>

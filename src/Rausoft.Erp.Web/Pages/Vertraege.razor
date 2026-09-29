@@ -30,6 +30,7 @@
         <button class="chip @(_arbeitsfilter == "" ? "aktiv" : "")" @onclick='() => Navigiere(arbeitsfilter: "")'>Alle</button>
         <button class="chip @(_arbeitsfilter == "nachzupflegen" ? "aktiv" : "")" @onclick='() => Navigiere(arbeitsfilter: "nachzupflegen")'>Nachzupflegen</button>
         <button class="chip @(_arbeitsfilter == "ende90" ? "aktiv" : "")" @onclick='() => Navigiere(arbeitsfilter: "ende90")'>Ende in 90 Tagen</button>
+        <button class="chip @(_arbeitsfilter == "partner" ? "aktiv" : "")" @onclick='() => Navigiere(arbeitsfilter: "partner")'>Partnerverträge</button>
         <button class="chip @(_bestandteilFilter == "Sondervereinbarung" ? "aktiv" : "")" @onclick="SondervereinbarungUmschalten">Mit Sondervereinbarung</button>
     </div>
     <select @bind="_statusFilter" @bind:after="() => Navigiere()">
@@ -143,13 +144,24 @@
                             <td>
                                 <span class="haupt">@vertrag.KundeName</span>
                                 <div class="neben" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-                                    <span>@vertrag.Kundennummer</span>
+                                    @if (vertrag.PartnerId is not null)
+                                    {
+                                        <span class="pill" title="Vertrag mit einem Partner">Partner</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@vertrag.Kundennummer</span>
+                                    }
                                     <TypPills Bestandteile="vertrag.Bestandteile" />
                                     @if (vertrag.AktuellerStand is { } stand)
                                     {
                                         <span title="Jüngstes Dokument der Akte: @stand.Bezeichnung">Stand @(vertrag.Bestandteile.Sum(b => b.Anzahl) > 1 ? $"{stand.Bezeichnung} · " : "")@stand.Datum.ToString("dd.MM.yyyy")</span>
                                     }
                                 </div>
+                                @if (vertrag.Kurzinfos.Count > 0)
+                                {
+                                    <div class="neben" style="color:var(--ink2)">@string.Join(" · ", vertrag.Kurzinfos)</div>
+                                }
                             </td>
                             <td>@vertrag.Beginn.ToString("dd.MM.yyyy")</td>
                             <td>

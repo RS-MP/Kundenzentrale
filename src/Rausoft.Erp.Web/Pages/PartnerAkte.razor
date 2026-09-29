@@ -1,0 +1,263 @@
+@page "/partner/{Id:int}"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>@(_partner?.Name ?? "Partner") · Kundenzentrale</PageTitle>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_partner is null)
+{
+    @if (_fehler is null)
+    {
+        <div class="leer-hinweis">Lade Partner …</div>
+    }
+}
+else
+{
+    <div class="akte-kopf">
+        <div class="seitenkopf">
+            <h1>@_partner.Name</h1>
+            <span class="untertitel"><a href="partner">Partner</a> · @_partner.Provisionsmodell@(_partner.ProvisionProzent is { } p ? $" · Provision {p:0.##} %" : "")</span>
+        </div>
+        <p class="faktenzeile2">
+            <span class="status @(_partner.Aktiv ? "gut" : "")">@(_partner.Aktiv ? "Aktiv" : "Inaktiv")</span>
+            @if (Anschrift() is { Length: > 0 } anschrift)
+            {
+                <span class="trenn">·</span><span>@anschrift</span>
+            }
+            @if (_partner.Email is not null)
+            {
+                <span class="trenn">·</span><a href="mailto:@_partner.Email">@_partner.Email</a>
+            }
+            @if (_partner.Telefon is not null)
+            {
+                <span class="trenn">·</span><span>@_partner.Telefon</span>
+            }
+        </p>
+    </div>
+
+    @* Verträge links, Fakten rechts — wie in der Kundenakte *@
+    <div class="akte">
+        <div>
+            <div class="karte">
+                <div class="karte-kopf">
+                    <h2>Partnerverträge</h2>
+                    <button class="knopf sekundaer" disabled="@_lege" @onclick="VertragAnlegenAsync">+ Partnervertrag</button>
+                </div>
+                <div class="karte-koerper">
+                    @if (_vertraege is null)
+                    {
+                        <div class="leer-hinweis">Lade Verträge …</div>
+                    }
+                    else if (_vertraege.Count == 0)
+                    {
+                        <div class="leer-hinweis">
+                            Noch keine Partnerverträge. Nach dem Anlegen Bestandteile als „Vertraulich" markieren
+                            und eine Kurzinfo für alle pflegen (z. B. „Provision 15 % auf Erstlizenz").
+                        </div>
+                    }
+                    @foreach (var vertrag in _vertraege ?? [])
+                    {
+                        <div style="padding:6px 0; border-bottom:1px dashed var(--border)">
+                            <div style="display:flex; gap:10px; align-items:baseline">
+                                <a href="vertraege/@vertrag.Id" style="font-weight:600">@vertrag.Vertragsnummer</a>
+                                <span class="status @StatusKlasse(vertrag.Status)" style="font-size:13px">@vertrag.Status</span>
+                                <span style="margin-left:auto; color:var(--muted); font-size:12.5px">
+                                    @(vertrag.NaechstesEnde is not null ? $"Ende {vertrag.NaechstesEnde.Value:dd.MM.yyyy}" : "")
+                                </span>
+                            </div>
+                            <div class="neben" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:3px">
+                                <TypPills Bestandteile="vertrag.Bestandteile" />
+                                @if (vertrag.AktuellerStand is { } stand)
+                                {
+                                    <span>Stand @stand.Datum.ToString("dd.MM.yyyy")</span>
+                                }
+                            </div>
+                            @foreach (var info in vertrag.Kurzinfos)
+                            {
+                                <div class="neben" style="color:var(--ink2)">@info</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div>
+            @* Partner nutzt die Software selbst → eigene Nutzungsverträge stehen in der Kundenakte *@
+            <details class="gruppe" open>
+                <summary>Ist auch Kunde</summary>
+                <div class="gruppe-inhalt">
+                    @if (_partner.AuchKunde is { } auchKunde)
+                    {
+                        <div class="zeile2">
+                            <span><a href="kunden/@auchKunde.Id">@auchKunde.Firmenname</a>
+                                <span class="neben" style="display:inline; margin-left:6px">@auchKunde.Kundennummer</span>
+                            </span>
+                            <button class="mehr" @onclick="() => KundeVerknuepfenAsync(null)">lösen</button>
+                        </div>
+                        <div style="color:var(--muted); font-size:12.5px; margin-top:4px">
+                            Eigene Nutzungsverträge und Abos stehen in der Kundenakte, Partnerverträge hier.
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
+                            Nutzt der Partner die Software selbst? Dann mit dem Kunden-Datensatz verknüpfen.
+                        </div>
+                        @foreach (var vorschlag in _partner.KundeVorschlaege)
+                        {
+                            <div class="zeile2">
+                                <span>@vorschlag.Firmenname <span class="neben" style="display:inline; margin-left:6px">@vorschlag.Kundennummer</span></span>
+                                <button class="mehr" @onclick="() => KundeVerknuepfenAsync(vorschlag.Id)">verknüpfen</button>
+                            </div>
+                        }
+                        <div style="display:flex; gap:6px; margin-top:6px">
+                            <input type="search" style="flex:1" placeholder="Kunde suchen (Name oder Nummer) …"
+                                   @bind="_kundenSuche" @bind:event="oninput" @onkeydown="KundenSucheTasteAsync" />
+                            <button class="knopf sekundaer" @onclick="KundenSuchenAsync">Suchen</button>
+                        </div>
+                        @foreach (var treffer in _suchTreffer)
+                        {
+                            <div class="zeile2">
+                                <span>@treffer.Firmenname <span class="neben" style="display:inline; margin-left:6px">@treffer.Kundennummer</span></span>
+                                <button class="mehr" @onclick="() => KundeVerknuepfenAsync(treffer.Id)">verknüpfen</button>
+                            </div>
+                        }
+                    }
+                </div>
+            </details>
+
+            <details class="gruppe" open>
+                <summary>Kunden<span class="zahl">@_partner.Kunden.Count</span></summary>
+                <div class="gruppe-inhalt">
+                    @if (_partner.Kunden.Count == 0)
+                    {
+                        <div style="color:var(--muted)">Keine Kunden zugeordnet.</div>
+                    }
+                    @foreach (var kunde in _partner.Kunden)
+                    {
+                        <div class="zeile2">
+                            <span><a href="kunden/@kunde.Id">@kunde.Firmenname</a>
+                                <span class="neben" style="display:inline; margin-left:6px">@kunde.Kundennummer</span>
+                            </span>
+                            <span class="r" style="color:var(--muted); font-size:12.5px">@KundeRolle(kunde)</span>
+                        </div>
+                    }
+                </div>
+            </details>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private PartnerDetail? _partner;
+    private List<VertragListenEintrag>? _vertraege;
+    private string? _fehler;
+    private bool _lege;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _partner = await Http.GetFromJsonAsync<PartnerDetail>($"api/partner/{Id}");
+            var vertraege = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
+                $"api/vertraege?partnerId={Id}&seite=1&proSeite=100");
+            _vertraege = vertraege?.Eintraege ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Partner konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private string Anschrift() =>
+        string.Join(", ", new[]
+            {
+                _partner?.Strasse,
+                $"{_partner?.Plz} {_partner?.Ort}".Trim(),
+                _partner?.Land == "DE" ? null : _partner?.Land,
+            }
+            .Where(t => !string.IsNullOrWhiteSpace(t)));
+
+    private string _kundenSuche = "";
+    private List<KundeListenEintrag> _suchTreffer = [];
+
+    private async Task KundenSucheTasteAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await KundenSuchenAsync();
+    }
+
+    private async Task KundenSuchenAsync()
+    {
+        _suchTreffer = [];
+        if (_kundenSuche.Trim().Length < 2)
+            return;
+        var ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
+            $"api/kunden?suche={Uri.EscapeDataString(_kundenSuche.Trim())}&kategorie=alle&seite=1&proSeite=8");
+        _suchTreffer = ergebnis?.Eintraege ?? [];
+    }
+
+    private async Task KundeVerknuepfenAsync(int? kundeId)
+    {
+        _fehler = null;
+        var antwort = await Http.PutAsJsonAsync($"api/partner/{Id}/kunde", new PartnerKundeVerknuepfen(kundeId));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        _kundenSuche = "";
+        _suchTreffer = [];
+        _partner = await Http.GetFromJsonAsync<PartnerDetail>($"api/partner/{Id}");
+    }
+
+    private static string KundeRolle(PartnerKunde kunde) =>
+        (kunde.Vermittelt, kunde.RechnungAnPartner) switch
+        {
+            (true, true) => "vermittelt · Rechnung an Partner",
+            (false, true) => "Rechnung an Partner",
+            _ => "vermittelt",
+        };
+
+    private async Task VertragAnlegenAsync()
+    {
+        _fehler = null;
+        _lege = true;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/vertraege", new VertragAnlegen(
+                null, DateOnly.FromDateTime(DateTime.Today), null, null, null, null, PartnerId: Id));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var vertrag = await antwort.Content.ReadFromJsonAsync<VertragDetail>();
+            Navigation.NavigateTo($"vertraege/{vertrag!.Id}");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vertrag konnte nicht angelegt werden: {ex.Message}";
+        }
+        finally
+        {
+            _lege = false;
+        }
+    }
+
+    private static string StatusKlasse(string status) => status switch
+    {
+        "Aktiv" => "gut",
+        "Gekündigt" => "warnung",
+        "Beendet" => "kritisch",
+        _ => "",
+    };
+}

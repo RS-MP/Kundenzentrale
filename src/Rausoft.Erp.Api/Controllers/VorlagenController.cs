@@ -104,7 +104,7 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
 
     private record Verwendung(
         int VorlageId, int Nummer, int VertragId, string Vertragsnummer,
-        int KundeId, string Kundennummer, string Firmenname, DateTime ErstelltAm);
+        int? KundeId, string Kundennummer, string Firmenname, DateTime ErstelltAm);
 
     private Task<List<Verwendung>> VerwendungenLaden(int? vorlageId, CancellationToken ct) =>
         db.Vertragsdokumente.AsNoTracking()

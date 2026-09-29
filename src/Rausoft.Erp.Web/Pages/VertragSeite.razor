@@ -22,7 +22,14 @@ else
         <div class="seitenkopf">
             <h1>Vertrag @_vertrag.Vertragsnummer</h1>
             <span class="untertitel">
-                <a href="kunden/@_vertrag.KundeId">@_vertrag.KundeName</a> · Kunden-Nr. @_vertrag.Kundennummer
+                @if (_vertrag.PartnerId is not null)
+                {
+                    <a href="partner/@_vertrag.PartnerId">@_vertrag.KundeName</a> <span>· Partnervertrag</span>
+                }
+                else
+                {
+                    <a href="kunden/@_vertrag.KundeId">@_vertrag.KundeName</a> <span>· Kunden-Nr. @_vertrag.Kundennummer</span>
+                }
             </span>
         </div>
         <p class="faktenzeile2">
@@ -380,6 +387,9 @@ else
             _bearbeitung.Kuendigungsfrist = _vertrag.KuendigungsfristMonate;
             _bearbeitung.GekuendigtZum = _vertrag.GekuendigtZum;
             _bearbeitung.Notiz = _vertrag.Notiz;
+            // Partnerverträge sind in der Regel vertraulich — Vorbelegung für neue Bestandteile
+            if (_vertrag.PartnerId is not null && _vertrag.DarfVertrauliche && !_bestandteilOffen)
+                _neuerBestandteil.Vertraulich = true;
             foreach (var bestandteil in _vertrag.Bestandteile)
                 _dokumentPfade.TryAdd(bestandteil.Id, "");
         }

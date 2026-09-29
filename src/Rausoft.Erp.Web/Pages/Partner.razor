@@ -1,0 +1,80 @@
+@page "/partner"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Partner · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Partner</h1>
+    <span class="untertitel">Vertriebs- und Tipp-Partner mit ihren Kunden und Partnerverträgen</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+<div class="karte">
+    @if (_partner is null)
+    {
+        <div class="karte-koerper"><div class="leer-hinweis">Lade Partner …</div></div>
+    }
+    else if (_partner.Count == 0)
+    {
+        <div class="karte-koerper">
+            <div class="leer-hinweis">Noch keine Partner — sie kommen mit dem Odoo-Import (Feld „Vertriebspartner" am Kontakt).</div>
+        </div>
+    }
+    else
+    {
+        <table class="liste">
+            <thead>
+                <tr>
+                    <th>Partner</th>
+                    <th style="width:220px">Modell</th>
+                    <th style="width:90px">Kunden</th>
+                    <th style="width:90px">Verträge</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var partner in _partner)
+                {
+                    <tr @onclick='() => Navigation.NavigateTo($"partner/{partner.Id}")'>
+                        <td>
+                            <span class="haupt">@partner.Name</span>
+                            @if (partner.AuchKunde)
+                            {
+                                <span class="pill" style="margin-left:6px" title="Nutzt die Software auch selbst">auch Kunde</span>
+                            }
+                            @if (!partner.Aktiv)
+                            {
+                                <span class="pill" style="margin-left:6px">inaktiv</span>
+                            }
+                            <div class="neben">@string.Join(" · ", new[] { partner.Ort, partner.Land }.Where(t => !string.IsNullOrWhiteSpace(t)))</div>
+                        </td>
+                        <td>@partner.Provisionsmodell@(partner.ProvisionProzent is { } p ? $" · {p:0.##} %" : "")</td>
+                        <td>@partner.Kunden</td>
+                        <td>@partner.Vertraege</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private List<PartnerEintrag>? _partner;
+    private string? _fehler;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _partner = await Http.GetFromJsonAsync<List<PartnerEintrag>>("api/partner") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Partner konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+}

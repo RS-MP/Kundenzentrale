@@ -65,11 +65,15 @@ else
             }
             @if (_kunde.RechnungsempfaengerPartner is not null)
             {
-                <span class="trenn">·</span><span>Endkunde via @_kunde.RechnungsempfaengerPartner — Rechnung an Partner</span>
+                <span class="trenn">·</span><span>Endkunde via <a href="partner/@_kunde.RechnungsempfaengerPartnerId">@_kunde.RechnungsempfaengerPartner</a> — Rechnung an Partner</span>
             }
             else if (_kunde.VermitteltDurchPartner is not null)
             {
-                <span class="trenn">·</span><span>vermittelt durch @_kunde.VermitteltDurchPartner</span>
+                <span class="trenn">·</span><span>vermittelt durch <a href="partner/@_kunde.VermitteltDurchPartnerId">@_kunde.VermitteltDurchPartner</a></span>
+            }
+            @if (_kunde.AuchPartnerId is not null)
+            {
+                <span class="trenn">·</span><span>ist auch Partner: <a href="partner/@_kunde.AuchPartnerId">@_kunde.AuchPartnerName</a></span>
             }
             @if (_kunde.UStIdNr is not null)
             {
@@ -197,6 +201,10 @@ else
                                     <span title="Jüngstes Dokument der Akte: @stand.Bezeichnung">Stand @(vertrag.Bestandteile.Sum(b => b.Anzahl) > 1 ? $"{stand.Bezeichnung} · " : "")@stand.Datum.ToString("dd.MM.yyyy")</span>
                                 }
                             </div>
+                            @foreach (var info in vertrag.Kurzinfos)
+                            {
+                                <div class="neben" style="color:var(--ink2)">@info</div>
+                            }
                         </div>
                     }
                     @if (_vorlagen.Count > 0)

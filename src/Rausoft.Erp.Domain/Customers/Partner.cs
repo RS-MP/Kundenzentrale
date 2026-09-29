@@ -27,6 +27,15 @@ public class Partner
 
     public int? OdooId { get; set; }
 
+    /// <summary>
+    /// Partner ist zugleich Kunde (nutzt die Software selbst): Verweis auf den
+    /// Kunden-Datensatz. Vertriebs-/Provisionsverträge hängen am Partner, die
+    /// eigenen Nutzungsverträge am Kunden — beide Akten verlinken aufeinander.
+    /// Manuell gepflegt (Odoo-Namen weichen oft ab).
+    /// </summary>
+    public int? KundeId { get; set; }
+    public Kunde? Kunde { get; set; }
+
     public bool Aktiv { get; set; } = true;
 
     public byte[] RowVersion { get; set; } = [];

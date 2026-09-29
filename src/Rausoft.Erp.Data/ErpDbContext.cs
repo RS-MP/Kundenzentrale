@@ -191,6 +191,9 @@ public class ErpDbContext(
             e.Property(p => p.Land).HasMaxLength(2).IsFixedLength();
             e.Property(p => p.ProvisionProzent).HasPrecision(5, 2);
             e.Property(p => p.RowVersion).IsRowVersion();
+            // „Partner ist auch Kunde": höchstens ein Partner je Kunde
+            e.HasIndex(p => p.KundeId).IsUnique().HasFilter("[KundeId] IS NOT NULL");
+            e.HasOne(p => p.Kunde).WithMany().HasForeignKey(p => p.KundeId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Ansprechpartner>(e =>
@@ -248,6 +251,10 @@ public class ErpDbContext(
             e.Property(v => v.Notiz).HasColumnType("nvarchar(max)");
             e.Property(v => v.RowVersion).IsRowVersion();
             e.HasOne(v => v.Kunde).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(v => v.Partner).WithMany().OnDelete(DeleteBehavior.Restrict);
+            // Genau eine Vertragspartei: Kunde ODER Partner
+            e.ToTable(t => t.HasCheckConstraint("CK_Vertraege_Partei",
+                "([KundeId] IS NULL AND [PartnerId] IS NOT NULL) OR ([KundeId] IS NOT NULL AND [PartnerId] IS NULL)"));
             e.HasMany(v => v.Bestandteile).WithOne(b => b.Vertrag!)
                 .HasForeignKey(b => b.VertragId).OnDelete(DeleteBehavior.Cascade);
         });

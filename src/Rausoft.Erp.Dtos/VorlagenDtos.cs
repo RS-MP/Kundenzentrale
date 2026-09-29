@@ -44,7 +44,7 @@ public record VorlagenVerwendung(
     int Version,
     int VertragId,
     string Vertragsnummer,
-    int KundeId,
+    int? KundeId,
     string Kundennummer,
     string Firmenname,
     DateTime ErstelltAm);

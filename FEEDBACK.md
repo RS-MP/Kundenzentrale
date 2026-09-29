@@ -340,16 +340,25 @@ Dateinamen; Admin-Löschung listet vertrauliche Pfade nicht auf. Vertraulichkeit
 lässt sich nicht aufheben, sobald Dokumente registriert sind. Der
 `vertragsscan` liest den vertraulichen Ordner nicht.
 
-Stufe 2 (offen): **Verträge direkt am Partner** — braucht eine Partner-Akte
-(Partner haben heute keine eigene Seite, Verträge hängen fest am Kunden).
-Kurzinfo dort strukturiert: Vertragsart, Provisionsmodell + Satz (am Partner
-schon vorhanden), Laufzeit.
+Stufe 2 (umgesetzt 28.09.2026): **Partnerverträge + Partner-Akte.** Ein Vertrag
+gehört genau einem Kunden ODER einem Partner (DB-Check-Constraint). Neuer
+Bereich **Partner** (Übersicht mit Modell, Provision, Anzahl Kunden/Verträge)
+und Partner-Akte (Stammdaten aus Odoo, nur lesend; Partnerverträge mit
+Kürzeln, Stand und Kurzinfos; zugeordnete Kunden „vermittelt" / „Rechnung an
+Partner"). „+ Partnervertrag" legt die Vertragsakte an; neue Bestandteile
+sind dort als vertraulich vorbelegt. Vertragsliste: Chip „Partnerverträge",
+Suche findet Partnernamen, Kurzinfos stehen unter dem Vertrag (auch in der
+Kundenakte). **Partner ist auch Kunde** (nutzt die Software selbst): manuelle
+Verknüpfung Partner → Kunden-Datensatz in der Partner-Akte (mit Namensvorschlag,
+höchstens ein Partner je Kunde); Partnerverträge bleiben am Partner, eigene
+Nutzungsverträge/Abos am Kunden, beide Akten verlinken aufeinander. Offen: eigener Verlauf für Partner (Partnerverträge schreiben
+noch keinen Verlaufseintrag), Partner-Stammdaten pflegen statt nur Odoo.
 
 Wichtig für den Betrieb: NTFS-Rechte auf dem vertraulichen Ordner zusätzlich
 einschränken (App-Pool-Konto + berechtigte Personen) — die App schützt nur den
 Zugriff über die Kundenzentrale.
 
-Status: Stufe 1 umgesetzt · Stufe 2 offen
+Status: Stufe 1 + 2 umgesetzt · Partner-Verlauf offen
 
 ## Backlog (Aufgaben beim Nutzer / für später)
 

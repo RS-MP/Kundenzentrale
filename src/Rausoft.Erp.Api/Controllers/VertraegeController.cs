@@ -20,7 +20,7 @@ public class VertraegeController(
     [HttpGet]
     public async Task<ActionResult<SeitenErgebnis<VertragListenEintrag>>> Liste(
         [FromQuery] string? suche, [FromQuery] string? status, [FromQuery] string? bestandteil,
-        [FromQuery] int? kundeId, [FromQuery] string? filter,
+        [FromQuery] int? kundeId, [FromQuery] int? partnerId, [FromQuery] string? filter,
         [FromQuery] int seite = 1, [FromQuery] int proSeite = 25,
         CancellationToken ct = default)
     {
@@ -31,11 +31,17 @@ public class VertraegeController(
 
         if (kundeId is not null)
             query = query.Where(v => v.KundeId == kundeId);
+        if (partnerId is not null)
+            query = query.Where(v => v.PartnerId == partnerId);
+        // Arbeitsfilter „Partnerverträge"
+        if (filter == "partner")
+            query = query.Where(v => v.PartnerId != null);
         if (!string.IsNullOrWhiteSpace(suche))
         {
             var s = suche.Trim();
             query = query.Where(v => v.Vertragsnummer.Contains(s)
-                || v.Kunde!.Firmenname.Contains(s) || v.Kunde!.Kundennummer.Contains(s));
+                || v.Kunde!.Firmenname.Contains(s) || v.Kunde!.Kundennummer.Contains(s)
+                || v.Partner!.Name.Contains(s));
         }
         if (StatusWert(status) is { } statusWert)
             query = query.Where(v => v.Status == statusWert);
@@ -47,9 +53,11 @@ public class VertraegeController(
         var roh = await query
             .Select(v => new
             {
-                v.Id, v.Vertragsnummer, v.KundeId,
-                KundeName = v.Kunde!.Firmenname,
-                v.Kunde!.Kundennummer,
+                v.Id, v.Vertragsnummer, v.KundeId, v.PartnerId,
+                // Partnerverträge: Partnername an Stelle des Kunden
+                KundeName = v.Kunde != null ? v.Kunde.Firmenname : v.Partner!.Name,
+                Kundennummer = v.Kunde != null ? v.Kunde.Kundennummer : "Partner",
+                Kurzinfos = v.Bestandteile.Where(b => b.Kurzinfo != null).Select(b => b.Kurzinfo!).ToList(),
                 v.Status, v.Beginn, v.MindestlaufzeitMonate, v.VerlaengerungMonate,
                 v.KuendigungsfristMonate, v.GekuendigtZum,
                 Teile = v.Bestandteile
@@ -61,7 +69,7 @@ public class VertraegeController(
         var heute = DateOnly.FromDateTime(DateTime.Today);
         var berechnet = roh.Select(v => new
         {
-            v.Id, v.Vertragsnummer, v.KundeId, v.KundeName, v.Kundennummer,
+            v.Id, v.Vertragsnummer, v.KundeId, v.PartnerId, v.KundeName, v.Kundennummer, v.Kurzinfos,
             v.Status, v.Beginn, v.MindestlaufzeitMonate, v.Teile,
             Ende = new Vertrag
             {
@@ -94,7 +102,8 @@ public class VertraegeController(
             .Select(v => new VertragListenEintrag(
                 v.Id, v.Vertragsnummer, v.KundeId, v.KundeName, v.Kundennummer,
                 StatusText(v.Status), v.Beginn, v.Ende,
-                BestandteilZusammenfassung(v.Teile.Select(t => t.Typ).ToList()), AktuellerStand(v.Teile)))
+                BestandteilZusammenfassung(v.Teile.Select(t => t.Typ).ToList()), AktuellerStand(v.Teile),
+                v.PartnerId, v.Kurzinfos))
             .ToList();
 
         return Ok(new SeitenErgebnis<VertragListenEintrag>(eintraege, gefiltert.Count, seite, proSeite));
@@ -182,6 +191,7 @@ public class VertraegeController(
         var vertrag = await db.Vertraege
             .AsNoTracking()
             .Include(v => v.Kunde)
+            .Include(v => v.Partner)
             .Include(v => v.Bestandteile)
                 .ThenInclude(b => b.Dokumente)
                     .ThenInclude(d => d.ErstelltVon)
@@ -200,9 +210,15 @@ public class VertraegeController(
     [HttpPost]
     public async Task<ActionResult<VertragDetail>> Anlegen(VertragAnlegen anlage, CancellationToken ct)
     {
-        var kunde = await db.Kunden.FindAsync([anlage.KundeId], ct);
-        if (kunde is null)
+        // Genau eine Vertragspartei: Kunde oder Partner (Partnervertrag)
+        if ((anlage.KundeId is null) == (anlage.PartnerId is null))
+            return BadRequest("Bitte entweder einen Kunden oder einen Partner angeben.");
+        Kunde? kunde = null;
+        Partner? partner = null;
+        if (anlage.KundeId is { } kundeId && (kunde = await db.Kunden.FindAsync([kundeId], ct)) is null)
             return BadRequest("Der angegebene Kunde existiert nicht.");
+        if (anlage.PartnerId is { } partnerId && (partner = await db.Partner.FindAsync([partnerId], ct)) is null)
+            return BadRequest("Der angegebene Partner existiert nicht.");
 
         // Nummer zuerst ziehen (eigener SaveChanges), dann den Vertrag anlegen
         var nummer = await nummernkreis.NaechsteNummerAsync("Vertrag", ct);
@@ -210,7 +226,8 @@ public class VertraegeController(
         var vertrag = new Vertrag
         {
             Vertragsnummer = nummer,
-            KundeId = kunde.Id,
+            KundeId = kunde?.Id,
+            PartnerId = partner?.Id,
             Status = VertragsStatus.Entwurf,
             Beginn = anlage.Beginn,
             MindestlaufzeitMonate = anlage.MindestlaufzeitMonate,
@@ -221,20 +238,21 @@ public class VertraegeController(
         db.Vertraege.Add(vertrag);
 
         // Ein neuer Vertrag holt archivierte Kunden automatisch aus dem Archiv
-        if (kunde.ArchiviertAm != null)
+        if (kunde?.ArchiviertAm != null)
         {
             kunde.ArchiviertAm = null;
-            db.Aktivitaeten.Add(await TimelineEintrag(kunde.Id,
-                "Aus dem Archiv geholt — neuer Vertrag angelegt", null, null, ct));
+            await VerlaufAsync(kunde.Id,
+                "Aus dem Archiv geholt — neuer Vertrag angelegt", null, null, ct);
         }
         await db.SaveChangesAsync(ct);
 
         // Timeline-Eintrag mit Sprungziel — braucht die gespeicherte Vertrags-Id
-        db.Aktivitaeten.Add(await TimelineEintrag(kunde.Id,
-            $"Vertrag {nummer} angelegt", null, vertrag.Id, ct));
+        await VerlaufAsync(kunde?.Id,
+            $"Vertrag {nummer} angelegt", null, vertrag.Id, ct);
         await db.SaveChangesAsync(ct);
 
         vertrag.Kunde = kunde;
+        vertrag.Partner = partner;
         return CreatedAtAction(nameof(Einzeln), new { id = vertrag.Id }, NachDetail(vertrag));
     }
 
@@ -258,9 +276,9 @@ public class VertraegeController(
 
         if (alterStatus != neuerStatus)
         {
-            db.Aktivitaeten.Add(await TimelineEintrag(vertrag.KundeId,
+            await VerlaufAsync(vertrag.KundeId,
                 $"Vertrag {vertrag.Vertragsnummer}: {StatusText(alterStatus)} → {StatusText(neuerStatus)}",
-                null, vertrag.Id, ct));
+                null, vertrag.Id, ct);
         }
 
         await db.SaveChangesAsync(ct);
@@ -339,10 +357,10 @@ public class VertraegeController(
         }
 
         if (aenderungen.Count > 0)
-            db.Aktivitaeten.Add(await TimelineEintrag(bestandteil.Vertrag!.KundeId,
+            await VerlaufAsync(bestandteil.Vertrag!.KundeId,
                 // Den Verlauf sehen alle — vertrauliche Titel gehören nicht hinein
                 $"Vertrag {bestandteil.Vertrag.Vertragsnummer}: {VerlaufsName(bestandteil)} — {string.Join(", ", aenderungen)}",
-                null, bestandteil.VertragId, ct));
+                null, bestandteil.VertragId, ct);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -424,11 +442,11 @@ public class VertraegeController(
             ErstelltVonId = mitarbeiterId.Value,
         });
 
-        db.Aktivitaeten.Add(await TimelineEintrag(bestandteil.Vertrag!.KundeId,
+        await VerlaufAsync(bestandteil.Vertrag!.KundeId,
             bestandteil.Vertraulich
                 ? $"Vertrag {bestandteil.Vertrag.Vertragsnummer}: vertrauliches Dokument als Version {version} zu {VerlaufsName(bestandteil)} registriert"
                 : $"Vertrag {bestandteil.Vertrag.Vertragsnummer}: Dokument „{Path.GetFileName(dateiVoll)}“ als Version {version} zu {bestandteil.Titel} registriert",
-            null, bestandteil.VertragId, ct));
+            null, bestandteil.VertragId, ct);
 
         await db.SaveChangesAsync(ct);
         return NoContent();
@@ -465,10 +483,10 @@ public class VertraegeController(
             .ToListAsync(ct);
         db.Aktivitaeten.RemoveRange(verweise);
 
-        db.Aktivitaeten.Add(await TimelineEintrag(vertrag.KundeId,
+        await VerlaufAsync(vertrag.KundeId,
             $"Vertrag {vertrag.Vertragsnummer} gelöscht (Admin)",
             dateien.Count > 0 ? "Dateien verbleiben in der Ablage: " + string.Join("; ", dateien) : null,
-            null, ct));
+            null, ct);
 
         db.ErlaubeVertragsdokumentLoeschung = true;
         db.Vertragsdokumente.RemoveRange(vertrag.Bestandteile.SelectMany(b => b.Dokumente));
@@ -637,8 +655,8 @@ public class VertraegeController(
         db.Vertraege.Add(vertrag);
         await db.SaveChangesAsync(ct);
 
-        db.Aktivitaeten.Add(await TimelineEintrag(kunde.Id,
-            $"Vertrag {nummer} aus Vorlage „{vorlagenStand}“ erstellt", null, vertrag.Id, ct));
+        await VerlaufAsync(kunde.Id,
+            $"Vertrag {nummer} aus Vorlage „{vorlagenStand}“ erstellt", null, vertrag.Id, ct);
         await db.SaveChangesAsync(ct);
 
         return Ok(new VorlagenErgebnis(vertrag.Id, nummer, Path.GetFileName(zielPfad), offene));
@@ -716,6 +734,17 @@ public class VertraegeController(
 
     // --- Hilfen ----------------------------------------------------------------
 
+    /// <summary>
+    /// Verlaufseintrag in der Kundenakte. Partnerverträge (ohne Kunde) haben
+    /// noch keinen eigenen Verlauf — dann wird nichts geschrieben.
+    /// </summary>
+    private async Task VerlaufAsync(
+        int? kundeId, string betreff, string? inhalt, int? vertragId, CancellationToken ct)
+    {
+        if (kundeId is { } id)
+            db.Aktivitaeten.Add(await TimelineEintrag(id, betreff, inhalt, vertragId, ct));
+    }
+
     private async Task<Aktivitaet> TimelineEintrag(
         int kundeId, string betreff, string? inhalt, int? vertragId, CancellationToken ct)
         => new()
@@ -787,8 +816,8 @@ public class VertraegeController(
         vertrag.Id,
         vertrag.Vertragsnummer,
         vertrag.KundeId,
-        vertrag.Kunde?.Firmenname ?? "",
-        vertrag.Kunde?.Kundennummer ?? "",
+        vertrag.Kunde?.Firmenname ?? vertrag.Partner?.Name ?? "",
+        vertrag.Kunde?.Kundennummer ?? (vertrag.PartnerId is not null ? "Partner" : ""),
         StatusText(vertrag.Status),
         vertrag.Beginn,
         vertrag.MindestlaufzeitMonate,
@@ -802,7 +831,8 @@ public class VertraegeController(
             .Select(b => NachBestandteil(b, ablage, nummern, juengsterId, darfVertrauliche))
             .ToList(),
         stand,
-        darfVertrauliche);
+        darfVertrauliche,
+        vertrag.PartnerId);
 
     private static BestandteilDetail NachBestandteil(
         Vertragsbestandteil b, string? ablage, Dictionary<int, int> nummern, int? juengsterId, bool darfVertrauliche)
