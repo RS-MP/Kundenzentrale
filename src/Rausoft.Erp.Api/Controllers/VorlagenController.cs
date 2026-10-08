@@ -153,6 +153,7 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
         }
 
         var dateien = new List<VorlagenDatei>();
+        var shaJeDatei = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pfad in Directory.EnumerateFiles(verzeichnis, "*.docx", SearchOption.TopDirectoryOnly)
                      .Where(p => !Path.GetFileName(p).StartsWith("~$"))
                      .OrderBy(p => Path.GetFileName(p), StringComparer.OrdinalIgnoreCase))
@@ -163,6 +164,7 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
             {
                 var inhalt = await System.IO.File.ReadAllBytesAsync(pfad, ct);
                 var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(inhalt)).ToLowerInvariant();
+                shaJeDatei[name] = sha;
                 List<string> unbekannt;
                 using (var speicher = new MemoryStream(inhalt))
                     unbekannt = Dienste.VorlagenDienst.Platzhalter(speicher).Where(p => !bekannte.Contains(p)).ToList();
@@ -172,7 +174,12 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
                     .OrderByDescending(x => x.Version.Nummer).FirstOrDefault();
                 if (gleich.Vorlage is not null)
                 {
-                    dateien.Add(new VorlagenDatei(name, geaendert, Status(gleich.Vorlage, gleich.Version),
+                    // Ist die Quelldatei bekannt, sind andere inhaltsgleiche Dateien nur Kopien
+                    var status = gleich.Version.QuellDateiname is { } quelle
+                                 && !string.Equals(quelle, name, StringComparison.OrdinalIgnoreCase)
+                        ? "duplikat"
+                        : Status(gleich.Vorlage, gleich.Version);
+                    dateien.Add(new VorlagenDatei(name, geaendert, status,
                         gleich.Vorlage.Id, gleich.Vorlage.Name, gleich.Version.Nummer, unbekannt, null));
                     continue;
                 }
@@ -194,6 +201,13 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
                     "Datei nicht lesbar — in Word geöffnet oder kein gültiges Word-Dokument?"));
             }
         }
+
+        // Inhaltsgleiche Dateien gegenseitig kennzeichnen (z. B. „… MP-TEST.docx" als Kopie der Vorlage)
+        dateien = dateien.Select(d => shaJeDatei.TryGetValue(d.Dateiname, out var eigene)
+                && shaJeDatei.Where(x => x.Value == eigene && !string.Equals(x.Key, d.Dateiname, StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x.Key).ToList() is { Count: > 0 } gleiche
+                ? d with { GleicherInhaltWie = gleiche }
+                : d).ToList();
 
         // Eingefrorene Kopien: vorhanden und unverändert?
         var eingefroren = new List<EingefroreneVersion>();

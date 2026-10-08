@@ -48,6 +48,12 @@
                             <td>@datei.GeaendertAm.ToString("dd.MM.yyyy HH:mm")</td>
                             <td>
                                 <span class="status @StatusKlasse(datei.Status)" title="@datei.Fehler">@StatusText(datei)</span>
+                                @if (datei.GleicherInhaltWie is { Count: > 0 } gleiche)
+                                {
+                                    <div class="neben warntext" title="Inhaltsgleiche Dateien — eine davon kann aus dem Verzeichnis entfernt werden">
+                                        doppelt: gleicher Inhalt wie @string.Join(", ", gleiche)
+                                    </div>
+                                }
                             </td>
                             <td>
                                 @if (datei.VorlageName is not null)
@@ -304,6 +310,7 @@
         "zukuenftig" => "freigegeben, gilt künftig",
         "ersetzt" => "ersetzt — ältere Version",
         "zurueckgezogen" => "Vorlage zurückgezogen",
+        "duplikat" => "Kopie — gleicher Inhalt wie die Quelldatei",
         "geaendert" => "geändert seit Freigabe",
         "neu" => "neu — keiner Vorlage zugeordnet",
         _ => "nicht lesbar",

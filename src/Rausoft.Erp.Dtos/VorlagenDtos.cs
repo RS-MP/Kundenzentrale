@@ -77,7 +77,9 @@ public record VorlagenDatei(
     // Unbekannte {{Platzhalter}} — würden im Vertrag stehen bleiben
     List<string> UnbekanntePlatzhalter,
     // Datei nicht lesbar (z. B. geöffnet/gesperrt oder kein gültiges Word-Dokument)
-    string? Fehler);
+    string? Fehler,
+    // Inhaltsgleiche andere Dateien im Verzeichnis (Duplikate)
+    List<string>? GleicherInhaltWie = null);
 
 /// <summary>Prüfung der eingefrorenen Versionsdateien (Unterordner „Freigegeben").</summary>
 public record EingefroreneVersion(
