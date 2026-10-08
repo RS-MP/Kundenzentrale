@@ -345,7 +345,9 @@ gehört genau einem Kunden ODER einem Partner (DB-Check-Constraint). Neuer
 Bereich **Partner** (Übersicht mit Modell, Provision, Anzahl Kunden/Verträge)
 und Partner-Akte (Stammdaten aus Odoo, nur lesend; Partnerverträge mit
 Kürzeln, Stand und Kurzinfos; zugeordnete Kunden „vermittelt" / „Rechnung an
-Partner"). „+ Partnervertrag" legt die Vertragsakte an; neue Bestandteile
+Partner"), aufgeteilt in **Kunden mit aktivem Abo** und **ohne aktives Abo**
+(Interessenten u. a. — Ehemalige/Zu klären mit Kategorie-Hinweis, gleiche Regel wie
+die Kundenliste; 08.10.2026). „+ Partnervertrag" legt die Vertragsakte an; neue Bestandteile
 sind dort als vertraulich vorbelegt. Vertragsliste: Chip „Partnerverträge",
 Suche findet Partnernamen, Kurzinfos stehen unter dem Vertrag (auch in der
 Kundenakte). **Partner ist auch Kunde** (nutzt die Software selbst): manuelle

@@ -436,6 +436,35 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
              || db.Vertraege.Any(v => v.KundeId == k.Id
                  && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null);
 
+    /// <summary>
+    /// Kategorie + „laufendes Abo" für eine Kundenmenge (z. B. die Kunden eines
+    /// Partners) — gleiche Regeln wie die Kundenliste.
+    /// </summary>
+    internal static async Task<Dictionary<int, (string Kategorie, bool AktivesAbo)>> KategorienAsync(
+        ErpDbContext db, IQueryable<Kunde> kunden, CancellationToken ct) =>
+        (await kunden
+            .Select(k => new
+            {
+                k.Id,
+                AktivesAbo = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend),
+                HatAktives = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                    || db.Vertraege.Any(v => v.KundeId == k.Id
+                        && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
+                IstEhemalig = db.Abos.Any(a => a.KundeId == k.Id
+                        && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
+                    || db.Vertraege.Any(v => v.KundeId == k.Id
+                        && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet)),
+                IstEinmalbestellung = db.Vertraege.Any(v => v.KundeId == k.Id)
+                    && !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
+                    && !db.Vertraege.Any(v => v.KundeId == k.Id
+                        && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung)),
+                HatArtefakte = db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
+                    || db.Vertraege.Any(v => v.KundeId == k.Id),
+            })
+            .ToListAsync(ct))
+        .ToDictionary(k => k.Id, k => (
+            KategorieText(k.HatAktives, k.IstEhemalig, k.IstEinmalbestellung, k.HatArtefakte), k.AktivesAbo));
+
     private static string KategorieText(bool hatAktives, bool istEhemalig, bool istEinmalbestellung, bool hatArtefakte) =>
         hatAktives ? "Kunde"
         : istEhemalig ? "Ehemaliger Kunde"

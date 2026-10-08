@@ -132,20 +132,30 @@ else
             </details>
 
             <details class="gruppe" open>
-                <summary>Kunden<span class="zahl">@_partner.Kunden.Count</span></summary>
+                <summary>Kunden mit aktivem Abo<span class="zahl">@MitAbo.Count</span></summary>
                 <div class="gruppe-inhalt">
-                    @if (_partner.Kunden.Count == 0)
+                    @if (MitAbo.Count == 0)
                     {
-                        <div style="color:var(--muted)">Keine Kunden zugeordnet.</div>
+                        <div style="color:var(--muted)">Kein zugeordneter Kunde mit laufendem Abo.</div>
                     }
-                    @foreach (var kunde in _partner.Kunden)
+                    @foreach (var kunde in MitAbo)
                     {
-                        <div class="zeile2">
-                            <span><a href="kunden/@kunde.Id">@kunde.Firmenname</a>
-                                <span class="neben" style="display:inline; margin-left:6px">@kunde.Kundennummer</span>
-                            </span>
-                            <span class="r" style="color:var(--muted); font-size:12.5px">@KundeRolle(kunde)</span>
-                        </div>
+                        @KundeZeile(kunde, mitKategorie: false)
+                    }
+                </div>
+            </details>
+
+            @* Ohne laufendes Abo: überwiegend Interessenten — Kategorie dazu, damit Ehemalige nicht als Interessent durchgehen *@
+            <details class="gruppe" open="@(OhneAbo.Count <= 15)">
+                <summary>Ohne aktives Abo (Interessenten u. a.)<span class="zahl">@OhneAbo.Count</span></summary>
+                <div class="gruppe-inhalt">
+                    @if (OhneAbo.Count == 0)
+                    {
+                        <div style="color:var(--muted)">Keine.</div>
+                    }
+                    @foreach (var kunde in OhneAbo)
+                    {
+                        @KundeZeile(kunde, mitKategorie: true)
                     }
                 </div>
             </details>
@@ -218,6 +228,26 @@ else
         _suchTreffer = [];
         _partner = await Http.GetFromJsonAsync<PartnerDetail>($"api/partner/{Id}");
     }
+
+    private List<PartnerKunde> MitAbo => (_partner?.Kunden ?? []).Where(k => k.AktivesAbo).ToList();
+
+    // Interessenten zuerst, dann übrige Kategorien (zu klären, ehemalig …), je nach Name
+    private List<PartnerKunde> OhneAbo => (_partner?.Kunden ?? []).Where(k => !k.AktivesAbo)
+        .OrderByDescending(k => k.Kategorie == "Interessent")
+        .ThenBy(k => k.Kategorie)
+        .ThenBy(k => k.Firmenname)
+        .ToList();
+
+    private RenderFragment KundeZeile(PartnerKunde kunde, bool mitKategorie) => @<div class="zeile2">
+        <span><a href="kunden/@kunde.Id">@kunde.Firmenname</a>
+            <span class="neben" style="display:inline; margin-left:6px">@kunde.Kundennummer</span>
+            @if (mitKategorie && kunde.Kategorie is not null && kunde.Kategorie != "Interessent")
+            {
+                <span class="pill" style="margin-left:6px">@kunde.Kategorie</span>
+            }
+        </span>
+        <span class="r" style="color:var(--muted); font-size:12.5px">@KundeRolle(kunde)</span>
+    </div>;
 
     private static string KundeRolle(PartnerKunde kunde) =>
         (kunde.Vermittelt, kunde.RechnungAnPartner) switch

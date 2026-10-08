@@ -40,12 +40,20 @@ public class PartnerController(ErpDbContext db) : ControllerBase
         var p = await db.Partner.AsNoTracking().Include(x => x.Kunde).FirstOrDefaultAsync(x => x.Id == id, ct);
         if (p is null)
             return NotFound();
-        var kunden = await db.Kunden.AsNoTracking()
-            .Where(k => k.VermitteltDurchPartnerId == id || k.RechnungsempfaengerPartnerId == id)
-            .OrderBy(k => k.Firmenname)
-            .Select(k => new PartnerKunde(k.Id, k.Kundennummer, k.Firmenname,
-                k.VermitteltDurchPartnerId == id, k.RechnungsempfaengerPartnerId == id))
-            .ToListAsync(ct);
+        var partnerKunden = db.Kunden.AsNoTracking()
+            .Where(k => k.VermitteltDurchPartnerId == id || k.RechnungsempfaengerPartnerId == id);
+        var kategorien = await KundenController.KategorienAsync(db, partnerKunden, ct);
+        var kunden = (await partnerKunden
+                .OrderBy(k => k.Firmenname)
+                .Select(k => new PartnerKunde(k.Id, k.Kundennummer, k.Firmenname,
+                    k.VermitteltDurchPartnerId == id, k.RechnungsempfaengerPartnerId == id, false, null))
+                .ToListAsync(ct))
+            .Select(k => k with
+            {
+                AktivesAbo = kategorien[k.Id].AktivesAbo,
+                Kategorie = kategorien[k.Id].Kategorie,
+            })
+            .ToList();
 
         // Vorschläge für „ist auch Kunde": Firmenname enthält den Partnernamen
         // (Odoo schreibt z. B. „Finesolutions" am Partner, „FineSolutions AG" am Kunden)

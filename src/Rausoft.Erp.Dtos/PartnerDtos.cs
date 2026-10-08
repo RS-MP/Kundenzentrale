@@ -38,4 +38,9 @@ public record PartnerDetail(
 public record PartnerKundeVerknuepfen(int? KundeId);
 
 /// <summary>Kunde des Partners — vermittelt und/oder Rechnung an den Partner.</summary>
-public record PartnerKunde(int Id, string Kundennummer, string Firmenname, bool Vermittelt, bool RechnungAnPartner);
+public record PartnerKunde(
+    int Id, string Kundennummer, string Firmenname, bool Vermittelt, bool RechnungAnPartner,
+    // Laufendes Abo → Gruppe „Kunden"; sonst Gruppe „ohne aktives Abo" mit Kategorie
+    bool AktivesAbo = false,
+    // Kategorie wie in der Kundenliste: Kunde, Interessent, Ehemaliger Kunde, Zu klären, Einmalbestellung
+    string? Kategorie = null);
