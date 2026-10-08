@@ -132,11 +132,11 @@ else
             </details>
 
             <details class="gruppe" open>
-                <summary>Kunden mit aktivem Abo<span class="zahl">@MitAbo.Count</span></summary>
+                <summary>Kunden (aktives Abo oder Vertrag)<span class="zahl">@MitAbo.Count</span></summary>
                 <div class="gruppe-inhalt">
                     @if (MitAbo.Count == 0)
                     {
-                        <div style="color:var(--muted)">Kein zugeordneter Kunde mit laufendem Abo.</div>
+                        <div style="color:var(--muted)">Kein zugeordneter Kunde mit laufendem Abo oder aktivem Vertrag.</div>
                     }
                     @foreach (var kunde in MitAbo)
                     {
@@ -147,7 +147,7 @@ else
 
             @* Ohne laufendes Abo: überwiegend Interessenten — Kategorie dazu, damit Ehemalige nicht als Interessent durchgehen *@
             <details class="gruppe" open="@(OhneAbo.Count <= 15)">
-                <summary>Ohne aktives Abo (Interessenten u. a.)<span class="zahl">@OhneAbo.Count</span></summary>
+                <summary>Interessenten u. a. (ohne aktives Abo oder Vertrag)<span class="zahl">@OhneAbo.Count</span></summary>
                 <div class="gruppe-inhalt">
                     @if (OhneAbo.Count == 0)
                     {
@@ -229,10 +229,13 @@ else
         _partner = await Http.GetFromJsonAsync<PartnerDetail>($"api/partner/{Id}");
     }
 
-    private List<PartnerKunde> MitAbo => (_partner?.Kunden ?? []).Where(k => k.AktivesAbo).ToList();
+    // Oben alle echten Kunden: laufendes Abo ODER aktiver Vertrag mit Laufzeit (Kategorie „Kunde")
+    private List<PartnerKunde> MitAbo => (_partner?.Kunden ?? []).Where(IstKunde).ToList();
+
+    private static bool IstKunde(PartnerKunde k) => k.AktivesAbo || k.Kategorie == "Kunde";
 
     // Interessenten zuerst, dann übrige Kategorien (zu klären, ehemalig …), je nach Name
-    private List<PartnerKunde> OhneAbo => (_partner?.Kunden ?? []).Where(k => !k.AktivesAbo)
+    private List<PartnerKunde> OhneAbo => (_partner?.Kunden ?? []).Where(k => !IstKunde(k))
         .OrderByDescending(k => k.Kategorie == "Interessent")
         .ThenBy(k => k.Kategorie)
         .ThenBy(k => k.Firmenname)
@@ -244,6 +247,10 @@ else
             @if (mitKategorie && kunde.Kategorie is not null && kunde.Kategorie != "Interessent")
             {
                 <span class="pill" style="margin-left:6px">@kunde.Kategorie</span>
+            }
+            else if (!mitKategorie && !kunde.AktivesAbo)
+            {
+                <span class="pill" style="margin-left:6px" title="Aktiver Vertrag mit Laufzeit, aber kein laufendes Abo">Vertrag, kein Abo</span>
             }
         </span>
         <span class="r" style="color:var(--muted); font-size:12.5px">@KundeRolle(kunde)</span>
