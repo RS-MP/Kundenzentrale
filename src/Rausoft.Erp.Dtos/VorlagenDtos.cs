@@ -20,7 +20,7 @@ public record VorlageEintrag(
     int Verwendungen);
 
 /// <summary>Auswahlliste in der Kundenakte: aktuell gültige Version je aktiver, für die eigene Rolle freigegebener Vorlage.</summary>
-public record VorlageAuswahl(int VorlagenVersionId, string Name, int Version, string Kuerzel);
+public record VorlageAuswahl(int VorlagenVersionId, string Name, int Version, string Kuerzel, DateOnly GueltigAb);
 
 /// <summary>Entwurfsdatei im Vorlagen-Verzeichnis (Root, noch nicht freigegebener Stand).</summary>
 public record VorlagenEntwurf(string Dateiname, DateTime GeaendertAm);
@@ -58,3 +58,37 @@ public record VorlagenVersionEintrag(
     string? FreigegebenVon,
     string? Notiz,
     int Verwendungen);
+
+/// <summary>
+/// Datei im Vorlagen-Verzeichnis mit Zuordnung (Dateitabelle /vorlagen).
+/// Status: „neu" (keiner Vorlage zugeordnet), „geaendert" (zur Vorlage gehörig,
+/// Inhalt weicht von allen freigegebenen Versionen ab), „aktiv" (= gültige
+/// Version), „zukuenftig" (= freigegeben, gilt erst ab Stichtag), „ersetzt"
+/// (= ältere Version), „zurueckgezogen" (Vorlage zurückgezogen).
+/// </summary>
+public record VorlagenDatei(
+    string Dateiname,
+    DateTime GeaendertAm,
+    string Status,
+    int? VorlageId,
+    string? VorlageName,
+    // Version mit identischem Inhalt (SHA-256), falls vorhanden
+    int? Version,
+    // Unbekannte {{Platzhalter}} — würden im Vertrag stehen bleiben
+    List<string> UnbekanntePlatzhalter,
+    // Datei nicht lesbar (z. B. geöffnet/gesperrt oder kein gültiges Word-Dokument)
+    string? Fehler);
+
+/// <summary>Prüfung der eingefrorenen Versionsdateien (Unterordner „Freigegeben").</summary>
+public record EingefroreneVersion(
+    int VorlageId,
+    string VorlageName,
+    int Version,
+    string Dateipfad,
+    // „ok", „fehlt" oder „veraendert"
+    string Zustand);
+
+public record VorlagenDateiUebersicht(
+    List<VorlagenDatei> Dateien,
+    List<EingefroreneVersion> Eingefroren,
+    List<string> BekanntePlatzhalter);

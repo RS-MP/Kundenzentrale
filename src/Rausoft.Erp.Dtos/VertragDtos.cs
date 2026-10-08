@@ -119,7 +119,14 @@ public record VertragAusVorlage(
     int KundeId,
     int VorlagenVersionId,
     // Angebot bzw. Abo für „Angebot S0…" im Vertrag; leer = neuestes offenes Angebot, sonst laufendes Abo; 0 = ohne
-    int? AboId = null);
+    int? AboId = null,
+    // Ansprechpartner für Anrede/Name; leer = Hauptansprechpartner
+    int? AnsprechpartnerId = null);
+
+/// <summary>Vorschau der Vertragserzeugung: eingesetzte Werte, Warnungen, offene Platzhalter.</summary>
+public record VorlagenVorschau(List<VorschauWert> Werte, List<string> Warnungen, List<string> OffenePlatzhalter);
+
+public record VorschauWert(string Bezeichnung, string Wert);
 
 public record VorlagenErgebnis(
     int VertragId,

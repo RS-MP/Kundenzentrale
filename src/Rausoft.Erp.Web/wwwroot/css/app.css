@@ -345,3 +345,32 @@ select:focus, input[type=date]:focus, input[type=number]:focus, textarea:focus {
   display: none; left: 0; padding: .6rem 1.25rem .7rem 1.25rem; position: fixed; width: 100%; z-index: 1000;
 }
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: .75rem; top: .5rem; }
+
+/* Dialogfenster (z. B. „Vertrag aus Vorlage", Vorlagen-Freigabe) — nutzt das Overlay der Dokumentvorschau */
+.fenster {
+  background: var(--surface); border-radius: 10px; box-shadow: var(--shadow);
+  width: min(680px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column;
+}
+.fenster-kopf { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.fenster-kopf h2 { margin: 0; font-size: 16px; flex: 1; }
+.fenster-inhalt { padding: 16px 18px; overflow-y: auto; }
+.fenster-fuss { display: flex; gap: 8px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--border); }
+.schritt { margin-bottom: 18px; }
+.schritt-titel { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+.schritt-titel b { color: var(--ink2); }
+
+/* Auswahlliste mit Optionsfeldern (Vorlage, Angebot) */
+.auswahlliste { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.auswahlliste label {
+  display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; cursor: pointer;
+  border-bottom: 1px solid var(--border); font-size: 13.5px;
+}
+.auswahlliste label:last-child { border-bottom: none; }
+.auswahlliste label:hover { background: var(--accent-soft); }
+.auswahlliste label.gewaehlt { background: var(--accent-soft); }
+.auswahlliste .neben { color: var(--muted); font-size: 12.5px; margin-left: auto; text-align: right; }
+
+/* Vorschau-Werte (Schritt „Prüfen") */
+.werte { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13.5px; }
+.werte dt { color: var(--muted); }
+.werte dd { margin: 0; }

@@ -61,6 +61,10 @@ public class VorlagenVersion
     public int? FreigegebenVonId { get; set; }
     public Mitarbeiter? FreigegebenVon { get; set; }
 
+    /// <summary>Name der Entwurfsdatei im Vorlagen-Verzeichnis, aus der freigegeben wurde —
+    /// ordnet spätere Änderungen derselben Datei der Vorlage zu („geändert seit Freigabe").</summary>
+    public string? QuellDateiname { get; set; }
+
     /// <summary>Änderungsnotiz: was ist neu gegenüber der Vorversion.</summary>
     public string? Notiz { get; set; }
 }

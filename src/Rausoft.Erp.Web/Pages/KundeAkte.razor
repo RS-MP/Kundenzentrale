@@ -209,37 +209,7 @@ else
                     }
                     @if (_vorlagen.Count > 0)
                     {
-                        <div style="display:flex; gap:8px; margin-top:10px">
-                            <select style="flex:1" @bind="_gewaehlteVorlage">
-                                @foreach (var vorlage in _vorlagen)
-                                {
-                                    <option value="@vorlage.VorlagenVersionId">@vorlage.Kuerzel · @vorlage.Name (v@(vorlage.Version))</option>
-                                }
-                            </select>
-                            @* Angebotsnummer für „Angebot S0…" im Vertrag — Odoo-Entwürfe sind Angebote *@
-                            <select style="max-width:230px" @bind="_gewaehltesAngebot" title="Angebot, das im Vertrag genannt wird">
-                                @foreach (var abo in Angebote())
-                                {
-                                    <option value="@abo.Id">@abo.Nummer · @(abo.Status == "Entwurf" ? "Angebot" : "laufendes Abo")</option>
-                                }
-                                <option value="0">ohne Angebotsnummer</option>
-                            </select>
-                            <button class="knopf sekundaer" disabled="@_erzeugeVertrag" @onclick="VertragAusVorlageAsync">
-                                @(_erzeugeVertrag ? "Erstelle …" : "Aus Vorlage erstellen")
-                            </button>
-                        </div>
-                        @if (_erzeugt is not null)
-                        {
-                            <div style="color:var(--good); font-size:13px; margin-top:6px">
-                                ✓ <a href="vertraege/@_erzeugt.VertragId">@_erzeugt.Vertragsnummer</a> erstellt: @_erzeugt.Datei
-                            </div>
-                            @if (_erzeugt.OffenePlatzhalter.Count > 0)
-                            {
-                                <div class="warntext" style="font-size:13px">
-                                    Nicht gefüllte Platzhalter: @string.Join(", ", _erzeugt.OffenePlatzhalter)
-                                </div>
-                            }
-                        }
+                        <button class="knopf sekundaer" style="margin-top:10px" @onclick="() => _fensterOffen = true">+ Vertrag aus Vorlage</button>
                     }
                 </div>
             </details>
@@ -342,6 +312,12 @@ else
     </div>
 }
 
+@if (_fensterOffen && _kunde is not null)
+{
+    <VertragAusVorlageFenster KundeId="Id" Vorlagen="_vorlagen" Abos="_abos"
+                              Ansprechpartner="_kunde.Ansprechpartner" Geschlossen="FensterGeschlossenAsync" />
+}
+
 @code {
     [Parameter] public int Id { get; set; }
 
@@ -357,9 +333,6 @@ else
     private string _serverAuswahl = "";
     private string _mandantenKennung = "";
     private List<VorlageAuswahl> _vorlagen = [];
-    private string _gewaehlteVorlage = ""; // VorlagenVersionId als Text (select-Bindung)
-    private bool _erzeugeVertrag;
-    private VorlagenErgebnis? _erzeugt;
     private List<string> _merkmalListe = [];
     private HashSet<string> _gewaehlteMerkmale = [];
     private string _neuesMerkmal = "";
@@ -392,16 +365,10 @@ else
             _vertraege = vertraege?.Eintraege;
             _abos = await Http.GetFromJsonAsync<List<AboEintrag>>($"api/kunden/{Id}/abos");
             _laufendeAbos = _abos?.Where(a => a.Status == "Laufend").ToList() ?? [];
-            // Vorbelegung: neuestes offenes Angebot, sonst laufendes Abo (API sortiert Entwurf zuerst, neueste Nummer oben)
-            if (_gewaehltesAngebot == "")
-                _gewaehltesAngebot = Angebote().FirstOrDefault()?.Id.ToString() ?? "";
             _vorlagen = await Http.GetFromJsonAsync<List<VorlageAuswahl>>("api/vertraege/vorlagen") ?? [];
             _serverListe = await Http.GetFromJsonAsync<List<ServerEintrag>>("api/server") ?? [];
             _serverAuswahl = _kunde?.ServerId?.ToString() ?? "";
             _mandantenKennung = _kunde?.MandantenKennung ?? "";
-            if (_gewaehlteVorlage == "" && _vorlagen.Count > 0)
-                _gewaehlteVorlage = _vorlagen[0].VorlagenVersionId.ToString();
-            _erzeugt = null;
 
             // Wichtige zuerst: aktive Ansprechpartner mit Rolle; ohne Rollen die ersten zwei.
             var aktive = _kunde!.Ansprechpartner.Where(a => a.Aktiv).ToList();
@@ -463,40 +430,13 @@ else
         </div>
     </div>;
 
-    private string _gewaehltesAngebot = ""; // AboId als Text (select-Bindung); leer = ohne
+    private bool _fensterOffen;
 
-    private IEnumerable<AboEintrag> Angebote() =>
-        (_abos ?? []).Where(a => a.Status is "Entwurf" or "Laufend");
-
-    private async Task VertragAusVorlageAsync()
+    private async Task FensterGeschlossenAsync(bool erstellt)
     {
-        if (!int.TryParse(_gewaehlteVorlage, out var versionId))
-            return;
-        _fehler = null;
-        _erzeugeVertrag = true;
-        try
-        {
-            var antwort = await Http.PostAsJsonAsync("api/vertraege/aus-vorlage",
-                new VertragAusVorlage(Id, versionId, int.TryParse(_gewaehltesAngebot, out var aboId) ? aboId : null));
-            if (!antwort.IsSuccessStatusCode)
-            {
-                _fehler = await antwort.Content.ReadAsStringAsync();
-                return;
-            }
-            var ergebnis = await antwort.Content.ReadFromJsonAsync<VorlagenErgebnis>();
-            var vorlage = _gewaehlteVorlage;
+        _fensterOffen = false;
+        if (erstellt)
             await OnParametersSetAsync();   // Verträge + Verlauf neu laden
-            _gewaehlteVorlage = vorlage;
-            _erzeugt = ergebnis;
-        }
-        catch (Exception ex)
-        {
-            _fehler = $"Vertrag konnte nicht erstellt werden: {ex.Message}";
-        }
-        finally
-        {
-            _erzeugeVertrag = false;
-        }
     }
 
     private async Task ServerSpeichernAsync()

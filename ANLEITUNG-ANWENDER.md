@@ -32,13 +32,18 @@ Anmeldung läuft automatisch über euer Windows-Konto, es gibt kein Passwort.
 
 ## Vertrag aus Vorlage erstellen
 
-1. Kundenakte öffnen → Aufklapper **Verträge** → Vorlage im Auswahlfeld
-   wählen (zeigt immer die aktuell gültige Version mit Dokumentart, z. B.
-   „NDA · NDA Standard (v2)"), daneben das **Angebot**, das im Vertrag als
-   „Angebot S0…" genannt wird (vorbelegt: neuestes offenes Angebot aus Odoo,
-   sonst das laufende Abo; „ohne Angebotsnummer" ist auch möglich) →
-   **„Aus Vorlage erstellen"**. Angeboten werden
-   nur Vorlagen, die für die eigene Rolle freigegeben sind.
+1. Kundenakte öffnen → Aufklapper **Verträge** → **„+ Vertrag aus Vorlage"**.
+   Im Fenster in drei Schritten:
+   - **Vorlage** — nur aktuell gültige und für die eigene Rolle freigegebene
+     Vorlagen, mit Kürzel, Version und „gültig seit".
+   - **Angebot & Ansprechpartner** — das Angebot erscheint im Vertrag als
+     „Angebot S0…" (vorbelegt: neuestes offenes Angebot aus Odoo, sonst das
+     laufende Abo; „ohne Angebotsnummer" lässt eine Lücke `S0____`). Der
+     Ansprechpartner bestimmt Anrede und Name (vorbelegt: Hauptansprechpartner).
+   - **Prüfen** — zeigt genau die Werte, die eingesetzt werden, und warnt
+     vorher, wenn z. B. die Anschrift fehlt oder ein Platzhalter unbekannt ist.
+
+   Dann **„Vertrag erstellen"**.
 2. Das System füllt die Kundendaten in die Vorlage und legt den fertigen
    Vertrag als **PDF** ab (Dateiname = Kundennummer, z. B. `4228.pdf`; die
    bearbeitbare Word-Quelle liegt gleichnamig daneben). Gleichzeitig entsteht
@@ -59,7 +64,16 @@ legen (`…\Kunden Archiv\0_Vorlagen`) — das ist zunächst nur ein **Entwurf**
 Benutzbar wird sie erst nach der **Freigabe** im Bereich **Vorlagen**
 (Rolle Compliance): Dort bekommt sie eine Versionsnummer (v1, v2 …), die
 Datei wird eingefroren, und je Vorlage ist auswertbar, **welcher Kunde
-welchen Versionsstand bekommen hat**. Platzhalter: `{{Firmenname}}`,
+welchen Versionsstand bekommen hat**.
+
+Die Tabelle **„Dateien im Vorlagen-Verzeichnis"** zeigt jede Word-Datei mit
+Status: **neu** (keiner Vorlage zugeordnet → „Freigeben …"), **geändert seit
+Freigabe** (→ „Neue Version …"), **aktiv** (= gültige Version), **ersetzt**
+(= ältere Version), **gilt künftig** oder **Vorlage zurückgezogen**. Die
+Spalte **Platzhalter** warnt schon vor der Freigabe vor unbekannten
+`{{…}}`. Darunter prüft die Seite, ob die eingefrorenen Kopien im Unterordner
+„Freigegeben" noch vorhanden und unverändert sind. Eine unveränderte Datei
+lässt sich nicht ein zweites Mal freigeben. Platzhalter: `{{Firmenname}}`,
 `{{Kundennummer}}`, `{{Strasse}}`, `{{Plz}}`, `{{Ort}}`, `{{PlzOrt}}`,
 `{{Briefanrede}}`, `{{Ansprechpartner}}`, `{{Email}}`, `{{UStIdNr}}`,
 `{{AboNummer}}` (= gewähltes Angebot), `{{Datum}}`. Nicht ersetzbare Platzhalter meldet das System

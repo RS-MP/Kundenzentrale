@@ -5,7 +5,7 @@
 
 <div class="seitenkopf">
     <h1>Vertragsvorlagen</h1>
-    <span class="untertitel">Freigegebene Versionen — wer welchen Stand bekommen hat, steht je Vorlage</span>
+    <span class="untertitel">Dateien im Vorlagen-Verzeichnis, freigegebene Versionen und wer welchen Stand bekommen hat</span>
 </div>
 
 @if (_fehler is not null)
@@ -13,36 +13,206 @@
     <div class="fehler">@_fehler</div>
 }
 
-@* Freigabe-Bereich: nur sichtbar, wenn der Benutzer Compliance-Rechte hat *@
-@if (_entwuerfe is not null)
+@* ---------- Dateitabelle: nur mit Compliance-Rechten (API liefert sonst 403) ---------- *@
+@if (_dateien is not null)
 {
     <div class="karte" style="margin-bottom:16px">
-        <div class="karte-kopf"><h2>Neue Version freigeben</h2></div>
-        <div class="karte-koerper">
-            <div style="color:var(--muted); font-size:12.5px; margin-bottom:10px">
-                Entwurfsdateien liegen im Vorlagen-Verzeichnis (Administration → Word-Vorlagen).
-                Die Freigabe friert eine Kopie als nummerierte Version ein — erst dann ist sie
-                in der Kundenakte wählbar. Bereits erstellte Verträge behalten ihren Stand.
+        <div class="karte-kopf">
+            <h2>Dateien im Vorlagen-Verzeichnis</h2>
+            <button class="mehr" @onclick="LadenAsync">Aktualisieren</button>
+        </div>
+        @if (_dateien.Dateien.Count == 0)
+        {
+            <div class="karte-koerper">
+                <div class="leer-hinweis">Keine Word-Dateien im Vorlagen-Verzeichnis (Administration → Verzeichnisse).</div>
             </div>
-            @if (_entwuerfe.Count == 0)
+        }
+        else
+        {
+            <table class="liste">
+                <thead>
+                    <tr>
+                        <th>Datei</th>
+                        <th style="width:120px">Geändert</th>
+                        <th style="width:230px">Status</th>
+                        <th style="width:200px">Vorlage</th>
+                        <th style="width:150px">Platzhalter</th>
+                        <th style="width:150px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var datei in _dateien.Dateien)
+                    {
+                        <tr style="cursor:default">
+                            <td><span class="haupt" style="word-break:break-all">@datei.Dateiname</span></td>
+                            <td>@datei.GeaendertAm.ToString("dd.MM.yyyy HH:mm")</td>
+                            <td>
+                                <span class="status @StatusKlasse(datei.Status)" title="@datei.Fehler">@StatusText(datei)</span>
+                            </td>
+                            <td>
+                                @if (datei.VorlageName is not null)
+                                {
+                                    @datei.VorlageName@(datei.Version is not null ? $" · v{datei.Version}" : "")
+                                }
+                                else
+                                {
+                                    <span style="color:var(--muted)">—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (datei.Status == "fehler")
+                                {
+                                    <span style="color:var(--muted)">—</span>
+                                }
+                                else if (datei.UnbekanntePlatzhalter.Count == 0)
+                                {
+                                    <span style="color:var(--good)" title="Alle Platzhalter sind bekannt">✓</span>
+                                }
+                                else
+                                {
+                                    <span class="warntext" title="Werden nicht ersetzt und blieben im Vertrag stehen">
+                                        ⚠ @string.Join(", ", datei.UnbekanntePlatzhalter)
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                @if (datei.Status is "neu" or "geaendert")
+                                {
+                                    <button class="knopf sekundaer klein" @onclick="() => FreigabeOeffnen(datei)">
+                                        @(datei.Status == "neu" ? "Freigeben …" : "Neue Version …")
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        <div class="karte-koerper" style="border-top:1px solid var(--border)">
+            @{ var probleme = _dateien.Eingefroren.Where(e => e.Zustand != "ok").ToList(); }
+            @if (_dateien.Eingefroren.Count == 0)
             {
-                <div style="color:var(--muted)">Keine Entwurfsdateien im Vorlagen-Verzeichnis gefunden.</div>
+                <span style="color:var(--muted); font-size:12.5px">Noch keine Version freigegeben.</span>
+            }
+            else if (probleme.Count == 0)
+            {
+                <span style="color:var(--good); font-size:12.5px">
+                    ✓ Alle @_dateien.Eingefroren.Count eingefrorenen Versionen (Unterordner „Freigegeben") sind vorhanden und unverändert.
+                </span>
             }
             else
             {
-                <div class="formular">
-                    <label>
-                        Entwurfsdatei
-                        <select @bind="_freigabeDatei">
-                            @foreach (var entwurf in _entwuerfe)
+                @foreach (var problem in probleme)
+                {
+                    <div class="krittext" style="font-size:13px">
+                        ⚠ @problem.VorlageName v@(problem.Version): eingefrorene Datei
+                        @(problem.Zustand == "fehlt" ? "fehlt" : "wurde nachträglich verändert") — @problem.Dateipfad
+                    </div>
+                }
+            }
+            <details style="margin-top:6px; font-size:12.5px; color:var(--muted)">
+                <summary style="cursor:pointer">Bekannte Platzhalter</summary>
+                @string.Join(" · ", _dateien.BekanntePlatzhalter)
+                — außerdem die Muster-Texte der Lizenzbedingungen-Vorlage („Muster GmbH", „S0xxxx" …).
+            </details>
+        </div>
+    </div>
+}
+
+@* ---------- Vorlagen-Übersicht ---------- *@
+<div class="karte">
+    <div class="karte-kopf"><h2>Vorlagen</h2></div>
+    @if (_vorlagen is null)
+    {
+        <div class="karte-koerper"><div class="leer-hinweis">Lade Vorlagen …</div></div>
+    }
+    else if (_vorlagen.Count == 0)
+    {
+        <div class="karte-koerper">
+            <div class="leer-hinweis">
+                Noch keine Vorlage freigegeben. Word-Datei ins Vorlagen-Verzeichnis legen und oben
+                freigeben (Rolle Compliance).
+            </div>
+        </div>
+    }
+    else
+    {
+        <table class="liste">
+            <thead>
+                <tr>
+                    <th>Vorlage</th>
+                    <th style="width:170px">Gültige Version</th>
+                    <th style="width:200px">Verwenden dürfen</th>
+                    <th style="width:110px">Verwendungen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var vorlage in _vorlagen)
+                {
+                    <tr @onclick="() => DetailsUmschaltenAsync(vorlage.Id)">
+                        <td>
+                            <span class="typ" title="@vorlage.Typ">@vorlage.Kuerzel</span>
+                            <span class="haupt" style="margin-left:6px">@vorlage.Name</span>
+                            @if (!vorlage.Aktiv)
                             {
-                                <option value="@entwurf.Dateiname">@entwurf.Dateiname (geändert @entwurf.GeaendertAm.ToString("dd.MM.yyyy HH:mm"))</option>
+                                <span class="pill" style="margin-left:6px">zurückgezogen</span>
                             }
-                        </select>
-                    </label>
-                    <label>
+                            @if (vorlage.KommendeVersion is not null)
+                            {
+                                <div class="neben">v@(vorlage.KommendeVersion) gilt ab @vorlage.KommendeGueltigAb?.ToString("dd.MM.yyyy")</div>
+                            }
+                        </td>
+                        <td>
+                            @if (vorlage.AktuelleVersion is not null)
+                            {
+                                <span>v@(vorlage.AktuelleVersion)</span>
+                                <div class="neben">freigegeben @vorlage.FreigegebenAm?.ToLocalTime().ToString("dd.MM.yyyy")</div>
+                            }
+                            else
+                            {
+                                <span style="color:var(--muted)">noch keine</span>
+                            }
+                        </td>
+                        <td>@(vorlage.ErlaubteRollen.Count == 0 ? "alle" : string.Join(", ", vorlage.ErlaubteRollen))</td>
+                        <td>@vorlage.Verwendungen</td>
+                    </tr>
+                    @if (_offen.Contains(vorlage.Id))
+                    {
+                        <tr style="cursor:default; background:var(--surface2)">
+                            <td colspan="4">@Details(vorlage)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@* ---------- Freigabe-Fenster ---------- *@
+@if (_freigabe is not null)
+{
+    <div class="vorschau-overlay" @onclick="() => _freigabe = null">
+        <div class="fenster" @onclick:stopPropagation="true">
+            <div class="fenster-kopf">
+                <h2>@(_freigabe.Datei.Status == "neu" ? "Vorlage freigeben" : "Neue Version freigeben")</h2>
+                <button class="mehr" @onclick="() => _freigabe = null">Schließen</button>
+            </div>
+            <div class="fenster-inhalt">
+                <div style="color:var(--muted); font-size:12.5px; margin-bottom:12px">
+                    Die Freigabe friert eine Kopie von <b>@_freigabe.Datei.Dateiname</b> als nummerierte Version ein.
+                    Ab „Gültig ab" ist sie in der Kundenakte wählbar; bereits erstellte Verträge behalten ihren Stand.
+                </div>
+                @if (_freigabe.Datei.UnbekanntePlatzhalter.Count > 0)
+                {
+                    <div class="warntext" style="font-size:13px; margin-bottom:12px">
+                        ⚠ Unbekannte Platzhalter — sie blieben im Vertrag stehen:
+                        @string.Join(", ", _freigabe.Datei.UnbekanntePlatzhalter)
+                    </div>
+                }
+                <div class="formular">
+                    <label class="breit">
                         Vorlage
-                        <select @bind="_freigabeVorlageId">
+                        <select @bind="_freigabe.VorlageId">
                             <option value="">— neue Vorlage —</option>
                             @foreach (var vorlage in _vorlagen ?? [])
                             {
@@ -50,12 +220,12 @@
                             }
                         </select>
                     </label>
-                    @if (_freigabeVorlageId == "")
+                    @if (_freigabe.VorlageId == "")
                     {
-                        <label>Name der neuen Vorlage<input type="text" @bind="_freigabeName" placeholder="z. B. NDA Standard" /></label>
+                        <label>Name der neuen Vorlage<input type="text" @bind="_freigabe.Name" /></label>
                         <label>
                             Dokumentart
-                            <select @bind="_freigabeTyp">
+                            <select @bind="_freigabe.Typ">
                                 @foreach (var art in Dokumentarten.Namen)
                                 {
                                     <option>@art</option>
@@ -65,164 +235,224 @@
                     }
                     <label>
                         Gültig ab
-                        <input type="date" @bind="_freigabeGueltigAb" title="Leer = sofort. Bis zum Stichtag bleibt die Vorversion in der Kundenakte wählbar." />
+                        <input type="date" @bind="_freigabe.GueltigAb" title="Leer = sofort" />
                     </label>
-                    <label class="breit">Änderungsnotiz (was ist neu?)<input type="text" @bind="_freigabeNotiz" /></label>
+                    <label class="breit">Änderungsnotiz (was ist neu?)<input type="text" @bind="_freigabe.Notiz" /></label>
                 </div>
-                <div class="formular-aktionen">
-                    <button class="knopf" disabled="@_gebeFrei" @onclick="FreigebenAsync">@(_gebeFrei ? "Gebe frei …" : "Freigeben")</button>
-                    @if (_freigegeben is not null)
-                    {
-                        <span style="color:var(--good)">✓ @_freigegeben</span>
-                    }
-                </div>
-            }
+            </div>
+            <div class="fenster-fuss">
+                <button class="knopf" disabled="@_gebeFrei" @onclick="FreigebenAsync">@(_gebeFrei ? "Gebe frei …" : "Freigeben")</button>
+                <button class="knopf sekundaer" @onclick="() => _freigabe = null">Abbrechen</button>
+            </div>
         </div>
     </div>
 }
 
-@if (_vorlagen is null)
-{
-    <div class="leer-hinweis">Lade Vorlagen …</div>
-}
-else if (_vorlagen.Count == 0)
-{
-    <div class="karte"><div class="karte-koerper">
-        <div class="leer-hinweis">
-            Noch keine Vorlage freigegeben. Entwurfsdatei ins Vorlagen-Verzeichnis legen
-            und hier freigeben (Compliance-Rolle erforderlich).
-        </div>
-    </div></div>
-}
-else
-{
-    @foreach (var vorlage in _vorlagen)
-    {
-        <details class="gruppe" @ontoggle="() => DetailsLadenAsync(vorlage.Id)">
-            <summary>
-                <span class="typ" title="@vorlage.Typ">@vorlage.Kuerzel</span>
-                <span>@vorlage.Name</span>
-                @if (!vorlage.Aktiv)
-                {
-                    <span class="zusatz">· zurückgezogen</span>
-                }
-                <span class="zusatz">
-                    aktuell v@(vorlage.AktuelleVersion ?? 0)
-                    @(vorlage.FreigegebenAm is not null ? $"· freigegeben {vorlage.FreigegebenAm.Value.ToLocalTime():dd.MM.yyyy}" : "")
-                    @(vorlage.FreigegebenVon is not null ? $"von {vorlage.FreigegebenVon}" : "")
-                    @(vorlage.KommendeVersion is not null ? $"· v{vorlage.KommendeVersion} gilt ab {vorlage.KommendeGueltigAb:dd.MM.yyyy}" : "")
-                    · @(vorlage.ErlaubteRollen.Count == 0 ? "für alle" : "nur " + string.Join(", ", vorlage.ErlaubteRollen))
-                </span>
-                <span class="zahl">@vorlage.Verwendungen Verwendungen</span>
-            </summary>
-            <div class="gruppe-inhalt">
-                @if (vorlage.Notiz is not null)
-                {
-                    <div class="neben" style="margin-bottom:8px">Notiz zur aktuellen Version: @vorlage.Notiz</div>
-                }
-                @if (_versionen.TryGetValue(vorlage.Id, out var versionen))
-                {
-                    @foreach (var version in versionen)
-                    {
-                        <div class="zeile2">
-                            <span><b>v@(version.Nummer)</b>
-                                <span class="neben" style="display:inline; margin-left:6px">
-                                    @version.FreigegebenAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
-                                    @(version.GueltigAb > DateOnly.FromDateTime(version.FreigegebenAm.ToLocalTime()) ? $"· gilt ab {version.GueltigAb:dd.MM.yyyy}" : "")
-                                    @(version.FreigegebenVon is not null ? $"· {version.FreigegebenVon}" : "")
-                                    @(version.Notiz is not null ? $"· {version.Notiz}" : "")
-                                </span>
-                            </span>
-                            <span class="r" style="color:var(--muted); font-size:12.5px">@version.Verwendungen Verwendungen</span>
-                        </div>
-                    }
-                }
-                @if (_verwendungen.TryGetValue(vorlage.Id, out var verwendungen))
-                {
-                    @if (verwendungen.Count > 0)
-                    {
-                        <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
-                            <div style="color:var(--muted); font-size:12.5px; margin-bottom:4px"
-                                 title="Reine Information: Unterschriebene Verträge bleiben gültig, auch wenn es inzwischen eine neuere Vorlage gibt.">
-                                Wer hat welchen Stand bekommen? <span style="font-size:12px">(ältere Stände bleiben gültig)</span>
-                            </div>
-                            @foreach (var verwendung in verwendungen)
-                            {
-                                <div class="zeile2">
-                                    <span><a href="kunden/@verwendung.KundeId">@verwendung.Firmenname</a>
-                                        <span class="neben" style="display:inline; margin-left:6px">@verwendung.Kundennummer</span>
-                                    </span>
-                                    <span class="r"><b>v@(verwendung.Version)</b>
-                                        · <a href="vertraege/@verwendung.VertragId">@verwendung.Vertragsnummer</a>
-                                        <span style="color:var(--muted); font-size:12.5px"> @verwendung.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")</span>
-                                    </span>
-                                </div>
-                            }
-                        </div>
-                    }
-                }
-                @if (_entwuerfe is not null)
-                {
-                    <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
-                        <label style="display:flex; gap:6px; align-items:center">
-                            Dokumentart
-                            <select value="@Einstellung(vorlage).Typ" @onchange="e => Einstellung(vorlage).Typ = e.Value?.ToString() ?? vorlage.Typ">
-                                @foreach (var art in Dokumentarten.Namen)
-                                {
-                                    <option selected="@(art == Einstellung(vorlage).Typ)">@art</option>
-                                }
-                            </select>
-                        </label>
-                        <span style="color:var(--muted); font-size:12.5px">Verwenden dürfen:</span>
-                        @foreach (var rolle in NutzungsRollen)
-                        {
-                            <label style="display:flex; gap:4px; align-items:center">
-                                <input type="checkbox" checked="@Einstellung(vorlage).Rollen.Contains(rolle)"
-                                       @onchange="e => RolleUmschalten(vorlage, rolle, e.Value is true)" />
-                                @rolle
-                            </label>
-                        }
-                        <span style="color:var(--muted); font-size:12px">(keine gewählt = alle; Compliance/Admin immer)</span>
-                        <button class="knopf sekundaer klein" @onclick="() => EinstellungenSpeichernAsync(vorlage)">
-                            @(_einstellungGespeichert == vorlage.Id ? "✓ gespeichert" : "Speichern")
-                        </button>
-                    </div>
-                }
-                @if (_entwuerfe is not null)
-                {
-                    <div style="margin-top:10px">
-                        <button class="knopf sekundaer klein" @onclick="() => AktivUmschaltenAsync(vorlage)">
-                            @(vorlage.Aktiv ? "Vorlage zurückziehen" : "Wieder aktivieren")
-                        </button>
-                    </div>
-                }
-            </div>
-        </details>
-    }
-}
-
 @code {
     private List<VorlageEintrag>? _vorlagen;
-    private List<VorlagenEntwurf>? _entwuerfe; // null = keine Compliance-Rechte
+    private VorlagenDateiUebersicht? _dateien; // null = keine Compliance-Rechte
+    private readonly HashSet<int> _offen = [];
     private readonly Dictionary<int, List<VorlagenVersionEintrag>> _versionen = [];
     private readonly Dictionary<int, List<VorlagenVerwendung>> _verwendungen = [];
-    private string _freigabeDatei = "";
-    private string _freigabeVorlageId = "";
-    private string _freigabeName = "";
-    private string _freigabeNotiz = "";
-    private string _freigabeTyp = "Lizenzvertrag";
-    private DateOnly? _freigabeGueltigAb;
+    private Freigabe? _freigabe;
+    private bool _gebeFrei;
+    private string? _fehler;
 
     // Rollen, die für die Nutzung freigegeben werden können (Compliance/Admin dürfen immer)
     private static readonly string[] NutzungsRollen = ["Vertrieb", "Support", "Buchhaltung"];
     private readonly Dictionary<int, EinstellungFormular> _einstellungen = [];
     private int? _einstellungGespeichert;
 
+    private class Freigabe
+    {
+        public required VorlagenDatei Datei { get; init; }
+        public string VorlageId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Typ { get; set; } = "Lizenzvertrag";
+        public DateOnly? GueltigAb { get; set; }
+        public string Notiz { get; set; } = "";
+    }
+
     private class EinstellungFormular
     {
         public string Typ { get; set; } = "";
         public HashSet<string> Rollen { get; set; } = [];
     }
+
+    protected override Task OnInitializedAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _vorlagen = await Http.GetFromJsonAsync<List<VorlageEintrag>>("api/vorlagen") ?? [];
+            var antwort = await Http.GetAsync("api/vorlagen/dateien");
+            _dateien = antwort.IsSuccessStatusCode
+                ? await antwort.Content.ReadFromJsonAsync<VorlagenDateiUebersicht>()
+                : null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vorlagen konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private static string StatusText(VorlagenDatei datei) => datei.Status switch
+    {
+        "aktiv" => "aktiv — gültige Version",
+        "zukuenftig" => "freigegeben, gilt künftig",
+        "ersetzt" => "ersetzt — ältere Version",
+        "zurueckgezogen" => "Vorlage zurückgezogen",
+        "geaendert" => "geändert seit Freigabe",
+        "neu" => "neu — keiner Vorlage zugeordnet",
+        _ => "nicht lesbar",
+    };
+
+    // Farbe nur für Handlungsbedarf bzw. „gilt" — Rest neutral (Ruhig-Konzept)
+    private static string StatusKlasse(string status) => status switch
+    {
+        "aktiv" => "gut",
+        "geaendert" or "neu" or "zukuenftig" => "warnung",
+        "fehler" => "kritisch",
+        _ => "",
+    };
+
+    private void FreigabeOeffnen(VorlagenDatei datei) => _freigabe = new Freigabe
+    {
+        Datei = datei,
+        VorlageId = datei.VorlageId?.ToString() ?? "",
+        Name = Path.GetFileNameWithoutExtension(datei.Dateiname),
+    };
+
+    private async Task FreigebenAsync()
+    {
+        if (_freigabe is null)
+            return;
+        _fehler = null;
+        _gebeFrei = true;
+        try
+        {
+            var neu = _freigabe.VorlageId == "";
+            var antwort = await Http.PostAsJsonAsync("api/vorlagen/freigeben", new VorlageFreigeben(
+                _freigabe.Datei.Dateiname,
+                int.TryParse(_freigabe.VorlageId, out var id) ? id : null,
+                neu && !string.IsNullOrWhiteSpace(_freigabe.Name) ? _freigabe.Name.Trim() : null,
+                string.IsNullOrWhiteSpace(_freigabe.Notiz) ? null : _freigabe.Notiz.Trim(),
+                neu ? _freigabe.Typ : null,
+                _freigabe.GueltigAb));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _freigabe = null;
+            _versionen.Clear();
+            _verwendungen.Clear();
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Freigabe fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _gebeFrei = false;
+        }
+    }
+
+    private async Task DetailsUmschaltenAsync(int vorlageId)
+    {
+        if (!_offen.Add(vorlageId))
+        {
+            _offen.Remove(vorlageId);
+            return;
+        }
+        if (_versionen.ContainsKey(vorlageId))
+            return;
+        try
+        {
+            _versionen[vorlageId] = await Http.GetFromJsonAsync<List<VorlagenVersionEintrag>>(
+                $"api/vorlagen/{vorlageId}/versionen") ?? [];
+            _verwendungen[vorlageId] = await Http.GetFromJsonAsync<List<VorlagenVerwendung>>(
+                $"api/vorlagen/{vorlageId}/verwendungen") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Details konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private RenderFragment Details(VorlageEintrag vorlage) => @<div style="padding:4px 0">
+        @if (_versionen.TryGetValue(vorlage.Id, out var versionen))
+        {
+            <div class="schritt-titel">Versionen</div>
+            @foreach (var version in versionen)
+            {
+                <div class="zeile2">
+                    <span><b>v@(version.Nummer)</b>
+                        <span class="neben" style="display:inline; margin-left:6px">
+                            freigegeben @version.FreigegebenAm.ToLocalTime().ToString("dd.MM.yyyy")
+                            · gilt ab @version.GueltigAb.ToString("dd.MM.yyyy")
+                            @(version.FreigegebenVon is not null ? $"· {version.FreigegebenVon}" : "")
+                            @(version.Notiz is not null ? $"· {version.Notiz}" : "")
+                        </span>
+                    </span>
+                    <span class="r" style="color:var(--muted); font-size:12.5px">@version.Verwendungen Verwendungen</span>
+                </div>
+            }
+        }
+        @if (_verwendungen.TryGetValue(vorlage.Id, out var verwendungen) && verwendungen.Count > 0)
+        {
+            <div class="schritt-titel" style="margin-top:10px"
+                 title="Reine Information: Unterschriebene Verträge bleiben gültig, auch wenn es inzwischen eine neuere Vorlage gibt.">
+                Wer hat welchen Stand bekommen? (ältere Stände bleiben gültig)
+            </div>
+            @foreach (var verwendung in verwendungen)
+            {
+                <div class="zeile2">
+                    <span><a href="kunden/@verwendung.KundeId">@verwendung.Firmenname</a>
+                        <span class="neben" style="display:inline; margin-left:6px">@verwendung.Kundennummer</span>
+                    </span>
+                    <span class="r"><b>v@(verwendung.Version)</b>
+                        · <a href="vertraege/@verwendung.VertragId">@verwendung.Vertragsnummer</a>
+                        <span style="color:var(--muted); font-size:12.5px"> @verwendung.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                    </span>
+                </div>
+            }
+        }
+        @if (_dateien is not null)
+        {
+            <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+                <label style="display:flex; gap:6px; align-items:center">
+                    Dokumentart
+                    <select value="@Einstellung(vorlage).Typ" @onchange="e => Einstellung(vorlage).Typ = e.Value?.ToString() ?? vorlage.Typ">
+                        @foreach (var art in Dokumentarten.Namen)
+                        {
+                            <option selected="@(art == Einstellung(vorlage).Typ)">@art</option>
+                        }
+                    </select>
+                </label>
+                <span style="color:var(--muted); font-size:12.5px">Verwenden dürfen:</span>
+                @foreach (var rolle in NutzungsRollen)
+                {
+                    <label style="display:flex; gap:4px; align-items:center">
+                        <input type="checkbox" checked="@Einstellung(vorlage).Rollen.Contains(rolle)"
+                               @onchange="e => RolleUmschalten(vorlage, rolle, e.Value is true)" />
+                        @rolle
+                    </label>
+                }
+                <span style="color:var(--muted); font-size:12px">(keine gewählt = alle; Compliance/Admin immer)</span>
+                <button class="knopf sekundaer klein" @onclick="() => EinstellungenSpeichernAsync(vorlage)">
+                    @(_einstellungGespeichert == vorlage.Id ? "✓ gespeichert" : "Speichern")
+                </button>
+                <span style="flex:1"></span>
+                <button class="knopf sekundaer klein" @onclick="() => AktivUmschaltenAsync(vorlage)">
+                    @(vorlage.Aktiv ? "Vorlage zurückziehen" : "Wieder aktivieren")
+                </button>
+            </div>
+        }
+    </div>;
 
     private EinstellungFormular Einstellung(VorlageEintrag vorlage)
     {
@@ -254,91 +484,7 @@ else
         }
         _einstellungGespeichert = vorlage.Id;
         _einstellungen.Remove(vorlage.Id);
-        await VorlagenLadenAsync();
-    }
-    private bool _gebeFrei;
-    private string? _freigegeben;
-    private string? _fehler;
-
-    protected override async Task OnInitializedAsync()
-    {
-        try
-        {
-            await VorlagenLadenAsync();
-            var antwort = await Http.GetAsync("api/vorlagen/entwuerfe");
-            if (antwort.IsSuccessStatusCode)
-            {
-                _entwuerfe = await antwort.Content.ReadFromJsonAsync<List<VorlagenEntwurf>>() ?? [];
-                if (_freigabeDatei == "" && _entwuerfe.Count > 0)
-                    _freigabeDatei = _entwuerfe[0].Dateiname;
-            }
-        }
-        catch (Exception ex)
-        {
-            _fehler = $"Vorlagen konnten nicht geladen werden: {ex.Message}";
-        }
-    }
-
-    private async Task VorlagenLadenAsync() =>
-        _vorlagen = await Http.GetFromJsonAsync<List<VorlageEintrag>>("api/vorlagen") ?? [];
-
-    private async Task DetailsLadenAsync(int vorlageId)
-    {
-        if (_versionen.ContainsKey(vorlageId))
-            return;
-        try
-        {
-            _versionen[vorlageId] = await Http.GetFromJsonAsync<List<VorlagenVersionEintrag>>(
-                $"api/vorlagen/{vorlageId}/versionen") ?? [];
-            _verwendungen[vorlageId] = await Http.GetFromJsonAsync<List<VorlagenVerwendung>>(
-                $"api/vorlagen/{vorlageId}/verwendungen") ?? [];
-        }
-        catch (Exception ex)
-        {
-            _fehler = $"Details konnten nicht geladen werden: {ex.Message}";
-        }
-    }
-
-    private async Task FreigebenAsync()
-    {
-        if (_freigabeDatei == "")
-            return;
-        _fehler = null;
-        _freigegeben = null;
-        _gebeFrei = true;
-        try
-        {
-            var antwort = await Http.PostAsJsonAsync("api/vorlagen/freigeben", new VorlageFreigeben(
-                _freigabeDatei,
-                int.TryParse(_freigabeVorlageId, out var id) ? id : null,
-                string.IsNullOrWhiteSpace(_freigabeName) ? null : _freigabeName.Trim(),
-                string.IsNullOrWhiteSpace(_freigabeNotiz) ? null : _freigabeNotiz.Trim(),
-                _freigabeVorlageId == "" ? _freigabeTyp : null,
-                _freigabeGueltigAb));
-            if (!antwort.IsSuccessStatusCode)
-            {
-                _fehler = await antwort.Content.ReadAsStringAsync();
-                return;
-            }
-            var ergebnis = await antwort.Content.ReadFromJsonAsync<VorlageEintrag>();
-            _freigegeben = ergebnis!.KommendeVersion is not null
-                ? $"{ergebnis.Name} v{ergebnis.KommendeVersion} freigegeben — gilt ab {ergebnis.KommendeGueltigAb:dd.MM.yyyy}"
-                : $"{ergebnis.Name} v{ergebnis.AktuelleVersion} freigegeben";
-            _freigabeGueltigAb = null;
-            _freigabeNotiz = "";
-            _freigabeName = "";
-            _versionen.Clear();
-            _verwendungen.Clear();
-            await VorlagenLadenAsync();
-        }
-        catch (Exception ex)
-        {
-            _fehler = $"Freigabe fehlgeschlagen: {ex.Message}";
-        }
-        finally
-        {
-            _gebeFrei = false;
-        }
+        await LadenAsync();
     }
 
     private async Task AktivUmschaltenAsync(VorlageEintrag vorlage)
@@ -351,6 +497,6 @@ else
             _fehler = await antwort.Content.ReadAsStringAsync();
             return;
         }
-        await VorlagenLadenAsync();
+        await LadenAsync();
     }
 }

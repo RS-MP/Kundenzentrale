@@ -308,6 +308,7 @@ public class ErpDbContext(
             e.Property(v => v.Dateipfad).HasMaxLength(500);
             e.Property(v => v.Sha256).HasMaxLength(64).IsFixedLength();
             e.Property(v => v.Notiz).HasMaxLength(500);
+            e.Property(v => v.QuellDateiname).HasMaxLength(260);
             e.HasOne(v => v.Vorlage).WithMany(v => v.Versionen)
                 .HasForeignKey(v => v.VorlageId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(v => v.FreigegebenVon).WithMany()

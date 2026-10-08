@@ -1,0 +1,237 @@
+@* Fenster „Vertrag aus Vorlage": Vorlage → Angebot & Ansprechpartner → Prüfen → Erstellen.
+   Die Vorschau kommt vom Server (gleiche Logik wie die Erzeugung) — was hier steht, steht im Vertrag. *@
+@inject HttpClient Http
+
+<div class="vorschau-overlay" @onclick="SchliessenAsync">
+    <div class="fenster" @onclick:stopPropagation="true">
+        <div class="fenster-kopf">
+            <h2>Vertrag aus Vorlage</h2>
+            <button class="mehr" @onclick="SchliessenAsync">Schließen</button>
+        </div>
+
+        <div class="fenster-inhalt">
+            @if (_ergebnis is not null)
+            {
+                <div style="color:var(--good); font-size:15px; margin-bottom:8px">
+                    ✓ Vertrag <b>@_ergebnis.Vertragsnummer</b> erstellt
+                </div>
+                <div style="color:var(--ink2); font-size:13.5px">
+                    Abgelegt als <code>@_ergebnis.Datei</code> (PDF, Word-Quelle gleichnamig daneben).
+                    Die Vertragsakte steht im Status <b>Entwurf</b> — nach Unterschrift Status und Laufzeit pflegen.
+                </div>
+                @if (_ergebnis.OffenePlatzhalter.Count > 0)
+                {
+                    <div class="warntext" style="font-size:13px; margin-top:8px">
+                        Nicht gefüllt: @string.Join(", ", _ergebnis.OffenePlatzhalter)
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="schritt">
+                    <div class="schritt-titel"><b>1</b> · Vorlage</div>
+                    <div class="auswahlliste">
+                        @foreach (var vorlage in Vorlagen)
+                        {
+                            <label class="@(_vorlageId == vorlage.VorlagenVersionId ? "gewaehlt" : "")">
+                                <input type="radio" name="vorlage" checked="@(_vorlageId == vorlage.VorlagenVersionId)"
+                                       @onchange="() => WaehleAsync(() => _vorlageId = vorlage.VorlagenVersionId)" />
+                                <span class="typ">@vorlage.Kuerzel</span>
+                                <span>@vorlage.Name</span>
+                                <span class="neben">v@(vorlage.Version) · gültig seit @vorlage.GueltigAb.ToString("dd.MM.yyyy")</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="schritt">
+                    <div class="schritt-titel"><b>2</b> · Angebot &amp; Ansprechpartner</div>
+                    <div class="auswahlliste" style="margin-bottom:10px">
+                        @foreach (var abo in Angebote)
+                        {
+                            <label class="@(_aboId == abo.Id ? "gewaehlt" : "")">
+                                <input type="radio" name="angebot" checked="@(_aboId == abo.Id)"
+                                       @onchange="() => WaehleAsync(() => _aboId = abo.Id)" />
+                                <span><b>@abo.Nummer</b> · @(abo.Status == "Entwurf" ? "Angebot" : "laufendes Abo")</span>
+                                <span class="neben">@Positionen(abo)</span>
+                            </label>
+                        }
+                        <label class="@(_aboId == 0 ? "gewaehlt" : "")">
+                            <input type="radio" name="angebot" checked="@(_aboId == 0)"
+                                   @onchange="() => WaehleAsync(() => _aboId = 0)" />
+                            <span>ohne Angebotsnummer</span>
+                        </label>
+                    </div>
+                    <label style="display:flex; gap:8px; align-items:center; font-size:13.5px; color:var(--ink2)">
+                        Ansprechpartner
+                        <select style="flex:1" value="@(_ansprechpartnerId?.ToString() ?? "")"
+                                @onchange="e => WaehleAsync(() => _ansprechpartnerId = int.TryParse(e.Value?.ToString(), out var id) ? id : null)">
+                            @foreach (var ap in AktiveAnsprechpartner)
+                            {
+                                <option value="@ap.Id" selected="@(_ansprechpartnerId == ap.Id)">
+                                    @Name(ap)@(ap.Rollen.Count > 0 ? $" · {string.Join(", ", ap.Rollen)}" : "")
+                                </option>
+                            }
+                            <option value="" selected="@(_ansprechpartnerId is null)">keiner (Sehr geehrte Damen und Herren)</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="schritt">
+                    <div class="schritt-titel"><b>3</b> · Prüfen — das wird eingesetzt</div>
+                    @if (_vorschau is null)
+                    {
+                        <div style="color:var(--muted); font-size:13px">@(_ladeVorschau ? "Lade Vorschau …" : "")</div>
+                    }
+                    else
+                    {
+                        <dl class="werte">
+                            @foreach (var wert in _vorschau.Werte)
+                            {
+                                <dt>@wert.Bezeichnung</dt>
+                                <dd>@wert.Wert</dd>
+                            }
+                        </dl>
+                        @foreach (var warnung in _vorschau.Warnungen)
+                        {
+                            <div class="warntext" style="font-size:13px; margin-top:6px">⚠ @warnung</div>
+                        }
+                        @if (_vorschau.OffenePlatzhalter.Count > 0)
+                        {
+                            <div class="warntext" style="font-size:13px; margin-top:6px">
+                                ⚠ Bleibt im Vertrag stehen (unbekannte Platzhalter): @string.Join(", ", _vorschau.OffenePlatzhalter)
+                            </div>
+                        }
+                    }
+                </div>
+            }
+            @if (_fehler is not null)
+            {
+                <div class="fehler" style="margin-top:8px">@_fehler</div>
+            }
+        </div>
+
+        <div class="fenster-fuss">
+            @if (_ergebnis is not null)
+            {
+                <a class="knopf" href="vertraege/@_ergebnis.VertragId">Zur Vertragsakte</a>
+                <button class="knopf sekundaer" @onclick="SchliessenAsync">Schließen</button>
+            }
+            else
+            {
+                <button class="knopf" disabled="@(_erzeuge || _vorschau is null)" @onclick="ErzeugenAsync">
+                    @(_erzeuge ? "Erstelle …" : "Vertrag erstellen")
+                </button>
+                <button class="knopf sekundaer" @onclick="SchliessenAsync">Abbrechen</button>
+                <span style="color:var(--muted); font-size:12px; margin-left:auto">PDF + Word-Quelle, Vertragsakte als Entwurf</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int KundeId { get; set; }
+    [Parameter, EditorRequired] public List<VorlageAuswahl> Vorlagen { get; set; } = [];
+    [Parameter] public List<AboEintrag>? Abos { get; set; }
+    [Parameter] public List<AnsprechpartnerEintrag>? Ansprechpartner { get; set; }
+    /// <summary>Wird beim Schließen aufgerufen; true = es wurde ein Vertrag erstellt (Akte neu laden).</summary>
+    [Parameter] public EventCallback<bool> Geschlossen { get; set; }
+
+    private int _vorlageId;
+    private int _aboId;              // 0 = ohne Angebotsnummer
+    private int? _ansprechpartnerId; // null = keiner
+    private VorlagenVorschau? _vorschau;
+    private VorlagenErgebnis? _ergebnis;
+    private bool _ladeVorschau;
+    private bool _erzeuge;
+    private string? _fehler;
+
+    // Angebote zuerst (Odoo-Entwürfe), neueste Nummer oben — wie von der API geliefert
+    private List<AboEintrag> Angebote =>
+        (Abos ?? []).Where(a => a.Status is "Entwurf" or "Laufend").ToList();
+
+    private List<AnsprechpartnerEintrag> AktiveAnsprechpartner =>
+        (Ansprechpartner ?? []).Where(a => a.Aktiv)
+            .OrderByDescending(a => a.Rollen.Contains("Hauptansprechpartner"))
+            .ThenByDescending(a => a.Rollen.Count > 0)
+            .ThenBy(a => a.Nachname)
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Vorbelegung wie auf dem Server: erste Vorlage, neuestes Angebot, Hauptansprechpartner
+        _vorlageId = Vorlagen.FirstOrDefault()?.VorlagenVersionId ?? 0;
+        _aboId = Angebote.FirstOrDefault()?.Id ?? 0;
+        _ansprechpartnerId = AktiveAnsprechpartner.FirstOrDefault()?.Id;
+        await VorschauLadenAsync();
+    }
+
+    private async Task WaehleAsync(Action aenderung)
+    {
+        aenderung();
+        await VorschauLadenAsync();
+    }
+
+    private VertragAusVorlage Anfrage() => new(KundeId, _vorlageId, _aboId, _ansprechpartnerId);
+
+    private async Task VorschauLadenAsync()
+    {
+        if (_vorlageId == 0)
+            return;
+        _fehler = null;
+        _ladeVorschau = true;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/vertraege/aus-vorlage/vorschau", Anfrage());
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _vorschau = null;
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _vorschau = await antwort.Content.ReadFromJsonAsync<VorlagenVorschau>();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vorschau nicht möglich: {ex.Message}";
+        }
+        finally
+        {
+            _ladeVorschau = false;
+        }
+    }
+
+    private async Task ErzeugenAsync()
+    {
+        _fehler = null;
+        _erzeuge = true;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/vertraege/aus-vorlage", Anfrage());
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _ergebnis = await antwort.Content.ReadFromJsonAsync<VorlagenErgebnis>();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vertrag konnte nicht erstellt werden: {ex.Message}";
+        }
+        finally
+        {
+            _erzeuge = false;
+        }
+    }
+
+    private Task SchliessenAsync() => Geschlossen.InvokeAsync(_ergebnis is not null);
+
+    private static string Positionen(AboEintrag abo) =>
+        abo.Positionen.Count == 0 ? ""
+        : string.Join(", ", abo.Positionen.Take(2).Select(p => p.Menge == 1 ? p.Produkt : $"{p.Menge:0.##}× {p.Produkt}"))
+          + (abo.Positionen.Count > 2 ? $" + {abo.Positionen.Count - 2} weitere" : "");
+
+    private static string Name(AnsprechpartnerEintrag ap) =>
+        string.Join(" ", new[] { ap.Titel, ap.Vorname, ap.Nachname }.Where(t => !string.IsNullOrWhiteSpace(t)));
+}

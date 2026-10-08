@@ -44,6 +44,32 @@ public static class VorlagenDienst
         return offen.OrderBy(o => o).ToList();
     }
 
+    /// <summary>
+    /// Alle {{Platzhalter}} einer Vorlage (Fließtext, Kopf-/Fußzeilen) — für die
+    /// Prüfung vor der Freigabe. Liest nur, verändert nichts.
+    /// </summary>
+    public static List<string> Platzhalter(Stream dokument)
+    {
+        using var doc = WordprocessingDocument.Open(dokument, false);
+        var wurzeln = new List<OpenXmlElement?> { doc.MainDocumentPart?.Document };
+        if (doc.MainDocumentPart is not null)
+        {
+            wurzeln.AddRange(doc.MainDocumentPart.HeaderParts.Select(p => (OpenXmlElement?)p.Header));
+            wurzeln.AddRange(doc.MainDocumentPart.FooterParts.Select(p => (OpenXmlElement?)p.Footer));
+        }
+
+        var gefunden = new HashSet<string>();
+        foreach (var absatz in wurzeln.Where(w => w is not null).SelectMany(w => w!.Descendants<Paragraph>()))
+        {
+            // Absatztext über Textlauf-Grenzen hinweg (Word zerteilt Platzhalter intern)
+            var text = string.Concat(absatz.Descendants<Text>().Select(t => t.Text));
+            foreach (System.Text.RegularExpressions.Match treffer in
+                     System.Text.RegularExpressions.Regex.Matches(text, @"\{\{[^}]{1,60}\}\}"))
+                gefunden.Add(treffer.Value);
+        }
+        return gefunden.OrderBy(p => p).ToList();
+    }
+
     private static void ErsetzeImAbsatz(
         Paragraph absatz, List<KeyValuePair<string, string>> werte, HashSet<string> offen)
     {

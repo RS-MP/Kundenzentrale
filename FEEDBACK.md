@@ -360,6 +360,36 @@ Zugriff über die Kundenzentrale.
 
 Status: Stufe 1 + 2 umgesetzt · Partner-Verlauf offen
 
+## Nr. 21 · „Vertrag erstellen" und Vorlagenbereich überarbeiten (2026-10-08, MP, Screenshot)
+
+Die Zeile „Vorlage · Angebot · Aus Vorlage erstellen" in der Kundenakte ist
+gequetscht und zeigt nicht, was passiert (leeres Angebotsfeld bei Kunden ohne
+Angebot). Im Vorlagenbereich fehlt der Überblick über alle Dateien im
+Verzeichnis: was ist zugeordnet, aktiv, ersetzt …
+
+Entscheidungen (MP): Fenster statt eigener Seite; nur aktuell gültige
+Vorlagen anzeigen, mit „gültig seit".
+
+Umgesetzt (08.10.2026):
+- **Fenster „Vertrag aus Vorlage"** (Knopf „+ Vertrag aus Vorlage"): Vorlage
+  (Kürzel, Version, gültig seit) → Angebot (mit Positionen, „ohne") und
+  Ansprechpartner für Anrede/Name → **Prüfen** mit den tatsächlich
+  eingesetzten Werten, Warnungen und unbekannten Platzhaltern (Server-
+  Vorschau, gleiche Logik wie die Erzeugung) → Ergebnis mit „Zur Vertragsakte".
+- **Dateitabelle im Vorlagenbereich** (Compliance): jede Datei mit Status
+  neu / geändert seit Freigabe / aktiv / gilt künftig / ersetzt /
+  zurückgezogen (Zuordnung per SHA-256 und gemerkter Quelldatei), Spalte
+  Platzhalter (unbekannte `{{…}}` vor der Freigabe — Punkt 3 aus Nr. 17),
+  Aktion „Freigeben …" bzw. „Neue Version …" im Fenster. Prüfung der
+  eingefrorenen Kopien („Freigegeben": vorhanden + unverändert).
+  Inhaltsgleiche Datei wird nicht erneut freigegeben.
+- Vorlagen-Übersicht als Tabelle mit aufklappbaren Details (Versionen, wer
+  hat welchen Stand, Dokumentart/Rollen, Zurückziehen).
+
+Offen: **Probe-PDF** mit Testkunde vor der Freigabe.
+
+Status: umgesetzt · Probe-PDF offen
+
 ## Backlog (Aufgaben beim Nutzer / für später)
 
 - **Entra + IIS:** Klick-Anleitung liegt in `DEPLOYMENT.md` — sobald die

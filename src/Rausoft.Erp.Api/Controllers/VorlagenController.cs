@@ -124,6 +124,98 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
     private static List<string> RollenNamen(MitarbeiterRolle rollen) =>
         MitarbeiterController.AlleRollen.Where(r => rollen.HasFlag(r.Rolle)).Select(r => r.Name).ToList();
 
+    /// <summary>
+    /// Dateitabelle für Compliance: alle Word-Dateien im Vorlagen-Verzeichnis mit
+    /// Zuordnung über die Prüfsumme (entspricht Version vN → aktiv/ersetzt/…,
+    /// abweichender Inhalt bei bekannter Quelldatei → geändert, sonst neu),
+    /// unbekannten Platzhaltern und dem Zustand der eingefrorenen Kopien.
+    /// </summary>
+    [Authorize(Policy = "Compliance")]
+    [HttpGet("dateien")]
+    public async Task<ActionResult<VorlagenDateiUebersicht>> Dateien(CancellationToken ct)
+    {
+        var bekannte = VertraegeController.BekanntePlatzhalter;
+        var verzeichnis = await VorlagenVerzeichnis(ct);
+        if (verzeichnis is null || !Directory.Exists(verzeichnis))
+            return Ok(new VorlagenDateiUebersicht([], [], bekannte.ToList()));
+
+        var heute = DateOnly.FromDateTime(DateTime.Today);
+        var vorlagen = await db.Vorlagen.AsNoTracking().Include(v => v.Versionen).ToListAsync(ct);
+        var versionen = vorlagen.SelectMany(v => v.Versionen.Select(x => (Vorlage: v, Version: x))).ToList();
+
+        string Status(Vorlage vorlage, VorlagenVersion version)
+        {
+            if (!vorlage.Aktiv)
+                return "zurueckgezogen";
+            if (version.GueltigAb > heute)
+                return "zukuenftig";
+            return AktuelleVersion(vorlage.Versionen, heute)?.Id == version.Id ? "aktiv" : "ersetzt";
+        }
+
+        var dateien = new List<VorlagenDatei>();
+        foreach (var pfad in Directory.EnumerateFiles(verzeichnis, "*.docx", SearchOption.TopDirectoryOnly)
+                     .Where(p => !Path.GetFileName(p).StartsWith("~$"))
+                     .OrderBy(p => Path.GetFileName(p), StringComparer.OrdinalIgnoreCase))
+        {
+            var name = Path.GetFileName(pfad);
+            var geaendert = System.IO.File.GetLastWriteTime(pfad);
+            try
+            {
+                var inhalt = await System.IO.File.ReadAllBytesAsync(pfad, ct);
+                var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(inhalt)).ToLowerInvariant();
+                List<string> unbekannt;
+                using (var speicher = new MemoryStream(inhalt))
+                    unbekannt = Dienste.VorlagenDienst.Platzhalter(speicher).Where(p => !bekannte.Contains(p)).ToList();
+
+                // Gleicher Inhalt wie eine eingefrorene Version?
+                var gleich = versionen.Where(x => x.Version.Sha256 == sha)
+                    .OrderByDescending(x => x.Version.Nummer).FirstOrDefault();
+                if (gleich.Vorlage is not null)
+                {
+                    dateien.Add(new VorlagenDatei(name, geaendert, Status(gleich.Vorlage, gleich.Version),
+                        gleich.Vorlage.Id, gleich.Vorlage.Name, gleich.Version.Nummer, unbekannt, null));
+                    continue;
+                }
+
+                // Sonst: Datei, aus der schon einmal freigegeben wurde (bzw. gleichnamig zur Vorlage) → geändert
+                var zugehoerig = versionen
+                    .Where(x => string.Equals(x.Version.QuellDateiname, name, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(x => x.Version.Nummer).Select(x => x.Vorlage).FirstOrDefault()
+                    ?? vorlagen.FirstOrDefault(v => string.Equals(v.Name, Path.GetFileNameWithoutExtension(name),
+                        StringComparison.OrdinalIgnoreCase));
+                dateien.Add(new VorlagenDatei(name, geaendert, zugehoerig is null ? "neu" : "geaendert",
+                    zugehoerig?.Id, zugehoerig?.Name, null, unbekannt, null));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                           or DocumentFormat.OpenXml.Packaging.OpenXmlPackageException
+                                           or InvalidDataException)
+            {
+                dateien.Add(new VorlagenDatei(name, geaendert, "fehler", null, null, null, [],
+                    "Datei nicht lesbar — in Word geöffnet oder kein gültiges Word-Dokument?"));
+            }
+        }
+
+        // Eingefrorene Kopien: vorhanden und unverändert?
+        var eingefroren = new List<EingefroreneVersion>();
+        foreach (var (vorlage, version) in versionen.OrderBy(x => x.Vorlage.Name).ThenByDescending(x => x.Version.Nummer))
+        {
+            var datei = Path.Combine(verzeichnis, version.Dateipfad);
+            string zustand;
+            if (!System.IO.File.Exists(datei))
+                zustand = "fehlt";
+            else
+            {
+                await using var stream = System.IO.File.OpenRead(datei);
+                var sha = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(stream, ct))
+                    .ToLowerInvariant();
+                zustand = sha == version.Sha256 ? "ok" : "veraendert";
+            }
+            eingefroren.Add(new EingefroreneVersion(vorlage.Id, vorlage.Name, version.Nummer, version.Dateipfad, zustand));
+        }
+
+        return Ok(new VorlagenDateiUebersicht(dateien, eingefroren, bekannte.ToList()));
+    }
+
     /// <summary>Entwurfsdateien im Vorlagen-Verzeichnis (Root) — Kandidaten für eine Freigabe.</summary>
     [Authorize(Policy = "Compliance")]
     [HttpGet("entwuerfe")]
@@ -192,6 +284,14 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
             .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
             .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
 
+        // Unveränderte Datei nicht erneut freigeben — sonst entstünden inhaltsgleiche Versionen
+        var quellSha = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(await System.IO.File.ReadAllBytesAsync(quelle, ct))).ToLowerInvariant();
+        if (await db.VorlagenVersionen.Include(v => v.Vorlage)
+                .Where(v => v.Sha256 == quellSha)
+                .Select(v => v.Vorlage!.Name + " v" + v.Nummer).FirstOrDefaultAsync(ct) is { } identisch)
+            return BadRequest($"Die Datei ist inhaltsgleich mit der bereits freigegebenen Version „{identisch}“.");
+
         var nummer = (vorlage.Versionen.Count == 0 ? 0 : vorlage.Versionen.Max(v => v.Nummer)) + 1;
         var relativerPfad = Path.Combine(FreigabeOrdner, $"{vorlage.Name} v{nummer}.docx");
         var ziel = Path.Combine(verzeichnis, relativerPfad);
@@ -213,6 +313,7 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
             Sha256 = pruefsumme,
             FreigegebenAm = DateTime.UtcNow,
             FreigegebenVonId = mitarbeiterId,
+            QuellDateiname = freigabe.Dateiname,
             GueltigAb = gueltigAb,
             Notiz = string.IsNullOrWhiteSpace(freigabe.Notiz) ? null : freigabe.Notiz.Trim(),
         });

@@ -521,8 +521,41 @@ public class VertraegeController(
         return Ok(vorlagen
             .Where(v => v.Gueltig is not null && v.Vorlage.ErlaubtFuer(rollen))
             .Select(v => new VorlageAuswahl(v.Gueltig!.Id, v.Vorlage.Name, v.Gueltig.Nummer,
-                Dienste.Dokumentarten.Kuerzel(v.Vorlage.Typ)))
+                Dienste.Dokumentarten.Kuerzel(v.Vorlage.Typ), v.Gueltig.GueltigAb))
             .ToList());
+    }
+
+    /// <summary>
+    /// Vorschau zur Vertragserzeugung (Fenster „Vertrag aus Vorlage", Schritt 3):
+    /// zeigt die Werte, die eingesetzt würden, Warnungen und nicht gefüllte
+    /// Platzhalter — ohne etwas abzulegen oder zu registrieren.
+    /// </summary>
+    [HttpPost("aus-vorlage/vorschau")]
+    public async Task<ActionResult<VorlagenVorschau>> AusVorlageVorschau(VertragAusVorlage anlage, CancellationToken ct)
+    {
+        var (vorbereitung, fehler) = await VorbereitenAsync(anlage, ct);
+        if (fehler is not null)
+            return fehler;
+        var v = vorbereitung!;
+
+        using var speicher = new MemoryStream();
+        await using (var quelle = System.IO.File.OpenRead(v.VorlagenPfad))
+            await quelle.CopyToAsync(speicher, ct);
+        var offene = Dienste.VorlagenDienst.Fuellen(speicher, v.Werte);
+
+        var hauptsitz = v.Kunde.Adressen.FirstOrDefault(a => a.Typ == AdressTyp.Hauptsitz && a.Aktiv);
+        var werte = new List<VorschauWert>
+        {
+            new("Vorlage", v.VorlagenStand),
+            new("Firma", v.Kunde.Firmenname),
+            new("Kundennummer", v.Kunde.Kundennummer),
+            new("Anschrift", hauptsitz is null ? "—" : $"{hauptsitz.Strasse}, {hauptsitz.Plz} {hauptsitz.Ort}".Trim(' ', ',')),
+            new("Angebot", v.AngebotsNummer ?? "—"),
+            new("Ansprechpartner", v.Ansprechpartner?.Anzeigename() ?? "—"),
+            new("Briefanrede", v.Werte["{{Briefanrede}}"]),
+            new("Datum", v.Werte["{{Datum}}"]),
+        };
+        return Ok(new VorlagenVorschau(werte, v.Warnungen, offene));
     }
 
     /// <summary>
@@ -534,85 +567,18 @@ public class VertraegeController(
     [HttpPost("aus-vorlage")]
     public async Task<ActionResult<VorlagenErgebnis>> AusVorlage(VertragAusVorlage anlage, CancellationToken ct)
     {
-        var version = await db.VorlagenVersionen.AsNoTracking()
-            .Include(v => v.Vorlage)
-            .FirstOrDefaultAsync(v => v.Id == anlage.VorlagenVersionId, ct);
-        if (version?.Vorlage is null)
-            return BadRequest("Die angegebene Vorlagen-Version existiert nicht.");
-        var vorlagenStand = $"{version.Vorlage.Name} v{version.Nummer}";
-        // Serverseitig durchsetzen, was die Auswahl in der Akte anbietet
-        if (!version.Vorlage.Aktiv)
-            return BadRequest($"Die Vorlage „{version.Vorlage.Name}“ ist zurückgezogen.");
-        if (!version.Vorlage.ErlaubtFuer(await AktuelleRollen(ct)))
-            return StatusCode(StatusCodes.Status403Forbidden,
-                $"Die Vorlage „{version.Vorlage.Name}“ ist für Ihre Rolle nicht freigegeben.");
-        var heute = DateOnly.FromDateTime(DateTime.Today);
-        var gueltigeId = await db.VorlagenVersionen
-            .Where(v => v.VorlageId == version.VorlageId && v.GueltigAb <= heute)
-            .OrderByDescending(v => v.Nummer).Select(v => (int?)v.Id).FirstOrDefaultAsync(ct);
-        if (gueltigeId != version.Id)
-            return BadRequest($"„{vorlagenStand}“ ist nicht der aktuell gültige Stand — bitte die Seite neu laden.");
-
-        var kunde = await db.Kunden
-            .Include(k => k.Adressen)
-            .Include(k => k.Ansprechpartner)
-            .FirstOrDefaultAsync(k => k.Id == anlage.KundeId, ct);
-        if (kunde is null)
-            return BadRequest("Der angegebene Kunde existiert nicht.");
-
-        var vorlagenVerzeichnis = await Einstellung(EinstellungsSchluessel.VorlagenVerzeichnis, ct);
-        var zielVerzeichnis = await Einstellung(EinstellungsSchluessel.VertragserzeugungZielverzeichnis, ct);
-        var basis = await Einstellung(EinstellungsSchluessel.VertragsablageVerzeichnis, ct);
-        if (string.IsNullOrWhiteSpace(vorlagenVerzeichnis) || string.IsNullOrWhiteSpace(zielVerzeichnis)
-            || string.IsNullOrWhiteSpace(basis))
-            return BadRequest("Vorlagen-, Ziel- oder Ablageverzeichnis ist nicht konfiguriert (Administration).");
-
-        var vorlagenPfad = Path.Combine(vorlagenVerzeichnis, version.Dateipfad);
-        if (!System.IO.File.Exists(vorlagenPfad))
-            return BadRequest($"Die eingefrorene Versionsdatei fehlt in der Ablage: {version.Dateipfad}");
-
-        // Zielverzeichnis muss in der Vertragsablage liegen (Viewer/Registrierung)
-        var basisVoll = Path.GetFullPath(basis).TrimEnd(Path.DirectorySeparatorChar);
-        var zielVoll = Path.GetFullPath(zielVerzeichnis);
-        if (!zielVoll.StartsWith(basisVoll + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-            && !zielVoll.Equals(basisVoll, StringComparison.OrdinalIgnoreCase))
-            return BadRequest("Das Zielverzeichnis liegt außerhalb des Vertragsablage-Verzeichnisses.");
-        if (!Directory.Exists(zielVoll))
-            return BadRequest($"Zielverzeichnis nicht erreichbar: {zielVerzeichnis}");
-
-        var mitarbeiterId = await AktuellerMitarbeiterId(ct);
-        if (mitarbeiterId is null)
-            return BadRequest("Für den angemeldeten Benutzer existiert kein Mitarbeiter-Datensatz.");
-
-        // Angebot für „Angebot S0…": gewähltes, sonst neuestes offenes Angebot
-        // (Odoo-Abo im Entwurf), sonst laufendes Abo
-        var angebote = db.Abos.Where(a => a.KundeId == kunde.Id);
-        string? angebotsNummer;
-        if (anlage.AboId == 0)
-            angebotsNummer = null; // bewusst ohne Angebotsnummer
-        else if (anlage.AboId is { } aboId)
-        {
-            angebotsNummer = await angebote.Where(a => a.Id == aboId).Select(a => a.Nummer).FirstOrDefaultAsync(ct);
-            if (angebotsNummer is null)
-                return BadRequest("Das gewählte Angebot gehört nicht zu diesem Kunden.");
-        }
-        else
-        {
-            angebotsNummer = await angebote
-                .Where(a => a.Status == Domain.Subscriptions.AboStatus.Entwurf
-                    || a.Status == Domain.Subscriptions.AboStatus.Laufend)
-                .OrderBy(a => a.Status)          // Entwurf (= Angebot) vor Laufend
-                .ThenByDescending(a => a.Id)     // neuestes zuerst
-                .Select(a => a.Nummer)
-                .FirstOrDefaultAsync(ct);
-        }
+        var (vorbereitung, fehler) = await VorbereitenAsync(anlage, ct);
+        if (fehler is not null)
+            return fehler;
+        var v = vorbereitung!;
+        var kunde = v.Kunde;
 
         // Vorlage füllen
         using var speicher = new MemoryStream();
-        await using (var quelle = System.IO.File.OpenRead(vorlagenPfad))
+        await using (var quelle = System.IO.File.OpenRead(v.VorlagenPfad))
             await quelle.CopyToAsync(speicher, ct);
-        var offene = Dienste.VorlagenDienst.Fuellen(speicher, PlatzhalterWerte(kunde, angebotsNummer));
-        if (angebotsNummer is null && anlage.AboId != 0)
+        var offene = Dienste.VorlagenDienst.Fuellen(speicher, v.Werte);
+        if (v.AngebotsNummer is null && anlage.AboId != 0)
             offene.Add("Angebotsnummer (kein Angebot/Abo beim Kunden)");
 
         // Vertragsnummer vorab — sie steht in den PDF-Metadaten/der Signatur
@@ -623,7 +589,7 @@ public class VertraegeController(
         try
         {
             pdfBytes = await pdfDienst.DocxZuPdfAsync(
-                speicher.ToArray(), nummer, vorlagenStand, kunde.Firmenname, ct);
+                speicher.ToArray(), nummer, v.VorlagenStand, kunde.Firmenname, ct);
         }
         catch (InvalidOperationException ex)
         {
@@ -633,10 +599,10 @@ public class VertraegeController(
         // Ablegen — Dateiname nach dem gewachsenen Ablage-Prinzip: <KundenNr>.pdf,
         // bei Bestehen <KundenNr>-1.pdf usw.; die gefüllte .docx liegt als
         // bearbeitbare Quelle gleichnamig daneben (registriert wird das PDF).
-        var zielPfad = Path.Combine(zielVoll, kunde.Kundennummer + ".pdf");
+        var zielPfad = Path.Combine(v.ZielVoll, kunde.Kundennummer + ".pdf");
         for (var n = 1; System.IO.File.Exists(zielPfad)
              || System.IO.File.Exists(Path.ChangeExtension(zielPfad, ".docx")); n++)
-            zielPfad = Path.Combine(zielVoll, $"{kunde.Kundennummer}-{n}.pdf");
+            zielPfad = Path.Combine(v.ZielVoll, $"{kunde.Kundennummer}-{n}.pdf");
         await System.IO.File.WriteAllBytesAsync(zielPfad, pdfBytes, ct);
         await System.IO.File.WriteAllBytesAsync(Path.ChangeExtension(zielPfad, ".docx"), speicher.ToArray(), ct);
 
@@ -652,16 +618,16 @@ public class VertraegeController(
             KundeId = kunde.Id,
             Status = VertragsStatus.Entwurf,
             Beginn = DateOnly.FromDateTime(DateTime.Today),
-            Notiz = $"Aus Vorlage „{vorlagenStand}“ erstellt"
-                + (angebotsNummer is null ? "" : $" zu Angebot {angebotsNummer}")
+            Notiz = $"Aus Vorlage „{v.VorlagenStand}“ erstellt"
+                + (v.AngebotsNummer is null ? "" : $" zu Angebot {v.AngebotsNummer}")
                 + " — nach Unterschrift Status und Laufzeit pflegen.",
         };
         vertrag.Bestandteile.Add(new Vertragsbestandteil
         {
-            Typ = version.Vorlage.Typ,
-            Titel = version.Vorlage.Name,
+            Typ = v.Version.Vorlage!.Typ,
+            Titel = v.Version.Vorlage.Name,
             Vertrag = vertrag,
-            Dokumentdatum = heute,
+            Dokumentdatum = DateOnly.FromDateTime(DateTime.Today),
             DokumentdatumQuelle = DokumentdatumQuelle.Erzeugt,
             Folge = DokumentdatumErkennung.Folge(zielPfad),
             Dokumente =
@@ -673,9 +639,9 @@ public class VertraegeController(
                     DateinameOriginal = Path.GetFileName(zielPfad),
                     Sha256 = pruefsumme,
                     ErstelltAm = DateTime.UtcNow,
-                    ErstelltVonId = mitarbeiterId.Value,
+                    ErstelltVonId = v.MitarbeiterId,
                     // Vorlagen-Stand am Dokument: welcher Kunde hat welche Version bekommen
-                    VorlagenVersionId = version.Id,
+                    VorlagenVersionId = v.Version.Id,
                 },
             },
         });
@@ -683,20 +649,134 @@ public class VertraegeController(
         await db.SaveChangesAsync(ct);
 
         await VerlaufAsync(kunde.Id,
-            $"Vertrag {nummer} aus Vorlage „{vorlagenStand}“ erstellt", null, vertrag.Id, ct);
+            $"Vertrag {nummer} aus Vorlage „{v.VorlagenStand}“ erstellt", null, vertrag.Id, ct);
         await db.SaveChangesAsync(ct);
 
         return Ok(new VorlagenErgebnis(vertrag.Id, nummer, Path.GetFileName(zielPfad), offene));
     }
 
-    private static Dictionary<string, string> PlatzhalterWerte(Domain.Customers.Kunde kunde, string? aboNummer)
+    private sealed record Vorbereitung(
+        VorlagenVersion Version, string VorlagenStand, Kunde Kunde, string VorlagenPfad, string ZielVoll,
+        int MitarbeiterId, string? AngebotsNummer, Ansprechpartner? Ansprechpartner,
+        Dictionary<string, string> Werte, List<string> Warnungen);
+
+    /// <summary>
+    /// Gemeinsame Prüfungen und Werte für Vorschau und Erzeugung — so zeigt die
+    /// Vorschau garantiert dasselbe, was später im Vertrag steht.
+    /// </summary>
+    private async Task<(Vorbereitung? Vorbereitung, ActionResult? Fehler)> VorbereitenAsync(
+        VertragAusVorlage anlage, CancellationToken ct)
+    {
+        var version = await db.VorlagenVersionen.AsNoTracking()
+            .Include(v => v.Vorlage)
+            .FirstOrDefaultAsync(v => v.Id == anlage.VorlagenVersionId, ct);
+        if (version?.Vorlage is null)
+            return (null, BadRequest("Die angegebene Vorlagen-Version existiert nicht."));
+        var vorlagenStand = $"{version.Vorlage.Name} v{version.Nummer}";
+        // Serverseitig durchsetzen, was die Auswahl in der Akte anbietet
+        if (!version.Vorlage.Aktiv)
+            return (null, BadRequest($"Die Vorlage „{version.Vorlage.Name}“ ist zurückgezogen."));
+        if (!version.Vorlage.ErlaubtFuer(await AktuelleRollen(ct)))
+            return (null, StatusCode(StatusCodes.Status403Forbidden,
+                $"Die Vorlage „{version.Vorlage.Name}“ ist für Ihre Rolle nicht freigegeben."));
+        var heute = DateOnly.FromDateTime(DateTime.Today);
+        var gueltigeId = await db.VorlagenVersionen
+            .Where(v => v.VorlageId == version.VorlageId && v.GueltigAb <= heute)
+            .OrderByDescending(v => v.Nummer).Select(v => (int?)v.Id).FirstOrDefaultAsync(ct);
+        if (gueltigeId != version.Id)
+            return (null, BadRequest($"„{vorlagenStand}“ ist nicht der aktuell gültige Stand — bitte die Seite neu laden."));
+
+        var kunde = await db.Kunden
+            .Include(k => k.Adressen)
+            .Include(k => k.Ansprechpartner)
+            .FirstOrDefaultAsync(k => k.Id == anlage.KundeId, ct);
+        if (kunde is null)
+            return (null, BadRequest("Der angegebene Kunde existiert nicht."));
+
+        var vorlagenVerzeichnis = await Einstellung(EinstellungsSchluessel.VorlagenVerzeichnis, ct);
+        var zielVerzeichnis = await Einstellung(EinstellungsSchluessel.VertragserzeugungZielverzeichnis, ct);
+        var basis = await Einstellung(EinstellungsSchluessel.VertragsablageVerzeichnis, ct);
+        if (string.IsNullOrWhiteSpace(vorlagenVerzeichnis) || string.IsNullOrWhiteSpace(zielVerzeichnis)
+            || string.IsNullOrWhiteSpace(basis))
+            return (null, BadRequest("Vorlagen-, Ziel- oder Ablageverzeichnis ist nicht konfiguriert (Administration)."));
+
+        var vorlagenPfad = Path.Combine(vorlagenVerzeichnis, version.Dateipfad);
+        if (!System.IO.File.Exists(vorlagenPfad))
+            return (null, BadRequest($"Die eingefrorene Versionsdatei fehlt in der Ablage: {version.Dateipfad}"));
+
+        // Zielverzeichnis muss in der Vertragsablage liegen (Viewer/Registrierung)
+        var basisVoll = Path.GetFullPath(basis).TrimEnd(Path.DirectorySeparatorChar);
+        var zielVoll = Path.GetFullPath(zielVerzeichnis);
+        if (!zielVoll.StartsWith(basisVoll + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            && !zielVoll.Equals(basisVoll, StringComparison.OrdinalIgnoreCase))
+            return (null, BadRequest("Das Zielverzeichnis liegt außerhalb des Vertragsablage-Verzeichnisses."));
+        if (!Directory.Exists(zielVoll))
+            return (null, BadRequest($"Zielverzeichnis nicht erreichbar: {zielVerzeichnis}"));
+
+        var mitarbeiterId = await AktuellerMitarbeiterId(ct);
+        if (mitarbeiterId is null)
+            return (null, BadRequest("Für den angemeldeten Benutzer existiert kein Mitarbeiter-Datensatz."));
+
+        // Angebot für „Angebot S0…": gewähltes, sonst neuestes offenes Angebot
+        // (Odoo-Abo im Entwurf), sonst laufendes Abo; 0 = bewusst ohne
+        var angebote = db.Abos.Where(a => a.KundeId == kunde.Id);
+        string? angebotsNummer;
+        if (anlage.AboId == 0)
+            angebotsNummer = null;
+        else if (anlage.AboId is { } aboId)
+        {
+            angebotsNummer = await angebote.Where(a => a.Id == aboId).Select(a => a.Nummer).FirstOrDefaultAsync(ct);
+            if (angebotsNummer is null)
+                return (null, BadRequest("Das gewählte Angebot gehört nicht zu diesem Kunden."));
+        }
+        else
+        {
+            angebotsNummer = await angebote
+                .Where(a => a.Status == Domain.Subscriptions.AboStatus.Entwurf
+                    || a.Status == Domain.Subscriptions.AboStatus.Laufend)
+                .OrderBy(a => a.Status)          // Entwurf (= Angebot) vor Laufend
+                .ThenByDescending(a => a.Id)     // neuestes zuerst
+                .Select(a => a.Nummer)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        // Ansprechpartner für Anrede/Name: gewählter, sonst Hauptansprechpartner
+        Ansprechpartner? ansprechpartner;
+        if (anlage.AnsprechpartnerId is { } apId)
+        {
+            ansprechpartner = kunde.Ansprechpartner.FirstOrDefault(a => a.Id == apId && a.Aktiv);
+            if (ansprechpartner is null)
+                return (null, BadRequest("Der gewählte Ansprechpartner gehört nicht zu diesem Kunden."));
+        }
+        else
+        {
+            ansprechpartner = kunde.Ansprechpartner
+                .Where(a => a.Aktiv)
+                .OrderByDescending(a => a.Rollen.HasFlag(AnsprechpartnerRolle.Hauptansprechpartner))
+                .ThenByDescending(a => a.Rollen != AnsprechpartnerRolle.Keine)
+                .FirstOrDefault();
+        }
+
+        var warnungen = new List<string>();
+        if (!kunde.Adressen.Any(a => a.Typ == AdressTyp.Hauptsitz && a.Aktiv))
+            warnungen.Add("Keine Hauptsitz-Adresse gepflegt — die Anschrift bleibt im Vertrag leer.");
+        if (angebotsNummer is null && anlage.AboId != 0)
+            warnungen.Add("Kein Angebot und kein laufendes Abo — im Vertrag steht „S0____“.");
+        if (ansprechpartner is null)
+            warnungen.Add("Kein Ansprechpartner — Anrede „Sehr geehrte Damen und Herren“.");
+
+        return (new Vorbereitung(version, vorlagenStand, kunde, vorlagenPfad, zielVoll, mitarbeiterId.Value,
+            angebotsNummer, ansprechpartner, PlatzhalterWerte(kunde, angebotsNummer, ansprechpartner), warnungen), null);
+    }
+
+    /// <summary>Alle Platzhalter, die die Vertragserzeugung kennt — für die Prüfung von Vorlagen vor der Freigabe.</summary>
+    internal static IReadOnlyCollection<string> BekanntePlatzhalter { get; } =
+        PlatzhalterWerte(new Kunde { Kundennummer = "", Firmenname = "" }, null, null)
+            .Keys.Where(k => k.StartsWith("{{")).ToList();
+
+    private static Dictionary<string, string> PlatzhalterWerte(Kunde kunde, string? aboNummer, Ansprechpartner? ansprechpartner)
     {
         var hauptsitz = kunde.Adressen.FirstOrDefault(a => a.Typ == AdressTyp.Hauptsitz && a.Aktiv);
-        var ansprechpartner = kunde.Ansprechpartner
-            .Where(a => a.Aktiv)
-            .OrderByDescending(a => a.Rollen.HasFlag(AnsprechpartnerRolle.Hauptansprechpartner))
-            .ThenByDescending(a => a.Rollen != AnsprechpartnerRolle.Keine)
-            .FirstOrDefault();
         return new Dictionary<string, string>
         {
             // {{Platzhalter}} für neue/überarbeitete Vorlagen

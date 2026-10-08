@@ -250,6 +250,10 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int>("Nummer")
                         .HasColumnType("int");
 
+                    b.Property<string>("QuellDateiname")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
                     b.Property<string>("Sha256")
                         .IsRequired()
                         .HasMaxLength(64)
