@@ -30,6 +30,12 @@ public class Mitarbeiter
 
     public MitarbeiterRolle Rollen { get; set; }
 
+    /// <summary>
+    /// Wiki-Themen, die dieser Redakteur pflegen darf (Schlüssel aus WikiThema,
+    /// kommagetrennt). Leer = keine. Wirkt nur mit der Rolle WikiRedaktion.
+    /// </summary>
+    public string? WikiThemen { get; set; }
+
     /// <summary>Deaktivieren statt Löschen — Timeline und Audit-Log referenzieren Mitarbeiter dauerhaft.</summary>
     public bool Aktiv { get; set; } = true;
 }
@@ -50,4 +56,9 @@ public enum MitarbeiterRolle
     /// Administration heißt nicht Einsicht in vertrauliche Verträge.
     /// </summary>
     VertraulicheVertraege = 32,
+    /// <summary>
+    /// Pflegt das Wiki — aber nur die Themen, die in <see cref="Mitarbeiter.WikiThemen"/>
+    /// freigegeben sind (z. B. nur Sanktionslisten). Admin und Compliance dürfen alles.
+    /// </summary>
+    WikiRedaktion = 64,
 }

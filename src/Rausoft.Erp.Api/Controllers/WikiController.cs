@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Rausoft.Erp.Data;
@@ -15,7 +14,7 @@ namespace Rausoft.Erp.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/wiki")]
-public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, IAuthorizationService autorisierung)
+public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienste.WikiBerechtigung berechtigung)
     : ControllerBase
 {
     /// <summary>Regionen in Anzeigereihenfolge — DE und EU zuerst, dann nach Bedeutung für unsere Kunden.</summary>
@@ -65,15 +64,16 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, IAutho
                 : new StandardprozessEintrag(art.ToString(), null, null, null))
             .ToList();
 
-        return Ok(new SanktionslistenKatalog(eintraege, await DarfBearbeitenAsync(),
+        return Ok(new SanktionslistenKatalog(eintraege, await DarfBearbeitenAsync(ct),
             Regionen.Select(r => new RegionEintrag(r.Code, r.Name)).ToList(), standardprozesse));
     }
 
     /// <summary>Standardprozess einer Importart setzen (leer = entfernen).</summary>
-    [Authorize(Policy = "Compliance")]
     [HttpPut("sanktionslisten/standardprozesse/{import}")]
     public async Task<IActionResult> StandardprozessSpeichern(string import, StandardprozessSpeichern daten, CancellationToken ct)
     {
+        if (!await DarfBearbeitenAsync(ct))
+            return KeinZugriff();
         if (!Enum.TryParse<SanktionslistenImport>(import, out var art) || art == SanktionslistenImport.Offen)
             return BadRequest($"Für die Importart '{import}' gibt es keinen Standardprozess.");
         var prozess = await db.SanktionslistenStandardprozesse.FirstOrDefaultAsync(p => p.Import == art, ct);
@@ -100,10 +100,11 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, IAutho
             .Select(m => new PersonAuswahl(m.Id, m.Anzeigename))
             .ToListAsync(ct));
 
-    [Authorize(Policy = "Compliance")]
     [HttpPost("sanktionslisten")]
     public async Task<ActionResult<SanktionslisteEintrag>> Anlegen(SanktionslisteSpeichern daten, CancellationToken ct)
     {
+        if (!await DarfBearbeitenAsync(ct))
+            return KeinZugriff();
         var liste = new Sanktionsliste { Region = "", Name = "" };
         if (await UebernehmenAsync(liste, daten, ct) is { } fehler)
             return BadRequest(fehler);
@@ -112,10 +113,11 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, IAutho
         return Ok(NachEintrag(liste));
     }
 
-    [Authorize(Policy = "Compliance")]
     [HttpPut("sanktionslisten/{id:int}")]
     public async Task<IActionResult> Aendern(int id, SanktionslisteSpeichern daten, CancellationToken ct)
     {
+        if (!await DarfBearbeitenAsync(ct))
+            return KeinZugriff();
         var liste = await db.Sanktionslisten.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (liste is null)
             return NotFound();
@@ -175,8 +177,12 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, IAutho
 
     private static string? Leer(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
-    private async Task<bool> DarfBearbeitenAsync() =>
-        (await autorisierung.AuthorizeAsync(User, "Compliance")).Succeeded;
+    // Pflege-Recht fürs Thema Sanktionslisten: Admin, Compliance oder Wiki-Redaktion mit Freigabe
+    private Task<bool> DarfBearbeitenAsync(CancellationToken ct) =>
+        berechtigung.DarfBearbeitenAsync(WikiThema.Sanktionslisten, ct);
+
+    private ObjectResult KeinZugriff() => StatusCode(StatusCodes.Status403Forbidden,
+        "Sanktionslisten pflegen dürfen Admin, Compliance und Wiki-Redakteure mit Freigabe für dieses Thema (Administration → Benutzer & Rollen).");
 
     private static SanktionslisteEintrag NachEintrag(Sanktionsliste s) => new(
         s.Id, s.Region, Regionen.FirstOrDefault(r => r.Code == s.Region).Name ?? s.Region,

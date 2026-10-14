@@ -66,6 +66,7 @@ public class ErpDbContext(
             e.Property(m => m.WindowsKonto).HasMaxLength(100);
             e.HasIndex(m => m.Email).IsUnique();
             e.Property(m => m.Anzeigename).HasMaxLength(100);
+            e.Property(m => m.WikiThemen).HasMaxLength(500);
             e.HasOne(m => m.Bereich).WithMany().OnDelete(DeleteBehavior.Restrict);
         });
 

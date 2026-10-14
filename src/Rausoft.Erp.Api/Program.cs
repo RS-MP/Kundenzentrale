@@ -57,6 +57,8 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, ComplianceAnforderungHandler>();
+// Wiki: Themen-Freigabe je Redakteur (kein Policy, weil themenabhängig)
+builder.Services.AddScoped<WikiBerechtigung>();
 
 // Blazor WASM (eigener Dev-Port) darf die API in der Entwicklung aufrufen
 builder.Services.AddCors();

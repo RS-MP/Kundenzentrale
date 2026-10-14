@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Rausoft.Erp.Data;
 using Rausoft.Erp.Domain.Shared;
+using Rausoft.Erp.Domain.Wiki;
 using Rausoft.Erp.Dtos;
 
 namespace Rausoft.Erp.Api.Controllers;
@@ -22,10 +23,16 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
         (MitarbeiterRolle.Admin, "Admin"),
         (MitarbeiterRolle.Compliance, "Compliance"),
         (MitarbeiterRolle.VertraulicheVertraege, "Vertrauliche Verträge"),
+        (MitarbeiterRolle.WikiRedaktion, "Wiki-Redaktion"),
         (MitarbeiterRolle.Vertrieb, "Vertrieb"),
         (MitarbeiterRolle.Support, "Support"),
         (MitarbeiterRolle.Buchhaltung, "Buchhaltung"),
     ];
+
+    /// <summary>Wiki-Themen zur Auswahl (für die Rolle Wiki-Redaktion).</summary>
+    [HttpGet("wiki-themen")]
+    public ActionResult<List<WikiThemaEintrag>> WikiThemen() =>
+        Ok(WikiThema.Alle.Select(t => new WikiThemaEintrag(t.Schluessel, t.Name)).ToList());
 
     [HttpGet]
     public async Task<ActionResult<List<MitarbeiterEintrag>>> Liste(CancellationToken ct)
@@ -80,6 +87,9 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
         mitarbeiter.Email = email;
         mitarbeiter.Rollen = rollen;
         mitarbeiter.Aktiv = aenderung.Aktiv;
+        // Wiki-Themen nur bekannte Schlüssel; ohne Rolle Wiki-Redaktion bleibt die Liste wirkungslos
+        var themen = (aenderung.WikiThemen ?? []).Where(WikiThema.IstBekannt).Distinct().ToList();
+        mitarbeiter.WikiThemen = themen.Count == 0 ? null : string.Join(",", themen);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -117,7 +127,8 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
     private static MitarbeiterEintrag NachEintrag(Mitarbeiter m, int? eigeneId) => new(
         m.Id, m.WindowsKonto, m.Anzeigename, m.Email,
         AlleRollen.Where(r => m.Rollen.HasFlag(r.Rolle)).Select(r => r.Name).ToList(),
-        m.Aktiv, m.Id == eigeneId);
+        m.Aktiv, m.Id == eigeneId,
+        Dienste.WikiBerechtigung.Themen(m.WikiThemen).ToList());
 
     internal static MitarbeiterRolle NachRollen(List<string> namen) =>
         AlleRollen.Where(r => namen.Contains(r.Name, StringComparer.OrdinalIgnoreCase))

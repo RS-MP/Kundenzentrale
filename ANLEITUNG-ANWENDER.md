@@ -164,8 +164,15 @@ Land bzw. Region, je Liste offizieller Name, unsere Bezeichnung und andere
 gebräuchliche Namen (Suche findet alle), Beschreibung, Download-Link, wie sie
 importiert wird (Sanction Admin oder von Hand), wer sie überwacht und wer
 vertritt, und der Prozess bei Aktualisierungen — ohne eigenen Prozess gilt der
-**Standardprozess** der Importart (Abschnitt oben). Lesen dürfen alle, pflegen
-Compliance und Admin (Knopf „Bearbeiten" in der aufgeklappten Liste).
+**Standardprozess** der Importart (Abschnitt oben). Lesen dürfen alle.
+
+**Wer darf das Wiki pflegen?** Admin und Compliance alle Themen. Alle anderen
+brauchen die Rolle **Wiki-Redaktion** plus eine Freigabe je Thema: Ein Admin
+hakt unter Benutzer & Rollen bei der Person an, welche Wiki-Themen sie
+bearbeiten darf (z. B. nur „Sanktionslisten"). So kann eine Person die
+Sanktionslisten pflegen und eine andere später Entwicklung oder Buchhaltung.
+Ohne angehaktes Thema kann ein Redakteur nichts bearbeiten. Wer darf, sieht
+in der aufgeklappten Liste den Knopf „Bearbeiten".
 
 ## Wer darf was
 
@@ -173,7 +180,8 @@ Alle Mitarbeiter können mit Kunden und Verträgen arbeiten. Der Bereich
 **Administration** (Einstellungen, Server, Odoo-Import, Benutzer & Rollen,
 Verträge löschen) ist Admins vorbehalten — Rollen vergibt ein Admin unter
 Administration → Benutzer & Rollen. Vertrauliche Verträge sieht vollständig nur,
-wer die Rolle „Vertrauliche Verträge" hat.
+wer die Rolle „Vertrauliche Verträge" hat. Das Wiki pflegen Admin, Compliance
+und Wiki-Redakteure (nur ihre freigegebenen Themen).
 
 ## Bei Problemen
 

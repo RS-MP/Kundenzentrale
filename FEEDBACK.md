@@ -417,6 +417,14 @@ Liste pflegen.
 Importart (mit Hinweis), ein eigener Prozess hat Vorrang und wird als
 Abweichung gekennzeichnet.
 
+**Pflege-Rechte** (14.10.2026, MP: Variante 2 mit Themen-Zuschnitt): neue Rolle
+**Wiki-Redaktion**; je Redakteur werden die bearbeitbaren Wiki-Themen einzeln
+freigegeben (Benutzer & Rollen, Feld `WikiThemen`), damit z. B. eine Person nur
+Sanktionslisten pflegt und eine andere später Entwicklung oder Buchhaltung.
+Admin und Compliance dürfen alle Themen. Neue Themen werden in
+`Domain/Wiki/WikiThema.cs` registriert und tauchen dann automatisch in der
+Themen-Auswahl auf. Serverseitig geprüft (`Dienste/WikiBerechtigung`).
+
 Status: umgesetzt · Pflege der Inhalte offen
 
 ## Backlog (Aufgaben beim Nutzer / für später)

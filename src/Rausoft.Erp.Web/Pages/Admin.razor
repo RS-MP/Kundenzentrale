@@ -136,6 +136,7 @@
             <b>Admin</b> schaltet diesen Bereich, Server-Verwaltung und Vertrags-Löschung frei;
             <b>Compliance</b> gibt Vertragsvorlagen frei (Admins dürfen das auch).
             <b>Vertrauliche Verträge</b> sieht vertrauliche Bestandteile (Sondervereinbarungen, Partnerverträge) vollständig — Admins nicht automatisch.
+            <b>Wiki-Redaktion</b> pflegt das Wiki — nur die freigegebenen Themen (Admin und Compliance pflegen alle).
         </div>
         @if (_mitarbeiter is null)
         {
@@ -188,6 +189,24 @@
                             <input type="checkbox" @bind="_mitarbAktiv" disabled="@_mitarbBearb.IstIch" /> aktiv
                         </label>
                     </div>
+                    @if (_mitarbRollen.Contains("Wiki-Redaktion"))
+                    {
+                        <div style="margin-top:8px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:13px; color:var(--ink2)">
+                            <span>Wiki-Themen, die diese Person pflegen darf:</span>
+                            @foreach (var thema in _wikiThemen)
+                            {
+                                <label style="display:flex; gap:4px; align-items:center">
+                                    <input type="checkbox" checked="@_mitarbWikiThemen.Contains(thema.Schluessel)"
+                                           @onchange="e => WikiThemaUmschalten(thema.Schluessel, e.Value is true)" />
+                                    @thema.Name
+                                </label>
+                            }
+                            @if (_mitarbWikiThemen.Count == 0)
+                            {
+                                <span class="warntext" style="font-size:12.5px">ohne Thema kann die Person nichts bearbeiten</span>
+                            }
+                        </div>
+                    }
                 }
                 <div class="formular-aktionen">
                     <button class="knopf" @onclick="MitarbeiterSpeichernAsync">@(_mitarbBearb is null ? "Anlegen" : "Speichern")</button>
@@ -366,7 +385,9 @@
     private OdooImportStatus? _odooImport;
     private readonly CancellationTokenSource _seiteVerlassen = new();
 
-    private static readonly string[] AlleRollen = ["Admin", "Compliance", "Vertrauliche Verträge", "Vertrieb", "Support", "Buchhaltung"];
+    private static readonly string[] AlleRollen = ["Admin", "Compliance", "Vertrauliche Verträge", "Wiki-Redaktion", "Vertrieb", "Support", "Buchhaltung"];
+    private List<WikiThemaEintrag> _wikiThemen = [];
+    private HashSet<string> _mitarbWikiThemen = [];
     private List<MitarbeiterEintrag>? _mitarbeiter;
     private MitarbeiterEintrag? _mitarbBearb;
     private bool _mitarbFormOffen;
@@ -418,6 +439,7 @@
                 _werte[einstellung.Schluessel] = einstellung.Wert;
             await ServerLadenAsync();
             _mitarbeiter = await Http.GetFromJsonAsync<List<MitarbeiterEintrag>>("api/mitarbeiter") ?? [];
+            _wikiThemen = await Http.GetFromJsonAsync<List<WikiThemaEintrag>>("api/mitarbeiter/wiki-themen") ?? [];
             var geheimnisse = await Http.GetFromJsonAsync<List<GeheimnisStatus>>("api/server/geheimnisse") ?? [];
             _tokenGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "ServicePortal.PushToken")?.GesetztAm;
             _odooKeyGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "Odoo.ApiKey")?.GesetztAm;
@@ -672,6 +694,13 @@
         _mitarbEmail = person.Email;
         _mitarbAktiv = person.Aktiv;
         _mitarbRollen = person.Rollen.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _mitarbWikiThemen = person.WikiThemen.ToHashSet();
+    }
+
+    private void WikiThemaUmschalten(string schluessel, bool an)
+    {
+        if (an) _mitarbWikiThemen.Add(schluessel);
+        else _mitarbWikiThemen.Remove(schluessel);
     }
 
     private void NeuerMitarbeiter()
@@ -702,7 +731,7 @@
             var antwort = _mitarbBearb is null
                 ? await Http.PostAsJsonAsync("api/mitarbeiter", new MitarbeiterAnlegen(_mitarbKonto, _mitarbName))
                 : await Http.PutAsJsonAsync($"api/mitarbeiter/{_mitarbBearb.Id}",
-                    new MitarbeiterAendern(_mitarbName, _mitarbEmail, _mitarbRollen.ToList(), _mitarbAktiv));
+                    new MitarbeiterAendern(_mitarbName, _mitarbEmail, _mitarbRollen.ToList(), _mitarbAktiv, _mitarbWikiThemen.ToList()));
             if (!antwort.IsSuccessStatusCode)
             {
                 _fehler = await antwort.Content.ReadAsStringAsync();
