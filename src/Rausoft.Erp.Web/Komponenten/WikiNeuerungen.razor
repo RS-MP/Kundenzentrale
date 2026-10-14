@@ -1,0 +1,234 @@
+@inject HttpClient Http
+
+@*
+   Neuerungen eines Wiki-Themas: die jüngste steht oben auf der Themenseite,
+   ältere sind einklappbar. Beim Anzeigen wird „gesehen" protokolliert; bei
+   Bestätigungspflicht bleibt der Hinweis stehen, bis der Benutzer „Gelesen"
+   drückt. Zuständige sehen, wer gelesen/bestätigt hat und wer fehlt.
+*@
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (DarfBearbeiten && _formular is not null)
+{
+    <div class="karte" style="margin-bottom:16px">
+        <div class="karte-koerper">
+            <b>@(_formular.Id is null ? "Neuerung erfassen" : "Neuerung bearbeiten")</b>
+            <div class="formular" style="margin-top:10px">
+                <label class="breit">
+                    Titel
+                    <input type="text" maxlength="200" @bind="_formular.Titel" placeholder="z. B. Preisliste Version 23 · zwei neue Add-ons" />
+                </label>
+                <label class="breit">
+                    Was hat sich geändert? (für alle Leser)
+                    <textarea rows="6" @bind="_formular.Text"></textarea>
+                </label>
+                <label class="breit" style="flex-direction:row; align-items:center; gap:8px">
+                    <input type="checkbox" @bind="_formular.BestaetigungErforderlich" />
+                    Lesebestätigung erforderlich — jeder Mitarbeiter muss „Gelesen" bestätigen, der Hinweis bleibt bis dahin stehen
+                </label>
+            </div>
+            <div class="formular-aktionen">
+                <button class="knopf" disabled="@_sende" @onclick="SpeichernAsync">Speichern</button>
+                <button class="knopf sekundaer" @onclick="() => _formular = null">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_neuerungen is { Count: > 0 })
+{
+    var neueste = _neuerungen[0];
+    @NeuerungKarte(neueste, true)
+
+    @if (_neuerungen.Count > 1)
+    {
+        <details class="gruppe" style="margin-bottom:16px">
+            <summary>Frühere Neuerungen<span class="zahl">@(_neuerungen.Count - 1)</span></summary>
+            <div class="gruppe-inhalt" style="display:flex; flex-direction:column; gap:12px">
+                @foreach (var n in _neuerungen.Skip(1))
+                {
+                    @NeuerungKarte(n, false)
+                }
+            </div>
+        </details>
+    }
+}
+else if (_neuerungen is not null && DarfBearbeiten && _formular is null)
+{
+    <div class="neben" style="margin-bottom:12px">Noch keine Neuerung erfasst.</div>
+}
+
+@if (DarfBearbeiten && _formular is null)
+{
+    <div style="margin:-6px 0 16px">
+        <button class="knopf sekundaer klein" @onclick="() => _formular = new()">+ Neuerung erfassen</button>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Thema { get; set; } = "";
+    [Parameter] public bool DarfBearbeiten { get; set; }
+
+    private List<WikiNeuerungEintrag>? _neuerungen;
+    private Formular? _formular;
+    private bool _sende;
+    private string? _fehler;
+    private readonly HashSet<int> _leserOffen = [];
+
+    private class Formular
+    {
+        public int? Id { get; set; }
+        public string Titel { get; set; } = "";
+        public string Text { get; set; } = "";
+        public bool BestaetigungErforderlich { get; set; }
+    }
+
+    protected override Task OnParametersSetAsync() => LadenAsync();
+
+    public async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _neuerungen = await Http.GetFromJsonAsync<List<WikiNeuerungEintrag>>($"api/wiki/themen/{Thema}/neuerungen") ?? [];
+            // Die jüngste Neuerung wurde angezeigt → „gesehen" festhalten (einmalig)
+            if (_neuerungen.Count > 0 && _neuerungen[0].VonMirGesehenAm is null)
+            {
+                await Http.PostAsync($"api/wiki/themen/{Thema}/neuerungen/{_neuerungen[0].Id}/gesehen", null);
+                _neuerungen[0] = _neuerungen[0] with { VonMirGesehenAm = DateTime.UtcNow, Gesehen = _neuerungen[0].Gesehen + 1 };
+            }
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Neuerungen konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private RenderFragment NeuerungKarte(WikiNeuerungEintrag n, bool hervorheben) => @<div class="karte wiki-neuerung @(hervorheben ? "aktuell" : "") @(n.BestaetigungErforderlich && n.VonMirBestaetigtAm is null ? "offen" : "")">
+        <div class="karte-koerper">
+            <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap">
+                <b style="font-size:14.5px">@n.Titel</b>
+                @if (n.BestaetigungErforderlich)
+                {
+                    <span class="pill @(n.VonMirBestaetigtAm is null ? "warntext" : "")" title="Jeder Mitarbeiter muss das Lesen bestätigen">
+                        @(n.VonMirBestaetigtAm is null ? "Lesebestätigung erforderlich" : $"von mir bestätigt am {n.VonMirBestaetigtAm.Value.ToLocalTime():dd.MM.yyyy}")
+                    </span>
+                }
+                <span style="flex:1"></span>
+                <span class="neben" style="display:inline">@n.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")@(n.ErstelltVon is not null ? $" · {n.ErstelltVon}" : "")</span>
+            </div>
+            <div class="wiki-neuerung-text">@n.Text</div>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px">
+                @if (n.BestaetigungErforderlich && n.VonMirBestaetigtAm is null)
+                {
+                    <button class="knopf" @onclick="() => BestaetigenAsync(n.Id)">Gelesen — bestätigen</button>
+                }
+                @if (n.Lesungen is not null)
+                {
+                    <button class="mehr" @onclick="() => LeserUmschalten(n.Id)">
+                        @(n.BestaetigungErforderlich ? $"bestätigt {n.Bestaetigt} von {n.LeserGesamt}" : $"gesehen {n.Gesehen} von {n.LeserGesamt}")
+                        @(_leserOffen.Contains(n.Id) ? " ▾" : " ▸")
+                    </button>
+                }
+                else
+                {
+                    <span class="neben" style="display:inline">@(n.BestaetigungErforderlich ? $"bestätigt {n.Bestaetigt} von {n.LeserGesamt}" : $"gesehen {n.Gesehen} von {n.LeserGesamt}")</span>
+                }
+                @if (DarfBearbeiten)
+                {
+                    <span style="flex:1"></span>
+                    <button class="knopf sekundaer klein" @onclick="() => Bearbeiten(n)">Bearbeiten</button>
+                    <button class="knopf sekundaer klein" @onclick="() => LoeschenAsync(n.Id)">Löschen</button>
+                }
+            </div>
+            @if (n.Lesungen is not null && _leserOffen.Contains(n.Id))
+            {
+                <table class="liste wiki-leser" style="margin-top:8px">
+                    <thead><tr><th>Mitarbeiter</th><th style="width:150px">Gesehen</th>@if (n.BestaetigungErforderlich) { <th style="width:150px">Bestätigt</th> }</tr></thead>
+                    <tbody>
+                        @foreach (var l in n.Lesungen)
+                        {
+                            <tr style="cursor:default" class="@(n.BestaetigungErforderlich ? (l.BestaetigtAm is null ? "fehlt" : "") : (l.GesehenAm is null ? "fehlt" : ""))">
+                                <td>@l.Name</td>
+                                <td>@(l.GesehenAm?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
+                                @if (n.BestaetigungErforderlich) { <td>@(l.BestaetigtAm?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "noch nicht")</td> }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>;
+
+    private void LeserUmschalten(int id)
+    {
+        if (!_leserOffen.Remove(id))
+            _leserOffen.Add(id);
+    }
+
+    private async Task BestaetigenAsync(int id)
+    {
+        _fehler = null;
+        var antwort = await Http.PostAsync($"api/wiki/themen/{Thema}/neuerungen/{id}/bestaetigt", null);
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        await LadenAsync();
+        WikiHinweisSignal.Melden();
+        await Geaendert.InvokeAsync();
+    }
+
+    private void Bearbeiten(WikiNeuerungEintrag n) =>
+        _formular = new Formular { Id = n.Id, Titel = n.Titel, Text = n.Text, BestaetigungErforderlich = n.BestaetigungErforderlich };
+
+    private async Task SpeichernAsync()
+    {
+        if (_formular is null)
+            return;
+        _fehler = null;
+        _sende = true;
+        try
+        {
+            var daten = new WikiNeuerungSpeichern(_formular.Titel, _formular.Text, _formular.BestaetigungErforderlich);
+            var antwort = _formular.Id is null
+                ? await Http.PostAsJsonAsync($"api/wiki/themen/{Thema}/neuerungen", daten)
+                : await Http.PutAsJsonAsync($"api/wiki/themen/{Thema}/neuerungen/{_formular.Id}", daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _formular = null;
+            await LadenAsync();
+            WikiHinweisSignal.Melden();
+        await Geaendert.InvokeAsync();
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private async Task LoeschenAsync(int id)
+    {
+        _fehler = null;
+        var antwort = await Http.DeleteAsync($"api/wiki/themen/{Thema}/neuerungen/{id}");
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        await LadenAsync();
+        WikiHinweisSignal.Melden();
+        await Geaendert.InvokeAsync();
+    }
+
+    /// <summary>Wird nach Bestätigen/Speichern ausgelöst — z. B. damit das Abzeichen in der Navigation nachzieht.</summary>
+    [Parameter] public EventCallback Geaendert { get; set; }
+}

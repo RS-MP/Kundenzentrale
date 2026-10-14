@@ -35,6 +35,21 @@ else
                         <div class="karte-koerper">
                             <h2>@thema.Name @if (thema.DarfBearbeiten) { <span class="pill" title="Sie dürfen dieses Thema pflegen">Redaktion</span> }</h2>
                             <p>@seite.Beschreibung</p>
+                            @if (thema.UnbestaetigteNeuerungen > 0 || thema.OffeneMeldungen > 0)
+                            {
+                                <p style="margin-top:8px">
+                                    @if (thema.UnbestaetigteNeuerungen > 0)
+                                    {
+                                        <span class="abzeichen" title="Neuerungen, deren Lesen Sie noch bestätigen müssen">@thema.UnbestaetigteNeuerungen</span>
+                                        <span class="neben" style="display:inline"> @(thema.UnbestaetigteNeuerungen == 1 ? "Neuerung" : "Neuerungen") zu bestätigen</span>
+                                    }
+                                    @if (thema.OffeneMeldungen > 0)
+                                    {
+                                        <span class="abzeichen @(thema.BinZustaendig ? "" : "ruhig")" title="@(thema.BinZustaendig ? "Offene Meldungen — Sie sind zuständig" : "Offene Meldungen")">@thema.OffeneMeldungen</span>
+                                        <span class="neben" style="display:inline"> offene @(thema.OffeneMeldungen == 1 ? "Meldung" : "Meldungen")@(thema.BinZustaendig ? " — Sie sind zuständig" : "")</span>
+                                    }
+                                </p>
+                            }
                         </div>
                     </a>
                 }

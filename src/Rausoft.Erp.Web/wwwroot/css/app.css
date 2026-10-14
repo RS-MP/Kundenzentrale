@@ -455,3 +455,36 @@ a.wiki-thema:hover { border-color: var(--accent-line); }
 .pl-anordnen-nr { width: 22px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
 .pl-anordnen-knoepfe { display: flex; gap: 4px; }
 .pl-anordnen-knoepfe .knopf { min-width: 30px; padding: 2px 6px; }
+
+/* Wiki: Neuerungen (oben auf der Themenseite) */
+.wiki-neuerung { margin-bottom: 16px; }
+.wiki-neuerung.aktuell { border-color: var(--accent-line); }
+.wiki-neuerung.offen { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
+.wiki-neuerung-text { white-space: pre-wrap; margin-top: 8px; font-size: 13.5px; line-height: 1.5; }
+.wiki-leser td { padding-top: 4px; padding-bottom: 4px; font-size: 13px; }
+.wiki-leser tr.fehlt td { color: var(--warn); }
+
+/* Wiki: Meldungen */
+.wiki-meldungen { display: flex; flex-direction: column; gap: 8px; }
+.wiki-meldung { padding: 8px 10px; border-radius: 7px; background: var(--surface2); font-size: 13.5px; }
+.wiki-meldung.erledigt { opacity: .7; }
+.wiki-meldung-antwort { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+
+/* Wiki: Abzeichen in Navigation und auf der Startseite */
+.abzeichen {
+  display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 999px; margin-left: auto;
+  font-size: 11.5px; font-weight: 600; line-height: 18px; text-align: center;
+  color: var(--warn); border: 1px solid var(--warn); font-variant-numeric: tabular-nums;
+}
+.wiki-thema .abzeichen { margin-left: 6px; vertical-align: middle; }
+.wiki-thema .abzeichen.ruhig { color: var(--muted); border-color: var(--border-strong); }
+
+/* Wiki Preisliste: automatischer Vergleich mit der Vorversion */
+.pl-vergleich-abschnitt { font-weight: 600; font-size: 13px; margin-top: 8px; }
+.pl-vergleich-abschnitt:first-child { margin-top: 0; }
+.pl-vergleich { list-style: none; margin: 4px 0 0; padding: 0; font-size: 13.5px; }
+.pl-vergleich li { display: flex; gap: 10px; align-items: baseline; padding: 2px 0; }
+.pl-vergleich-art { flex-shrink: 0; width: 64px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.pl-vergleich li.neu .pl-vergleich-art { color: var(--good); }
+.pl-vergleich li.entfernt .pl-vergleich-art { color: var(--warn); }
+.pl-anordnen-offen { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); white-space: nowrap; cursor: pointer; }

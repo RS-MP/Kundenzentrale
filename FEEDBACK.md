@@ -464,7 +464,26 @@ WorldCheck jetzt vor die Begriffe intern ↔ extern. Die Listen Thema | Text
 (Sicherheit, Vertriebshinweise, Argumente) stehen **linksbündig** in zwei
 Spalten statt rechtsbündig; interne Texte als eigene Zeile mit Kennzeichen.
 
-Status: umgesetzt · Pflege der Inhalte offen · Dokument-Freigabe über das Wiki offen
+**Neuerungen, Lesebestätigung, Meldungen** (14.10.2026, MP): Abschnitte der
+Preisliste sind standardmäßig **eingeklappt**; die Redaktion wählt im
+Anordnen-Fenster je Abschnitt „ausgeklappt". Oben auf der Themenseite stehen
+**Neuerungen** (Titel, Text, Kennzeichen „Lesebestätigung erforderlich"):
+beim Import wird „Was ist neu" abgefragt (plus optionale Liste `aenderungen`
+aus dem Export), Neuerungen sind auch nachträglich erfassbar/änderbar. Ohne
+Pflicht wird nur protokolliert, wer sie gesehen hat; mit Pflicht bleibt der
+Hinweis stehen, bis „Gelesen — bestätigen" gedrückt wurde. Zuständige sehen
+**wer gelesen/bestätigt hat und wer fehlt** (Tabelle je Neuerung).
+**Automatischer Vergleich** mit der Vorversion (neu / entfernt / geändert je
+Abschnitt, auf die Sichtbarkeit des Lesers gefiltert, Unit-Tests). **Meldungen**:
+jeder Mitarbeiter meldet auf der Themenseite, dass etwas fehlt oder falsch ist
+(Bezug + Text); Verantwortlicher, Vertretung und Redaktion sehen offene
+Meldungen als Abzeichen in der Navigation, auf der Wiki-Startseite und auf der
+Seite und erledigen sie mit Antwort. Unbestätigte Pflicht-Neuerungen zählen
+beim Betroffenen ebenfalls ins Abzeichen. Bausteine sind je Thema
+wiederverwendbar (`WikiNeuerungen`, `WikiMeldungen`). **Offen:** E-Mail an den
+Verantwortlichen, sobald SMTP eingerichtet ist (heute nur In-App-Hinweis).
+
+Status: umgesetzt · Pflege der Inhalte offen · Dokument-Freigabe über das Wiki offen · E-Mail-Benachrichtigung offen (SMTP)
 
 ## Backlog (Aufgaben beim Nutzer / für später)
 

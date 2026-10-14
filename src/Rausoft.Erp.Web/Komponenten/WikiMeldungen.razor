@@ -1,0 +1,210 @@
+@inject HttpClient Http
+
+@*
+   Meldungen zu einem Wiki-Thema: jeder Mitarbeiter kann melden, dass etwas
+   fehlt oder falsch ist. Verantwortlicher, Vertretung und Redaktion sehen die
+   offenen Meldungen (auch in der Navigation) und erledigen sie mit Antwort.
+*@
+
+<details class="gruppe" open="@(_meldungen?.Eintraege.Any(m => m.ErledigtAm is null) == true || _formularOffen)">
+    <summary>
+        Meldungen — fehlt etwas oder ist etwas falsch?
+        @if (_meldungen is not null)
+        {
+            var offen = _meldungen.Eintraege.Count(m => m.ErledigtAm is null);
+            <span class="zahl">@(offen > 0 ? $"{offen} offen" : _meldungen.Eintraege.Count > 0 ? "alle erledigt" : "keine")</span>
+        }
+    </summary>
+    <div class="gruppe-inhalt">
+        @if (_fehler is not null)
+        {
+            <div class="fehler">@_fehler</div>
+        }
+        @if (_meldungen is null)
+        {
+            <div style="color:var(--muted)">Lade …</div>
+        }
+        else
+        {
+            <div class="neben" style="margin-bottom:10px">
+                Meldungen gehen an
+                @(_meldungen.Verantwortlich ?? "die Redaktion")@(_meldungen.Vertreter is not null ? $" (Vertretung: {_meldungen.Vertreter})" : "")
+                — sie erscheinen dort sofort in der Navigation und hier auf der Seite.
+            </div>
+
+            @if (_formularOffen)
+            {
+                <div class="formular">
+                    @if (Bezuege.Count > 0)
+                    {
+                        <label>
+                            Bezug
+                            <select @bind="_bezug">
+                                <option value="">Allgemein</option>
+                                @foreach (var b in Bezuege) { <option value="@b">@b</option> }
+                            </select>
+                        </label>
+                    }
+                    else
+                    {
+                        <label>
+                            Bezug (optional)
+                            <input type="text" maxlength="200" @bind="_bezug" placeholder="z. B. Liste, Abschnitt" />
+                        </label>
+                    }
+                    <label class="breit">
+                        Was fehlt oder ist falsch?
+                        <textarea rows="4" @bind="_text"></textarea>
+                    </label>
+                </div>
+                <div class="formular-aktionen">
+                    <button class="knopf" disabled="@_sende" @onclick="MeldenAsync">Meldung absenden</button>
+                    <button class="knopf sekundaer" @onclick="() => _formularOffen = false">Abbrechen</button>
+                </div>
+            }
+            else
+            {
+                <button class="knopf sekundaer klein" @onclick="() => _formularOffen = true">+ Melden</button>
+            }
+
+            @if (_meldungen.Eintraege.Count > 0)
+            {
+                <div class="wiki-meldungen" style="margin-top:12px">
+                    @foreach (var m in _meldungen.Eintraege)
+                    {
+                        <div class="wiki-meldung @(m.ErledigtAm is null ? "offen" : "erledigt")">
+                            <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap">
+                                <span class="pill @(m.ErledigtAm is null ? "warntext" : "")">@(m.ErledigtAm is null ? "offen" : "erledigt")</span>
+                                @if (m.Bezug is not null) { <b>@m.Bezug</b> }
+                                <span class="neben" style="display:inline">@m.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm")@(m.ErstelltVon is not null ? $" · {m.ErstelltVon}" : "")</span>
+                            </div>
+                            <div style="white-space:pre-wrap; margin-top:4px">@m.Text</div>
+                            @if (m.ErledigtAm is not null)
+                            {
+                                <div class="wiki-meldung-antwort">
+                                    <span class="neben" style="display:inline">Erledigt @m.ErledigtAm.Value.ToLocalTime().ToString("dd.MM.yyyy")@(m.ErledigtVon is not null ? $" von {m.ErledigtVon}" : "")</span>
+                                    @if (m.Antwort is not null) { <div style="white-space:pre-wrap">@m.Antwort</div> }
+                                    @if (_meldungen.DarfErledigen) { <button class="mehr" @onclick="() => WiederOeffnenAsync(m.Id)">wieder öffnen</button> }
+                                </div>
+                            }
+                            else if (_meldungen.DarfErledigen)
+                            {
+                                @if (_erledigeId == m.Id)
+                                {
+                                    <div class="formular" style="margin-top:8px">
+                                        <label class="breit">
+                                            Antwort an den Melder (was wurde geändert / warum nicht)
+                                            <textarea rows="3" @bind="_antwort"></textarea>
+                                        </label>
+                                    </div>
+                                    <div class="formular-aktionen">
+                                        <button class="knopf" disabled="@_sende" @onclick="() => ErledigenAsync(m.Id)">Als erledigt markieren</button>
+                                        <button class="knopf sekundaer" @onclick="() => _erledigeId = null">Abbrechen</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <button class="mehr" @onclick="() => { _erledigeId = m.Id; _antwort = string.Empty; }">erledigen …</button>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</details>
+
+@code {
+    [Parameter, EditorRequired] public string Thema { get; set; } = "";
+    /// <summary>Auswahl für „Bezug" (z. B. Abschnitte der Seite); leer = Freitext.</summary>
+    [Parameter] public List<string> Bezuege { get; set; } = [];
+    /// <summary>Wird nach Melden/Erledigen ausgelöst — z. B. damit das Abzeichen in der Navigation nachzieht.</summary>
+    [Parameter] public EventCallback Geaendert { get; set; }
+
+    private WikiMeldungenAntwort? _meldungen;
+    private bool _formularOffen;
+    private string _bezug = "";
+    private string _text = "";
+    private int? _erledigeId;
+    private string _antwort = "";
+    private bool _sende;
+    private string? _fehler;
+
+    protected override Task OnParametersSetAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _meldungen = await Http.GetFromJsonAsync<WikiMeldungenAntwort>($"api/wiki/themen/{Thema}/meldungen");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Meldungen konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task MeldenAsync()
+    {
+        _fehler = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync($"api/wiki/themen/{Thema}/meldungen", new WikiMeldungSpeichern(_bezug, _text));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _formularOffen = false;
+            _text = "";
+            _bezug = "";
+            await LadenAsync();
+            WikiHinweisSignal.Melden();
+        await Geaendert.InvokeAsync();
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private async Task ErledigenAsync(int id)
+    {
+        _fehler = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/wiki/themen/{Thema}/meldungen/{id}/erledigt", new WikiMeldungErledigen(_antwort));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _erledigeId = null;
+            await LadenAsync();
+            WikiHinweisSignal.Melden();
+        await Geaendert.InvokeAsync();
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private async Task WiederOeffnenAsync(int id)
+    {
+        _fehler = null;
+        var antwort = await Http.PutAsync($"api/wiki/themen/{Thema}/meldungen/{id}/offen", null);
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        await LadenAsync();
+        WikiHinweisSignal.Melden();
+        await Geaendert.InvokeAsync();
+    }
+}

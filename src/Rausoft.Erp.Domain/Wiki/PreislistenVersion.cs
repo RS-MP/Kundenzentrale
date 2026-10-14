@@ -62,6 +62,12 @@ public class WikiThemaInfo
     /// </summary>
     public string? Abschnitte { get; set; }
 
+    /// <summary>
+    /// Abschnitte, die beim Öffnen der Seite ausgeklappt sind (Schlüssel durch
+    /// Komma). null/leer = alle eingeklappt (Entscheidung MP 14.10.2026).
+    /// </summary>
+    public string? AbschnitteOffen { get; set; }
+
     public DateTime? GeaendertAm { get; set; }
     public int? GeaendertVonId { get; set; }
     public Mitarbeiter? GeaendertVon { get; set; }

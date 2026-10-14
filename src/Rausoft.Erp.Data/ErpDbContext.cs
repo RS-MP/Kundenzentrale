@@ -43,6 +43,9 @@ public class ErpDbContext(
     public DbSet<SanktionslistenStandardprozess> SanktionslistenStandardprozesse => Set<SanktionslistenStandardprozess>();
     public DbSet<PreislistenVersion> PreislistenVersionen => Set<PreislistenVersion>();
     public DbSet<WikiThemaInfo> WikiThemaInfos => Set<WikiThemaInfo>();
+    public DbSet<WikiNeuerung> WikiNeuerungen => Set<WikiNeuerung>();
+    public DbSet<WikiNeuerungLesung> WikiNeuerungLesungen => Set<WikiNeuerungLesung>();
+    public DbSet<WikiMeldung> WikiMeldungen => Set<WikiMeldung>();
 
     // Abos
     public DbSet<Abo> Abos => Set<Abo>();
@@ -359,9 +362,35 @@ public class ErpDbContext(
             e.Property(i => i.Thema).HasMaxLength(50);
             e.Property(i => i.Prozess).HasColumnType("nvarchar(max)");
             e.Property(i => i.Abschnitte).HasMaxLength(500);
+            e.Property(i => i.AbschnitteOffen).HasMaxLength(500);
             e.HasOne(i => i.Verantwortlich).WithMany().HasForeignKey(i => i.VerantwortlichId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(i => i.Vertreter).WithMany().HasForeignKey(i => i.VertreterId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(i => i.GeaendertVon).WithMany().HasForeignKey(i => i.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<WikiNeuerung>(e =>
+        {
+            e.HasIndex(n => n.Thema);
+            e.Property(n => n.Thema).HasMaxLength(50);
+            e.Property(n => n.Titel).HasMaxLength(200);
+            e.Property(n => n.Text).HasColumnType("nvarchar(max)");
+            e.HasOne(n => n.PreislistenVersion).WithMany().HasForeignKey(n => n.PreislistenVersionId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(n => n.ErstelltVon).WithMany().HasForeignKey(n => n.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<WikiNeuerungLesung>(e =>
+        {
+            e.HasIndex(l => new { l.NeuerungId, l.MitarbeiterId }).IsUnique();
+            e.HasOne(l => l.Neuerung).WithMany(n => n.Lesungen).HasForeignKey(l => l.NeuerungId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(l => l.Mitarbeiter).WithMany().HasForeignKey(l => l.MitarbeiterId).OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<WikiMeldung>(e =>
+        {
+            e.HasIndex(m => new { m.Thema, m.ErledigtAm });
+            e.Property(m => m.Thema).HasMaxLength(50);
+            e.Property(m => m.Bezug).HasMaxLength(200);
+            e.Property(m => m.Text).HasColumnType("nvarchar(max)");
+            e.Property(m => m.Antwort).HasColumnType("nvarchar(max)");
+            e.HasOne(m => m.ErstelltVon).WithMany().HasForeignKey(m => m.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(m => m.ErledigtVon).WithMany().HasForeignKey(m => m.ErledigtVonId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<VorlagenVersion>(e =>

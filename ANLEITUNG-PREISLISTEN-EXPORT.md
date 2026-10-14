@@ -56,6 +56,10 @@ Feld, gilt `extern`. Beispielwerte unten sind Platzhalter, keine echten Preise.
   "gueltigAb": "2026-10-01",
   "waehrung": "EUR",
   "konditionen": "Alle Preise pro Monat, zzgl. MwSt., Abrechnung jährlich im Voraus.",
+  "aenderungen": [
+    "Neues Add-on Insolvenzmonitor (ab 01.01.2027).",
+    "REST-API ab PROFESSIONAL inklusive, Add-on entfällt."
+  ],
   "dokumente": {
     "intern": "ID.prove_SaaS_Preisliste_v22.pdf",
     "extern": "ID.prove_SaaS_Preisuebersicht_Kunde_v22.pdf"
@@ -188,6 +192,11 @@ Feld, gilt `extern`. Beispielwerte unten sind Platzhalter, keine echten Preise.
   SECO, OFSI, CASL, OeNB, FR-GEL, WBL, UEL, SG-MAS, AUCL, NLNST, BENS, PLSL,
   CZNSL. Damit kann die Kundenzentrale je Liste anzeigen, in welchem Paket sie
   steckt.
+- `aenderungen` (optional, seit 14.10.2026): Liste kurzer Sätze, was sich
+  gegenüber der Vorversion geändert hat — in Worten, für alle Mitarbeiter
+  lesbar (keine internen Preise). Die Kundenzentrale zeigt sie als „Neuerung"
+  oben auf der Wiki-Seite und hält fest, wer sie gelesen hat; zusätzlich
+  vergleicht sie beide Versionen automatisch (neu / entfernt / geändert).
 - Texte in der JSON sind Fließtext ohne Markdown. Zeilenumbrüche innerhalb
   eines Textes als `\n`.
 - UTF-8, keine BOM, eingerückt (2 Leerzeichen), damit Unterschiede zwischen

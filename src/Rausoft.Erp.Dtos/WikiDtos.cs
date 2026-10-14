@@ -70,4 +70,13 @@ public record SanktionslisteSpeichern(
 public record PersonAuswahl(int Id, string Name);
 
 /// <summary>Thema auf der Wiki-Startseite, gruppiert nach Bereich.</summary>
-public record WikiThemaUebersicht(string Schluessel, string Name, string Bereich, bool DarfBearbeiten);
+public record WikiThemaUebersicht(
+    string Schluessel,
+    string Name,
+    string Bereich,
+    bool DarfBearbeiten,
+    // Für den angemeldeten Benutzer: Neuerungen, die er noch bestätigen muss
+    int UnbestaetigteNeuerungen,
+    // Offene Meldungen — für alle sichtbar; „BinZustaendig" hebt sie beim Verantwortlichen/Vertreter/Redakteur hervor
+    int OffeneMeldungen,
+    bool BinZustaendig);

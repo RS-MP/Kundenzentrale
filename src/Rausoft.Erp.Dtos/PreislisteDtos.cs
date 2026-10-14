@@ -67,7 +67,9 @@ public record PreislisteDaten(
     List<PreislisteHinweis>? Vertriebshinweise,
     List<PreislisteSicherheit>? Sicherheit,
     List<PreislisteHinweis>? WarumIdprove,
-    PreislisteText? Onprem);
+    PreislisteText? Onprem,
+    // Optional: Änderungen dieser Version in Worten des Preislisten-Projekts
+    List<string>? Aenderungen = null);
 
 public record PreislisteDokumente(string? Intern, string? Extern);
 
@@ -189,7 +191,217 @@ public record PreislisteAnsicht(
     bool DarfBearbeiten,
     // UNC-Ordner mit den PDFs (Einstellung Preisliste.Verzeichnis), für „Ordner öffnen"
     string? Verzeichnis,
-    List<PreislisteVersionEintrag> Historie);
+    List<PreislisteVersionEintrag> Historie,
+    // Automatischer Vergleich mit der nächstälteren Version (null = keine Vorversion)
+    PreislisteVergleichErgebnis? Vergleich);
+
+/// <summary>Eine erkannte Änderung zwischen zwei Preislisten-Versionen. Art: neu · entfernt · geaendert.</summary>
+public record PreislisteAenderung(string Abschnitt, string Art, string Text);
+
+public record PreislisteVergleichErgebnis(int VergleichsVersion, List<PreislisteAenderung> Aenderungen);
+
+/// <summary>
+/// Vergleicht zwei Preislisten-Versionen und benennt, was neu, entfernt oder
+/// geändert ist — je Abschnitt, in lesbaren Sätzen. Beide Seiten müssen vorher
+/// mit <see cref="PreislisteSichtbarkeit.Filtern"/> auf den Leser zugeschnitten
+/// sein, damit interne Änderungen nicht über den Vergleich durchsickern.
+/// </summary>
+public static class PreislisteVergleich
+{
+    public static List<PreislisteAenderung> Vergleichen(PreislisteDaten alt, PreislisteDaten neu)
+    {
+        var a = new List<PreislisteAenderung>();
+
+        if (alt.GueltigAb != neu.GueltigAb)
+            a.Add(new("Allgemein", "geaendert", $"Gültig ab: {Datum(alt.GueltigAb)} → {Datum(neu.GueltigAb)}"));
+        if (alt.Konditionen != neu.Konditionen)
+            a.Add(new("Allgemein", "geaendert", $"Konditionen: „{alt.Konditionen}“ → „{neu.Konditionen}“"));
+
+        var stufenNamen = neu.Stufen.ToDictionary(s => s.Schluessel, s => s.Name);
+        string Stufe(string? schluessel) => schluessel is not null && stufenNamen.TryGetValue(schluessel, out var n) ? n : schluessel ?? "—";
+
+        Listen(a, "Stufen", alt.Stufen, neu.Stufen, s => s.Schluessel, s => s.Name, (x, y) =>
+        {
+            var t = new List<string>();
+            if (x.Name != y.Name) t.Add($"Name {x.Name} → {y.Name}");
+            if (x.VolumenVon != y.VolumenVon || x.VolumenBis != y.VolumenBis || x.VolumenHinweis != y.VolumenHinweis)
+                t.Add($"Volumen {Volumen(x)} → {Volumen(y)}");
+            if (x.SetupEinmalig != y.SetupEinmalig) t.Add($"Setup {Preis(x.SetupEinmalig)} → {Preis(y.SetupEinmalig)}");
+            if (x.InklusiveBenutzer != y.InklusiveBenutzer) t.Add($"inklusive Benutzer {x.InklusiveBenutzer} → {y.InklusiveBenutzer}");
+            if (x.InklusiveMandanten != y.InklusiveMandanten) t.Add($"inklusive Mandanten {x.InklusiveMandanten} → {y.InklusiveMandanten}");
+            foreach (var m in y.Merkmale.Where(m => x.Merkmale.All(o => o.Text != m.Text)))
+                t.Add($"neues Merkmal „{m.Text}“");
+            foreach (var m in x.Merkmale.Where(m => y.Merkmale.All(o => o.Text != m.Text)))
+                t.Add($"Merkmal entfernt „{m.Text}“");
+            foreach (var m in y.Merkmale)
+                if (x.Merkmale.FirstOrDefault(o => o.Text == m.Text) is { } o && o.Enthalten != m.Enthalten)
+                    t.Add($"„{m.Text}“ {(m.Enthalten ? "jetzt enthalten" : "nicht mehr enthalten")}");
+            return t;
+        });
+
+        Listen(a, "Volumenpreise", alt.Volumenstufen, neu.Volumenstufen,
+            v => v.Stammdaten.ToString(), v => v.Label ?? v.Stammdaten.ToString("N0") + " Stammdaten", (x, y) =>
+            {
+                var t = new List<string>();
+                foreach (var k in x.Preise.Keys.Union(y.Preise.Keys))
+                {
+                    x.Preise.TryGetValue(k, out var px);
+                    y.Preise.TryGetValue(k, out var py);
+                    if (px != py) t.Add($"{Stufe(k)} {Preis(px)} → {Preis(py)}");
+                }
+                return t;
+            });
+        Texte(a, "Volumenpreise", "Regel", alt.VolumenRegeln?.Select(r => r.Text), neu.VolumenRegeln?.Select(r => r.Text));
+
+        Listen(a, "Add-ons", alt.Addons, neu.Addons, x => x.Schluessel, x => x.Name, (x, y) =>
+        {
+            var t = new List<string>();
+            if (x.Name != y.Name) t.Add($"Name {x.Name} → {y.Name}");
+            if (x.PreisMonat != y.PreisMonat) t.Add($"Preis/Monat {Preis(x.PreisMonat)} → {Preis(y.PreisMonat)}");
+            if (x.EinrichtungEinmalig != y.EinrichtungEinmalig) t.Add($"Einrichtung {Preis(x.EinrichtungEinmalig)} → {Preis(y.EinrichtungEinmalig)}");
+            if (x.VerfuegbarAb != y.VerfuegbarAb) t.Add($"verfügbar ab {Stufe(x.VerfuegbarAb)} → {Stufe(y.VerfuegbarAb)}");
+            if (x.VerfuegbarkeitHinweis != y.VerfuegbarkeitHinweis) t.Add("Verfügbarkeitshinweis geändert");
+            if (x.EinrichtungHinweis != y.EinrichtungHinweis) t.Add("Einrichtungshinweis geändert");
+            if (x.Beschreibung != y.Beschreibung) t.Add("Beschreibung geändert");
+            if (x.HinweisIntern != y.HinweisIntern) t.Add("interner Hinweis geändert");
+            return t;
+        });
+
+        if (alt.SanktionslistenPakete is { } ap && neu.SanktionslistenPakete is { } np)
+        {
+            Texte(a, "Sanktionslisten-Pakete", "Standardliste", ap.Standardlisten, np.Standardlisten);
+            Listen(a, "Sanktionslisten-Pakete", ap.Pakete, np.Pakete, p => p.Schluessel, p => p.Name, (x, y) =>
+            {
+                var t = new List<string>();
+                if (x.Name != y.Name) t.Add($"Name {x.Name} → {y.Name}");
+                if (x.PreisMonat != y.PreisMonat) t.Add($"Preis/Monat {Preis(x.PreisMonat)} → {Preis(y.PreisMonat)}");
+                foreach (var l in y.Listen.Except(x.Listen)) t.Add($"Liste {l} hinzugekommen");
+                foreach (var l in x.Listen.Except(y.Listen)) t.Add($"Liste {l} entfernt");
+                if (x.Hinweis != y.Hinweis) t.Add("Hinweis geändert");
+                return t;
+            });
+        }
+        else if (alt.SanktionslistenPakete is null != neu.SanktionslistenPakete is null)
+            a.Add(new("Sanktionslisten-Pakete", neu.SanktionslistenPakete is null ? "entfernt" : "neu", "Abschnitt Sanktionslisten-Pakete"));
+
+        if (alt.BenutzerStaffel is { } ab && neu.BenutzerStaffel is { } nb)
+        {
+            if (ab.Hinweis != nb.Hinweis) a.Add(new("Benutzer-Pakete", "geaendert", "Hinweis geändert"));
+            Listen(a, "Benutzer-Pakete", ab.Stufen, nb.Stufen, s => s.Von.ToString(),
+                s => s.Bis is null ? $"ab {s.Von} Benutzer" : $"{s.Von} – {s.Bis} Benutzer", (x, y) =>
+                {
+                    var t = new List<string>();
+                    if (x.Bis != y.Bis) t.Add($"bis {x.Bis?.ToString() ?? "offen"} → {y.Bis?.ToString() ?? "offen"}");
+                    if (x.PreisProBenutzerMonat != y.PreisProBenutzerMonat) t.Add($"Preis {Preis(x.PreisProBenutzerMonat)} → {Preis(y.PreisProBenutzerMonat)}");
+                    return t;
+                });
+            Listen(a, "Benutzer-Pakete", ab.Pauschalen, nb.Pauschalen, p => p.Name, p => $"Pauschale {p.Name}", (x, y) =>
+            {
+                var t = new List<string>();
+                if (x.PreisMonat != y.PreisMonat) t.Add($"Preis {Preis(x.PreisMonat)} → {Preis(y.PreisMonat)}");
+                if (x.NurStufe != y.NurStufe) t.Add($"nur {Stufe(x.NurStufe)} → {Stufe(y.NurStufe)}");
+                return t;
+            });
+            Texte(a, "Benutzer-Pakete", "Verkaufshilfe", ab.Verkaufshilfen?.Select(v => v.Text), nb.Verkaufshilfen?.Select(v => v.Text));
+        }
+
+        if (alt.Worldcheck is { } aw && neu.Worldcheck is { } nw)
+        {
+            if (aw.VerfuegbarAb != nw.VerfuegbarAb) a.Add(new("WorldCheck", "geaendert", $"verfügbar ab {Stufe(aw.VerfuegbarAb)} → {Stufe(nw.VerfuegbarAb)}"));
+            if (aw.Beschreibung != nw.Beschreibung) a.Add(new("WorldCheck", "geaendert", "Beschreibung geändert"));
+            Listen(a, "WorldCheck", aw.Pakete, nw.Pakete, p => p.Schluessel, p => p.Name, (x, y) =>
+            {
+                var t = new List<string>();
+                if (x.Name != y.Name) t.Add($"Name {x.Name} → {y.Name}");
+                var xs = x.Staffel.ToDictionary(s => s.Stammdaten);
+                var ys = y.Staffel.ToDictionary(s => s.Stammdaten);
+                foreach (var k in xs.Keys.Union(ys.Keys).OrderBy(k => k))
+                {
+                    xs.TryGetValue(k, out var sx);
+                    ys.TryGetValue(k, out var sy);
+                    if (sx is null) t.Add($"neue Staffel {k:N0} Stammdaten");
+                    else if (sy is null) t.Add($"Staffel {k:N0} Stammdaten entfernt");
+                    else
+                    {
+                        if (sx.PreisMonat != sy.PreisMonat) t.Add($"{k:N0} Stammdaten /Monat {Preis(sx.PreisMonat)} → {Preis(sy.PreisMonat)}");
+                        if (sx.PreisJahr != sy.PreisJahr) t.Add($"{k:N0} Stammdaten /Jahr {Preis(sx.PreisJahr)} → {Preis(sy.PreisJahr)}");
+                    }
+                }
+                return t;
+            });
+            Texte(a, "WorldCheck", "Regel", aw.Regeln, nw.Regeln);
+        }
+
+        if (alt.VolumenPool is { } av && neu.VolumenPool is { } nv)
+        {
+            if (av.Beschreibung != nv.Beschreibung) a.Add(new("Volume-Pool", "geaendert", "Beschreibung geändert"));
+            Listen(a, "Volume-Pool", av.Pools, nv.Pools, p => p.Name, p => p.Name, (x, y) =>
+            {
+                var t = new List<string>();
+                if (x.Verwendung != y.Verwendung) t.Add("Verwendung geändert");
+                if (x.Reset != y.Reset) t.Add($"Reset {x.Reset} → {y.Reset}");
+                if (x.Default != y.Default) t.Add($"Default {x.Default} → {y.Default}");
+                return t;
+            });
+            Texte(a, "Volume-Pool", "Hinweis", av.Hinweise, nv.Hinweise);
+        }
+
+        Listen(a, "Begriffe", alt.Begriffe, neu.Begriffe, b => b.Intern, b => $"{b.Intern} ↔ {b.Extern}", (x, y) =>
+        {
+            var t = new List<string>();
+            if (x.Extern != y.Extern) t.Add($"beim Kunden {x.Extern} → {y.Extern}");
+            if (x.Erlaeuterung != y.Erlaeuterung) t.Add("Erläuterung geändert");
+            return t;
+        });
+        Listen(a, "Vertriebshinweise", alt.Vertriebshinweise, neu.Vertriebshinweise, h => h.Titel, h => h.Titel,
+            (x, y) => x.Text != y.Text ? ["Text geändert"] : []);
+        Listen(a, "Sicherheit und Hosting", alt.Sicherheit, neu.Sicherheit, s => s.Thema, s => s.Thema, (x, y) =>
+        {
+            var t = new List<string>();
+            if (x.TextExtern != y.TextExtern) t.Add("Text geändert");
+            if (x.TextIntern != y.TextIntern) t.Add("interner Text geändert");
+            return t;
+        });
+        Listen(a, "Argumente", alt.WarumIdprove, neu.WarumIdprove, h => h.Titel, h => h.Titel,
+            (x, y) => x.Text != y.Text ? ["Text geändert"] : []);
+        if (alt.Onprem?.Text != neu.Onprem?.Text)
+            a.Add(new("Argumente", "geaendert", "On-Premises-Text geändert"));
+
+        return a;
+    }
+
+    /// <summary>Listen mit Schlüssel: neu / entfernt / je Element die Unterschiede.</summary>
+    private static void Listen<T>(List<PreislisteAenderung> a, string abschnitt, IEnumerable<T>? alt, IEnumerable<T>? neu,
+        Func<T, string> schluessel, Func<T, string> name, Func<T, T, IEnumerable<string>> unterschiede)
+    {
+        var altD = (alt ?? []).GroupBy(schluessel).ToDictionary(g => g.Key, g => g.First());
+        var neuD = (neu ?? []).GroupBy(schluessel).ToDictionary(g => g.Key, g => g.First());
+        foreach (var (k, n) in neuD)
+            if (!altD.ContainsKey(k))
+                a.Add(new(abschnitt, "neu", name(n)));
+        foreach (var (k, o) in altD)
+            if (!neuD.ContainsKey(k))
+                a.Add(new(abschnitt, "entfernt", name(o)));
+        foreach (var (k, n) in neuD)
+            if (altD.TryGetValue(k, out var o))
+                foreach (var u in unterschiede(o, n))
+                    a.Add(new(abschnitt, "geaendert", $"{name(n)}: {u}"));
+    }
+
+    /// <summary>Reine Textlisten: Text neu / Text entfernt.</summary>
+    private static void Texte(List<PreislisteAenderung> a, string abschnitt, string art, IEnumerable<string>? alt, IEnumerable<string>? neu)
+    {
+        var altL = (alt ?? []).ToList();
+        var neuL = (neu ?? []).ToList();
+        foreach (var t in neuL.Except(altL)) a.Add(new(abschnitt, "neu", $"{art}: {t}"));
+        foreach (var t in altL.Except(neuL)) a.Add(new(abschnitt, "entfernt", $"{art}: {t}"));
+    }
+
+    private static string Preis(PreisWert? p) => p is null || p.IstLeer ? "—" : p.Anzeige();
+    private static string Datum(DateOnly? d) => d?.ToString("dd.MM.yyyy") ?? "—";
+    private static string Volumen(PreislisteStufe s) =>
+        s.VolumenHinweis ?? (s.VolumenBis is null ? $"ab {s.VolumenVon:N0}" : $"{s.VolumenVon:N0} – {s.VolumenBis:N0}");
+}
 
 public record PreislisteVersionEintrag(
     int Id,
@@ -213,12 +425,14 @@ public record WikiThemaInfoEintrag(
     DateTime? GeaendertAm,
     string? GeaendertVon,
     // Von der Redaktion angeordnete Abschnitts-Reihenfolge; leer = Standard der Seite
-    List<string> Abschnitte);
+    List<string> Abschnitte,
+    // Abschnitte, die beim Öffnen ausgeklappt sind; leer = alle eingeklappt
+    List<string> AbschnitteOffen);
 
 public record WikiThemaInfoSpeichern(int? VerantwortlichId, int? VertreterId, string? Prozess);
 
-/// <summary>Neue Reihenfolge der Abschnitte einer Themenseite (Schlüssel in Anzeigereihenfolge).</summary>
-public record WikiAbschnitteSpeichern(List<string> Abschnitte);
+/// <summary>Neue Reihenfolge der Abschnitte einer Themenseite (Schlüssel in Anzeigereihenfolge) und welche davon standardmäßig offen sind.</summary>
+public record WikiAbschnitteSpeichern(List<string> Abschnitte, List<string> Offen);
 
 /// <summary>
 /// Abschnitts-Reihenfolge einer Wiki-Seite: die Redaktion ordnet die Abschnitte

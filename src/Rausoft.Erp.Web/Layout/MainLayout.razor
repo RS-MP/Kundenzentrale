@@ -1,5 +1,7 @@
 @inherits LayoutComponentBase
 @inject IJSRuntime JS
+@inject HttpClient Http
+@implements IDisposable
 
 <div class="app-rahmen">
     <aside class="seitennav">
@@ -24,6 +26,10 @@
             <NavLink href="wiki">
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 4.2C6.6 3 4.6 2.6 2.5 2.8v9.4c2.1-.2 4.1.2 5.5 1.4 1.4-1.2 3.4-1.6 5.5-1.4V2.8C11.4 2.6 9.4 3 8 4.2Z"/><path d="M8 4.2v9.4"/></svg>
                 Wiki
+                @if (_wikiHinweise is { } h && h.UnbestaetigteNeuerungen + h.OffeneMeldungen > 0)
+                {
+                    <span class="abzeichen" title="@WikiHinweisText(h)">@(h.UnbestaetigteNeuerungen + h.OffeneMeldungen)</span>
+                }
             </NavLink>
             <NavLink href="server">
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="11" height="4.2" rx="1.2"/><rect x="2.5" y="8.8" width="11" height="4.2" rx="1.2"/><circle cx="5" cy="5.1" r=".9" fill="currentColor" stroke="none"/><circle cx="5" cy="10.9" r=".9" fill="currentColor" stroke="none"/></svg>
@@ -53,6 +59,38 @@
 
 @code {
     private string? _thema; // null = Automatisch (Systemeinstellung), "light", "dark"
+    private WikiHinweise? _wikiHinweise;
+
+    protected override async Task OnInitializedAsync()
+    {
+        WikiHinweisSignal.Geaendert += WikiHinweiseNachladen;
+        await WikiHinweiseLadenAsync();
+    }
+
+    public void Dispose() => WikiHinweisSignal.Geaendert -= WikiHinweiseNachladen;
+
+    private void WikiHinweiseNachladen() => _ = InvokeAsync(async () =>
+    {
+        await WikiHinweiseLadenAsync();
+        StateHasChanged();
+    });
+
+    /// <summary>Abzeichen am Wiki-Eintrag: unbestätigte Pflicht-Neuerungen + offene Meldungen der eigenen Themen.</summary>
+    private async Task WikiHinweiseLadenAsync()
+    {
+        try { _wikiHinweise = await Http.GetFromJsonAsync<WikiHinweise>("api/wiki/hinweise"); }
+        catch { _wikiHinweise = null; /* Navigation bleibt ohne Abzeichen nutzbar */ }
+    }
+
+    private static string WikiHinweisText(WikiHinweise h)
+    {
+        var teile = new List<string>();
+        if (h.UnbestaetigteNeuerungen > 0)
+            teile.Add($"{h.UnbestaetigteNeuerungen} {(h.UnbestaetigteNeuerungen == 1 ? "Neuerung" : "Neuerungen")} zu bestätigen");
+        if (h.OffeneMeldungen > 0)
+            teile.Add($"{h.OffeneMeldungen} offene {(h.OffeneMeldungen == 1 ? "Meldung" : "Meldungen")}");
+        return string.Join(" · ", teile);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

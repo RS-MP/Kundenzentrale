@@ -81,16 +81,60 @@ else
                     @if (_ansicht.Daten is not null && !_anordnen)
                     {
                         <span style="flex:1"></span>
-                        <button class="knopf sekundaer klein" @onclick="AnordnenOeffnen" title="Reihenfolge der Abschnitte auf dieser Seite festlegen — gilt für alle Leser">Abschnitte anordnen</button>
+                        <button class="knopf sekundaer klein" @onclick="AnordnenOeffnen" title="Reihenfolge der Abschnitte und Auf-/Zuklappen festlegen — gilt für alle Leser">Abschnitte anordnen</button>
                     }
                 </div>
+                @if (_importDatei is not null)
+                {
+                    <div class="formular" style="margin-top:10px">
+                        <label class="breit">
+                            Was ist neu in dieser Version? (erscheint als Neuerung oben auf der Seite; die Änderungsliste aus dem Export wird angehängt)
+                            <textarea rows="4" @bind="_importNeuerung" placeholder="z. B. Zwei neue Add-ons: … · Preis STARTER 5.000 angepasst"></textarea>
+                        </label>
+                        <label class="breit" style="flex-direction:row; align-items:center; gap:8px">
+                            <input type="checkbox" @bind="_importBestaetigung" />
+                            Lesebestätigung erforderlich — jeder Mitarbeiter muss „Gelesen" bestätigen
+                        </label>
+                    </div>
+                }
             }
         </div>
     </div>
 
+    @* ---------- Neuerungen: was hat sich geändert, wer hat es gelesen ---------- *@
+    <WikiNeuerungen @key="_neuerungenSchluessel" Thema="preisliste" DarfBearbeiten="@_ansicht.DarfBearbeiten" />
+
     @if (_ansicht.Daten is { } p)
     {
-        var vorhanden = StandardAbschnitte.Where(a => Abschnitt(a.Schluessel, p) is not null).Select(a => a.Schluessel).ToHashSet();
+        var vorhanden = StandardAbschnitte.Where(a => Abschnitt(a.Schluessel, p, false) is not null).Select(a => a.Schluessel).ToHashSet();
+
+        @* ---------- Automatischer Vergleich mit der Vorversion ---------- *@
+        @if (_ansicht.Vergleich is { } vergleich)
+        {
+            <details class="gruppe" style="margin-bottom:16px" open="@(vergleich.Aenderungen.Count > 0 && _ansicht.Version?.Version == _ansicht.Historie[0].Version)">
+                <summary>Was hat sich gegenüber Version @vergleich.VergleichsVersion geändert? (automatischer Vergleich)<span class="zahl">@(vergleich.Aenderungen.Count == 0 ? "keine inhaltlichen Unterschiede" : $"{vergleich.Aenderungen.Count} Änderungen")</span></summary>
+                <div class="gruppe-inhalt">
+                    @if (vergleich.Aenderungen.Count == 0)
+                    {
+                        <div class="neben">Die Inhalte beider Versionen sind gleich — vermutlich nur Layout oder Dokumente geändert.</div>
+                    }
+                    @foreach (var gruppe in vergleich.Aenderungen.GroupBy(x => x.Abschnitt))
+                    {
+                        <div class="pl-vergleich-abschnitt">@gruppe.Key</div>
+                        <ul class="pl-vergleich">
+                            @foreach (var x in gruppe)
+                            {
+                                <li class="@x.Art"><span class="pl-vergleich-art">@(x.Art switch { "neu" => "Neu", "entfernt" => "Entfernt", _ => "Geändert" })</span>@x.Text</li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </details>
+        }
+        else if (_ansicht.Historie.Count == 1)
+        {
+            <div class="neben" style="margin:-6px 0 14px">Erste importierte Version — ein automatischer Vergleich ist ab der nächsten Version möglich.</div>
+        }
 
         @* ---------- Abschnitte anordnen (Wiki-Redaktion) ---------- *@
         @if (_anordnen)
@@ -99,7 +143,7 @@ else
                 <div class="karte-koerper">
                     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
                         <b>Abschnitte anordnen</b>
-                        <span class="neben" style="display:inline">Die Reihenfolge gilt für alle Leser der Preisliste.</span>
+                        <span class="neben" style="display:inline">Reihenfolge und Auf-/Zuklappen gelten für alle Leser der Preisliste. Ohne Haken ist ein Abschnitt beim Öffnen eingeklappt.</span>
                     </div>
                     <ol class="pl-anordnen-liste">
                         @for (var i = 0; i < _entwurf.Count; i++)
@@ -113,6 +157,9 @@ else
                                     @if (IstIntern(schluessel)) { <span class="pl-intern">intern</span> }
                                     @if (!vorhanden.Contains(schluessel)) { <span class="neben" style="display:inline; margin-left:6px">· derzeit ohne Inhalt</span> }
                                 </span>
+                                <label class="pl-anordnen-offen" title="Beim Öffnen der Seite ausgeklappt">
+                                    <input type="checkbox" checked="@_entwurfOffen.Contains(schluessel)" @onchange="e => OffenSetzen(schluessel, e.Value is true)" /> ausgeklappt
+                                </label>
                                 <span class="pl-anordnen-knoepfe">
                                     <button class="knopf sekundaer klein" disabled="@(idx == 0)" title="nach oben" @onclick="() => Verschieben(idx, -1)">▲</button>
                                     <button class="knopf sekundaer klein" disabled="@(idx == _entwurf.Count - 1)" title="nach unten" @onclick="() => Verschieben(idx, +1)">▼</button>
@@ -132,9 +179,14 @@ else
         @* ---------- Abschnitte in der gespeicherten Reihenfolge ---------- *@
         @foreach (var schluessel in Reihenfolge())
         {
-            @Abschnitt(schluessel, p)
+            @Abschnitt(schluessel, p, IstOffen(schluessel))
         }
     }
+
+    @* ---------- Meldungen: etwas fehlt oder ist falsch ---------- *@
+    <div style="margin-top:12px">
+        <WikiMeldungen Thema="preisliste" Bezuege="@StandardAbschnitte.Select(a => a.Titel).ToList()" />
+    </div>
 
     @* ---------- Bei uns: Zuständigkeit & Prozess ---------- *@
     <details class="gruppe" open>
@@ -221,6 +273,11 @@ else
     private bool _anordnen;
     private bool _speichereReihenfolge;
     private List<string> _entwurf = [];
+    private HashSet<string> _entwurfOffen = [];
+    private string _importNeuerung = "";
+    private bool _importBestaetigung;
+    // Hochzählen lädt die Neuerungen-Komponente neu (z. B. nach einem Import mit Neuerungstext)
+    private int _neuerungenSchluessel;
     private string? _fehler;
 
     private class InfoFormular
@@ -256,22 +313,31 @@ else
 
     private List<string> Reihenfolge() => WikiAbschnittReihenfolge.Anwenden(_info?.Abschnitte, StandardSchluessel);
 
-    private RenderFragment? Abschnitt(string schluessel, PreislisteDaten p) => schluessel switch
+    /// <summary>Beim Öffnen ausgeklappt? Standard: alle eingeklappt (MP 14.10.2026), die Redaktion wählt je Abschnitt.</summary>
+    private bool IstOffen(string schluessel) => _info?.AbschnitteOffen.Contains(schluessel) == true;
+
+    private void OffenSetzen(string schluessel, bool offen)
     {
-        "stufen" => Stufen(p),
-        "addons" => Addons(p),
-        "pakete" => p.SanktionslistenPakete is { } sp ? Pakete(sp) : null,
-        "benutzer" => p.BenutzerStaffel is { } bs ? Benutzer(bs) : null,
-        "worldcheck" => p.Worldcheck is { } wc ? Worldcheck(wc) : null,
-        "volumenpool" => p.VolumenPool is { } vp ? VolumenPool(vp) : null,
-        "begriffe" => p.Begriffe is { Count: > 0 } b ? Begriffe(b) : null,
-        "vertriebshinweise" => p.Vertriebshinweise is { Count: > 0 } vh ? Vertriebshinweise(vh) : null,
-        "sicherheit" => p.Sicherheit is { Count: > 0 } s ? Sicherheit(s) : null,
-        "warum" => p.WarumIdprove is { Count: > 0 } w ? Warum(w, p.Onprem?.Text) : null,
+        if (offen) _entwurfOffen.Add(schluessel);
+        else _entwurfOffen.Remove(schluessel);
+    }
+
+    private RenderFragment? Abschnitt(string schluessel, PreislisteDaten p, bool offen) => schluessel switch
+    {
+        "stufen" => Stufen(p, offen),
+        "addons" => Addons(p, offen),
+        "pakete" => p.SanktionslistenPakete is { } sp ? Pakete(sp, offen) : null,
+        "benutzer" => p.BenutzerStaffel is { } bs ? Benutzer(bs, offen) : null,
+        "worldcheck" => p.Worldcheck is { } wc ? Worldcheck(wc, offen) : null,
+        "volumenpool" => p.VolumenPool is { } vp ? VolumenPool(vp, offen) : null,
+        "begriffe" => p.Begriffe is { Count: > 0 } b ? Begriffe(b, offen) : null,
+        "vertriebshinweise" => p.Vertriebshinweise is { Count: > 0 } vh ? Vertriebshinweise(vh, offen) : null,
+        "sicherheit" => p.Sicherheit is { Count: > 0 } s ? Sicherheit(s, offen) : null,
+        "warum" => p.WarumIdprove is { Count: > 0 } w ? Warum(w, p.Onprem?.Text, offen) : null,
         _ => null,
     };
 
-    private RenderFragment Stufen(PreislisteDaten p) => @<details class="gruppe" open>
+    private RenderFragment Stufen(PreislisteDaten p, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Stufen und Volumenpreise<span class="zahl">@p.Stufen.Count Stufen · @p.Volumenstufen.Count Volumenstufen</span></summary>
         <div class="gruppe-inhalt">
             <div class="pl-stufen">
@@ -325,7 +391,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment Addons(PreislisteDaten p) => @<details class="gruppe" open>
+    private RenderFragment Addons(PreislisteDaten p, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Add-ons und Module<span class="zahl">@p.Addons.Count</span></summary>
         <div class="gruppe-inhalt" style="padding:0">
             <table class="liste">
@@ -359,7 +425,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment Pakete(PreislistePakete sp) => @<details class="gruppe" open>
+    private RenderFragment Pakete(PreislistePakete sp, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Sanktionslisten-Pakete<span class="zahl">@sp.Pakete.Count Pakete · @sp.Standardlisten.Count Standardlisten</span></summary>
         <div class="gruppe-inhalt">
             @if (sp.Hinweis is not null) { <div class="pl-regel" style="margin-top:0">@sp.Hinweis</div> }
@@ -382,7 +448,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment Benutzer(PreislisteBenutzer bs) => @<details class="gruppe" open>
+    private RenderFragment Benutzer(PreislisteBenutzer bs, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Benutzer-Pakete<span class="zahl">@bs.Stufen.Count Staffeln</span></summary>
         <div class="gruppe-inhalt">
             @if (bs.Hinweis is not null) { <div class="pl-regel" style="margin-top:0">@bs.Hinweis</div> }
@@ -406,7 +472,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment Begriffe(List<PreislisteBegriff> begriffe) => @<details class="gruppe" open>
+    private RenderFragment Begriffe(List<PreislisteBegriff> begriffe, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Begriffe intern ↔ extern<span class="zahl">@begriffe.Count</span></summary>
         <div class="gruppe-inhalt" style="padding:0">
             <table class="liste">
@@ -421,7 +487,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment Worldcheck(PreislisteWorldcheck wc) => @<details class="gruppe">
+    private RenderFragment Worldcheck(PreislisteWorldcheck wc, bool offen) => @<details class="gruppe" open="@offen">
         <summary>WorldCheck-Datenpakete <span class="pl-intern">intern</span><span class="zahl">@wc.Pakete.Count Pakete</span></summary>
         <div class="gruppe-inhalt">
             @if (wc.Beschreibung is not null) { <div class="pl-regel" style="margin-top:0">@wc.Beschreibung</div> }
@@ -448,7 +514,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment VolumenPool(PreislisteVolumenPool vp) => @<details class="gruppe">
+    private RenderFragment VolumenPool(PreislisteVolumenPool vp, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Volume-Pool-Modell <span class="pl-intern">intern</span><span class="zahl">@vp.Pools.Count Pools</span></summary>
         <div class="gruppe-inhalt">
             @if (vp.Beschreibung is not null) { <div class="pl-regel" style="margin-top:0">@vp.Beschreibung</div> }
@@ -465,7 +531,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment Vertriebshinweise(List<PreislisteHinweis> hinweise) => @<details class="gruppe">
+    private RenderFragment Vertriebshinweise(List<PreislisteHinweis> hinweise, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Vertriebshinweise <span class="pl-intern">intern</span><span class="zahl">@hinweise.Count</span></summary>
         <div class="gruppe-inhalt">
             <dl class="pl-zeilen">
@@ -478,7 +544,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment Sicherheit(List<PreislisteSicherheit> sicherheit) => @<details class="gruppe">
+    private RenderFragment Sicherheit(List<PreislisteSicherheit> sicherheit, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Sicherheit und Hosting<span class="zahl">@sicherheit.Count</span></summary>
         <div class="gruppe-inhalt">
             <dl class="pl-zeilen">
@@ -497,7 +563,7 @@ else
         </div>
     </details>;
 
-    private RenderFragment Warum(List<PreislisteHinweis> argumente, string? onprem) => @<details class="gruppe">
+    private RenderFragment Warum(List<PreislisteHinweis> argumente, string? onprem, bool offen) => @<details class="gruppe" open="@offen">
         <summary>Warum ID.prove (Argumente)<span class="zahl">@argumente.Count</span></summary>
         <div class="gruppe-inhalt">
             <dl class="pl-zeilen">
@@ -543,6 +609,8 @@ else
             using var inhalt = new MultipartFormDataContent();
             inhalt.Add(new StreamContent(_importDatei.OpenReadStream(5_000_000)), "datei", _importDatei.Name);
             inhalt.Add(new StringContent(_importNotiz), "notiz");
+            inhalt.Add(new StringContent(_importNeuerung), "neuerung");
+            inhalt.Add(new StringContent(_importBestaetigung ? "true" : "false"), "bestaetigung");
             var antwort = await Http.PostAsync("api/wiki/preisliste/import", inhalt);
             if (!antwort.IsSuccessStatusCode)
             {
@@ -551,7 +619,11 @@ else
             }
             _importDatei = null;
             _importNotiz = "";
+            _importNeuerung = "";
+            _importBestaetigung = false;
             await LadenAsync(null);
+            _neuerungenSchluessel++;
+            WikiHinweisSignal.Melden();
         }
         catch (Exception ex)
         {
@@ -568,6 +640,7 @@ else
     private void AnordnenOeffnen()
     {
         _entwurf = Reihenfolge();
+        _entwurfOffen = [.. _info?.AbschnitteOffen ?? []];
         _anordnen = true;
     }
 
@@ -579,17 +652,18 @@ else
         (_entwurf[index], _entwurf[ziel]) = (_entwurf[ziel], _entwurf[index]);
     }
 
-    private Task ReihenfolgeSpeichernAsync() => ReihenfolgeSendenAsync(_entwurf);
+    private Task ReihenfolgeSpeichernAsync() =>
+        ReihenfolgeSendenAsync(_entwurf, _entwurf.Where(_entwurfOffen.Contains).ToList());
 
-    private Task StandardreihenfolgeAsync() => ReihenfolgeSendenAsync([]);
+    private Task StandardreihenfolgeAsync() => ReihenfolgeSendenAsync([], []);
 
-    private async Task ReihenfolgeSendenAsync(List<string> abschnitte)
+    private async Task ReihenfolgeSendenAsync(List<string> abschnitte, List<string> offen)
     {
         _fehler = null;
         _speichereReihenfolge = true;
         try
         {
-            var antwort = await Http.PutAsJsonAsync("api/wiki/themen/preisliste/abschnitte", new WikiAbschnitteSpeichern(abschnitte));
+            var antwort = await Http.PutAsJsonAsync("api/wiki/themen/preisliste/abschnitte", new WikiAbschnitteSpeichern(abschnitte, offen));
             if (!antwort.IsSuccessStatusCode)
             {
                 _fehler = await antwort.Content.ReadAsStringAsync();

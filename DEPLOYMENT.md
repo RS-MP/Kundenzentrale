@@ -84,7 +84,11 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
   auf `P:\01_Vertrieb\Preisliste` (UNC-Pfad) setzen, 2) unter Benutzer &
   Rollen den Preislisten-Redakteuren das Wiki-Thema „Preisliste" anhaken,
   3) im Wiki → Preisliste die JSON v22 hochladen und Zuständigkeit/Prozess
-  pflegen.
+  pflegen, 4) für v22 eine **Neuerung** erfassen („+ Neuerung erfassen", z. B.
+  die zwei neuen Funktionen, Lesebestätigung nach Bedarf) und unter
+  „Abschnitte anordnen" festlegen, welche Abschnitte ausgeklappt sind.
+  Migration `WikiNeuerungenMeldungen` (Neuerungen, Lesungen, Meldungen) läuft
+  automatisch.
 - [ ] **Publish aktualisieren (28.09.2026, FEEDBACK Nr. 20 Stufe 2):** Bereich
   „Partner" mit Partner-Akte und Partnerverträgen. Migration läuft automatisch
   (Vertrag gehört Kunde ODER Partner). Manuelle Schritte: keine.

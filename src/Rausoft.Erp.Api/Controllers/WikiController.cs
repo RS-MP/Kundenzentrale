@@ -45,8 +45,25 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
     public async Task<ActionResult<List<WikiThemaUebersicht>>> Themen(CancellationToken ct)
     {
         var bearbeitbar = await berechtigung.BearbeitbareThemenAsync(ct);
+        var zustaendig = await berechtigung.ZustaendigeThemenAsync(ct);
+        var eigeneId = await berechtigung.EigeneIdAsync(ct);
+
+        // Neuerungen mit Bestätigungspflicht, die der Benutzer noch nicht bestätigt hat
+        var unbestaetigt = eigeneId is null
+            ? new Dictionary<string, int>()
+            : await db.WikiNeuerungen.AsNoTracking()
+                .Where(n => n.BestaetigungErforderlich
+                            && !n.Lesungen.Any(l => l.MitarbeiterId == eigeneId && l.BestaetigtAm != null))
+                .GroupBy(n => n.Thema).Select(g => new { g.Key, Anzahl = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.Anzahl, ct);
+        var offen = await db.WikiMeldungen.AsNoTracking()
+            .Where(m => m.ErledigtAm == null)
+            .GroupBy(m => m.Thema).Select(g => new { g.Key, Anzahl = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Anzahl, ct);
+
         return Ok(WikiThema.Alle
-            .Select(t => new WikiThemaUebersicht(t.Schluessel, t.Name, t.Bereich, bearbeitbar.Contains(t.Schluessel)))
+            .Select(t => new WikiThemaUebersicht(t.Schluessel, t.Name, t.Bereich, bearbeitbar.Contains(t.Schluessel),
+                unbestaetigt.GetValueOrDefault(t.Schluessel), offen.GetValueOrDefault(t.Schluessel), zustaendig.Contains(t.Schluessel)))
             .ToList());
     }
 
@@ -165,10 +182,25 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
             return NotFound();
 
         PreislisteDaten? daten = null;
+        PreislisteVergleichErgebnis? vergleich = null;
         if (gewaehlt is not null)
         {
             var roh = System.Text.Json.JsonSerializer.Deserialize<PreislisteDaten>(gewaehlt.Daten, JsonOptionen);
             daten = roh is null ? null : PreislisteSichtbarkeit.Filtern(roh, darfInternes);
+
+            // Automatischer Vergleich mit der nächstälteren Version — beide Seiten auf den Leser gefiltert
+            var vorige = historie.FirstOrDefault(p => p.Version < gewaehlt.Version);
+            if (daten is not null && vorige is not null)
+            {
+                try
+                {
+                    var alt = System.Text.Json.JsonSerializer.Deserialize<PreislisteDaten>(vorige.Daten, JsonOptionen);
+                    if (alt is not null)
+                        vergleich = new PreislisteVergleichErgebnis(vorige.Version,
+                            PreislisteVergleich.Vergleichen(PreislisteSichtbarkeit.Filtern(alt, darfInternes), daten));
+                }
+                catch (System.Text.Json.JsonException) { /* alte Version nicht lesbar — dann ohne Vergleich */ }
+            }
         }
 
         // Auch der Dateiname der internen PDF bleibt Unberechtigten verborgen
@@ -180,7 +212,8 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
             gewaehlt is null ? null : Version(gewaehlt),
             darfInternes, darfBearbeiten,
             string.IsNullOrWhiteSpace(verzeichnis) ? null : verzeichnis,
-            historie.Select(Version).ToList()));
+            historie.Select(Version).ToList(),
+            vergleich));
     }
 
     /// <summary>
@@ -191,7 +224,7 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
     [HttpPost("preisliste/import")]
     [RequestSizeLimit(5_000_000)]
     public async Task<ActionResult<PreislisteVersionEintrag>> PreislisteImport(
-        IFormFile datei, [FromForm] string? notiz, CancellationToken ct)
+        IFormFile datei, [FromForm] string? notiz, [FromForm] string? neuerung, [FromForm] bool bestaetigung, CancellationToken ct)
     {
         if (!await berechtigung.DarfBearbeitenAsync(WikiThema.Preisliste, ct))
             return StatusCode(StatusCodes.Status403Forbidden,
@@ -244,6 +277,24 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
             Notiz = Leer(notiz),
         };
         db.PreislistenVersionen.Add(eintrag);
+
+        // „Was ist neu" — Beschreibung des Redakteurs, ergänzt um die Änderungsliste aus dem Export
+        var neuerungText = Leer(neuerung);
+        if (p.Aenderungen is { Count: > 0 } aenderungen)
+            neuerungText = (neuerungText is null ? "" : neuerungText + "\n\n") +
+                           string.Join("\n", aenderungen.Select(x => "• " + x));
+        if (neuerungText is not null)
+            db.WikiNeuerungen.Add(new WikiNeuerung
+            {
+                Thema = WikiThema.Preisliste,
+                Titel = $"Preisliste Version {p.Version} · Stand {p.Stand}",
+                Text = neuerungText,
+                PreislistenVersion = eintrag,
+                BestaetigungErforderlich = bestaetigung,
+                ErstelltAm = DateTime.UtcNow,
+                ErstelltVonId = eintrag.ImportiertVonId,
+            });
+
         await db.SaveChangesAsync(ct);
         return Ok(NachVersion(eintrag));
     }
@@ -258,10 +309,10 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
             .Include(i => i.Verantwortlich).Include(i => i.Vertreter).Include(i => i.GeaendertVon)
             .FirstOrDefaultAsync(i => i.Thema == thema, ct);
         return Ok(info is null
-            ? new WikiThemaInfoEintrag(thema, null, null, null, null, null, null, null, [])
+            ? new WikiThemaInfoEintrag(thema, null, null, null, null, null, null, null, [], [])
             : new WikiThemaInfoEintrag(thema, info.VerantwortlichId, info.Verantwortlich?.Anzeigename,
                 info.VertreterId, info.Vertreter?.Anzeigename, info.Prozess, info.GeaendertAm, info.GeaendertVon?.Anzeigename,
-                WikiAbschnittReihenfolge.Lesen(info.Abschnitte)));
+                WikiAbschnittReihenfolge.Lesen(info.Abschnitte), WikiAbschnittReihenfolge.Lesen(info.AbschnitteOffen)));
     }
 
     /// <summary>
@@ -279,6 +330,9 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
         var wert = WikiAbschnittReihenfolge.Schreiben(daten.Abschnitte, out var fehler);
         if (fehler is not null)
             return BadRequest(fehler);
+        var offen = WikiAbschnittReihenfolge.Schreiben(daten.Offen, out fehler);
+        if (fehler is not null)
+            return BadRequest(fehler);
 
         var info = await db.WikiThemaInfos.FirstOrDefaultAsync(i => i.Thema == thema, ct);
         if (info is null)
@@ -287,6 +341,7 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
             db.WikiThemaInfos.Add(info);
         }
         info.Abschnitte = wert;
+        info.AbschnitteOffen = offen;
         info.GeaendertAm = DateTime.UtcNow;
         info.GeaendertVonId = await EigeneIdAsync(ct);
         await db.SaveChangesAsync(ct);

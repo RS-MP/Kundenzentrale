@@ -1255,6 +1255,134 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("SanktionslistenStandardprozesse");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiMeldung", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Antwort")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Bezug")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ErledigtAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErledigtVonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ErstelltAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErstelltVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Thema")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErledigtVonId");
+
+                    b.HasIndex("ErstelltVonId");
+
+                    b.HasIndex("Thema", "ErledigtAm");
+
+                    b.ToTable("WikiMeldungen");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiNeuerung", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("BestaetigungErforderlich")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("ErstelltAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErstelltVonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PreislistenVersionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Thema")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Titel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErstelltVonId");
+
+                    b.HasIndex("PreislistenVersionId");
+
+                    b.HasIndex("Thema");
+
+                    b.ToTable("WikiNeuerungen");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiNeuerungLesung", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("BestaetigtAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("GesehenAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MitarbeiterId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NeuerungId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MitarbeiterId");
+
+                    b.HasIndex("NeuerungId", "MitarbeiterId")
+                        .IsUnique();
+
+                    b.ToTable("WikiNeuerungLesungen");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiThemaInfo", b =>
                 {
                     b.Property<string>("Thema")
@@ -1262,6 +1390,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Abschnitte")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("AbschnitteOffen")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
@@ -1521,6 +1653,59 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("GeaendertVon");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiMeldung", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErledigtVon")
+                        .WithMany()
+                        .HasForeignKey("ErledigtVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErstelltVon")
+                        .WithMany()
+                        .HasForeignKey("ErstelltVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ErledigtVon");
+
+                    b.Navigation("ErstelltVon");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiNeuerung", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErstelltVon")
+                        .WithMany()
+                        .HasForeignKey("ErstelltVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Wiki.PreislistenVersion", "PreislistenVersion")
+                        .WithMany()
+                        .HasForeignKey("PreislistenVersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ErstelltVon");
+
+                    b.Navigation("PreislistenVersion");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiNeuerungLesung", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "Mitarbeiter")
+                        .WithMany()
+                        .HasForeignKey("MitarbeiterId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Rausoft.Erp.Domain.Wiki.WikiNeuerung", "Neuerung")
+                        .WithMany("Lesungen")
+                        .HasForeignKey("NeuerungId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Mitarbeiter");
+
+                    b.Navigation("Neuerung");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiThemaInfo", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
@@ -1570,6 +1755,11 @@ namespace Rausoft.Erp.Data.Migrations
             modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.Abo", b =>
                 {
                     b.Navigation("Positionen");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiNeuerung", b =>
+                {
+                    b.Navigation("Lesungen");
                 });
 #pragma warning restore 612, 618
         }
