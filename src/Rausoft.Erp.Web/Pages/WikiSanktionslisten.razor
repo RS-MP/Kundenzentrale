@@ -106,59 +106,106 @@ else
                         @if (_offen.Contains(liste.Id))
                         {
                             <div class="sl-details">
-                                <dl class="werte">
-                                    @if (liste.Aliase is not null)
-                                    {
-                                        <dt>Andere Bezeichnungen</dt><dd>@liste.Aliase</dd>
-                                    }
-                                    @if (liste.Beschreibung is not null)
-                                    {
-                                        <dt>Beschreibung</dt><dd>@liste.Beschreibung</dd>
-                                    }
-                                    @if (liste.Relevanz is not null)
-                                    {
-                                        <dt>Relevanz</dt><dd>@liste.Relevanz</dd>
-                                    }
-                                    <dt>Art</dt><dd>@(liste.Art ?? "—")</dd>
-                                    <dt>Herausgeber</dt><dd>@(liste.Herausgeber ?? "—")</dd>
-                                    <dt>Geltungsbereich</dt><dd>@(liste.Geltungsbereich ?? "—")</dd>
-                                    <dt>sanktionslisten.de</dt><dd>@(liste.Standardumfang ? "Standardumfang" : "optional verfügbar")</dd>
-                                    <dt>Download</dt>
-                                    <dd>
+                                <div class="sl-raster">
+                                    @* Links: Inhalt der Liste *@
+                                    <div>
+                                        @if (liste.Beschreibung is not null)
+                                        {
+                                            <div class="sl-block">
+                                                <div class="schritt-titel">Was enthält die Liste?</div>
+                                                <p>@liste.Beschreibung</p>
+                                            </div>
+                                        }
+                                        @if (liste.Relevanz is not null)
+                                        {
+                                            <div class="sl-block">
+                                                <div class="schritt-titel">Für wen ist sie relevant?</div>
+                                                <p>@liste.Relevanz</p>
+                                            </div>
+                                        }
+                                        @if (liste.BezeichnungIntern is not null || liste.Aliase is not null)
+                                        {
+                                            <div class="sl-block">
+                                                <div class="schritt-titel">Bezeichnungen</div>
+                                                <dl class="werte">
+                                                    @if (liste.BezeichnungIntern is not null)
+                                                    {
+                                                        <dt>bei uns</dt><dd>@liste.BezeichnungIntern</dd>
+                                                    }
+                                                    @if (liste.Aliase is not null)
+                                                    {
+                                                        <dt>andere</dt><dd>@liste.Aliase</dd>
+                                                    }
+                                                </dl>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    @* Rechts: Eckdaten *@
+                                    <div class="sl-fakten">
+                                        <dl class="werte">
+                                            <dt>Art</dt><dd>@(liste.Art ?? "—")</dd>
+                                            <dt>Herausgeber</dt><dd>@(liste.Herausgeber ?? "—")</dd>
+                                            <dt>Geltung</dt><dd>@(liste.Geltungsbereich ?? "—")</dd>
+                                            <dt>sanktionslisten.de</dt><dd>@(liste.Standardumfang ? "Standardumfang" : "optional")</dd>
+                                        </dl>
                                         @if (liste.DownloadUrl is not null)
                                         {
-                                            <a href="@liste.DownloadUrl" target="_blank" rel="noopener noreferrer" style="word-break:break-all">@liste.DownloadUrl</a>
+                                            <a class="knopf sekundaer klein" style="margin-top:10px; display:inline-block"
+                                               href="@liste.DownloadUrl" target="_blank" rel="noopener noreferrer" title="@liste.DownloadUrl">
+                                                Liste beim Herausgeber öffnen ↗
+                                            </a>
+                                        }
+                                    </div>
+                                </div>
+
+                                @* Unten: unser Umgang mit der Liste — der Teil, den wir pflegen *@
+                                <div class="sl-beiuns">
+                                    <div class="schritt-titel">Bei uns</div>
+                                    <div class="sl-beiuns-zeile">
+                                        <span class="sl-beiuns-label">Import</span>
+                                        <span class="status @ImportKlasse(liste.Import)">@ImportText(liste.Import)</span>
+                                        @if (liste.ImportHinweis is not null)
+                                        {
+                                            <span class="neben" style="display:inline">· @liste.ImportHinweis</span>
+                                        }
+                                    </div>
+                                    <div class="sl-beiuns-zeile">
+                                        <span class="sl-beiuns-label">Zuständig</span>
+                                        @if (liste.Verantwortlich is null)
+                                        {
+                                            <span class="warntext">noch nicht festgelegt</span>
                                         }
                                         else
                                         {
-                                            <span>—</span>
+                                            <span>@liste.Verantwortlich</span>
+                                            <span class="neben" style="display:inline">· Vertretung: @(liste.Vertreter ?? "offen")</span>
                                         }
-                                    </dd>
-                                    <dt>Import</dt>
-                                    <dd>@ImportText(liste.Import)@(liste.ImportHinweis is not null ? $" — {liste.ImportHinweis}" : "")</dd>
-                                    <dt>Verantwortlich</dt><dd>@(liste.Verantwortlich ?? "— noch nicht festgelegt")</dd>
-                                    <dt>Vertretung</dt><dd>@(liste.Vertreter ?? "— noch nicht festgelegt")</dd>
-                                    <dt>Prozess</dt>
-                                    <dd>
-                                        @if (liste.Prozess is not null)
-                                        {
-                                            <div style="white-space:pre-wrap">@liste.Prozess</div>
-                                            @if (Standard(liste.Import) is not null)
+                                    </div>
+                                    <div class="sl-beiuns-zeile" style="align-items:flex-start">
+                                        <span class="sl-beiuns-label">Prozess</span>
+                                        <span>
+                                            @if (liste.Prozess is not null)
                                             {
-                                                <div class="neben" style="margin-top:4px">eigener Prozess — weicht vom Standardprozess „@ImportText(liste.Import)" ab</div>
+                                                <span style="white-space:pre-wrap">@liste.Prozess</span>
+                                                @if (Standard(liste.Import) is not null)
+                                                {
+                                                    <span class="neben">eigener Prozess — weicht vom Standard „@ImportText(liste.Import)" ab</span>
+                                                }
                                             }
-                                        }
-                                        else if (Standard(liste.Import) is { } standard)
-                                        {
-                                            <div style="white-space:pre-wrap">@standard</div>
-                                            <div class="neben" style="margin-top:4px">Standardprozess „@ImportText(liste.Import)"</div>
-                                        }
-                                        else
-                                        {
-                                            <span>@(liste.Import == "Offen" ? "— Importart noch offen" : "— noch nicht beschrieben")</span>
-                                        }
-                                    </dd>
-                                </dl>
+                                            else if (Standard(liste.Import) is { } standard)
+                                            {
+                                                <span style="white-space:pre-wrap">@standard</span>
+                                                <span class="neben">Standardprozess „@ImportText(liste.Import)"</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="warntext">@(liste.Import == "Offen" ? "Importart noch offen" : "noch nicht beschrieben")</span>
+                                            }
+                                        </span>
+                                    </div>
+                                </div>
+
                                 <div style="display:flex; gap:10px; align-items:center; margin-top:10px">
                                     @if (_katalog.DarfBearbeiten)
                                     {

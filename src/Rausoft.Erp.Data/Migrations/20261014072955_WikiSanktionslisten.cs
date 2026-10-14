@@ -82,7 +82,7 @@ namespace Rausoft.Erp.Data.Migrations
             // Startbestand: Sanktionslisten-Übersicht von sanktionslisten.de (Stand 16.12.2025).
             // Fakten (Name, Art, Herausgeber, Geltungsbereich, Link) übernommen, Beschreibungen
             // als eigene Kurzfassung; Bezeichnung intern, Import und Zuständigkeiten pflegt rausoft.
-            (string Region, string Kuerzel, string Name, string? Aliase, string Beschreibung, string Art,
+            (string Region, string Kuerzel, string Name, string Aliase, string Beschreibung, string Art,
                 string Herausgeber, string Geltungsbereich, bool Standard, string Url)[] listen =
             [
                 ("UN", "UNSC", "United Nations Security Council Consolidated List", "UN-Liste, UN-Sanktionsliste",
