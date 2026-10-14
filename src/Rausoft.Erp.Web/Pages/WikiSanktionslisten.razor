@@ -1,0 +1,381 @@
+@page "/wiki/sanktionslisten"
+@inject HttpClient Http
+
+<PageTitle>Sanktionslisten · Wiki · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Sanktionslisten</h1>
+    <span class="untertitel"><a href="wiki">Wiki</a> · nach Land bzw. Region, mit Import, Zuständigkeit und Prozess</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (_katalog is null)
+{
+    @if (_fehler is null)
+    {
+        <div class="leer-hinweis">Lade Sanktionslisten …</div>
+    }
+}
+else
+{
+    <div class="werkzeugleiste">
+        <input type="search" placeholder="Name, Kürzel, interne oder andere Bezeichnung …" @bind="_suche" @bind:event="oninput" />
+        <div class="chips">
+            @foreach (var (schluessel, text) in Filter)
+            {
+                <button class="chip @(_filter == schluessel ? "aktiv" : "")" @onclick="() => _filter = schluessel">
+                    @text <span class="anz">@Anzahl(schluessel)</span>
+                </button>
+            }
+        </div>
+        <span class="fueller" style="flex:1"></span>
+        <label style="display:flex; gap:6px; align-items:center; font-size:13px; color:var(--ink2)">
+            <input type="checkbox" @bind="_inaktiveZeigen" /> eingestellte zeigen
+        </label>
+        @if (_katalog.DarfBearbeiten)
+        {
+            <button class="knopf" @onclick="NeuOeffnen">+ Liste</button>
+        }
+    </div>
+
+    @foreach (var gruppe in Gefiltert().GroupBy(l => (l.Region, l.RegionName)))
+    {
+        <details class="gruppe" open>
+            <summary>
+                <span class="typ" style="margin-right:8px">@gruppe.Key.Region</span>@gruppe.Key.RegionName
+                <span class="zahl">@gruppe.Count()</span>
+            </summary>
+            <div class="gruppe-inhalt" style="padding:0">
+                @foreach (var liste in gruppe)
+                {
+                    <div class="sl-zeile @(_offen.Contains(liste.Id) ? "offen" : "") @(liste.Aktiv ? "" : "inaktiv")">
+                        <button class="sl-kopf" @onclick="() => Umschalten(liste.Id)">
+                            <span class="sl-name">
+                                @if (liste.Kuerzel is not null)
+                                {
+                                    <b>@liste.Kuerzel</b><span class="trenn"> · </span>
+                                }
+                                @liste.Name
+                                @if (liste.BezeichnungIntern is not null)
+                                {
+                                    <span class="sl-intern">bei uns: „@liste.BezeichnungIntern"</span>
+                                }
+                            </span>
+                            <span class="sl-meta">
+                                @if (liste.Standardumfang)
+                                {
+                                    <span class="pill" title="Im Standardumfang von sanktionslisten.de">Standard</span>
+                                }
+                                <span class="status @ImportKlasse(liste.Import)">@ImportText(liste.Import)</span>
+                                <span class="sl-person" title="Verantwortlich">@(liste.Verantwortlich ?? "—")</span>
+                            </span>
+                        </button>
+                        @if (_offen.Contains(liste.Id))
+                        {
+                            <div class="sl-details">
+                                <dl class="werte">
+                                    @if (liste.Aliase is not null)
+                                    {
+                                        <dt>Andere Bezeichnungen</dt><dd>@liste.Aliase</dd>
+                                    }
+                                    @if (liste.Beschreibung is not null)
+                                    {
+                                        <dt>Beschreibung</dt><dd>@liste.Beschreibung</dd>
+                                    }
+                                    <dt>Art</dt><dd>@(liste.Art ?? "—")</dd>
+                                    <dt>Herausgeber</dt><dd>@(liste.Herausgeber ?? "—")</dd>
+                                    <dt>Geltungsbereich</dt><dd>@(liste.Geltungsbereich ?? "—")</dd>
+                                    <dt>sanktionslisten.de</dt><dd>@(liste.Standardumfang ? "Standardumfang" : "optional verfügbar")</dd>
+                                    <dt>Download</dt>
+                                    <dd>
+                                        @if (liste.DownloadUrl is not null)
+                                        {
+                                            <a href="@liste.DownloadUrl" target="_blank" rel="noopener noreferrer" style="word-break:break-all">@liste.DownloadUrl</a>
+                                        }
+                                        else
+                                        {
+                                            <span>—</span>
+                                        }
+                                    </dd>
+                                    <dt>Import</dt>
+                                    <dd>@ImportText(liste.Import)@(liste.ImportHinweis is not null ? $" — {liste.ImportHinweis}" : "")</dd>
+                                    <dt>Verantwortlich</dt><dd>@(liste.Verantwortlich ?? "— noch nicht festgelegt")</dd>
+                                    <dt>Vertretung</dt><dd>@(liste.Vertreter ?? "— noch nicht festgelegt")</dd>
+                                    <dt>Prozess</dt>
+                                    <dd style="white-space:pre-wrap">@(liste.Prozess ?? "— noch nicht beschrieben")</dd>
+                                </dl>
+                                <div style="display:flex; gap:10px; align-items:center; margin-top:10px">
+                                    @if (_katalog.DarfBearbeiten)
+                                    {
+                                        <button class="knopf sekundaer klein" @onclick="() => BearbeitenOeffnen(liste)">Bearbeiten</button>
+                                    }
+                                    @if (liste.GeaendertAm is not null)
+                                    {
+                                        <span style="color:var(--muted); font-size:12px">
+                                            zuletzt geändert @liste.GeaendertAm.Value.ToLocalTime().ToString("dd.MM.yyyy")@(liste.GeaendertVon is not null ? $" von {liste.GeaendertVon}" : "")
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </details>
+    }
+    @if (!Gefiltert().Any())
+    {
+        <div class="leer-hinweis">Keine Liste passt zu Suche bzw. Filter.</div>
+    }
+}
+
+@* ---------- Bearbeiten / Anlegen ---------- *@
+@if (_bearbeitung is not null)
+{
+    <div class="vorschau-overlay" @onclick="() => _bearbeitung = null">
+        <div class="fenster" style="width:min(760px, 100%)" @onclick:stopPropagation="true">
+            <div class="fenster-kopf">
+                <h2>@(_bearbeitungId is null ? "Sanktionsliste anlegen" : "Sanktionsliste bearbeiten")</h2>
+                <button class="mehr" @onclick="() => _bearbeitung = null">Schließen</button>
+            </div>
+            <div class="fenster-inhalt">
+                @if (_fehler is not null)
+                {
+                    <div class="fehler" style="margin-bottom:10px">@_fehler</div>
+                }
+                <div class="formular">
+                    <label>
+                        Land / Region
+                        <select @bind="_bearbeitung.Region">
+                            @foreach (var region in _katalog!.Regionen)
+                            {
+                                <option value="@region.Code">@region.Code · @region.Name</option>
+                            }
+                        </select>
+                    </label>
+                    <label>Kürzel<input type="text" @bind="_bearbeitung.Kuerzel" placeholder="z. B. SDN" /></label>
+                    <label class="breit">Offizieller Name<input type="text" @bind="_bearbeitung.Name" /></label>
+                    <label>Bezeichnung bei uns<input type="text" @bind="_bearbeitung.BezeichnungIntern" placeholder="wie wir die Liste nennen" /></label>
+                    <label>Andere Bezeichnungen<input type="text" @bind="_bearbeitung.Aliase" placeholder="Kunden, Wettbewerber — kommagetrennt" /></label>
+                    <label class="breit">Beschreibung<textarea rows="2" @bind="_bearbeitung.Beschreibung"></textarea></label>
+                    <label>Art<input type="text" @bind="_bearbeitung.Art" placeholder="Finanzsanktionen, Exportkontrolle …" /></label>
+                    <label>Geltungsbereich<input type="text" @bind="_bearbeitung.Geltungsbereich" /></label>
+                    <label class="breit">Herausgeber<input type="text" @bind="_bearbeitung.Herausgeber" /></label>
+                    <label class="breit">Download-Link<input type="url" @bind="_bearbeitung.DownloadUrl" placeholder="https://…" /></label>
+                    <label>
+                        Import
+                        <select @bind="_bearbeitung.Import">
+                            @foreach (var (wert, text) in ImportArten)
+                            {
+                                <option value="@wert">@text</option>
+                            }
+                        </select>
+                    </label>
+                    <label>Hinweis zum Import<input type="text" @bind="_bearbeitung.ImportHinweis" placeholder="Intervall, Format, Besonderheiten" /></label>
+                    <label>
+                        Verantwortlich
+                        <select @bind="_bearbeitung.VerantwortlichId">
+                            <option value="">— offen —</option>
+                            @foreach (var person in _personen)
+                            {
+                                <option value="@person.Id">@person.Name</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Vertretung
+                        <select @bind="_bearbeitung.VertreterId">
+                            <option value="">— offen —</option>
+                            @foreach (var person in _personen)
+                            {
+                                <option value="@person.Id">@person.Name</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="breit">
+                        Prozess (was ist bei einer Aktualisierung zu tun?)
+                        <textarea rows="5" @bind="_bearbeitung.Prozess"
+                                  placeholder="@ProzessBeispiel"></textarea>
+                    </label>
+                    <label style="flex-direction:row; align-items:center; gap:6px">
+                        <input type="checkbox" @bind="_bearbeitung.Standardumfang" /> Standardumfang sanktionslisten.de
+                    </label>
+                    <label style="flex-direction:row; align-items:center; gap:6px">
+                        <input type="checkbox" @bind="_bearbeitung.Aktiv" /> aktiv (sonst als eingestellt ausgeblendet)
+                    </label>
+                </div>
+            </div>
+            <div class="fenster-fuss">
+                <button class="knopf" disabled="@_speichere" @onclick="SpeichernAsync">@(_speichere ? "Speichere …" : "Speichern")</button>
+                <button class="knopf sekundaer" @onclick="() => _bearbeitung = null">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private SanktionslistenKatalog? _katalog;
+    private List<PersonAuswahl> _personen = [];
+    private readonly HashSet<int> _offen = [];
+    private string _suche = "";
+    private string _filter = "";
+    private bool _inaktiveZeigen;
+    private Formular? _bearbeitung;
+    private int? _bearbeitungId;
+    private bool _speichere;
+    private string? _fehler;
+
+    private static readonly (string Schluessel, string Text)[] Filter =
+    [
+        ("", "Alle"),
+        ("standard", "Standardumfang"),
+        ("Automatisch", "Sanction Admin"),
+        ("Manuell", "Von Hand"),
+        ("Offen", "Import offen"),
+        ("ohneVerantwortlich", "Ohne Verantwortliche"),
+    ];
+
+    private const string ProzessBeispiel =
+        "1. Aktualisierung erkennen (Newsletter, Feed, Sanction Admin) …\n2. Import prüfen …\n3. Bei Auffälligkeiten Support/Kunden informieren …";
+
+    private static readonly (string Wert, string Text)[] ImportArten =
+    [
+        ("Offen", "noch offen"),
+        ("Automatisch", "automatisch (Sanction Admin)"),
+        ("Manuell", "von Hand"),
+        ("NichtImEinsatz", "nicht im Einsatz"),
+    ];
+
+    private class Formular
+    {
+        public string Region { get; set; } = "EU";
+        public string? Kuerzel { get; set; }
+        public string Name { get; set; } = "";
+        public string? BezeichnungIntern { get; set; }
+        public string? Aliase { get; set; }
+        public string? Beschreibung { get; set; }
+        public string? Art { get; set; }
+        public string? Herausgeber { get; set; }
+        public string? Geltungsbereich { get; set; }
+        public bool Standardumfang { get; set; }
+        public string? DownloadUrl { get; set; }
+        public string Import { get; set; } = "Offen";
+        public string? ImportHinweis { get; set; }
+        public int? VerantwortlichId { get; set; }
+        public int? VertreterId { get; set; }
+        public string? Prozess { get; set; }
+        public bool Aktiv { get; set; } = true;
+    }
+
+    protected override Task OnInitializedAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _katalog = await Http.GetFromJsonAsync<SanktionslistenKatalog>("api/wiki/sanktionslisten");
+            if (_katalog?.DarfBearbeiten == true && _personen.Count == 0)
+                _personen = await Http.GetFromJsonAsync<List<PersonAuswahl>>("api/wiki/personen") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Sanktionslisten konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private IEnumerable<SanktionslisteEintrag> Gefiltert() => Basis().Where(l => PasstFilter(l, _filter));
+
+    // Suche + aktiv/eingestellt — Grundlage auch für die Zähler an den Filter-Chips
+    private IEnumerable<SanktionslisteEintrag> Basis()
+    {
+        var s = _suche.Trim();
+        return (_katalog?.Listen ?? [])
+            .Where(l => _inaktiveZeigen || l.Aktiv)
+            .Where(l => s.Length == 0 || new[] { l.Name, l.Kuerzel, l.BezeichnungIntern, l.Aliase, l.Herausgeber, l.RegionName, l.Region }
+                .Any(t => t?.Contains(s, StringComparison.OrdinalIgnoreCase) == true));
+    }
+
+    private static bool PasstFilter(SanktionslisteEintrag l, string filter) => filter switch
+    {
+        "" => true,
+        "standard" => l.Standardumfang,
+        "ohneVerantwortlich" => l.VerantwortlichId is null,
+        _ => l.Import == filter,
+    };
+
+    private int Anzahl(string filter) => Basis().Count(l => PasstFilter(l, filter));
+
+    private void Umschalten(int id)
+    {
+        if (!_offen.Add(id))
+            _offen.Remove(id);
+    }
+
+    private static string ImportText(string import) =>
+        ImportArten.FirstOrDefault(a => a.Wert == import).Text ?? import;
+
+    // Farbe nur für Handlungsbedarf: offen = gelb; automatisch = grün
+    private static string ImportKlasse(string import) => import switch
+    {
+        "Automatisch" => "gut",
+        "Offen" => "warnung",
+        _ => "",
+    };
+
+    private void NeuOeffnen()
+    {
+        _bearbeitungId = null;
+        _bearbeitung = new Formular();
+    }
+
+    private void BearbeitenOeffnen(SanktionslisteEintrag l)
+    {
+        _bearbeitungId = l.Id;
+        _bearbeitung = new Formular
+        {
+            Region = l.Region, Kuerzel = l.Kuerzel, Name = l.Name, BezeichnungIntern = l.BezeichnungIntern,
+            Aliase = l.Aliase, Beschreibung = l.Beschreibung, Art = l.Art, Herausgeber = l.Herausgeber,
+            Geltungsbereich = l.Geltungsbereich, Standardumfang = l.Standardumfang, DownloadUrl = l.DownloadUrl,
+            Import = l.Import, ImportHinweis = l.ImportHinweis, VerantwortlichId = l.VerantwortlichId,
+            VertreterId = l.VertreterId, Prozess = l.Prozess, Aktiv = l.Aktiv,
+        };
+    }
+
+    private async Task SpeichernAsync()
+    {
+        if (_bearbeitung is null)
+            return;
+        _fehler = null;
+        _speichere = true;
+        try
+        {
+            var f = _bearbeitung;
+            var daten = new SanktionslisteSpeichern(f.Region, f.Kuerzel, f.Name, f.BezeichnungIntern, f.Aliase,
+                f.Beschreibung, f.Art, f.Herausgeber, f.Geltungsbereich, f.Standardumfang, f.DownloadUrl, f.Import,
+                f.ImportHinweis, f.VerantwortlichId, f.VertreterId, f.Prozess, f.Aktiv);
+            var antwort = _bearbeitungId is { } id
+                ? await Http.PutAsJsonAsync($"api/wiki/sanktionslisten/{id}", daten)
+                : await Http.PostAsJsonAsync("api/wiki/sanktionslisten", daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _bearbeitung = null;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichere = false;
+        }
+    }
+}

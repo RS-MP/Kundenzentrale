@@ -156,6 +156,16 @@ Nutzt ein Partner die Software auch selbst, wird er in der Partner-Akte unter
 oder Suche). Seine eigenen Nutzungsverträge stehen dann in der Kundenakte, die
 Partnerverträge in der Partner-Akte — beide verlinken aufeinander.
 
+## Wiki
+
+Bereich **Wiki** in der Navigation: hier steht, wie bei uns was funktioniert
+und wie wir es nennen. Erstes Thema **Sanktionslisten**: alle Listen nach
+Land bzw. Region, je Liste offizieller Name, unsere Bezeichnung und andere
+gebräuchliche Namen (Suche findet alle), Beschreibung, Download-Link, wie sie
+importiert wird (Sanction Admin oder von Hand), wer sie überwacht und wer
+vertritt, und der Prozess bei Aktualisierungen. Lesen dürfen alle, pflegen
+Compliance und Admin (Knopf „Bearbeiten" in der aufgeklappten Liste).
+
 ## Wer darf was
 
 Alle Mitarbeiter können mit Kunden und Verträgen arbeiten. Der Bereich

@@ -1058,6 +1058,105 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("AboPositionen");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.Sanktionsliste", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Aktiv")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Aliase")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Art")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Beschreibung")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BezeichnungIntern")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("DownloadUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeaendertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Geltungsbereich")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Herausgeber")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<int>("Import")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ImportHinweis")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Kuerzel")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Prozess")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<bool>("Standardumfang")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("VerantwortlichId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("VertreterId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GeaendertVonId");
+
+                    b.HasIndex("VerantwortlichId");
+
+                    b.HasIndex("VertreterId");
+
+                    b.HasIndex("Region", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Sanktionslisten");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
@@ -1241,6 +1340,30 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Abo");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.Sanktionsliste", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
+                        .WithMany()
+                        .HasForeignKey("GeaendertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "Verantwortlich")
+                        .WithMany()
+                        .HasForeignKey("VerantwortlichId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "Vertreter")
+                        .WithMany()
+                        .HasForeignKey("VertreterId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("GeaendertVon");
+
+                    b.Navigation("Verantwortlich");
+
+                    b.Navigation("Vertreter");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>

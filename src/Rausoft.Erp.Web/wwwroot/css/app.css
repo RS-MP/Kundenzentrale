@@ -226,11 +226,11 @@ details.gruppe summary .zahl {
 .verlauf2 .textzeile { color: var(--ink2); margin-top: 2px; }
 
 /* Formulare */
-input[type=text], input[type=search] {
+input[type=text], input[type=search], input[type=url] {
   font: inherit; color: var(--ink); background: var(--surface);
   border: 1px solid var(--border-strong); border-radius: 7px; padding: 7px 10px;
 }
-input[type=text]:focus, input[type=search]:focus {
+input[type=text]:focus, input[type=search]:focus, input[type=url]:focus {
   outline: 2px solid var(--accent-line); border-color: var(--accent);
 }
 .knopf {
@@ -249,7 +249,7 @@ input[type=text]:focus, input[type=search]:focus {
 
 /* Suche + Paging */
 .werkzeugleiste { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
-.werkzeugleiste input { min-width: 320px; }
+.werkzeugleiste input[type=search], .werkzeugleiste input[type=text] { min-width: 320px; }
 .paging { display: flex; gap: 8px; align-items: center; padding: 12px 16px; color: var(--muted); }
 .paging .fueller { flex: 1; }
 
@@ -374,3 +374,37 @@ select:focus, input[type=date]:focus, input[type=number]:focus, textarea:focus {
 .werte { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13.5px; }
 .werte dt { color: var(--muted); }
 .werte dd { margin: 0; }
+
+/* Wiki */
+.wiki-themen { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.wiki-thema { text-decoration: none; color: inherit; }
+.wiki-thema h2 { margin: 0 0 6px; font-size: 16px; }
+.wiki-thema p { margin: 0; color: var(--ink2); font-size: 13.5px; line-height: 1.5; }
+a.wiki-thema:hover { border-color: var(--accent-line); }
+.wiki-thema.leer { opacity: .65; }
+.chip .anz { color: var(--muted); font-size: 11.5px; margin-left: 4px; }
+
+/* Sanktionslisten-Katalog: eine Zeile je Liste, aufklappbar */
+.sl-zeile { border-bottom: 1px solid var(--border); }
+.sl-zeile:last-child { border-bottom: none; }
+.sl-zeile.inaktiv { opacity: .55; }
+.sl-kopf {
+  display: flex; gap: 12px; align-items: baseline; width: 100%; padding: 9px 16px;
+  background: none; border: none; text-align: left; cursor: pointer; color: inherit; font: inherit;
+}
+.sl-kopf:hover, .sl-zeile.offen .sl-kopf { background: var(--accent-soft); }
+.sl-name { flex: 1; font-size: 13.5px; }
+.sl-name .trenn { color: var(--muted); }
+.sl-intern { color: var(--muted); font-size: 12.5px; margin-left: 8px; }
+.sl-meta { display: flex; gap: 10px; align-items: center; font-size: 12.5px; white-space: nowrap; }
+.sl-person { color: var(--ink2); min-width: 110px; text-align: right; }
+.sl-details { padding: 6px 16px 14px 16px; }
+@media (max-width: 720px) {
+  .sl-kopf { flex-direction: column; gap: 4px; }
+  .sl-meta { flex-wrap: wrap; }
+  .sl-person { text-align: left; min-width: 0; }
+}
+/* Formularfelder im Fenster nie breiter als ihre Spalte (sonst waagrechte Scrollleiste) */
+.fenster .formular input, .fenster .formular select, .fenster .formular textarea { min-width: 0; width: 100%; box-sizing: border-box; }
+.fenster .formular input[type=checkbox] { width: auto; }
+.fenster-inhalt { overflow-x: hidden; }

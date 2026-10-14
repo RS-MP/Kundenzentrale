@@ -392,6 +392,28 @@ Offen: **Probe-PDF** mit Testkunde vor der Freigabe.
 
 Status: umgesetzt · Probe-PDF offen
 
+## Nr. 22 · Wiki — Start mit Sanktionslisten (2026-10-14, MP)
+
+Die Mitarbeiter sollen in der Kundenzentrale nachlesen können, wie bei uns was
+funktioniert und wie wir was bezeichnen. Erstes Thema: Sanktionslisten —
+gruppiert nach Land/Region (DE, EU, US …), je Liste: offizielle Bezeichnung,
+wie sie bei uns und bei Kunden/Wettbewerbern heißt, Beschreibung,
+Download-Link, Import (automatisch über den Sanction Admin oder von Hand),
+wer überwacht + Vertretung, Prozess.
+
+Umgesetzt (14.10.2026): Bereich **Wiki** (Navigation) mit Themenübersicht;
+Katalog **Sanktionslisten** gruppiert nach Region, Suche über Name, Kürzel,
+interne und andere Bezeichnungen, Filter (Standardumfang, Sanction Admin, von
+Hand, Import offen, ohne Verantwortliche), aufklappbare Details, Pflege im
+Fenster (Compliance/Admin; lesen alle). Verantwortlich/Vertretung als Auswahl
+aus den Benutzern. Startbestand: 28 Listen aus der Sanktionslisten-Übersicht
+von sanktionslisten.de (Stand 16.12.2025, P:\01_Vertrieb\…) — Fakten und
+Links übernommen, Beschreibungen als eigene Kurzfassung. Offen für MP:
+interne Bezeichnungen, Import, Verantwortliche/Vertretung und Prozesse je
+Liste pflegen.
+
+Status: umgesetzt · Pflege der Inhalte offen
+
 ## Backlog (Aufgaben beim Nutzer / für später)
 
 - **Entra + IIS:** Klick-Anleitung liegt in `DEPLOYMENT.md` — sobald die

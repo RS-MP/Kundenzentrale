@@ -5,6 +5,7 @@ using Rausoft.Erp.Domain.Contracts;
 using Rausoft.Erp.Domain.Customers;
 using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Domain.Subscriptions;
+using Rausoft.Erp.Domain.Wiki;
 
 namespace Rausoft.Erp.Data;
 
@@ -36,6 +37,9 @@ public class ErpDbContext(
     public DbSet<Vertragsdokument> Vertragsdokumente => Set<Vertragsdokument>();
     public DbSet<Vorlage> Vorlagen => Set<Vorlage>();
     public DbSet<VorlagenVersion> VorlagenVersionen => Set<VorlagenVersion>();
+
+    // Wiki
+    public DbSet<Sanktionsliste> Sanktionslisten => Set<Sanktionsliste>();
 
     // Abos
     public DbSet<Abo> Abos => Set<Abo>();
@@ -302,6 +306,29 @@ public class ErpDbContext(
             e.HasIndex(v => v.Name).IsUnique();
             e.Property(v => v.Name).HasMaxLength(200);
         });
+        // --- Wiki: Sanktionslisten ------------------------------------------
+        modelBuilder.Entity<Sanktionsliste>(e =>
+        {
+            e.HasIndex(s => new { s.Region, s.Name }).IsUnique();
+            e.Property(s => s.Region).HasMaxLength(10);
+            e.Property(s => s.Kuerzel).HasMaxLength(30);
+            e.Property(s => s.Name).HasMaxLength(250);
+            e.Property(s => s.BezeichnungIntern).HasMaxLength(250);
+            e.Property(s => s.Aliase).HasMaxLength(1000);
+            e.Property(s => s.Beschreibung).HasColumnType("nvarchar(max)");
+            e.Property(s => s.Art).HasMaxLength(100);
+            e.Property(s => s.Herausgeber).HasMaxLength(250);
+            e.Property(s => s.Geltungsbereich).HasMaxLength(100);
+            e.Property(s => s.DownloadUrl).HasMaxLength(500);
+            e.Property(s => s.ImportHinweis).HasMaxLength(1000);
+            e.Property(s => s.Prozess).HasColumnType("nvarchar(max)");
+            e.Property(s => s.RowVersion).IsRowVersion();
+            // Mitarbeiter werden i. d. R. deaktiviert; falls doch gelöscht: Zuständigkeit leeren
+            e.HasOne(s => s.Verantwortlich).WithMany().HasForeignKey(s => s.VerantwortlichId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(s => s.Vertreter).WithMany().HasForeignKey(s => s.VertreterId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(s => s.GeaendertVon).WithMany().HasForeignKey(s => s.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+
         modelBuilder.Entity<VorlagenVersion>(e =>
         {
             e.HasIndex(v => new { v.VorlageId, v.Nummer }).IsUnique();
