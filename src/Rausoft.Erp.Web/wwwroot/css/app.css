@@ -196,8 +196,9 @@ details.gruppe summary::-webkit-details-marker { display: none; }
 details.gruppe summary::after { content: "▸"; margin-left: auto; color: var(--muted); transition: transform .15s; }
 @media (prefers-reduced-motion: reduce) { details.gruppe summary::after { transition: none; } }
 details.gruppe[open] summary::after { transform: rotate(90deg); }
+/* Zähler direkt neben dem Titel — mit margin-left:auto teilte er sich den Platz mit dem Pfeil und schwebte in breiten Karten mittig */
 details.gruppe summary .zahl {
-  font-variant-numeric: tabular-nums; margin-left: auto; margin-right: 8px;
+  font-variant-numeric: tabular-nums; margin-left: 4px;
   color: var(--muted); font-weight: 400; font-size: 12.5px;
 }
 .gruppe-inhalt { padding: 12px 14px; }
