@@ -1261,6 +1261,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("Abschnitte")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime?>("GeaendertAm")
                         .HasColumnType("datetime2");
 

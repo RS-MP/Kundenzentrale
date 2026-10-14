@@ -54,6 +54,14 @@ public class WikiThemaInfo
 
     public string? Prozess { get; set; }
 
+    /// <summary>
+    /// Reihenfolge der Abschnitte auf der Themenseite, von der Wiki-Redaktion
+    /// angeordnet — Abschnitts-Schlüssel durch Komma getrennt (z. B.
+    /// „stufen,addons,worldcheck"). null = Standardreihenfolge der Seite.
+    /// Unbekannte Schlüssel werden ignoriert, fehlende hinten angehängt.
+    /// </summary>
+    public string? Abschnitte { get; set; }
+
     public DateTime? GeaendertAm { get; set; }
     public int? GeaendertVonId { get; set; }
     public Mitarbeiter? GeaendertVon { get; set; }

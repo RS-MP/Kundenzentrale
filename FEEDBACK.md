@@ -454,6 +454,16 @@ bleibt das P-Laufwerk (Einstellung `Preisliste.Verzeichnis`); ob das Wiki
 später der Freigabe-Ort für alle Dokumente wird, ist offen. Für Phase 3
 (Angebote) liegen die Preise damit bereits strukturiert vor.
 
+**Struktur der Preislisten-Seite** (14.10.2026, MP: unübersichtlich): Die
+Abschnitte (Stufen, Add-ons, Pakete, Benutzer, WorldCheck, Volume-Pool,
+Begriffe, Vertriebshinweise, Sicherheit, Argumente) sind jetzt **anordenbar**
+— Knopf „Abschnitte anordnen" (Wiki-Redaktion/Compliance/Admin), ▲/▼ je
+Abschnitt, gilt für alle Leser; gespeichert in `WikiThemaInfo.Abschnitte`
+(Schlüssel durch Komma), „Standardreihenfolge" setzt zurück. Standard stellt
+WorldCheck jetzt vor die Begriffe intern ↔ extern. Die Listen Thema | Text
+(Sicherheit, Vertriebshinweise, Argumente) stehen **linksbündig** in zwei
+Spalten statt rechtsbündig; interne Texte als eigene Zeile mit Kennzeichen.
+
 Status: umgesetzt · Pflege der Inhalte offen · Dokument-Freigabe über das Wiki offen
 
 ## Backlog (Aufgaben beim Nutzer / für später)

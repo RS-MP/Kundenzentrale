@@ -358,6 +358,7 @@ public class ErpDbContext(
             e.HasKey(i => i.Thema);
             e.Property(i => i.Thema).HasMaxLength(50);
             e.Property(i => i.Prozess).HasColumnType("nvarchar(max)");
+            e.Property(i => i.Abschnitte).HasMaxLength(500);
             e.HasOne(i => i.Verantwortlich).WithMany().HasForeignKey(i => i.VerantwortlichId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(i => i.Vertreter).WithMany().HasForeignKey(i => i.VertreterId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(i => i.GeaendertVon).WithMany().HasForeignKey(i => i.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);

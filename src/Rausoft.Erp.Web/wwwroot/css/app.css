@@ -438,3 +438,19 @@ a.wiki-thema:hover { border-color: var(--accent-line); }
 .pl-regel { font-size: 13px; color: var(--ink2); margin-top: 8px; }
 .pl-intern { display: inline-block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--warn); border: 1px solid var(--warn); border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: middle; }
 .pl-hinweis-intern { color: var(--warn); }
+
+/* Thema | Text — linksbündig in zwei Spalten statt Flex mit Zwischenraum (sonst stand der Text rechtsbündig) */
+.pl-zeilen { display: grid; grid-template-columns: minmax(150px, 200px) 1fr; gap: 8px 18px; margin: 0; font-size: 13.5px; line-height: 1.45; align-items: baseline; }
+.pl-zeilen dt { font-weight: 600; }
+.pl-zeilen dd { margin: 0; }
+.pl-zeilen .pl-hinweis-intern { margin-top: 3px; font-size: 13px; }
+@media (max-width: 700px) { .pl-zeilen { grid-template-columns: 1fr; gap: 2px 0; } .pl-zeilen dd { margin-bottom: 8px; } }
+
+/* Abschnitte anordnen (Wiki-Redaktion) */
+.pl-anordnen-liste { list-style: none; margin: 10px 0 0; padding: 0; max-width: 560px; }
+.pl-anordnen-liste li { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.pl-anordnen-liste li:last-child { border-bottom: none; }
+.pl-anordnen-liste li > span:nth-child(2) { flex: 1; }
+.pl-anordnen-nr { width: 22px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.pl-anordnen-knoepfe { display: flex; gap: 4px; }
+.pl-anordnen-knoepfe .knopf { min-width: 30px; padding: 2px 6px; }

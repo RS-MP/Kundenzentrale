@@ -78,6 +78,11 @@ else
                     <button class="knopf" disabled="@(_importDatei is null || _importiere)" @onclick="ImportierenAsync">
                         @(_importiere ? "Importiere …" : "Importieren")
                     </button>
+                    @if (_ansicht.Daten is not null && !_anordnen)
+                    {
+                        <span style="flex:1"></span>
+                        <button class="knopf sekundaer klein" @onclick="AnordnenOeffnen" title="Reihenfolge der Abschnitte auf dieser Seite festlegen — gilt für alle Leser">Abschnitte anordnen</button>
+                    }
                 </div>
             }
         </div>
@@ -85,266 +90,49 @@ else
 
     @if (_ansicht.Daten is { } p)
     {
-        var stufen = p.Stufen;
+        var vorhanden = StandardAbschnitte.Where(a => Abschnitt(a.Schluessel, p) is not null).Select(a => a.Schluessel).ToHashSet();
 
-        @* ---------- Stufen & Volumen ---------- *@
-        <details class="gruppe" open>
-            <summary>Stufen und Volumenpreise<span class="zahl">@stufen.Count Stufen · @p.Volumenstufen.Count Volumenstufen</span></summary>
-            <div class="gruppe-inhalt">
-                <div class="pl-stufen">
-                    @foreach (var s in stufen)
-                    {
-                        <div class="pl-stufe">
-                            <div class="pl-stufe-name">@s.Name</div>
-                            <div class="neben">@VolumenText(s)</div>
-                            <dl class="werte" style="margin-top:8px">
-                                <dt>Setup</dt><dd>@(s.SetupEinmalig?.Anzeige() ?? "—")@(s.SetupHinweis is not null ? $" · {s.SetupHinweis}" : "")
-                                    @if (s.SetupHinweisIntern is not null) { <span class="pl-intern">intern: @s.SetupHinweisIntern</span> }</dd>
-                                <dt>Inklusive</dt><dd>@s.InklusiveBenutzer Benutzer · @s.InklusiveMandanten Mandanten</dd>
-                            </dl>
-                            <ul class="pl-merkmale">
-                                @foreach (var m in s.Merkmale)
-                                {
-                                    <li class="@(m.Enthalten ? "" : "nicht")">
-                                        <span class="pl-zeichen">@(m.Enthalten ? "✓" : "–")</span>@m.Text
-                                        @if (IstIntern(m.Sichtbarkeit)) { <span class="pl-intern">intern</span> }
-                                    </li>
-                                }
-                            </ul>
-                        </div>
-                    }
-                </div>
-
-                <table class="liste pl-tabelle" style="margin-top:14px">
-                    <thead>
-                        <tr>
-                            <th>Stammdaten</th>
-                            @foreach (var s in stufen) { <th class="r">@s.Name</th> }
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var v in p.Volumenstufen)
-                        {
-                            <tr style="cursor:default">
-                                <td>@(v.Label ?? v.Stammdaten.ToString("N0"))</td>
-                                @foreach (var s in stufen)
-                                {
-                                    <td class="r">@(v.Preise.TryGetValue(s.Schluessel, out var w) ? w?.Anzeige() ?? "—" : "—")</td>
-                                }
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-                @foreach (var r in p.VolumenRegeln ?? [])
-                {
-                    <div class="pl-regel">@r.Text @if (IstIntern(r.Sichtbarkeit)) { <span class="pl-intern">intern</span> }</div>
-                }
-            </div>
-        </details>
-
-        @* ---------- Add-ons ---------- *@
-        <details class="gruppe" open>
-            <summary>Add-ons und Module<span class="zahl">@p.Addons.Count</span></summary>
-            <div class="gruppe-inhalt" style="padding:0">
-                <table class="liste">
-                    <thead>
-                        <tr><th>Add-on</th><th>Beschreibung</th><th style="width:170px">Verfügbar ab</th><th class="r" style="width:130px">Preis / Monat</th><th class="r" style="width:140px">Einrichtung</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var a in p.Addons)
-                        {
-                            <tr style="cursor:default">
-                                <td>
-                                    <span class="haupt">@a.Name</span>
-                                    @if (IstIntern(a.Sichtbarkeit)) { <span class="pl-intern">intern</span> }
-                                    @if (a.NameIntern is not null) { <div class="neben">intern: @a.NameIntern</div> }
-                                </td>
-                                <td>
-                                    <span style="font-size:13px">@a.Beschreibung</span>
-                                    @if (a.HinweisIntern is not null) { <div class="neben pl-hinweis-intern">@a.HinweisIntern</div> }
-                                </td>
-                                <td>@StufenName(a.VerfuegbarAb)@(a.VerfuegbarkeitHinweis is not null ? "" : "")
-                                    @if (a.VerfuegbarkeitHinweis is not null) { <div class="neben">@a.VerfuegbarkeitHinweis</div> }
-                                </td>
-                                <td class="r">@(a.PreisMonat is null || a.PreisMonat.IstLeer ? "—" : a.PreisMonat.Zahl == 0 ? "inklusive" : a.PreisMonat.Anzeige())</td>
-                                <td class="r">@(a.EinrichtungEinmalig is null || a.EinrichtungEinmalig.IstLeer ? "—" : a.EinrichtungEinmalig.Anzeige())
-                                    @if (a.EinrichtungHinweis is not null) { <div class="neben">@a.EinrichtungHinweis</div> }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </details>
-
-        @* ---------- Sanktionslisten-Pakete ---------- *@
-        @if (p.SanktionslistenPakete is { } sp)
+        @* ---------- Abschnitte anordnen (Wiki-Redaktion) ---------- *@
+        @if (_anordnen)
         {
-            <details class="gruppe" open>
-                <summary>Sanktionslisten-Pakete<span class="zahl">@sp.Pakete.Count Pakete · @sp.Standardlisten.Count Standardlisten</span></summary>
-                <div class="gruppe-inhalt">
-                    @if (sp.Hinweis is not null) { <div class="pl-regel" style="margin-top:0">@sp.Hinweis</div> }
-                    <div class="pl-regel">Standardlisten (in allen Stufen): @string.Join(" · ", sp.Standardlisten)</div>
-                    <table class="liste pl-tabelle" style="margin-top:10px">
-                        <thead><tr><th>Paket</th><th style="width:60px">Listen</th><th class="r" style="width:120px">Preis / Monat</th><th>Enthaltene Listen</th></tr></thead>
-                        <tbody>
-                            @foreach (var pk in sp.Pakete)
-                            {
-                                <tr style="cursor:default">
-                                    <td><span class="haupt">@pk.Name</span>@if (pk.NameIntern is not null) { <div class="neben">intern: @pk.NameIntern</div> }</td>
-                                    <td>@(pk.Listen.Count > 0 ? pk.Listen.Count.ToString() : "1")</td>
-                                    <td class="r">@(pk.PreisMonat?.Anzeige() ?? "—")</td>
-                                    <td style="font-size:13px">@(pk.Listen.Count > 0 ? string.Join(", ", pk.Listen) : "")@(pk.Hinweis is not null ? (pk.Listen.Count > 0 ? " — " : "") + pk.Hinweis : "")
-                                        — <a href="wiki/sanktionslisten">zum Sanktionslisten-Wiki</a></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </details>
-        }
-
-        @* ---------- Benutzer ---------- *@
-        @if (p.BenutzerStaffel is { } bs)
-        {
-            <details class="gruppe" open>
-                <summary>Benutzer-Pakete<span class="zahl">@bs.Stufen.Count Staffeln</span></summary>
-                <div class="gruppe-inhalt">
-                    @if (bs.Hinweis is not null) { <div class="pl-regel" style="margin-top:0">@bs.Hinweis</div> }
-                    <table class="liste pl-tabelle" style="margin-top:10px; max-width:460px">
-                        <thead><tr><th>Benutzer-Anzahl</th><th class="r">Preis pro Benutzer / Monat</th></tr></thead>
-                        <tbody>
-                            @foreach (var st in bs.Stufen)
-                            {
-                                <tr style="cursor:default"><td>@(st.Bis is null ? $"ab {st.Von}" : $"{st.Von} – {st.Bis}") Benutzer</td><td class="r">@(st.PreisProBenutzerMonat?.Anzeige() ?? "—")</td></tr>
-                            }
-                            @foreach (var pa in bs.Pauschalen ?? [])
-                            {
-                                <tr style="cursor:default"><td>@pa.Name@(pa.NurStufe is not null ? $" (nur {StufenName(pa.NurStufe)})" : "")</td><td class="r">@(pa.PreisMonat?.Anzeige(" pauschal") ?? "—")</td></tr>
-                            }
-                        </tbody>
-                    </table>
-                    @foreach (var v in bs.Verkaufshilfen ?? [])
-                    {
-                        <div class="pl-regel">@v.Text @if (IstIntern(v.Sichtbarkeit)) { <span class="pl-intern">intern</span> }</div>
-                    }
-                </div>
-            </details>
-        }
-
-        @* ---------- Begriffe ---------- *@
-        @if (p.Begriffe is { Count: > 0 } begriffe)
-        {
-            <details class="gruppe" open>
-                <summary>Begriffe intern ↔ extern<span class="zahl">@begriffe.Count</span></summary>
-                <div class="gruppe-inhalt" style="padding:0">
-                    <table class="liste">
-                        <thead><tr><th style="width:220px">Bei uns</th><th style="width:260px">Beim Kunden</th><th>Erläuterung</th></tr></thead>
-                        <tbody>
-                            @foreach (var b in begriffe)
-                            {
-                                <tr style="cursor:default"><td><span class="haupt">@b.Intern</span></td><td>@b.Extern</td><td style="font-size:13px">@(b.Erlaeuterung ?? "")</td></tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </details>
-        }
-
-        @* ---------- Interne Abschnitte (kommen für Unberechtigte gar nicht erst vom Server) ---------- *@
-        @if (p.Worldcheck is { } wc)
-        {
-            <details class="gruppe">
-                <summary>WorldCheck-Datenpakete <span class="pl-intern">intern</span><span class="zahl">@wc.Pakete.Count Pakete</span></summary>
-                <div class="gruppe-inhalt">
-                    @if (wc.Beschreibung is not null) { <div class="pl-regel" style="margin-top:0">@wc.Beschreibung</div> }
-                    @if (wc.VerfuegbarAb is not null) { <div class="pl-regel">Verfügbar ab @StufenName(wc.VerfuegbarAb)</div> }
-                    <div class="pl-stufen" style="margin-top:10px">
-                        @foreach (var pk in wc.Pakete)
-                        {
-                            <div class="pl-stufe">
-                                <div class="pl-stufe-name">@pk.Name</div>
-                                @if (pk.Untertitel is not null) { <div class="neben">@pk.Untertitel</div> }
-                                <table class="liste pl-tabelle" style="margin-top:8px">
-                                    <thead><tr><th>Stammdaten</th><th class="r">/ Monat</th><th class="r">/ Jahr</th></tr></thead>
-                                    <tbody>
-                                        @foreach (var st in pk.Staffel)
-                                        {
-                                            <tr style="cursor:default"><td>@st.Stammdaten.ToString("N0")</td><td class="r">@(st.PreisMonat?.Anzeige() ?? "—")</td><td class="r">@(st.PreisJahr?.Anzeige() ?? "—")</td></tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
+            <div class="karte pl-anordnen" style="margin-bottom:16px">
+                <div class="karte-koerper">
+                    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+                        <b>Abschnitte anordnen</b>
+                        <span class="neben" style="display:inline">Die Reihenfolge gilt für alle Leser der Preisliste.</span>
                     </div>
-                    @foreach (var r in wc.Regeln ?? []) { <div class="pl-regel">@r</div> }
+                    <ol class="pl-anordnen-liste">
+                        @for (var i = 0; i < _entwurf.Count; i++)
+                        {
+                            var idx = i;
+                            var schluessel = _entwurf[i];
+                            <li>
+                                <span class="pl-anordnen-nr">@(i + 1)</span>
+                                <span>
+                                    @Titel(schluessel)
+                                    @if (IstIntern(schluessel)) { <span class="pl-intern">intern</span> }
+                                    @if (!vorhanden.Contains(schluessel)) { <span class="neben" style="display:inline; margin-left:6px">· derzeit ohne Inhalt</span> }
+                                </span>
+                                <span class="pl-anordnen-knoepfe">
+                                    <button class="knopf sekundaer klein" disabled="@(idx == 0)" title="nach oben" @onclick="() => Verschieben(idx, -1)">▲</button>
+                                    <button class="knopf sekundaer klein" disabled="@(idx == _entwurf.Count - 1)" title="nach unten" @onclick="() => Verschieben(idx, +1)">▼</button>
+                                </span>
+                            </li>
+                        }
+                    </ol>
+                    <div class="formular-aktionen">
+                        <button class="knopf" disabled="@_speichereReihenfolge" @onclick="ReihenfolgeSpeichernAsync">Speichern</button>
+                        <button class="knopf sekundaer" @onclick="() => _anordnen = false">Abbrechen</button>
+                        <button class="mehr" disabled="@_speichereReihenfolge" @onclick="StandardreihenfolgeAsync" title="Gespeicherte Reihenfolge verwerfen, Standard der Seite verwenden">Standardreihenfolge</button>
+                    </div>
                 </div>
-            </details>
+            </div>
         }
 
-        @if (p.VolumenPool is { } vp)
+        @* ---------- Abschnitte in der gespeicherten Reihenfolge ---------- *@
+        @foreach (var schluessel in Reihenfolge())
         {
-            <details class="gruppe">
-                <summary>Volume-Pool-Modell <span class="pl-intern">intern</span><span class="zahl">@vp.Pools.Count Pools</span></summary>
-                <div class="gruppe-inhalt">
-                    @if (vp.Beschreibung is not null) { <div class="pl-regel" style="margin-top:0">@vp.Beschreibung</div> }
-                    <table class="liste pl-tabelle" style="margin-top:10px">
-                        <thead><tr><th>Pool</th><th>Verwendung</th><th style="width:200px">Reset</th><th style="width:110px">Default</th></tr></thead>
-                        <tbody>
-                            @foreach (var pool in vp.Pools)
-                            {
-                                <tr style="cursor:default"><td><span class="haupt">@pool.Name</span></td><td style="font-size:13px">@pool.Verwendung</td><td>@pool.Reset</td><td>@pool.Default</td></tr>
-                            }
-                        </tbody>
-                    </table>
-                    @foreach (var h in vp.Hinweise ?? []) { <div class="pl-regel">@h</div> }
-                </div>
-            </details>
-        }
-
-        @if (p.Vertriebshinweise is { Count: > 0 } vh)
-        {
-            <details class="gruppe">
-                <summary>Vertriebshinweise <span class="pl-intern">intern</span><span class="zahl">@vh.Count</span></summary>
-                <div class="gruppe-inhalt">
-                    @foreach (var h in vh)
-                    {
-                        <div class="zeile2" style="align-items:baseline"><span style="min-width:200px"><b>@h.Titel</b></span><span style="font-size:13.5px">@h.Text</span></div>
-                    }
-                </div>
-            </details>
-        }
-
-        @* ---------- Sicherheit & Argumente ---------- *@
-        @if (p.Sicherheit is { Count: > 0 } sich)
-        {
-            <details class="gruppe">
-                <summary>Sicherheit und Hosting<span class="zahl">@sich.Count</span></summary>
-                <div class="gruppe-inhalt">
-                    @foreach (var s in sich)
-                    {
-                        <div class="zeile2" style="align-items:baseline">
-                            <span style="min-width:200px"><b>@s.Thema</b></span>
-                            <span style="font-size:13.5px">@s.TextExtern
-                                @if (s.TextIntern is not null && s.TextIntern != s.TextExtern) { <div class="neben pl-hinweis-intern">intern: @s.TextIntern</div> }
-                            </span>
-                        </div>
-                    }
-                </div>
-            </details>
-        }
-        @if (p.WarumIdprove is { Count: > 0 } warum)
-        {
-            <details class="gruppe">
-                <summary>Warum ID.prove (Argumente)<span class="zahl">@warum.Count</span></summary>
-                <div class="gruppe-inhalt">
-                    @foreach (var w in warum)
-                    {
-                        <div class="zeile2" style="align-items:baseline"><span style="min-width:200px"><b>@w.Titel</b></span><span style="font-size:13.5px">@w.Text</span></div>
-                    }
-                    @if (p.Onprem?.Text is not null) { <div class="pl-regel">@p.Onprem.Text</div> }
-                </div>
-            </details>
+            @Abschnitt(schluessel, p)
         }
     }
 
@@ -430,6 +218,9 @@ else
     private IBrowserFile? _importDatei;
     private string _importNotiz = "";
     private bool _importiere;
+    private bool _anordnen;
+    private bool _speichereReihenfolge;
+    private List<string> _entwurf = [];
     private string? _fehler;
 
     private class InfoFormular
@@ -438,6 +229,287 @@ else
         public int? VertreterId { get; set; }
         public string? Prozess { get; set; }
     }
+
+    // ---------------------------------------------------------------------
+    // Abschnitte der Seite. Schlüssel werden in WikiThemaInfo.Abschnitte
+    // gespeichert (Redaktion ordnet an); die Reihenfolge hier ist der Standard.
+    // Interne Abschnitte kommen für Unberechtigte gar nicht erst vom Server.
+    // ---------------------------------------------------------------------
+    private static readonly (string Schluessel, string Titel, bool Intern)[] StandardAbschnitte =
+    [
+        ("stufen", "Stufen und Volumenpreise", false),
+        ("addons", "Add-ons und Module", false),
+        ("pakete", "Sanktionslisten-Pakete", false),
+        ("benutzer", "Benutzer-Pakete", false),
+        ("worldcheck", "WorldCheck-Datenpakete", true),
+        ("volumenpool", "Volume-Pool-Modell", true),
+        ("begriffe", "Begriffe intern ↔ extern", false),
+        ("vertriebshinweise", "Vertriebshinweise", true),
+        ("sicherheit", "Sicherheit und Hosting", false),
+        ("warum", "Warum ID.prove (Argumente)", false),
+    ];
+
+    private static readonly List<string> StandardSchluessel = StandardAbschnitte.Select(a => a.Schluessel).ToList();
+
+    private static string Titel(string schluessel) => StandardAbschnitte.First(a => a.Schluessel == schluessel).Titel;
+    private static bool IstIntern(string schluessel) => StandardAbschnitte.First(a => a.Schluessel == schluessel).Intern;
+
+    private List<string> Reihenfolge() => WikiAbschnittReihenfolge.Anwenden(_info?.Abschnitte, StandardSchluessel);
+
+    private RenderFragment? Abschnitt(string schluessel, PreislisteDaten p) => schluessel switch
+    {
+        "stufen" => Stufen(p),
+        "addons" => Addons(p),
+        "pakete" => p.SanktionslistenPakete is { } sp ? Pakete(sp) : null,
+        "benutzer" => p.BenutzerStaffel is { } bs ? Benutzer(bs) : null,
+        "worldcheck" => p.Worldcheck is { } wc ? Worldcheck(wc) : null,
+        "volumenpool" => p.VolumenPool is { } vp ? VolumenPool(vp) : null,
+        "begriffe" => p.Begriffe is { Count: > 0 } b ? Begriffe(b) : null,
+        "vertriebshinweise" => p.Vertriebshinweise is { Count: > 0 } vh ? Vertriebshinweise(vh) : null,
+        "sicherheit" => p.Sicherheit is { Count: > 0 } s ? Sicherheit(s) : null,
+        "warum" => p.WarumIdprove is { Count: > 0 } w ? Warum(w, p.Onprem?.Text) : null,
+        _ => null,
+    };
+
+    private RenderFragment Stufen(PreislisteDaten p) => @<details class="gruppe" open>
+        <summary>Stufen und Volumenpreise<span class="zahl">@p.Stufen.Count Stufen · @p.Volumenstufen.Count Volumenstufen</span></summary>
+        <div class="gruppe-inhalt">
+            <div class="pl-stufen">
+                @foreach (var s in p.Stufen)
+                {
+                    <div class="pl-stufe">
+                        <div class="pl-stufe-name">@s.Name</div>
+                        <div class="neben">@VolumenText(s)</div>
+                        <dl class="werte" style="margin-top:8px">
+                            <dt>Setup</dt><dd>@(s.SetupEinmalig?.Anzeige() ?? "—")@(s.SetupHinweis is not null ? $" · {s.SetupHinweis}" : "")
+                                @if (s.SetupHinweisIntern is not null) { <span class="pl-intern">intern: @s.SetupHinweisIntern</span> }</dd>
+                            <dt>Inklusive</dt><dd>@s.InklusiveBenutzer Benutzer · @s.InklusiveMandanten Mandanten</dd>
+                        </dl>
+                        <ul class="pl-merkmale">
+                            @foreach (var m in s.Merkmale)
+                            {
+                                <li class="@(m.Enthalten ? "" : "nicht")">
+                                    <span class="pl-zeichen">@(m.Enthalten ? "✓" : "–")</span>@m.Text
+                                    @if (IstInternText(m.Sichtbarkeit)) { <span class="pl-intern">intern</span> }
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+
+            <table class="liste pl-tabelle" style="margin-top:14px">
+                <thead>
+                    <tr>
+                        <th>Stammdaten</th>
+                        @foreach (var s in p.Stufen) { <th class="r">@s.Name</th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in p.Volumenstufen)
+                    {
+                        <tr style="cursor:default">
+                            <td>@(v.Label ?? v.Stammdaten.ToString("N0"))</td>
+                            @foreach (var s in p.Stufen)
+                            {
+                                <td class="r">@(v.Preise.TryGetValue(s.Schluessel, out var w) ? w?.Anzeige() ?? "—" : "—")</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @foreach (var r in p.VolumenRegeln ?? [])
+            {
+                <div class="pl-regel">@r.Text @if (IstInternText(r.Sichtbarkeit)) { <span class="pl-intern">intern</span> }</div>
+            }
+        </div>
+    </details>;
+
+    private RenderFragment Addons(PreislisteDaten p) => @<details class="gruppe" open>
+        <summary>Add-ons und Module<span class="zahl">@p.Addons.Count</span></summary>
+        <div class="gruppe-inhalt" style="padding:0">
+            <table class="liste">
+                <thead>
+                    <tr><th>Add-on</th><th>Beschreibung</th><th style="width:170px">Verfügbar ab</th><th class="r" style="width:130px">Preis / Monat</th><th class="r" style="width:140px">Einrichtung</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in p.Addons)
+                    {
+                        <tr style="cursor:default">
+                            <td>
+                                <span class="haupt">@a.Name</span>
+                                @if (IstInternText(a.Sichtbarkeit)) { <span class="pl-intern">intern</span> }
+                                @if (a.NameIntern is not null) { <div class="neben">intern: @a.NameIntern</div> }
+                            </td>
+                            <td>
+                                <span style="font-size:13px">@a.Beschreibung</span>
+                                @if (a.HinweisIntern is not null) { <div class="neben pl-hinweis-intern">@a.HinweisIntern</div> }
+                            </td>
+                            <td>@StufenName(a.VerfuegbarAb)
+                                @if (a.VerfuegbarkeitHinweis is not null) { <div class="neben">@a.VerfuegbarkeitHinweis</div> }
+                            </td>
+                            <td class="r">@(a.PreisMonat is null || a.PreisMonat.IstLeer ? "—" : a.PreisMonat.Zahl == 0 ? "inklusive" : a.PreisMonat.Anzeige())</td>
+                            <td class="r">@(a.EinrichtungEinmalig is null || a.EinrichtungEinmalig.IstLeer ? "—" : a.EinrichtungEinmalig.Anzeige())
+                                @if (a.EinrichtungHinweis is not null) { <div class="neben">@a.EinrichtungHinweis</div> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>;
+
+    private RenderFragment Pakete(PreislistePakete sp) => @<details class="gruppe" open>
+        <summary>Sanktionslisten-Pakete<span class="zahl">@sp.Pakete.Count Pakete · @sp.Standardlisten.Count Standardlisten</span></summary>
+        <div class="gruppe-inhalt">
+            @if (sp.Hinweis is not null) { <div class="pl-regel" style="margin-top:0">@sp.Hinweis</div> }
+            <div class="pl-regel">Standardlisten (in allen Stufen): @string.Join(" · ", sp.Standardlisten)</div>
+            <table class="liste pl-tabelle" style="margin-top:10px">
+                <thead><tr><th>Paket</th><th style="width:60px">Listen</th><th class="r" style="width:120px">Preis / Monat</th><th>Enthaltene Listen</th></tr></thead>
+                <tbody>
+                    @foreach (var pk in sp.Pakete)
+                    {
+                        <tr style="cursor:default">
+                            <td><span class="haupt">@pk.Name</span>@if (pk.NameIntern is not null) { <div class="neben">intern: @pk.NameIntern</div> }</td>
+                            <td>@(pk.Listen.Count > 0 ? pk.Listen.Count.ToString() : "1")</td>
+                            <td class="r">@(pk.PreisMonat?.Anzeige() ?? "—")</td>
+                            <td style="font-size:13px">@(pk.Listen.Count > 0 ? string.Join(", ", pk.Listen) : "")@(pk.Hinweis is not null ? (pk.Listen.Count > 0 ? " — " : "") + pk.Hinweis : "")
+                                — <a href="wiki/sanktionslisten">zum Sanktionslisten-Wiki</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>;
+
+    private RenderFragment Benutzer(PreislisteBenutzer bs) => @<details class="gruppe" open>
+        <summary>Benutzer-Pakete<span class="zahl">@bs.Stufen.Count Staffeln</span></summary>
+        <div class="gruppe-inhalt">
+            @if (bs.Hinweis is not null) { <div class="pl-regel" style="margin-top:0">@bs.Hinweis</div> }
+            <table class="liste pl-tabelle" style="margin-top:10px; max-width:460px">
+                <thead><tr><th>Benutzer-Anzahl</th><th class="r">Preis pro Benutzer / Monat</th></tr></thead>
+                <tbody>
+                    @foreach (var st in bs.Stufen)
+                    {
+                        <tr style="cursor:default"><td>@(st.Bis is null ? $"ab {st.Von}" : $"{st.Von} – {st.Bis}") Benutzer</td><td class="r">@(st.PreisProBenutzerMonat?.Anzeige() ?? "—")</td></tr>
+                    }
+                    @foreach (var pa in bs.Pauschalen ?? [])
+                    {
+                        <tr style="cursor:default"><td>@pa.Name@(pa.NurStufe is not null ? $" (nur {StufenName(pa.NurStufe)})" : "")</td><td class="r">@(pa.PreisMonat?.Anzeige(" pauschal") ?? "—")</td></tr>
+                    }
+                </tbody>
+            </table>
+            @foreach (var v in bs.Verkaufshilfen ?? [])
+            {
+                <div class="pl-regel">@v.Text @if (IstInternText(v.Sichtbarkeit)) { <span class="pl-intern">intern</span> }</div>
+            }
+        </div>
+    </details>;
+
+    private RenderFragment Begriffe(List<PreislisteBegriff> begriffe) => @<details class="gruppe" open>
+        <summary>Begriffe intern ↔ extern<span class="zahl">@begriffe.Count</span></summary>
+        <div class="gruppe-inhalt" style="padding:0">
+            <table class="liste">
+                <thead><tr><th style="width:220px">Bei uns</th><th style="width:260px">Beim Kunden</th><th>Erläuterung</th></tr></thead>
+                <tbody>
+                    @foreach (var b in begriffe)
+                    {
+                        <tr style="cursor:default"><td><span class="haupt">@b.Intern</span></td><td>@b.Extern</td><td style="font-size:13px">@(b.Erlaeuterung ?? "")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>;
+
+    private RenderFragment Worldcheck(PreislisteWorldcheck wc) => @<details class="gruppe">
+        <summary>WorldCheck-Datenpakete <span class="pl-intern">intern</span><span class="zahl">@wc.Pakete.Count Pakete</span></summary>
+        <div class="gruppe-inhalt">
+            @if (wc.Beschreibung is not null) { <div class="pl-regel" style="margin-top:0">@wc.Beschreibung</div> }
+            @if (wc.VerfuegbarAb is not null) { <div class="pl-regel">Verfügbar ab @StufenName(wc.VerfuegbarAb)</div> }
+            <div class="pl-stufen" style="margin-top:10px">
+                @foreach (var pk in wc.Pakete)
+                {
+                    <div class="pl-stufe">
+                        <div class="pl-stufe-name">@pk.Name</div>
+                        @if (pk.Untertitel is not null) { <div class="neben">@pk.Untertitel</div> }
+                        <table class="liste pl-tabelle" style="margin-top:8px">
+                            <thead><tr><th>Stammdaten</th><th class="r">/ Monat</th><th class="r">/ Jahr</th></tr></thead>
+                            <tbody>
+                                @foreach (var st in pk.Staffel)
+                                {
+                                    <tr style="cursor:default"><td>@st.Stammdaten.ToString("N0")</td><td class="r">@(st.PreisMonat?.Anzeige() ?? "—")</td><td class="r">@(st.PreisJahr?.Anzeige() ?? "—")</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            @foreach (var r in wc.Regeln ?? []) { <div class="pl-regel">@r</div> }
+        </div>
+    </details>;
+
+    private RenderFragment VolumenPool(PreislisteVolumenPool vp) => @<details class="gruppe">
+        <summary>Volume-Pool-Modell <span class="pl-intern">intern</span><span class="zahl">@vp.Pools.Count Pools</span></summary>
+        <div class="gruppe-inhalt">
+            @if (vp.Beschreibung is not null) { <div class="pl-regel" style="margin-top:0">@vp.Beschreibung</div> }
+            <table class="liste pl-tabelle" style="margin-top:10px">
+                <thead><tr><th>Pool</th><th>Verwendung</th><th style="width:200px">Reset</th><th style="width:110px">Default</th></tr></thead>
+                <tbody>
+                    @foreach (var pool in vp.Pools)
+                    {
+                        <tr style="cursor:default"><td><span class="haupt">@pool.Name</span></td><td style="font-size:13px">@pool.Verwendung</td><td>@pool.Reset</td><td>@pool.Default</td></tr>
+                    }
+                </tbody>
+            </table>
+            @foreach (var h in vp.Hinweise ?? []) { <div class="pl-regel">@h</div> }
+        </div>
+    </details>;
+
+    private RenderFragment Vertriebshinweise(List<PreislisteHinweis> hinweise) => @<details class="gruppe">
+        <summary>Vertriebshinweise <span class="pl-intern">intern</span><span class="zahl">@hinweise.Count</span></summary>
+        <div class="gruppe-inhalt">
+            <dl class="pl-zeilen">
+                @foreach (var h in hinweise)
+                {
+                    <dt>@h.Titel</dt>
+                    <dd>@h.Text</dd>
+                }
+            </dl>
+        </div>
+    </details>;
+
+    private RenderFragment Sicherheit(List<PreislisteSicherheit> sicherheit) => @<details class="gruppe">
+        <summary>Sicherheit und Hosting<span class="zahl">@sicherheit.Count</span></summary>
+        <div class="gruppe-inhalt">
+            <dl class="pl-zeilen">
+                @foreach (var s in sicherheit)
+                {
+                    <dt>@s.Thema</dt>
+                    <dd>
+                        @s.TextExtern
+                        @if (s.TextIntern is not null && s.TextIntern != s.TextExtern)
+                        {
+                            <div class="pl-hinweis-intern"><span class="pl-intern" style="margin:0 6px 0 0">intern</span>@s.TextIntern</div>
+                        }
+                    </dd>
+                }
+            </dl>
+        </div>
+    </details>;
+
+    private RenderFragment Warum(List<PreislisteHinweis> argumente, string? onprem) => @<details class="gruppe">
+        <summary>Warum ID.prove (Argumente)<span class="zahl">@argumente.Count</span></summary>
+        <div class="gruppe-inhalt">
+            <dl class="pl-zeilen">
+                @foreach (var w in argumente)
+                {
+                    <dt>@w.Titel</dt>
+                    <dd>@w.Text</dd>
+                }
+            </dl>
+            @if (onprem is not null) { <div class="pl-regel">@onprem</div> }
+        </div>
+    </details>;
 
     protected override Task OnInitializedAsync() => LadenAsync(null);
 
@@ -491,6 +563,53 @@ else
         }
     }
 
+    // --- Abschnitte anordnen ------------------------------------------------
+
+    private void AnordnenOeffnen()
+    {
+        _entwurf = Reihenfolge();
+        _anordnen = true;
+    }
+
+    private void Verschieben(int index, int richtung)
+    {
+        var ziel = index + richtung;
+        if (ziel < 0 || ziel >= _entwurf.Count)
+            return;
+        (_entwurf[index], _entwurf[ziel]) = (_entwurf[ziel], _entwurf[index]);
+    }
+
+    private Task ReihenfolgeSpeichernAsync() => ReihenfolgeSendenAsync(_entwurf);
+
+    private Task StandardreihenfolgeAsync() => ReihenfolgeSendenAsync([]);
+
+    private async Task ReihenfolgeSendenAsync(List<string> abschnitte)
+    {
+        _fehler = null;
+        _speichereReihenfolge = true;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync("api/wiki/themen/preisliste/abschnitte", new WikiAbschnitteSpeichern(abschnitte));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _anordnen = false;
+            _info = await Http.GetFromJsonAsync<WikiThemaInfoEintrag>("api/wiki/themen/preisliste/info");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Reihenfolge konnte nicht gespeichert werden: {ex.Message}";
+        }
+        finally
+        {
+            _speichereReihenfolge = false;
+        }
+    }
+
+    // --- Zuständigkeit & Prozess -------------------------------------------
+
     private void InfoBearbeitenOeffnen()
     {
         _infoForm.VerantwortlichId = _info?.VerantwortlichId;
@@ -513,7 +632,7 @@ else
         _info = await Http.GetFromJsonAsync<WikiThemaInfoEintrag>("api/wiki/themen/preisliste/info");
     }
 
-    private static bool IstIntern(string? s) => string.Equals(s, "intern", StringComparison.OrdinalIgnoreCase);
+    private static bool IstInternText(string? s) => string.Equals(s, "intern", StringComparison.OrdinalIgnoreCase);
 
     private string StufenName(string? schluessel) =>
         _ansicht?.Daten?.Stufen.FirstOrDefault(s => s.Schluessel == schluessel)?.Name ?? schluessel ?? "—";

@@ -258,9 +258,39 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
             .Include(i => i.Verantwortlich).Include(i => i.Vertreter).Include(i => i.GeaendertVon)
             .FirstOrDefaultAsync(i => i.Thema == thema, ct);
         return Ok(info is null
-            ? new WikiThemaInfoEintrag(thema, null, null, null, null, null, null, null)
+            ? new WikiThemaInfoEintrag(thema, null, null, null, null, null, null, null, [])
             : new WikiThemaInfoEintrag(thema, info.VerantwortlichId, info.Verantwortlich?.Anzeigename,
-                info.VertreterId, info.Vertreter?.Anzeigename, info.Prozess, info.GeaendertAm, info.GeaendertVon?.Anzeigename));
+                info.VertreterId, info.Vertreter?.Anzeigename, info.Prozess, info.GeaendertAm, info.GeaendertVon?.Anzeigename,
+                WikiAbschnittReihenfolge.Lesen(info.Abschnitte)));
+    }
+
+    /// <summary>
+    /// Reihenfolge der Abschnitte einer Themenseite — die Redaktion ordnet an,
+    /// was zuerst kommt (z. B. WorldCheck vor den Begriffen); gilt für alle Leser.
+    /// Eine leere Liste stellt die Standardreihenfolge der Seite wieder her.
+    /// </summary>
+    [HttpPut("themen/{thema}/abschnitte")]
+    public async Task<IActionResult> AbschnitteSpeichern(string thema, WikiAbschnitteSpeichern daten, CancellationToken ct)
+    {
+        if (!WikiThema.IstBekannt(thema))
+            return NotFound();
+        if (!await berechtigung.DarfBearbeitenAsync(thema, ct))
+            return StatusCode(StatusCodes.Status403Forbidden, "Die Abschnitte dürfen nur freigegebene Wiki-Redakteure, Compliance und Admin anordnen.");
+        var wert = WikiAbschnittReihenfolge.Schreiben(daten.Abschnitte, out var fehler);
+        if (fehler is not null)
+            return BadRequest(fehler);
+
+        var info = await db.WikiThemaInfos.FirstOrDefaultAsync(i => i.Thema == thema, ct);
+        if (info is null)
+        {
+            info = new WikiThemaInfo { Thema = thema };
+            db.WikiThemaInfos.Add(info);
+        }
+        info.Abschnitte = wert;
+        info.GeaendertAm = DateTime.UtcNow;
+        info.GeaendertVonId = await EigeneIdAsync(ct);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     [HttpPut("themen/{thema}/info")]

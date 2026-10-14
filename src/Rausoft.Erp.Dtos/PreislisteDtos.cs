@@ -211,6 +211,69 @@ public record WikiThemaInfoEintrag(
     string? Vertreter,
     string? Prozess,
     DateTime? GeaendertAm,
-    string? GeaendertVon);
+    string? GeaendertVon,
+    // Von der Redaktion angeordnete Abschnitts-Reihenfolge; leer = Standard der Seite
+    List<string> Abschnitte);
 
 public record WikiThemaInfoSpeichern(int? VerantwortlichId, int? VertreterId, string? Prozess);
+
+/// <summary>Neue Reihenfolge der Abschnitte einer Themenseite (Schlüssel in Anzeigereihenfolge).</summary>
+public record WikiAbschnitteSpeichern(List<string> Abschnitte);
+
+/// <summary>
+/// Abschnitts-Reihenfolge einer Wiki-Seite: die Redaktion ordnet die Abschnitte
+/// an, die Seite kennt den Standard. Gespeicherte, aber unbekannte Schlüssel
+/// (z. B. nach einem Umbau der Seite) fallen weg; neue Abschnitte, die noch
+/// nicht angeordnet wurden, kommen hinten in Standardreihenfolge dazu.
+/// </summary>
+public static class WikiAbschnittReihenfolge
+{
+    public const int MaxAnzahl = 30;
+    public const int MaxLaenge = 500;
+
+    public static List<string> Anwenden(IEnumerable<string>? gespeichert, IReadOnlyList<string> standard)
+    {
+        var ergebnis = new List<string>();
+        foreach (var schluessel in gespeichert ?? [])
+            if (standard.Contains(schluessel) && !ergebnis.Contains(schluessel))
+                ergebnis.Add(schluessel);
+        ergebnis.AddRange(standard.Where(s => !ergebnis.Contains(s)));
+        return ergebnis;
+    }
+
+    public static List<string> Lesen(string? gespeichert) =>
+        string.IsNullOrWhiteSpace(gespeichert)
+            ? []
+            : gespeichert.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    /// <summary>Prüft die Schlüssel (nur a-z, 0-9, Bindestrich; eindeutig) und liefert den Speicherwert — null bei leerer oder ungültiger Eingabe.</summary>
+    public static string? Schreiben(IEnumerable<string>? abschnitte, out string? fehler)
+    {
+        fehler = null;
+        var liste = (abschnitte ?? []).Select(a => a.Trim()).Where(a => a.Length > 0).ToList();
+        if (liste.Count == 0)
+            return null;
+        if (liste.Count > MaxAnzahl)
+        {
+            fehler = $"Höchstens {MaxAnzahl} Abschnitte.";
+            return null;
+        }
+        if (liste.Any(a => !a.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-')))
+        {
+            fehler = "Abschnitts-Schlüssel dürfen nur Kleinbuchstaben, Ziffern und Bindestriche enthalten.";
+            return null;
+        }
+        if (liste.Distinct().Count() != liste.Count)
+        {
+            fehler = "Ein Abschnitt kommt mehrfach vor.";
+            return null;
+        }
+        var wert = string.Join(',', liste);
+        if (wert.Length > MaxLaenge)
+        {
+            fehler = "Die Reihenfolge ist zu lang.";
+            return null;
+        }
+        return wert;
+    }
+}
