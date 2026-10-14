@@ -77,6 +77,14 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
   festlegen und je Person die Wiki-Themen anhaken (Admin/Compliance dürfen
   ohnehin alles); dann interne Bezeichnungen, Import, Verantwortliche und
   Prozesse pflegen.
+- [ ] **Publish aktualisieren (14.10.2026 abends, Wiki Preisliste):** Thema
+  „Preisliste" (JSON-Import aus dem Preislisten-Projekt, Seite mit
+  Sichtbarkeitsfilter, anordenbare Abschnitte). Migrationen laufen automatisch.
+  Nach dem Update: 1) Administration → Verzeichnisse: `Preisliste.Verzeichnis`
+  auf `P:\01_Vertrieb\Preisliste` (UNC-Pfad) setzen, 2) unter Benutzer &
+  Rollen den Preislisten-Redakteuren das Wiki-Thema „Preisliste" anhaken,
+  3) im Wiki → Preisliste die JSON v22 hochladen und Zuständigkeit/Prozess
+  pflegen.
 - [ ] **Publish aktualisieren (28.09.2026, FEEDBACK Nr. 20 Stufe 2):** Bereich
   „Partner" mit Partner-Akte und Partnerverträgen. Migration läuft automatisch
   (Vertrag gehört Kunde ODER Partner). Manuelle Schritte: keine.
