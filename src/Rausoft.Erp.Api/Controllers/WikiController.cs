@@ -56,8 +56,39 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, IAutho
             .Select(NachEintrag)
             .ToList();
 
+        var standard = await db.SanktionslistenStandardprozesse.AsNoTracking()
+            .Include(p => p.GeaendertVon).ToListAsync(ct);
+        // Für jede Importart außer „offen" einen Eintrag liefern — auch wenn noch leer
+        var standardprozesse = new[] { SanktionslistenImport.Automatisch, SanktionslistenImport.Manuell, SanktionslistenImport.NichtImEinsatz }
+            .Select(art => standard.FirstOrDefault(p => p.Import == art) is { } p
+                ? new StandardprozessEintrag(art.ToString(), p.Text, p.GeaendertAm, p.GeaendertVon?.Anzeigename)
+                : new StandardprozessEintrag(art.ToString(), null, null, null))
+            .ToList();
+
         return Ok(new SanktionslistenKatalog(eintraege, await DarfBearbeitenAsync(),
-            Regionen.Select(r => new RegionEintrag(r.Code, r.Name)).ToList()));
+            Regionen.Select(r => new RegionEintrag(r.Code, r.Name)).ToList(), standardprozesse));
+    }
+
+    /// <summary>Standardprozess einer Importart setzen (leer = entfernen).</summary>
+    [Authorize(Policy = "Compliance")]
+    [HttpPut("sanktionslisten/standardprozesse/{import}")]
+    public async Task<IActionResult> StandardprozessSpeichern(string import, StandardprozessSpeichern daten, CancellationToken ct)
+    {
+        if (!Enum.TryParse<SanktionslistenImport>(import, out var art) || art == SanktionslistenImport.Offen)
+            return BadRequest($"Für die Importart '{import}' gibt es keinen Standardprozess.");
+        var prozess = await db.SanktionslistenStandardprozesse.FirstOrDefaultAsync(p => p.Import == art, ct);
+        if (prozess is null)
+        {
+            prozess = new SanktionslistenStandardprozess { Import = art };
+            db.SanktionslistenStandardprozesse.Add(prozess);
+        }
+        prozess.Text = Leer(daten.Text);
+        prozess.GeaendertAm = DateTime.UtcNow;
+        prozess.GeaendertVonId = await db.Mitarbeiter
+            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
+            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     /// <summary>Aktive Benutzer für Verantwortlich/Vertreter.</summary>

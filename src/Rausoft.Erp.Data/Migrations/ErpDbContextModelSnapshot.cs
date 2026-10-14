@@ -1157,6 +1157,28 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Sanktionslisten");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.SanktionslistenStandardprozess", b =>
+                {
+                    b.Property<int>("Import")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeaendertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Import");
+
+                    b.HasIndex("GeaendertVonId");
+
+                    b.ToTable("SanktionslistenStandardprozesse");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
@@ -1364,6 +1386,16 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Verantwortlich");
 
                     b.Navigation("Vertreter");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.SanktionslistenStandardprozess", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
+                        .WithMany()
+                        .HasForeignKey("GeaendertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("GeaendertVon");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>

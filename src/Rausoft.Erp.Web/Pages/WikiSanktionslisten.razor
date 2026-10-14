@@ -42,6 +42,35 @@ else
         }
     </div>
 
+    @* Standardprozesse je Importart — gelten für alle Listen ohne eigenen Prozess *@
+    <details class="gruppe" open="@(_katalog.Standardprozesse.All(p => p.Text is null))">
+        <summary>Standardprozesse je Importart
+            <span class="zahl">@_katalog.Standardprozesse.Count(p => p.Text is not null) von @_katalog.Standardprozesse.Count beschrieben</span>
+        </summary>
+        <div class="gruppe-inhalt">
+            @foreach (var prozess in _katalog.Standardprozesse)
+            {
+                <div style="padding:6px 0; border-bottom:1px dashed var(--border)">
+                    <div style="display:flex; gap:10px; align-items:baseline">
+                        <b>@ImportText(prozess.Import)</b>
+                        @{ var anzahl = _katalog.Listen.Count(l => l.Aktiv && l.Import == prozess.Import && l.Prozess is null); }
+                        <span class="neben">gilt für @anzahl @(anzahl == 1 ? "Liste" : "Listen") ohne eigenen Prozess</span>
+                        <span style="flex:1"></span>
+                        @if (_katalog.DarfBearbeiten)
+                        {
+                            <button class="mehr" @onclick="() => StandardOeffnen(prozess)">Bearbeiten</button>
+                        }
+                    </div>
+                    <div style="white-space:pre-wrap; margin-top:4px; color:@(prozess.Text is null ? "var(--muted)" : "var(--ink)")">@(prozess.Text ?? "— noch nicht beschrieben")</div>
+                    @if (prozess.GeaendertAm is not null)
+                    {
+                        <div class="neben" style="margin-top:2px">zuletzt geändert @prozess.GeaendertAm.Value.ToLocalTime().ToString("dd.MM.yyyy")@(prozess.GeaendertVon is not null ? $" von {prozess.GeaendertVon}" : "")</div>
+                    }
+                </div>
+            }
+        </div>
+    </details>
+
     @foreach (var gruppe in Gefiltert().GroupBy(l => (l.Region, l.RegionName)))
     {
         <details class="gruppe" open>
@@ -106,7 +135,25 @@ else
                                     <dt>Verantwortlich</dt><dd>@(liste.Verantwortlich ?? "— noch nicht festgelegt")</dd>
                                     <dt>Vertretung</dt><dd>@(liste.Vertreter ?? "— noch nicht festgelegt")</dd>
                                     <dt>Prozess</dt>
-                                    <dd style="white-space:pre-wrap">@(liste.Prozess ?? "— noch nicht beschrieben")</dd>
+                                    <dd>
+                                        @if (liste.Prozess is not null)
+                                        {
+                                            <div style="white-space:pre-wrap">@liste.Prozess</div>
+                                            @if (Standard(liste.Import) is not null)
+                                            {
+                                                <div class="neben" style="margin-top:4px">eigener Prozess — weicht vom Standardprozess „@ImportText(liste.Import)" ab</div>
+                                            }
+                                        }
+                                        else if (Standard(liste.Import) is { } standard)
+                                        {
+                                            <div style="white-space:pre-wrap">@standard</div>
+                                            <div class="neben" style="margin-top:4px">Standardprozess „@ImportText(liste.Import)"</div>
+                                        }
+                                        else
+                                        {
+                                            <span>@(liste.Import == "Offen" ? "— Importart noch offen" : "— noch nicht beschrieben")</span>
+                                        }
+                                    </dd>
                                 </dl>
                                 <div style="display:flex; gap:10px; align-items:center; margin-top:10px">
                                     @if (_katalog.DarfBearbeiten)
@@ -131,6 +178,33 @@ else
     {
         <div class="leer-hinweis">Keine Liste passt zu Suche bzw. Filter.</div>
     }
+}
+
+@* ---------- Standardprozess bearbeiten ---------- *@
+@if (_standard is not null)
+{
+    <div class="vorschau-overlay" @onclick="() => _standard = null">
+        <div class="fenster" @onclick:stopPropagation="true">
+            <div class="fenster-kopf">
+                <h2>Standardprozess „@ImportText(_standard.Import)"</h2>
+                <button class="mehr" @onclick="() => _standard = null">Schließen</button>
+            </div>
+            <div class="fenster-inhalt">
+                @if (_fehler is not null)
+                {
+                    <div class="fehler" style="margin-bottom:10px">@_fehler</div>
+                }
+                <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
+                    Gilt für alle Listen mit dieser Importart, die keinen eigenen Prozess haben. Leer speichern entfernt den Standard.
+                </div>
+                <textarea rows="10" style="width:100%; box-sizing:border-box" @bind="_standardText" placeholder="@ProzessBeispiel"></textarea>
+            </div>
+            <div class="fenster-fuss">
+                <button class="knopf" disabled="@_speichere" @onclick="StandardSpeichernAsync">@(_speichere ? "Speichere …" : "Speichern")</button>
+                <button class="knopf sekundaer" @onclick="() => _standard = null">Abbrechen</button>
+            </div>
+        </div>
+    </div>
 }
 
 @* ---------- Bearbeiten / Anlegen ---------- *@
@@ -197,7 +271,7 @@ else
                         </select>
                     </label>
                     <label class="breit">
-                        Prozess (was ist bei einer Aktualisierung zu tun?)
+                        Prozess (leer lassen = Standardprozess der Importart gilt)
                         <textarea rows="5" @bind="_bearbeitung.Prozess"
                                   placeholder="@ProzessBeispiel"></textarea>
                     </label>
@@ -326,6 +400,48 @@ else
         "Offen" => "warnung",
         _ => "",
     };
+
+    private StandardprozessEintrag? _standard;
+    private string? _standardText;
+
+    /// <summary>Text des Standardprozesses für eine Importart (null = keiner beschrieben).</summary>
+    private string? Standard(string import) =>
+        _katalog?.Standardprozesse.FirstOrDefault(p => p.Import == import)?.Text;
+
+    private void StandardOeffnen(StandardprozessEintrag prozess)
+    {
+        _fehler = null;
+        _standard = prozess;
+        _standardText = prozess.Text;
+    }
+
+    private async Task StandardSpeichernAsync()
+    {
+        if (_standard is null)
+            return;
+        _fehler = null;
+        _speichere = true;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/wiki/sanktionslisten/standardprozesse/{_standard.Import}",
+                new StandardprozessSpeichern(_standardText));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _standard = null;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichere = false;
+        }
+    }
 
     private void NeuOeffnen()
     {

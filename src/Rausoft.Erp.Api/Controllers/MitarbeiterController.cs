@@ -99,7 +99,8 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
         if (await db.Aktivitaeten.AnyAsync(a => a.MitarbeiterId == id, ct)
             || await db.AuditLog.AnyAsync(a => a.MitarbeiterId == id, ct))
             return BadRequest("Dieser Benutzer hat bereits Einträge in Verlauf oder Audit-Log — bitte deaktivieren statt löschen.");
-        if (await db.Sanktionslisten.AnyAsync(s => s.VerantwortlichId == id || s.VertreterId == id || s.GeaendertVonId == id, ct))
+        if (await db.Sanktionslisten.AnyAsync(s => s.VerantwortlichId == id || s.VertreterId == id || s.GeaendertVonId == id, ct)
+            || await db.SanktionslistenStandardprozesse.AnyAsync(p => p.GeaendertVonId == id, ct))
             return BadRequest("Dieser Benutzer ist im Wiki als Verantwortlicher/Vertreter einer Sanktionsliste eingetragen — bitte dort zuerst umstellen oder deaktivieren statt löschen.");
 
         db.Mitarbeiter.Remove(mitarbeiter);

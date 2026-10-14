@@ -32,7 +32,13 @@ public record SanktionslistenKatalog(
     List<SanktionslisteEintrag> Listen,
     bool DarfBearbeiten,
     // Auswahl für Region (Code + Name, in Anzeigereihenfolge)
-    List<RegionEintrag> Regionen);
+    List<RegionEintrag> Regionen,
+    // Standardprozess je Importart — gilt für Listen ohne eigenen Prozess
+    List<StandardprozessEintrag> Standardprozesse);
+
+public record StandardprozessEintrag(string Import, string? Text, DateTime? GeaendertAm, string? GeaendertVon);
+
+public record StandardprozessSpeichern(string? Text);
 
 public record RegionEintrag(string Code, string Name);
 

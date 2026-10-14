@@ -77,3 +77,18 @@ public enum SanktionslistenImport
     Manuell = 2,
     NichtImEinsatz = 3,
 }
+
+/// <summary>
+/// Standardprozess je Importart: gilt für alle Listen dieser Importart, die
+/// keinen eigenen <see cref="Sanktionsliste.Prozess"/> haben — spart Doppelpflege.
+/// </summary>
+public class SanktionslistenStandardprozess
+{
+    public SanktionslistenImport Import { get; set; }
+
+    public string? Text { get; set; }
+
+    public DateTime? GeaendertAm { get; set; }
+    public int? GeaendertVonId { get; set; }
+    public Mitarbeiter? GeaendertVon { get; set; }
+}

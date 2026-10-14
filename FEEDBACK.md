@@ -412,6 +412,11 @@ Links übernommen, Beschreibungen als eigene Kurzfassung. Offen für MP:
 interne Bezeichnungen, Import, Verantwortliche/Vertretung und Prozesse je
 Liste pflegen.
 
+**Standardprozess je Importart** (14.10.2026, MP: ja): eigener Abschnitt
+„Standardprozesse"; Listen ohne eigenen Prozess zeigen den Standard ihrer
+Importart (mit Hinweis), ein eigener Prozess hat Vorrang und wird als
+Abweichung gekennzeichnet.
+
 Status: umgesetzt · Pflege der Inhalte offen
 
 ## Backlog (Aufgaben beim Nutzer / für später)

@@ -40,6 +40,7 @@ public class ErpDbContext(
 
     // Wiki
     public DbSet<Sanktionsliste> Sanktionslisten => Set<Sanktionsliste>();
+    public DbSet<SanktionslistenStandardprozess> SanktionslistenStandardprozesse => Set<SanktionslistenStandardprozess>();
 
     // Abos
     public DbSet<Abo> Abos => Set<Abo>();
@@ -327,6 +328,13 @@ public class ErpDbContext(
             e.HasOne(s => s.Verantwortlich).WithMany().HasForeignKey(s => s.VerantwortlichId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(s => s.Vertreter).WithMany().HasForeignKey(s => s.VertreterId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(s => s.GeaendertVon).WithMany().HasForeignKey(s => s.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<SanktionslistenStandardprozess>(e =>
+        {
+            e.HasKey(p => p.Import);
+            e.Property(p => p.Import).ValueGeneratedNever();
+            e.Property(p => p.Text).HasColumnType("nvarchar(max)");
+            e.HasOne(p => p.GeaendertVon).WithMany().HasForeignKey(p => p.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<VorlagenVersion>(e =>
