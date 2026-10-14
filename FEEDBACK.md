@@ -425,7 +425,17 @@ Admin und Compliance dürfen alle Themen. Neue Themen werden in
 `Domain/Wiki/WikiThema.cs` registriert und tauchen dann automatisch in der
 Themen-Auswahl auf. Serverseitig geprüft (`Dienste/WikiBerechtigung`).
 
-Status: umgesetzt · Pflege der Inhalte offen
+**Texte und Ausrichtung** (14.10.2026, MP): Das Wiki wird die Quelle, aus der
+später die eigene Sanktionslisten-Übersicht abgeleitet wird. Dafür eigenes Feld
+**Relevanz** (getrennt von der Beschreibung) und ausführliche Texte in eigenen
+Worten für alle 28 Listen (Migration; Fakten aus der Übersicht von
+sanktionslisten.de, keine Übernahme der Fremdtexte). Wiki-Startseite nach
+**Bereichen** (Compliance, Vertrieb). Nächstes Thema: **Preisliste** unter
+Vertrieb (angelegt als Thema, Seite in Vorbereitung — Struktur mit MP klären;
+interne Preise bleiben vertraulich, vgl. CLAUDE.md). Offen: Export der
+Übersicht aus dem Wiki (Word/PDF).
+
+Status: umgesetzt · Pflege der Inhalte offen · Preisliste in Vorbereitung
 
 ## Backlog (Aufgaben beim Nutzer / für später)
 

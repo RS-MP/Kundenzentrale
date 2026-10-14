@@ -1,4 +1,5 @@
 @page "/wiki"
+@inject HttpClient Http
 
 <PageTitle>Wiki · Kundenzentrale</PageTitle>
 
@@ -7,18 +8,71 @@
     <span class="untertitel">Wie bei uns was funktioniert — und wie wir es nennen</span>
 </div>
 
-<div class="wiki-themen">
-    <a class="karte wiki-thema" href="wiki/sanktionslisten">
-        <div class="karte-koerper">
-            <h2>Sanktionslisten</h2>
-            <p>Alle Listen nach Land bzw. Region: offizielle und interne Bezeichnung, Download,
-               Import über den Sanction Admin oder von Hand, Verantwortliche mit Vertretung und Prozess.</p>
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (_themen is null)
+{
+    @if (_fehler is null)
+    {
+        <div class="leer-hinweis">Lade Themen …</div>
+    }
+}
+else
+{
+    @* Bereiche in Katalog-Reihenfolge; je Thema eine Karte — Themen ohne Seite sind „in Vorbereitung" *@
+    @foreach (var bereich in _themen.GroupBy(t => t.Bereich))
+    {
+        <h2 class="wiki-bereich">@bereich.Key</h2>
+        <div class="wiki-themen">
+            @foreach (var thema in bereich)
+            {
+                @if (Seiten.TryGetValue(thema.Schluessel, out var seite))
+                {
+                    <a class="karte wiki-thema" href="@seite.Pfad">
+                        <div class="karte-koerper">
+                            <h2>@thema.Name @if (thema.DarfBearbeiten) { <span class="pill" title="Sie dürfen dieses Thema pflegen">Redaktion</span> }</h2>
+                            <p>@seite.Beschreibung</p>
+                        </div>
+                    </a>
+                }
+                else
+                {
+                    <div class="karte wiki-thema leer">
+                        <div class="karte-koerper">
+                            <h2>@thema.Name</h2>
+                            <p>In Vorbereitung.</p>
+                        </div>
+                    </div>
+                }
+            }
         </div>
-    </a>
-    <div class="karte wiki-thema leer">
-        <div class="karte-koerper">
-            <h2>Weitere Themen</h2>
-            <p>Folgen nach und nach — z. B. Begriffe, Produkte, interne Abläufe.</p>
-        </div>
-    </div>
-</div>
+    }
+}
+
+@code {
+    private List<WikiThemaUebersicht>? _themen;
+    private string? _fehler;
+
+    // Seite + Kurzbeschreibung je Thema — fehlt ein Eintrag, zeigt die Startseite „in Vorbereitung"
+    private static readonly Dictionary<string, (string Pfad, string Beschreibung)> Seiten = new()
+    {
+        ["sanktionslisten"] = ("wiki/sanktionslisten",
+            "Alle Listen nach Land bzw. Region: offizielle und interne Bezeichnung, Beschreibung und Relevanz, " +
+            "Download, Import über den Sanction Admin oder von Hand, Verantwortliche mit Vertretung und Prozess."),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _themen = await Http.GetFromJsonAsync<List<WikiThemaUebersicht>>("api/wiki/themen") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Wiki konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+}

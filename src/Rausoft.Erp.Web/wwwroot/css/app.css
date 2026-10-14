@@ -408,3 +408,6 @@ a.wiki-thema:hover { border-color: var(--accent-line); }
 .fenster .formular input, .fenster .formular select, .fenster .formular textarea { min-width: 0; width: 100%; box-sizing: border-box; }
 .fenster .formular input[type=checkbox] { width: auto; }
 .fenster-inhalt { overflow-x: hidden; }
+.wiki-bereich { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+.wiki-bereich:first-of-type { margin-top: 0; }
+.wiki-thema h2 .pill { font-size: 11px; margin-left: 8px; vertical-align: middle; }

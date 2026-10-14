@@ -15,7 +15,7 @@ public record MitarbeiterEintrag(
 public record MitarbeiterAendern(string Anzeigename, string Email, List<string> Rollen, bool Aktiv, List<string>? WikiThemen = null);
 
 /// <summary>Wiki-Thema zur Auswahl in der Benutzerverwaltung.</summary>
-public record WikiThemaEintrag(string Schluessel, string Name);
+public record WikiThemaEintrag(string Schluessel, string Name, string Bereich);
 
 /// <summary>Benutzer vorab anlegen (sonst entsteht er automatisch beim ersten Zugriff, ohne Rollen).</summary>
 public record MitarbeiterAnlegen(string WindowsKonto, string Anzeigename);

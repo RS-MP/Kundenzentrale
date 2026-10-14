@@ -32,7 +32,7 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
     /// <summary>Wiki-Themen zur Auswahl (für die Rolle Wiki-Redaktion).</summary>
     [HttpGet("wiki-themen")]
     public ActionResult<List<WikiThemaEintrag>> WikiThemen() =>
-        Ok(WikiThema.Alle.Select(t => new WikiThemaEintrag(t.Schluessel, t.Name)).ToList());
+        Ok(WikiThema.Alle.Select(t => new WikiThemaEintrag(t.Schluessel, t.Name, t.Bereich)).ToList());
 
     [HttpGet]
     public async Task<ActionResult<List<MitarbeiterEintrag>>> Liste(CancellationToken ct)

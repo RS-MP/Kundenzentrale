@@ -40,6 +40,16 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
         ("INT", "Internationale Organisationen"),
     ];
 
+    /// <summary>Wiki-Themen nach Bereich für die Startseite — mit dem Hinweis, ob der Benutzer sie pflegen darf.</summary>
+    [HttpGet("themen")]
+    public async Task<ActionResult<List<WikiThemaUebersicht>>> Themen(CancellationToken ct)
+    {
+        var bearbeitbar = await berechtigung.BearbeitbareThemenAsync(ct);
+        return Ok(WikiThema.Alle
+            .Select(t => new WikiThemaUebersicht(t.Schluessel, t.Name, t.Bereich, bearbeitbar.Contains(t.Schluessel)))
+            .ToList());
+    }
+
     [HttpGet("sanktionslisten")]
     public async Task<ActionResult<SanktionslistenKatalog>> Sanktionslisten(CancellationToken ct)
     {
@@ -157,6 +167,7 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
         liste.BezeichnungIntern = Leer(d.BezeichnungIntern);
         liste.Aliase = Leer(d.Aliase);
         liste.Beschreibung = Leer(d.Beschreibung);
+        liste.Relevanz = Leer(d.Relevanz);
         liste.Art = Leer(d.Art);
         liste.Herausgeber = Leer(d.Herausgeber);
         liste.Geltungsbereich = Leer(d.Geltungsbereich);
@@ -186,7 +197,7 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
 
     private static SanktionslisteEintrag NachEintrag(Sanktionsliste s) => new(
         s.Id, s.Region, Regionen.FirstOrDefault(r => r.Code == s.Region).Name ?? s.Region,
-        s.Kuerzel, s.Name, s.BezeichnungIntern, s.Aliase, s.Beschreibung, s.Art, s.Herausgeber,
+        s.Kuerzel, s.Name, s.BezeichnungIntern, s.Aliase, s.Beschreibung, s.Relevanz, s.Art, s.Herausgeber,
         s.Geltungsbereich, s.Standardumfang, s.DownloadUrl, s.Import.ToString(), s.ImportHinweis,
         s.VerantwortlichId, s.Verantwortlich?.Anzeigename, s.VertreterId, s.Vertreter?.Anzeigename,
         s.Prozess, s.Aktiv, s.GeaendertAm, s.GeaendertVon?.Anzeigename);

@@ -29,6 +29,9 @@ public class Sanktionsliste
 
     public string? Beschreibung { get; set; }
 
+    /// <summary>Für wen die Liste relevant ist (eigener Absatz — Grundlage für die Sanktionslisten-Übersicht).</summary>
+    public string? Relevanz { get; set; }
+
     /// <summary>Finanzsanktionen, Exportkontrolle, Sonstige (ggf. mehrere, kommagetrennt).</summary>
     public string? Art { get; set; }
 

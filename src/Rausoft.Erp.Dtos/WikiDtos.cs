@@ -10,6 +10,7 @@ public record SanktionslisteEintrag(
     string? BezeichnungIntern,
     string? Aliase,
     string? Beschreibung,
+    string? Relevanz,
     string? Art,
     string? Herausgeber,
     string? Geltungsbereich,
@@ -50,6 +51,7 @@ public record SanktionslisteSpeichern(
     string? BezeichnungIntern,
     string? Aliase,
     string? Beschreibung,
+    string? Relevanz,
     string? Art,
     string? Herausgeber,
     string? Geltungsbereich,
@@ -64,3 +66,6 @@ public record SanktionslisteSpeichern(
 
 /// <summary>Auswahl für Verantwortlich/Vertreter (aktive Benutzer).</summary>
 public record PersonAuswahl(int Id, string Name);
+
+/// <summary>Thema auf der Wiki-Startseite, gruppiert nach Bereich.</summary>
+public record WikiThemaUebersicht(string Schluessel, string Name, string Bereich, bool DarfBearbeiten);

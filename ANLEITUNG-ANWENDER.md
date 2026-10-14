@@ -161,7 +161,7 @@ Partnerverträge in der Partner-Akte — beide verlinken aufeinander.
 Bereich **Wiki** in der Navigation: hier steht, wie bei uns was funktioniert
 und wie wir es nennen. Erstes Thema **Sanktionslisten**: alle Listen nach
 Land bzw. Region, je Liste offizieller Name, unsere Bezeichnung und andere
-gebräuchliche Namen (Suche findet alle), Beschreibung, Download-Link, wie sie
+gebräuchliche Namen (Suche findet alle), Beschreibung und Relevanz, Download-Link, wie sie
 importiert wird (Sanction Admin oder von Hand), wer sie überwacht und wer
 vertritt, und der Prozess bei Aktualisierungen — ohne eigenen Prozess gilt der
 **Standardprozess** der Importart (Abschnitt oben). Lesen dürfen alle.

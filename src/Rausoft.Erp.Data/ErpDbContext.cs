@@ -318,6 +318,7 @@ public class ErpDbContext(
             e.Property(s => s.BezeichnungIntern).HasMaxLength(250);
             e.Property(s => s.Aliase).HasMaxLength(1000);
             e.Property(s => s.Beschreibung).HasColumnType("nvarchar(max)");
+            e.Property(s => s.Relevanz).HasColumnType("nvarchar(max)");
             e.Property(s => s.Art).HasMaxLength(100);
             e.Property(s => s.Herausgeber).HasMaxLength(250);
             e.Property(s => s.Geltungsbereich).HasMaxLength(100);

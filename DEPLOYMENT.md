@@ -64,7 +64,8 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
 - [ ] **Publish aktualisieren (14.10.2026, FEEDBACK Nr. 22 Wiki):** Bereich
   „Wiki" mit Sanktionslisten-Katalog (28 Listen werden von der Migration
   angelegt), Standardprozesse je Importart, Rolle **Wiki-Redaktion** mit
-  Themen-Freigabe. Nach dem Update: unter Benutzer & Rollen die Redakteure
+  Themen-Freigabe; ausführliche Texte (Beschreibung + Relevanz) für alle
+  Listen kommen per Migration mit. Nach dem Update: unter Benutzer & Rollen die Redakteure
   festlegen und je Person die Wiki-Themen anhaken (Admin/Compliance dürfen
   ohnehin alles); dann interne Bezeichnungen, Import, Verantwortliche und
   Prozesse pflegen.

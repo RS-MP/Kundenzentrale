@@ -115,6 +115,10 @@ else
                                     {
                                         <dt>Beschreibung</dt><dd>@liste.Beschreibung</dd>
                                     }
+                                    @if (liste.Relevanz is not null)
+                                    {
+                                        <dt>Relevanz</dt><dd>@liste.Relevanz</dd>
+                                    }
                                     <dt>Art</dt><dd>@(liste.Art ?? "—")</dd>
                                     <dt>Herausgeber</dt><dd>@(liste.Herausgeber ?? "—")</dd>
                                     <dt>Geltungsbereich</dt><dd>@(liste.Geltungsbereich ?? "—")</dd>
@@ -235,7 +239,8 @@ else
                     <label class="breit">Offizieller Name<input type="text" @bind="_bearbeitung.Name" /></label>
                     <label>Bezeichnung bei uns<input type="text" @bind="_bearbeitung.BezeichnungIntern" placeholder="wie wir die Liste nennen" /></label>
                     <label>Andere Bezeichnungen<input type="text" @bind="_bearbeitung.Aliase" placeholder="Kunden, Wettbewerber — kommagetrennt" /></label>
-                    <label class="breit">Beschreibung<textarea rows="2" @bind="_bearbeitung.Beschreibung"></textarea></label>
+                    <label class="breit">Beschreibung (was enthält die Liste?)<textarea rows="3" @bind="_bearbeitung.Beschreibung"></textarea></label>
+                    <label class="breit">Relevanz (für wen ist sie wichtig?)<textarea rows="3" @bind="_bearbeitung.Relevanz"></textarea></label>
                     <label>Art<input type="text" @bind="_bearbeitung.Art" placeholder="Finanzsanktionen, Exportkontrolle …" /></label>
                     <label>Geltungsbereich<input type="text" @bind="_bearbeitung.Geltungsbereich" /></label>
                     <label class="breit">Herausgeber<input type="text" @bind="_bearbeitung.Herausgeber" /></label>
@@ -332,6 +337,7 @@ else
         public string? BezeichnungIntern { get; set; }
         public string? Aliase { get; set; }
         public string? Beschreibung { get; set; }
+        public string? Relevanz { get; set; }
         public string? Art { get; set; }
         public string? Herausgeber { get; set; }
         public string? Geltungsbereich { get; set; }
@@ -455,7 +461,7 @@ else
         _bearbeitung = new Formular
         {
             Region = l.Region, Kuerzel = l.Kuerzel, Name = l.Name, BezeichnungIntern = l.BezeichnungIntern,
-            Aliase = l.Aliase, Beschreibung = l.Beschreibung, Art = l.Art, Herausgeber = l.Herausgeber,
+            Aliase = l.Aliase, Beschreibung = l.Beschreibung, Relevanz = l.Relevanz, Art = l.Art, Herausgeber = l.Herausgeber,
             Geltungsbereich = l.Geltungsbereich, Standardumfang = l.Standardumfang, DownloadUrl = l.DownloadUrl,
             Import = l.Import, ImportHinweis = l.ImportHinweis, VerantwortlichId = l.VerantwortlichId,
             VertreterId = l.VertreterId, Prozess = l.Prozess, Aktiv = l.Aktiv,
@@ -472,7 +478,7 @@ else
         {
             var f = _bearbeitung;
             var daten = new SanktionslisteSpeichern(f.Region, f.Kuerzel, f.Name, f.BezeichnungIntern, f.Aliase,
-                f.Beschreibung, f.Art, f.Herausgeber, f.Geltungsbereich, f.Standardumfang, f.DownloadUrl, f.Import,
+                f.Beschreibung, f.Relevanz, f.Art, f.Herausgeber, f.Geltungsbereich, f.Standardumfang, f.DownloadUrl, f.Import,
                 f.ImportHinweis, f.VerantwortlichId, f.VertreterId, f.Prozess, f.Aktiv);
             var antwort = _bearbeitungId is { } id
                 ? await Http.PutAsJsonAsync($"api/wiki/sanktionslisten/{id}", daten)
