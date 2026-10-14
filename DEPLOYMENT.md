@@ -61,6 +61,14 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
   vergeben, 3) **NTFS-Rechte** des Ordners prüfen: Lesen nur App-Pool-Konto
   „IIS APPPOOL\Kundenzentrale" (bzw. Computerkonto bei UNC) + berechtigte
   Personen — die App schützt nur den Zugriff über die Kundenzentrale.
+- [ ] **Publish aktualisieren (14.10.2026, Wiki Preisliste):** Thema
+  „Preisliste" mit JSON-Import. Migration legt die Einstellung
+  `Preisliste.Verzeichnis` (= `\\192.168.0.203\Produktiv\01_Vertrieb\Preisliste`)
+  an — unter Administration → Verzeichnisse prüfen, ggf. auf den Hostnamen
+  umstellen. Danach: Wiki → Preisliste → „Neue Version importieren" mit
+  `ID.prove_SaaS_Preisliste_v22.json` aus dem Ordner (Redakteur des Themas
+  Preisliste, Compliance oder Admin). Der Server braucht keinen Zugriff auf P:,
+  der Import läuft per Upload aus dem Browser.
 - [ ] **Publish aktualisieren (14.10.2026, FEEDBACK Nr. 22 Wiki):** Bereich
   „Wiki" mit Sanktionslisten-Katalog (28 Listen werden von der Migration
   angelegt), Standardprozesse je Importart, Rolle **Wiki-Redaktion** mit

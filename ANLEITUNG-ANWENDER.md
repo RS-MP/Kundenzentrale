@@ -174,6 +174,18 @@ Sanktionslisten pflegen und eine andere später Entwicklung oder Buchhaltung.
 Ohne angehaktes Thema kann ein Redakteur nichts bearbeiten. Wer darf, sieht
 in der aufgeklappten Liste den Knopf „Bearbeiten".
 
+**Preisliste (Bereich Vertrieb):** zeigt die aktuelle ID.prove-SaaS-Preisliste
+mit Stufen, Volumenpreisen, Add-ons, Sanktionslisten-Paketen, Benutzer-Paketen
+und den Begriffen intern ↔ extern (z. B. „Mengenstaffel" = „Benutzer-Pakete").
+Die PDFs liegen im Preislisten-Ordner auf dem P-Laufwerk („Ordner öffnen").
+**Interne Teile** — WorldCheck-Preise, Volumen-Pool, Vertriebshinweise, alles mit
+der Marke „INTERN" — sehen nur Vertrieb, Admin und Compliance; alle anderen
+sehen die Kundenfassung. **Neue Version:** Das Preislisten-Projekt legt je
+Version die beiden PDFs und eine JSON-Datei auf P ab; ein Wiki-Redakteur des
+Themas Preisliste wählt die JSON unter „Neue Version importieren" aus. Nur
+neuere Versionsnummern werden angenommen; ältere Versionen bleiben als
+Historie einsehbar.
+
 ## Wer darf was
 
 Alle Mitarbeiter können mit Kunden und Verträgen arbeiten. Der Bereich

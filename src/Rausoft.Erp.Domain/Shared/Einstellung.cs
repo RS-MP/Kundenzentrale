@@ -28,6 +28,7 @@ public static class EinstellungsSchluessel
     public const string VertragserzeugungZielverzeichnis = "Vertragserzeugung.Zielverzeichnis";
     public const string VertragserzeugungSignaturZertifikat = "Vertragserzeugung.SignaturZertifikat";
     public const string VertraulicheAblageVerzeichnis = "VertraulicheAblage.Verzeichnis";
+    public const string PreislisteVerzeichnis = "Preisliste.Verzeichnis";
     public const string ServicePortalUrl = "ServicePortal.Url";
     public const string ServicePortalIntervallMinuten = "ServicePortal.IntervallMinuten";
     public const string ServicePortalLetzterPush = "ServicePortal.LetzterPush";

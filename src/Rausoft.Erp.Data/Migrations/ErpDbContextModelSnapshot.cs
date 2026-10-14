@@ -1062,6 +1062,74 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("AboPositionen");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.PreislistenVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DateiExtern")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("DateiIntern")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("Daten")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateOnly?>("GueltigAb")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("ImportiertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ImportiertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notiz")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Produkt")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Schema")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Stand")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImportiertVonId");
+
+                    b.HasIndex("Version")
+                        .IsUnique();
+
+                    b.ToTable("PreislistenVersionen");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.Sanktionsliste", b =>
                 {
                     b.Property<int>("Id")
@@ -1185,6 +1253,39 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasIndex("GeaendertVonId");
 
                     b.ToTable("SanktionslistenStandardprozesse");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiThemaInfo", b =>
+                {
+                    b.Property<string>("Thema")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeaendertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Prozess")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("VerantwortlichId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("VertreterId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Thema");
+
+                    b.HasIndex("GeaendertVonId");
+
+                    b.HasIndex("VerantwortlichId");
+
+                    b.HasIndex("VertreterId");
+
+                    b.ToTable("WikiThemaInfos");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
@@ -1372,6 +1473,16 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Abo");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.PreislistenVersion", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ImportiertVon")
+                        .WithMany()
+                        .HasForeignKey("ImportiertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ImportiertVon");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.Sanktionsliste", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
@@ -1404,6 +1515,30 @@ namespace Rausoft.Erp.Data.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("GeaendertVon");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiThemaInfo", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
+                        .WithMany()
+                        .HasForeignKey("GeaendertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "Verantwortlich")
+                        .WithMany()
+                        .HasForeignKey("VerantwortlichId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "Vertreter")
+                        .WithMany()
+                        .HasForeignKey("VertreterId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("GeaendertVon");
+
+                    b.Navigation("Verantwortlich");
+
+                    b.Navigation("Vertreter");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>

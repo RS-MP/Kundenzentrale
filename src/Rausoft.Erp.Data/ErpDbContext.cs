@@ -41,6 +41,8 @@ public class ErpDbContext(
     // Wiki
     public DbSet<Sanktionsliste> Sanktionslisten => Set<Sanktionsliste>();
     public DbSet<SanktionslistenStandardprozess> SanktionslistenStandardprozesse => Set<SanktionslistenStandardprozess>();
+    public DbSet<PreislistenVersion> PreislistenVersionen => Set<PreislistenVersion>();
+    public DbSet<WikiThemaInfo> WikiThemaInfos => Set<WikiThemaInfo>();
 
     // Abos
     public DbSet<Abo> Abos => Set<Abo>();
@@ -337,6 +339,28 @@ public class ErpDbContext(
             e.Property(p => p.Import).ValueGeneratedNever();
             e.Property(p => p.Text).HasColumnType("nvarchar(max)");
             e.HasOne(p => p.GeaendertVon).WithMany().HasForeignKey(p => p.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<PreislistenVersion>(e =>
+        {
+            e.HasIndex(p => p.Version).IsUnique();
+            e.Property(p => p.Stand).HasMaxLength(10);
+            e.Property(p => p.Produkt).HasMaxLength(100);
+            e.Property(p => p.Schema).HasMaxLength(50);
+            e.Property(p => p.Daten).HasColumnType("nvarchar(max)");
+            e.Property(p => p.Sha256).HasMaxLength(64).IsFixedLength();
+            e.Property(p => p.DateiIntern).HasMaxLength(260);
+            e.Property(p => p.DateiExtern).HasMaxLength(260);
+            e.Property(p => p.Notiz).HasMaxLength(500);
+            e.HasOne(p => p.ImportiertVon).WithMany().HasForeignKey(p => p.ImportiertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<WikiThemaInfo>(e =>
+        {
+            e.HasKey(i => i.Thema);
+            e.Property(i => i.Thema).HasMaxLength(50);
+            e.Property(i => i.Prozess).HasColumnType("nvarchar(max)");
+            e.HasOne(i => i.Verantwortlich).WithMany().HasForeignKey(i => i.VerantwortlichId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(i => i.Vertreter).WithMany().HasForeignKey(i => i.VertreterId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(i => i.GeaendertVon).WithMany().HasForeignKey(i => i.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<VorlagenVersion>(e =>

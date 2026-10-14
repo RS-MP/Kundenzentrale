@@ -58,11 +58,12 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
             .ToListAsync(ct);
 
         var reihenfolge = Regionen.Select((r, i) => (r.Code, i)).ToDictionary(x => x.Code, x => x.i);
+        var pakete = await PaketeJeListeAsync(ct);
         var eintraege = listen
             .OrderBy(s => reihenfolge.GetValueOrDefault(s.Region, int.MaxValue))
             .ThenByDescending(s => s.Standardumfang)
             .ThenBy(s => s.Kuerzel ?? s.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(NachEintrag)
+            .Select(s => NachEintrag(s) with { Pakete = pakete.GetValueOrDefault(s.Kuerzel ?? "") })
             .ToList();
 
         var standard = await db.SanktionslistenStandardprozesse.AsNoTracking()
@@ -136,6 +137,204 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
+
+    // --- Preisliste (Import aus dem Preislisten-Projekt) --------------------------
+
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptionen = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
+
+    /// <summary>Aktuelle (oder eine ältere) Preisliste — intern gefiltert, wenn der Benutzer kein Vertrieb/Admin/Compliance ist.</summary>
+    [HttpGet("preisliste")]
+    public async Task<ActionResult<PreislisteAnsicht>> Preisliste([FromQuery] int? version, CancellationToken ct)
+    {
+        var darfInternes = await DarfInternesAsync(ct);
+        var darfBearbeiten = await berechtigung.DarfBearbeitenAsync(WikiThema.Preisliste, ct);
+        var verzeichnis = (await db.Einstellungen.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Schluessel == EinstellungsSchluessel.PreislisteVerzeichnis, ct))?.Wert;
+
+        var historie = await db.PreislistenVersionen.AsNoTracking()
+            .Include(p => p.ImportiertVon)
+            .OrderByDescending(p => p.Version)
+            .ToListAsync(ct);
+        var gewaehlt = version is null ? historie.FirstOrDefault() : historie.FirstOrDefault(p => p.Version == version);
+        if (version is not null && gewaehlt is null)
+            return NotFound();
+
+        PreislisteDaten? daten = null;
+        if (gewaehlt is not null)
+        {
+            var roh = System.Text.Json.JsonSerializer.Deserialize<PreislisteDaten>(gewaehlt.Daten, JsonOptionen);
+            daten = roh is null ? null : PreislisteSichtbarkeit.Filtern(roh, darfInternes);
+        }
+
+        // Auch der Dateiname der internen PDF bleibt Unberechtigten verborgen
+        PreislisteVersionEintrag Version(PreislistenVersion v) =>
+            darfInternes ? NachVersion(v) : NachVersion(v) with { DateiIntern = null };
+
+        return Ok(new PreislisteAnsicht(
+            daten,
+            gewaehlt is null ? null : Version(gewaehlt),
+            darfInternes, darfBearbeiten,
+            string.IsNullOrWhiteSpace(verzeichnis) ? null : verzeichnis,
+            historie.Select(Version).ToList()));
+    }
+
+    /// <summary>
+    /// Import einer neuen Preislisten-Version (JSON-Export aus dem Preislisten-
+    /// Projekt). Nur Redaktion des Themas; nur Versionen, die neuer sind als
+    /// die vorhandene. Die Datei wird unverändert gespeichert.
+    /// </summary>
+    [HttpPost("preisliste/import")]
+    [RequestSizeLimit(5_000_000)]
+    public async Task<ActionResult<PreislisteVersionEintrag>> PreislisteImport(
+        IFormFile datei, [FromForm] string? notiz, CancellationToken ct)
+    {
+        if (!await berechtigung.DarfBearbeitenAsync(WikiThema.Preisliste, ct))
+            return StatusCode(StatusCodes.Status403Forbidden,
+                "Preisliste importieren dürfen Admin, Compliance und Wiki-Redakteure mit Freigabe für dieses Thema.");
+        if (datei.Length == 0)
+            return BadRequest("Die Datei ist leer.");
+
+        string text;
+        using (var leser = new StreamReader(datei.OpenReadStream(), System.Text.Encoding.UTF8))
+            text = await leser.ReadToEndAsync(ct);
+
+        PreislisteDaten? p;
+        try
+        {
+            p = System.Text.Json.JsonSerializer.Deserialize<PreislisteDaten>(text, JsonOptionen);
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            return BadRequest($"Die Datei ist kein gültiger Preislisten-Export: {ex.Message}");
+        }
+        if (p is null || !p.Schema.StartsWith("rausoft.preisliste/", StringComparison.Ordinal))
+            return BadRequest("Die Datei ist kein Preislisten-Export (Feld „schema“ fehlt oder passt nicht).");
+        if (p.Version <= 0 || string.IsNullOrWhiteSpace(p.Stand) || p.Stufen.Count == 0 || p.Volumenstufen.Count == 0)
+            return BadRequest("Version, Stand, Stufen oder Volumenstufen fehlen.");
+        var stufenSchluessel = p.Stufen.Select(s => s.Schluessel).ToHashSet();
+        var unbekannt = p.Volumenstufen.SelectMany(v => v.Preise.Keys).Where(k => !stufenSchluessel.Contains(k)).Distinct().ToList();
+        if (unbekannt.Count > 0)
+            return BadRequest($"Volumenstufen verwenden unbekannte Stufen-Schlüssel: {string.Join(", ", unbekannt)}");
+
+        var hoechste = await db.PreislistenVersionen.MaxAsync(x => (int?)x.Version, ct) ?? 0;
+        if (p.Version <= hoechste)
+            return BadRequest($"Version {p.Version} ist nicht neuer als die vorhandene Version {hoechste}. " +
+                "Bitte im Preislisten-Projekt eine neue Version erzeugen.");
+
+        var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)))
+            .ToLowerInvariant();
+        var eintrag = new PreislistenVersion
+        {
+            Version = p.Version,
+            Stand = p.Stand,
+            GueltigAb = p.GueltigAb,
+            Produkt = p.Produkt,
+            Schema = p.Schema,
+            Daten = text,
+            Sha256 = sha,
+            DateiIntern = p.Dokumente?.Intern,
+            DateiExtern = p.Dokumente?.Extern,
+            ImportiertAm = DateTime.UtcNow,
+            ImportiertVonId = await EigeneIdAsync(ct),
+            Notiz = Leer(notiz),
+        };
+        db.PreislistenVersionen.Add(eintrag);
+        await db.SaveChangesAsync(ct);
+        return Ok(NachVersion(eintrag));
+    }
+
+    /// <summary>Zuständigkeit und Prozess eines Wiki-Themas (z. B. Preisliste).</summary>
+    [HttpGet("themen/{thema}/info")]
+    public async Task<ActionResult<WikiThemaInfoEintrag>> ThemaInfo(string thema, CancellationToken ct)
+    {
+        if (!WikiThema.IstBekannt(thema))
+            return NotFound();
+        var info = await db.WikiThemaInfos.AsNoTracking()
+            .Include(i => i.Verantwortlich).Include(i => i.Vertreter).Include(i => i.GeaendertVon)
+            .FirstOrDefaultAsync(i => i.Thema == thema, ct);
+        return Ok(info is null
+            ? new WikiThemaInfoEintrag(thema, null, null, null, null, null, null, null)
+            : new WikiThemaInfoEintrag(thema, info.VerantwortlichId, info.Verantwortlich?.Anzeigename,
+                info.VertreterId, info.Vertreter?.Anzeigename, info.Prozess, info.GeaendertAm, info.GeaendertVon?.Anzeigename));
+    }
+
+    [HttpPut("themen/{thema}/info")]
+    public async Task<IActionResult> ThemaInfoSpeichern(string thema, WikiThemaInfoSpeichern daten, CancellationToken ct)
+    {
+        if (!WikiThema.IstBekannt(thema))
+            return NotFound();
+        if (!await berechtigung.DarfBearbeitenAsync(thema, ct))
+            return StatusCode(StatusCodes.Status403Forbidden, "Dieses Thema dürfen nur freigegebene Wiki-Redakteure, Compliance und Admin pflegen.");
+        if (daten.VerantwortlichId is not null && daten.VerantwortlichId == daten.VertreterId)
+            return BadRequest("Verantwortlich und Vertreter müssen verschiedene Personen sein.");
+        foreach (var personId in new[] { daten.VerantwortlichId, daten.VertreterId }.OfType<int>())
+            if (!await db.Mitarbeiter.AnyAsync(m => m.Id == personId, ct))
+                return BadRequest("Die gewählte Person existiert nicht.");
+
+        var info = await db.WikiThemaInfos.FirstOrDefaultAsync(i => i.Thema == thema, ct);
+        if (info is null)
+        {
+            info = new WikiThemaInfo { Thema = thema };
+            db.WikiThemaInfos.Add(info);
+        }
+        info.VerantwortlichId = daten.VerantwortlichId;
+        info.VertreterId = daten.VertreterId;
+        info.Prozess = Leer(daten.Prozess);
+        info.GeaendertAm = DateTime.UtcNow;
+        info.GeaendertVonId = await EigeneIdAsync(ct);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>Welche Sanktionsliste steckt in welchem Paket der aktuellen Preisliste? (Kürzel → Paketnamen)</summary>
+    private async Task<Dictionary<string, List<string>>> PaketeJeListeAsync(CancellationToken ct)
+    {
+        var aktuelle = await db.PreislistenVersionen.AsNoTracking()
+            .OrderByDescending(p => p.Version).Select(p => p.Daten).FirstOrDefaultAsync(ct);
+        var ergebnis = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        if (aktuelle is null)
+            return ergebnis;
+        PreislisteDaten? p;
+        try { p = System.Text.Json.JsonSerializer.Deserialize<PreislisteDaten>(aktuelle, JsonOptionen); }
+        catch (System.Text.Json.JsonException) { return ergebnis; }
+        if (p?.SanktionslistenPakete is null)
+            return ergebnis;
+
+        void Merke(string kuerzel, string paket) =>
+            (ergebnis.TryGetValue(kuerzel, out var l) ? l : ergebnis[kuerzel] = []).Add(paket);
+        foreach (var k in p.SanktionslistenPakete.Standardlisten)
+            Merke(k, "Standard (in allen Stufen)");
+        // Das All-Listen-Bundle wiederholt nur die Einzelpakete — nicht separat ausweisen
+        foreach (var paket in p.SanktionslistenPakete.Pakete.Where(x => x.Listen.Count > 0 && x.Schluessel != "all-listen-bundle"))
+            foreach (var k in paket.Listen)
+                Merke(k, paket.Name);
+        return ergebnis;
+    }
+
+    private async Task<bool> DarfInternesAsync(CancellationToken ct)
+    {
+        if (benutzer.EntraObjectId is null && benutzer.WindowsKonto is null)
+            return false;
+        var rollen = await db.Mitarbeiter.AsNoTracking()
+            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
+            .Where(m => m.Aktiv).Select(m => m.Rollen).FirstOrDefaultAsync(ct);
+        // Interne Preisliste: Vertrieb, Admin, Compliance (Entscheidung MP 14.10.2026)
+        return rollen.HasFlag(MitarbeiterRolle.Vertrieb) || rollen.HasFlag(MitarbeiterRolle.Admin)
+               || rollen.HasFlag(MitarbeiterRolle.Compliance);
+    }
+
+    private Task<int?> EigeneIdAsync(CancellationToken ct) =>
+        db.Mitarbeiter.Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
+            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+
+    private static PreislisteVersionEintrag NachVersion(PreislistenVersion p) => new(
+        p.Id, p.Version, p.Stand, p.GueltigAb, p.DateiIntern, p.DateiExtern,
+        p.ImportiertAm, p.ImportiertVon?.Anzeigename, p.Notiz);
 
     // --- Hilfen ----------------------------------------------------------------
 

@@ -435,7 +435,26 @@ Vertrieb (angelegt als Thema, Seite in Vorbereitung — Struktur mit MP klären;
 interne Preise bleiben vertraulich, vgl. CLAUDE.md). Offen: Export der
 Übersicht aus dem Wiki (Word/PDF).
 
-Status: umgesetzt · Pflege der Inhalte offen · Preisliste in Vorbereitung
+**Preisliste** (14.10.2026, MP): Die Preislisten (intern + extern) entstehen
+weiter im eigenen Preislisten-Projekt (das auch das Management Summary
+erzeugt); das Wiki ersetzt es nicht, sondern zeigt den aktuellen Stand und das
+Wissen drumherum. Dafür liefert das Projekt je Version zusätzlich eine JSON
+(Schema `rausoft.preisliste/1`, Prompt und Schema in
+`ANLEITUNG-PREISLISTEN-EXPORT.md`) mit fortlaufender Versionsnummer; erste
+Lieferung v22 liegt unter `P:\01_Vertrieb\Preisliste`. Kundenzentrale:
+**Import per Datei-Upload** (Wiki-Redaktion Thema Preisliste), Speicherung der
+JSON unverändert mit Prüfsumme, Historie; Seite `/wiki/preisliste` mit Stufen,
+Volumenpreisen, Add-ons, Sanktionslisten-Paketen, Benutzer-Paketen, Begriffen
+intern ↔ extern, Sicherheit, Argumenten; **interne Teile** (WorldCheck,
+Volumen-Pool, Vertriebshinweise, interne Hinweise, interne PDF) sehen nur
+**Vertrieb, Admin, Compliance** — serverseitig gefiltert, mit Unit-Tests.
+Sanktionslisten-Wiki zeigt je Liste, in welchem Preislisten-Paket sie steckt.
+Zuständigkeit/Vertretung/Prozess je Wiki-Thema (`WikiThemaInfo`). Ablage
+bleibt das P-Laufwerk (Einstellung `Preisliste.Verzeichnis`); ob das Wiki
+später der Freigabe-Ort für alle Dokumente wird, ist offen. Für Phase 3
+(Angebote) liegen die Preise damit bereits strukturiert vor.
+
+Status: umgesetzt · Pflege der Inhalte offen · Dokument-Freigabe über das Wiki offen
 
 ## Backlog (Aufgaben beim Nutzer / für später)
 

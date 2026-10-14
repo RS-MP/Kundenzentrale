@@ -148,6 +148,10 @@ else
                                             <dt>Herausgeber</dt><dd>@(liste.Herausgeber ?? "—")</dd>
                                             <dt>Geltung</dt><dd>@(liste.Geltungsbereich ?? "—")</dd>
                                             <dt>sanktionslisten.de</dt><dd>@(liste.Standardumfang ? "Standardumfang" : "optional")</dd>
+                                            @if (liste.Pakete is { Count: > 0 })
+                                            {
+                                                <dt>Preisliste</dt><dd>@string.Join(" · ", liste.Pakete)</dd>
+                                            }
                                         </dl>
                                         @if (liste.DownloadUrl is not null)
                                         {

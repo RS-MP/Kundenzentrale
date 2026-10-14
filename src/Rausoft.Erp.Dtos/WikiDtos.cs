@@ -26,7 +26,9 @@ public record SanktionslisteEintrag(
     string? Prozess,
     bool Aktiv,
     DateTime? GeaendertAm,
-    string? GeaendertVon);
+    string? GeaendertVon,
+    // Sanktionslisten-Pakete der aktuellen Preisliste, in denen diese Liste enthalten ist („Standard" = in allen Stufen)
+    List<string>? Pakete = null);
 
 /// <summary>Katalog + ob der Benutzer pflegen darf (Compliance/Admin).</summary>
 public record SanktionslistenKatalog(
