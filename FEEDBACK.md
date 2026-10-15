@@ -483,6 +483,10 @@ beim Betroffenen ebenfalls ins Abzeichen. Bausteine sind je Thema
 wiederverwendbar (`WikiNeuerungen`, `WikiMeldungen`). **Offen:** E-Mail an den
 Verantwortlichen, sobald SMTP eingerichtet ist (heute nur In-App-Hinweis).
 
+**Löschen von Fehlanlagen** (15.10.2026, MP: doppelt angelegte Liste): im
+Bearbeitungsfenster einer Sanktionsliste „Löschen …" mit Rückfrage (Redaktion/
+Compliance/Admin); echte, nicht mehr geltende Listen weiterhin nur „eingestellt".
+
 Status: umgesetzt · Pflege der Inhalte offen · Dokument-Freigabe über das Wiki offen · E-Mail-Benachrichtigung offen (SMTP)
 
 ## Backlog (Aufgaben beim Nutzer / für später)

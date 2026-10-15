@@ -342,6 +342,20 @@ else
             <div class="fenster-fuss">
                 <button class="knopf" disabled="@_speichere" @onclick="SpeichernAsync">@(_speichere ? "Speichere …" : "Speichern")</button>
                 <button class="knopf sekundaer" @onclick="() => _bearbeitung = null">Abbrechen</button>
+                @if (_bearbeitungId is not null)
+                {
+                    <span style="flex:1"></span>
+                    @if (_loeschenBestaetigen)
+                    {
+                        <span class="warntext" style="font-size:13px">Endgültig löschen? Für eine Liste, die es wirklich gab, lieber „aktiv" abwählen.</span>
+                        <button class="knopf sekundaer klein warntext" disabled="@_speichere" @onclick="LoeschenAsync">Ja, löschen</button>
+                        <button class="knopf sekundaer klein" @onclick="() => _loeschenBestaetigen = false">Nein</button>
+                    }
+                    else
+                    {
+                        <button class="knopf sekundaer klein" title="Nur für Fehlanlagen, z. B. doppelt angelegte Liste" @onclick="() => _loeschenBestaetigen = true">Löschen …</button>
+                    }
+                }
             </div>
         </div>
     </div>
@@ -503,12 +517,14 @@ else
     private void NeuOeffnen()
     {
         _bearbeitungId = null;
+        _loeschenBestaetigen = false;
         _bearbeitung = new Formular();
     }
 
     private void BearbeitenOeffnen(SanktionslisteEintrag l)
     {
         _bearbeitungId = l.Id;
+        _loeschenBestaetigen = false;
         _bearbeitung = new Formular
         {
             Region = l.Region, Kuerzel = l.Kuerzel, Name = l.Name, BezeichnungIntern = l.BezeichnungIntern,
@@ -517,6 +533,37 @@ else
             Import = l.Import, ImportHinweis = l.ImportHinweis, VerantwortlichId = l.VerantwortlichId,
             VertreterId = l.VertreterId, Prozess = l.Prozess, Aktiv = l.Aktiv,
         };
+    }
+
+    private bool _loeschenBestaetigen;
+
+    /// <summary>Endgültig löschen — nur für Fehlanlagen (doppelt angelegte Liste); echte Listen werden „eingestellt".</summary>
+    private async Task LoeschenAsync()
+    {
+        if (_bearbeitungId is not { } id)
+            return;
+        _fehler = null;
+        _speichere = true;
+        try
+        {
+            var antwort = await Http.DeleteAsync($"api/wiki/sanktionslisten/{id}");
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _bearbeitung = null;
+            _loeschenBestaetigen = false;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Löschen fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichere = false;
+        }
     }
 
     private async Task SpeichernAsync()

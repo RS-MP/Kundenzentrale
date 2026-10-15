@@ -155,6 +155,24 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
         return NoContent();
     }
 
+    /// <summary>
+    /// Endgültig löschen — für Fehlanlagen (z. B. doppelt angelegte Liste).
+    /// Eine Liste, die es wirklich gab und nicht mehr gilt, wird stattdessen
+    /// auf „eingestellt" gesetzt, damit die Historie lesbar bleibt.
+    /// </summary>
+    [HttpDelete("sanktionslisten/{id:int}")]
+    public async Task<IActionResult> Loeschen(int id, CancellationToken ct)
+    {
+        if (!await DarfBearbeitenAsync(ct))
+            return KeinZugriff();
+        var liste = await db.Sanktionslisten.FirstOrDefaultAsync(s => s.Id == id, ct);
+        if (liste is null)
+            return NotFound();
+        db.Sanktionslisten.Remove(liste);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     // --- Preisliste (Import aus dem Preislisten-Projekt) --------------------------
 
     private static readonly System.Text.Json.JsonSerializerOptions JsonOptionen = new()
