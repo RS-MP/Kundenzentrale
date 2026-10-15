@@ -48,13 +48,21 @@ else
 
 // Ohne explizites [AllowAnonymous] ist jeder Endpunkt geschützt —
 // Berechtigungen werden serverseitig durchgesetzt, nie nur im Frontend.
+// Grundberechtigung = angemeldet UND aktiver Mitarbeiter-Datensatz: Deaktivieren
+// in der Benutzerverwaltung sperrt damit vollständig aus (SICHERHEIT.md, V3).
 builder.Services.AddAuthorization(options =>
 {
-    options.FallbackPolicy = options.DefaultPolicy;
+    var aktiverMitarbeiter = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .AddRequirements(new AktiverMitarbeiterAnforderung())
+        .Build();
+    options.DefaultPolicy = aktiverMitarbeiter;
+    options.FallbackPolicy = aktiverMitarbeiter;
     // "Admin"/"Compliance" prüfen die Mitarbeiter-Rolle aus der DB (serverseitig)
     options.AddPolicy("Admin", policy => policy.Requirements.Add(new AdminAnforderung()));
     options.AddPolicy("Compliance", policy => policy.Requirements.Add(new ComplianceAnforderung()));
 });
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AktiverMitarbeiterAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, ComplianceAnforderungHandler>();
 // Wiki: Themen-Freigabe je Redakteur (kein Policy, weil themenabhängig)
@@ -151,11 +159,18 @@ if (builder.Configuration["Hosting:PfadBasis"] is { Length: > 0 } pfadBasis)
     app.UseRouting();
 }
 
-// Windows-/Intranet-Betrieb läuft bewusst über http (nur intern erreichbar) —
-// die erzwungene Umleitung würde aufs HTTPS-Binding der Default Web Site mit
-// fremdem Zertifikat umleiten und Zertifikatswarnungen erzeugen.
-if (!windowsAuth)
+// HTTPS: Im Entra-Modus immer erzwingen. Im Windows-/Intranet-Betrieb erst,
+// wenn "Hosting:HttpsErzwingen" = true gesetzt ist — also sobald ein internes
+// Zertifikat und ein https-Binding an der Site existieren (DEPLOYMENT.md,
+// Abschnitt HTTPS). Vorher würde die Umleitung aufs HTTPS-Binding der Default
+// Web Site mit fremdem Zertifikat laufen und Zertifikatswarnungen erzeugen.
+var httpsErzwingen = !windowsAuth || builder.Configuration.GetValue<bool>("Hosting:HttpsErzwingen");
+if (httpsErzwingen)
+{
+    if (!app.Environment.IsDevelopment())
+        app.UseHsts();
     app.UseHttpsRedirection();
+}
 
 // Die API liefert auch das Blazor-Frontend aus (ein IIS-Site, kein CORS nötig);
 // in der Entwicklung läuft das Frontend weiterhin auf dem eigenen Dev-Port.
@@ -173,13 +188,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseAuthentication();
-app.UseAuthorization();
 
 if (windowsAuth)
 {
     // Windows-Betrieb: unbekannte Domänen-Konten beim ersten Zugriff als
     // Mitarbeiter (ohne Rollen) anlegen, damit Timeline und Audit-Log sofort
-    // zugeordnet werden. Rollen vergibt ein Admin.
+    // zugeordnet werden. Rollen vergibt ein Admin. Muss VOR UseAuthorization
+    // laufen, weil die Grundberechtigung den Mitarbeiter-Datensatz voraussetzt.
     var bekannteKonten = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
     app.Use(async (context, next) =>
     {
@@ -197,6 +212,8 @@ if (windowsAuth)
         await next();
     });
 }
+
+app.UseAuthorization();
 
 app.MapControllers();
 

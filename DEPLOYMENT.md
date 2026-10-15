@@ -10,11 +10,26 @@ Option dokumentiert.
 > App-Pool „Kundenzentrale", Windows-Auth an/Anonym aus auf der Anwendung.
 > Intranet-Zone per GPO erledigt; nur intern erreichbar (kein HTTPS —
 > bei Bedarf internes Zertifikat + https-Binding an der Default Web Site).
-> Update-Ritual: App-Pool beenden → Inhalt von `publish` (frisch per
+> Update-Ritual: **vorher** `dotnet list Rausoft.Erp.slnx package --vulnerable --include-transitive`
+> (muss für alle Projekte „keine anfälligen Pakete" melden, sonst erst Pakete heben) →
+> App-Pool beenden → Inhalt von `publish` (frisch per
 > `dotnet publish src/Rausoft.Erp.Api -c Release -o publish`) drüberkopieren
 > (`appsettings.Production.json` liegen lassen) → App-Pool starten.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
+
+- [ ] **Publish aktualisieren (15.10.2026, Sicherheit — SICHERHEIT.md V2/V3):**
+  Pakete auf 10.0.13 (Schwachstellen-Scan sauber) und neue Grundberechtigung:
+  jeder Zugriff braucht jetzt einen **aktiven** Mitarbeiter-Datensatz —
+  „Deaktivieren" unter Benutzer & Rollen sperrt damit vollständig aus (vorher
+  blieb Lesezugriff). Neue Domänenkonten werden weiterhin automatisch aktiv
+  angelegt (Testphase). Manuelle Server-Schritte: **ASP.NET Core Hosting Bundle
+  und .NET Desktop Runtime auf den aktuellen 10.0.x-Patch** heben (Download-
+  Seite wie oben, danach `iisreset`). Danach prüfen: ein deaktivierter
+  Testbenutzer bekommt überall 403.
+- [ ] **HTTPS im Intranet** (SICHERHEIT.md V1, Code ist vorbereitet) — Schritte
+  im Abschnitt „HTTPS im Intranet" unten; bis dahin bleibt `Hosting:HttpsErzwingen`
+  auf `false` und der Testbetrieb läuft unverändert über http.
 
 - [ ] **VOR dem nächsten Publish: .NET Desktop Runtime 10 installieren!**
   Die PDF-Erzeugung (Telerik) braucht WPF — ohne die Desktop Runtime startet
@@ -194,6 +209,48 @@ vorher sichern):
 - Test-Server (Test-01/02/03, localhost-Healthcheck) löschen oder auf die
   echten Abfragepunkte umstellen, sobald sie vorliegen.
 - Backups einrichten (siehe unten).
+
+## HTTPS im Intranet (Weg A, nachziehbar ohne Code-Änderung)
+
+Ziel: `https://rs-w2019-01/Kundenzentrale` mit einem Zertifikat, dem alle
+Domänenrechner vertrauen — keine Warnung im Browser, Kerberos/NTLM und
+Kundendaten laufen nicht mehr im Klartext. Reihenfolge, ca. 30–45 Minuten:
+
+1. **Zertifikat beschaffen** (eine der beiden Varianten):
+   - *Mit AD-Zertifizierungsstelle (AD CS) im Haus:* Auf dem Server
+     `certlm.msc` → Eigene Zertifikate → Alle Aufgaben → **Neues Zertifikat
+     anfordern** → Vorlage „Webserver" → Antragstellername: Allgemeiner Name
+     `rs-w2019-01`, zusätzlich DNS-Namen `rs-w2019-01` und
+     `rs-w2019-01.<domäne>` (später auch den Wunschnamen, z. B.
+     `kundenzentrale.<domäne>`) → Registrieren. Domänenrechner vertrauen der
+     AD CS automatisch (Stammzertifikat kommt per GPO).
+   - *Ohne AD CS:* Selbstsigniertes Zertifikat auf dem Server erzeugen
+     (`New-SelfSignedCertificate -DnsName rs-w2019-01,rs-w2019-01.<domäne>
+     -CertStoreLocation cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(3)`),
+     es als `.cer` exportieren und per GPO (Computerkonfiguration → Richtlinien
+     → Windows-Einstellungen → Sicherheitseinstellungen → Richtlinien für
+     öffentliche Schlüssel → **Vertrauenswürdige Stammzertifizierungsstellen**)
+     an alle Rechner verteilen. Funktioniert, ist aber Handarbeit bei Ablauf.
+2. **IIS-Binding:** IIS-Manager → Default Web Site → Bindungen → Hinzufügen →
+   Typ `https`, Port 443, SSL-Zertifikat = das neue Zertifikat → OK. Die
+   Unteranwendung `/Kundenzentrale` erbt das Binding.
+3. **Test im Browser:** `https://rs-w2019-01/Kundenzentrale` muss ohne
+   Warnung laden und die Windows-Anmeldung unsichtbar durchlaufen. Falls ein
+   Anmeldedialog erscheint: die https-URL in der GPO „Kundenzentrale
+   Intranetzone" ergänzen (`https://rs-w2019-01` = 1).
+4. **Umleitung einschalten:** in `appsettings.Production.json` ergänzen
+   ```json
+   "Hosting": { "HttpsErzwingen": true }
+   ```
+   → App-Pool neu starten. Ab jetzt leitet die App http auf https um und
+   sendet HSTS; alle Links/Lesezeichen auf http funktionieren weiter.
+5. **Import-Task:** nichts zu tun (spricht nur mit SQL Server und Odoo).
+6. Später, wenn ein DNS-Name wie `kundenzentrale.<domäne>` gewünscht ist:
+   DNS-CNAME anlegen, Namen ins Zertifikat aufnehmen (neu anfordern), ins
+   Binding (Hostname) und in die Intranetzone-GPO eintragen.
+
+Bis Schritt 4 läuft alles wie bisher über http — der Schalter macht die
+Umstellung jederzeit rückgängig (`false` + App-Pool-Neustart).
 
 ## Weg B · Entra ID (spätere Option, z. B. für Zugriff von außen/M365-SSO)
 
