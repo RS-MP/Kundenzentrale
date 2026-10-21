@@ -1,0 +1,449 @@
+@page "/zertifikate"
+@inject HttpClient Http
+
+<PageTitle>SSL-Zertifikate · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>SSL-Zertifikate</h1>
+    <span class="untertitel"><a href="server">Server</a> · Ablaufdaten aller produktiven Systeme, Erinnerung per E-Mail ab dem Vorlauf bis zur Bestätigung</span>
+    <span style="flex:1"></span>
+    @if (_uebersicht?.DarfBearbeiten == true && _formular is null)
+    {
+        <button class="knopf" @onclick="NeuOeffnen">+ Zertifikat</button>
+    }
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_hinweis is not null)
+{
+    <div class="zert-hinweis">@_hinweis</div>
+}
+
+@if (_uebersicht is null)
+{
+    @if (_fehler is null)
+    {
+        <div class="leer-hinweis">Lade Zertifikate …</div>
+    }
+}
+else
+{
+    @if (!_uebersicht.MailEingerichtet)
+    {
+        <div class="zert-warnung">
+            <b>E-Mail-Versand ist noch nicht eingerichtet.</b> Erinnerungen können erst verschickt werden, wenn unter
+            <a href="admin">Administration → E-Mail-Versand</a> SMTP-Server, Absender und Passwort hinterlegt sind.
+        </div>
+    }
+
+    @* ---------- Formular ---------- *@
+    @if (_formular is { } f)
+    {
+        <div class="karte" style="margin-bottom:16px">
+            <div class="karte-koerper">
+                <b>@(f.Id is null ? "Zertifikat anlegen" : "Zertifikat bearbeiten")</b>
+                <div class="formular" style="margin-top:10px">
+                    <label>
+                        Bezeichnung
+                        <input type="text" maxlength="200" @bind="f.Bezeichnung" placeholder="z. B. idprove.rausoft.de" />
+                    </label>
+                    <label>
+                        Hostname für die Live-Prüfung (optional)
+                        <input type="text" maxlength="255" @bind="f.Hostname" placeholder="z. B. idprove.rausoft.de" />
+                    </label>
+                    <label>
+                        Port
+                        <input type="number" min="1" max="65535" @bind="f.Port" />
+                    </label>
+                    <label>
+                        ID.prove-Server (optional)
+                        <select @bind="f.ServerId">
+                            <option value="">— keiner —</option>
+                            @foreach (var s in _uebersicht.Server) { <option value="@s.Id">@s.Alias</option> }
+                        </select>
+                    </label>
+                    <label>
+                        Anbieter
+                        <input type="text" maxlength="100" @bind="f.Anbieter" />
+                    </label>
+                    <label>
+                        Gültig bis
+                        <input type="date" @bind="f.GueltigBis" />
+                    </label>
+                    <label>
+                        Laufzeit neuer Zertifikate (Monate)
+                        <input type="number" min="1" max="120" @bind="f.LaufzeitMonate" />
+                    </label>
+                    <label>
+                        Erinnerung ab (Tage vor Ablauf)
+                        <input type="number" min="1" max="365" @bind="f.VorlaufTage" />
+                    </label>
+                    <label class="breit">
+                        E-Mail-Empfänger (mehrere mit Komma; leer = Standardempfänger@(_uebersicht.StandardEmpfaenger is { Length: > 0 } se ? $": {se}" : " — noch nicht gesetzt"))
+                        <input type="text" maxlength="1000" @bind="f.Empfaenger" placeholder="technik@rausoft.de, mp@rausoft.de" />
+                    </label>
+                    <label class="breit">
+                        Notiz (z. B. wo das Zertifikat eingespielt wird)
+                        <textarea rows="2" @bind="f.Notiz"></textarea>
+                    </label>
+                    <label style="flex-direction:row; align-items:center; gap:6px">
+                        <input type="checkbox" @bind="f.Aktiv" /> aktiv (sonst keine Erinnerungen)
+                    </label>
+                </div>
+                <div class="formular-aktionen">
+                    <button class="knopf" disabled="@_sende" @onclick="SpeichernAsync">Speichern</button>
+                    <button class="knopf sekundaer" @onclick="() => _formular = null">Abbrechen</button>
+                    @if (f.Id is not null)
+                    {
+                        <span style="flex:1"></span>
+                        @if (_loeschenBestaetigen)
+                        {
+                            <span class="warntext" style="font-size:13px">Endgültig löschen?</span>
+                            <button class="knopf sekundaer klein warntext" disabled="@_sende" @onclick="LoeschenAsync">Ja, löschen</button>
+                            <button class="knopf sekundaer klein" @onclick="() => _loeschenBestaetigen = false">Nein</button>
+                        }
+                        else
+                        {
+                            <button class="knopf sekundaer klein" @onclick="() => _loeschenBestaetigen = true">Löschen …</button>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_uebersicht.Zertifikate.Count == 0)
+    {
+        <div class="karte"><div class="karte-koerper">
+            <div class="leer-hinweis">Noch keine Zertifikate erfasst.</div>
+        </div></div>
+    }
+    else
+    {
+        <div class="karte">
+            <table class="liste zert-tabelle">
+                <thead>
+                    <tr>
+                        <th>Zertifikat</th>
+                        <th style="width:120px">Gültig bis</th>
+                        <th style="width:150px">Status</th>
+                        <th style="width:200px">Live-Prüfung</th>
+                        <th style="width:190px">Erinnerungen</th>
+                        <th style="width:260px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var z in _uebersicht.Zertifikate)
+                    {
+                        <tr style="cursor:default" class="@(z.Aktiv ? "" : "inaktiv")">
+                            <td>
+                                <span class="haupt">@z.Bezeichnung</span>
+                                @if (!z.Aktiv) { <span class="pill" style="margin-left:6px">inaktiv</span> }
+                                <div class="neben">
+                                    @(z.Hostname is not null ? $"{z.Hostname}:{z.Port}" : "ohne Live-Prüfung")@(z.ServerAlias is not null ? $" · Server {z.ServerAlias}" : "") · @z.Anbieter · @z.LaufzeitMonate Monate
+                                </div>
+                                @if (z.Notiz is not null) { <div class="neben">@z.Notiz</div> }
+                            </td>
+                            <td>
+                                @z.GueltigBis.ToString("dd.MM.yyyy")
+                                @if (z.ErneuertAm is not null)
+                                {
+                                    <div class="neben" title="@z.ErneuertVon">bestätigt @z.ErneuertAm.Value.ToLocalTime().ToString("dd.MM.yyyy")</div>
+                                }
+                            </td>
+                            <td>
+                                <span class="status @StatusKlasse(z)">@StatusText(z)</span>
+                                <div class="neben">Erinnerung ab @z.VorlaufTage Tage vorher</div>
+                            </td>
+                            <td>
+                                @if (z.Hostname is null)
+                                {
+                                    <span class="neben">—</span>
+                                }
+                                else if (z.LiveFehler is not null)
+                                {
+                                    <span class="warntext" style="font-size:13px" title="@z.LiveFehler">Prüfung fehlgeschlagen</span>
+                                    <div class="neben">@z.LiveFehler</div>
+                                }
+                                else if (z.LiveGueltigBis is { } live)
+                                {
+                                    <span class="@(live != z.GueltigBis ? "warntext" : "")">gültig bis @live.ToString("dd.MM.yyyy")</span>
+                                    @if (live > z.GueltigBis)
+                                    {
+                                        <div class="neben warntext">neuer als eingetragen — bitte bestätigen</div>
+                                    }
+                                    else if (live < z.GueltigBis)
+                                    {
+                                        <div class="neben warntext">älter als eingetragen — Zertifikat wirklich eingespielt?</div>
+                                    }
+                                    <div class="neben">@z.LiveAussteller · @z.LiveGeprueftAm?.ToLocalTime().ToString("dd.MM. HH:mm")</div>
+                                }
+                                else
+                                {
+                                    <span class="neben">noch nicht geprüft</span>
+                                }
+                            </td>
+                            <td>
+                                @if (z.ErinnerungenGesendet > 0)
+                                {
+                                    <span>@z.ErinnerungenGesendet gesendet</span>
+                                    <div class="neben">zuletzt @z.LetzteErinnerungAm?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</div>
+                                }
+                                else
+                                {
+                                    <span class="neben">keine</span>
+                                }
+                                @if (z.LetzterMailFehler is not null)
+                                {
+                                    <div class="neben warntext" title="@z.LetzterMailFehler">Versand fehlgeschlagen</div>
+                                }
+                                <div class="neben">an @(z.Empfaenger ?? _uebersicht.StandardEmpfaenger ?? "— niemand —")</div>
+                            </td>
+                            <td class="zert-aktionen">
+                                @if (_uebersicht.DarfBearbeiten)
+                                {
+                                    @if (_erneuernId == z.Id)
+                                    {
+                                        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap">
+                                            <span style="font-size:13px">neu gültig bis</span>
+                                            <input type="date" @bind="_erneuernDatum" style="width:150px" />
+                                            <button class="knopf klein" disabled="@_sende" @onclick="() => ErneuertAsync(z.Id)">Bestätigen</button>
+                                            <button class="knopf sekundaer klein" @onclick="() => _erneuernId = null">Abbrechen</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <button class="knopf @(z.Status == "ok" ? "sekundaer" : "") klein" title="Erinnerungen beenden und neues Ablaufdatum eintragen" @onclick="() => ErneuernOeffnen(z)">Neues Zertifikat ist online</button>
+                                        <button class="knopf sekundaer klein" @onclick="() => Bearbeiten(z)">Bearbeiten</button>
+                                    }
+                                }
+                                @if (z.Hostname is not null)
+                                {
+                                    <button class="mehr" disabled="@_sende" @onclick="() => PruefenAsync(z.Id)">jetzt prüfen</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (_uebersicht.DarfBearbeiten)
+        {
+            <div style="display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap">
+                <button class="knopf sekundaer klein" disabled="@_sende" @onclick="ErinnerungenJetztAsync">Erinnerungen jetzt prüfen und senden</button>
+                <span class="neben" style="display:inline">
+                    Läuft sonst stündlich im Hintergrund; eine fällige Erinnerung wird alle @_uebersicht.ErinnerungIntervallTage Tag(e) wiederholt,
+                    bis „Neues Zertifikat ist online" bestätigt wurde. Takt und Standardempfänger unter <a href="admin">Administration → E-Mail-Versand</a>.
+                </span>
+            </div>
+        }
+    }
+}
+
+@code {
+    private ZertifikatUebersicht? _uebersicht;
+    private Formular? _formular;
+    private bool _loeschenBestaetigen;
+    private int? _erneuernId;
+    private DateTime _erneuernDatum;
+    private bool _sende;
+    private string? _fehler;
+    private string? _hinweis;
+
+    private class Formular
+    {
+        public int? Id { get; set; }
+        public string Bezeichnung { get; set; } = "";
+        public string? Hostname { get; set; }
+        public int Port { get; set; } = 443;
+        public int? ServerId { get; set; }
+        public string Anbieter { get; set; } = "IONOS";
+        public int LaufzeitMonate { get; set; } = 6;
+        public DateTime GueltigBis { get; set; } = DateTime.Today.AddMonths(6);
+        public int VorlaufTage { get; set; } = 14;
+        public string? Empfaenger { get; set; }
+        public string? Notiz { get; set; }
+        public bool Aktiv { get; set; } = true;
+    }
+
+    protected override Task OnInitializedAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _uebersicht = await Http.GetFromJsonAsync<ZertifikatUebersicht>("api/zertifikate");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Zertifikate konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private static string StatusKlasse(ZertifikatEintrag z) => z.Status switch
+    {
+        "abgelaufen" => "kritisch",
+        "bald" => "warnung",
+        _ => "gut",
+    };
+
+    private static string StatusText(ZertifikatEintrag z) => z.Status switch
+    {
+        "abgelaufen" => $"abgelaufen seit {-z.TageBisAblauf} Tagen",
+        "bald" => z.TageBisAblauf == 0 ? "läuft heute ab" : $"noch {z.TageBisAblauf} Tage",
+        _ => $"noch {z.TageBisAblauf} Tage",
+    };
+
+    private void NeuOeffnen()
+    {
+        _loeschenBestaetigen = false;
+        _formular = new Formular { Empfaenger = null };
+    }
+
+    private void Bearbeiten(ZertifikatEintrag z)
+    {
+        _loeschenBestaetigen = false;
+        _formular = new Formular
+        {
+            Id = z.Id, Bezeichnung = z.Bezeichnung, Hostname = z.Hostname, Port = z.Port, ServerId = z.ServerId,
+            Anbieter = z.Anbieter, LaufzeitMonate = z.LaufzeitMonate, GueltigBis = z.GueltigBis.ToDateTime(TimeOnly.MinValue),
+            VorlaufTage = z.VorlaufTage, Empfaenger = z.Empfaenger, Notiz = z.Notiz, Aktiv = z.Aktiv,
+        };
+    }
+
+    private async Task SpeichernAsync()
+    {
+        if (_formular is not { } f)
+            return;
+        _fehler = null;
+        _hinweis = null;
+        _sende = true;
+        try
+        {
+            var daten = new ZertifikatSpeichern(f.Bezeichnung, f.Hostname, f.Port, f.ServerId, f.Anbieter, f.LaufzeitMonate,
+                DateOnly.FromDateTime(f.GueltigBis), f.VorlaufTage, f.Empfaenger, f.Notiz, f.Aktiv);
+            var antwort = f.Id is { } id
+                ? await Http.PutAsJsonAsync($"api/zertifikate/{id}", daten)
+                : await Http.PostAsJsonAsync("api/zertifikate", daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _formular = null;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private async Task LoeschenAsync()
+    {
+        if (_formular?.Id is not { } id)
+            return;
+        _fehler = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.DeleteAsync($"api/zertifikate/{id}");
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _formular = null;
+            _loeschenBestaetigen = false;
+            await LadenAsync();
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private void ErneuernOeffnen(ZertifikatEintrag z)
+    {
+        _erneuernId = z.Id;
+        _erneuernDatum = z.VorschlagNeuesGueltigBis.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private async Task ErneuertAsync(int id)
+    {
+        _fehler = null;
+        _hinweis = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync($"api/zertifikate/{id}/erneuert",
+                new ZertifikatErneuern(DateOnly.FromDateTime(_erneuernDatum)));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _erneuernId = null;
+            _hinweis = "Bestätigt — die Erinnerungen für dieses Zertifikat sind beendet, die nächste beginnt wieder vor dem neuen Ablaufdatum.";
+            await LadenAsync();
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private async Task PruefenAsync(int id)
+    {
+        _fehler = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.PostAsync($"api/zertifikate/{id}/pruefen", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            await LadenAsync();
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private async Task ErinnerungenJetztAsync()
+    {
+        _fehler = null;
+        _hinweis = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.PostAsync("api/zertifikate/erinnerungen", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var lauf = await antwort.Content.ReadFromJsonAsync<ErinnerungsLauf>();
+            _hinweis = lauf is null ? null
+                : $"{lauf.Geprueft} Zertifikate geprüft, {lauf.Gesendet} Erinnerung(en) gesendet" +
+                  (lauf.Fehler.Count > 0 ? $" — Fehler: {string.Join(" · ", lauf.Fehler)}" : ".");
+            await LadenAsync();
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+}

@@ -61,10 +61,12 @@ builder.Services.AddAuthorization(options =>
     // "Admin"/"Compliance" prüfen die Mitarbeiter-Rolle aus der DB (serverseitig)
     options.AddPolicy("Admin", policy => policy.Requirements.Add(new AdminAnforderung()));
     options.AddPolicy("Compliance", policy => policy.Requirements.Add(new ComplianceAnforderung()));
+    options.AddPolicy("Betrieb", policy => policy.Requirements.Add(new BetriebAnforderung()));
 });
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AktiverMitarbeiterAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, ComplianceAnforderungHandler>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, BetriebAnforderungHandler>();
 // Wiki: Themen-Freigabe je Redakteur (kein Policy, weil themenabhängig)
 builder.Services.AddScoped<WikiBerechtigung>();
 
@@ -96,6 +98,9 @@ builder.Services.AddScoped<ServerStatusDienst>();
 builder.Services.AddSingleton<OdooImportDienst>();
 builder.Services.AddScoped<PdfDienst>();
 builder.Services.AddHostedService<ServerStatusHintergrund>();
+builder.Services.AddScoped<MailDienst>();
+builder.Services.AddScoped<ZertifikatDienst>();
+builder.Services.AddHostedService<ZertifikatHintergrund>();
 
 builder.Services.AddControllers().AddJsonOptions(options =>
     // Übergangslösung bis zur DTO-Schicht: Navigations-Zyklen (Kunde ↔ Ansprechpartner) kappen

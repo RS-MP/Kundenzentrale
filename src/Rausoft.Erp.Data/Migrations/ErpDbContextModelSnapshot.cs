@@ -17,7 +17,7 @@ namespace Rausoft.Erp.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.11")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -655,6 +655,93 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Server");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Servers.Zertifikat", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Aktiv")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Anbieter")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Bezeichnung")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Empfaenger")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("ErinnerungenGesendet")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ErneuertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErneuertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("GueltigBis")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Hostname")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("LaufzeitMonate")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LetzteErinnerungAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LetzterMailFehler")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("LiveAussteller")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("LiveFehler")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("LiveGeprueftAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly?>("LiveGueltigBis")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notiz")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("Port")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ServerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("VorlaufTage")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErneuertVonId");
+
+                    b.HasIndex("ServerId");
+
+                    b.ToTable("Zertifikate");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Aktivitaet", b =>
@@ -1550,6 +1637,23 @@ namespace Rausoft.Erp.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Kunde");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Servers.Zertifikat", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErneuertVon")
+                        .WithMany()
+                        .HasForeignKey("ErneuertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Servers.Server", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ErneuertVon");
+
+                    b.Navigation("Server");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Aktivitaet", b =>

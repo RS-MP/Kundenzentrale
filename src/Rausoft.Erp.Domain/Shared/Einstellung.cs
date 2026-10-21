@@ -36,4 +36,15 @@ public static class EinstellungsSchluessel
     public const string OdooDatenbank = "Odoo.Datenbank";
     public const string OdooBenutzer = "Odoo.Benutzer";
     public const string OdooLetzterImport = "Odoo.LetzterImport";
+
+    // E-Mail-Versand (SMTP) — Passwort liegt als Geheimnis (Mail.SmtpPasswort)
+    public const string MailSmtpHost = "Mail.SmtpHost";
+    public const string MailSmtpPort = "Mail.SmtpPort";
+    public const string MailSmtpBenutzer = "Mail.SmtpBenutzer";
+    public const string MailSmtpSsl = "Mail.SmtpSsl";
+    public const string MailAbsender = "Mail.Absender";
+
+    // SSL-Zertifikate: Erinnerungstakt und Standardempfänger
+    public const string ZertifikateErinnerungIntervallTage = "Zertifikate.ErinnerungIntervallTage";
+    public const string ZertifikateStandardEmpfaenger = "Zertifikate.StandardEmpfaenger";
 }

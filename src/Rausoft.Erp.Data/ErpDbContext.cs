@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Rausoft.Erp.Domain.Contracts;
 using Rausoft.Erp.Domain.Customers;
+using Rausoft.Erp.Domain.Servers;
 using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Domain.Subscriptions;
 using Rausoft.Erp.Domain.Wiki;
@@ -44,6 +45,7 @@ public class ErpDbContext(
     public DbSet<PreislistenVersion> PreislistenVersionen => Set<PreislistenVersion>();
     public DbSet<WikiThemaInfo> WikiThemaInfos => Set<WikiThemaInfo>();
     public DbSet<WikiNeuerung> WikiNeuerungen => Set<WikiNeuerung>();
+    public DbSet<Zertifikat> Zertifikate => Set<Zertifikat>();
     public DbSet<WikiNeuerungLesung> WikiNeuerungLesungen => Set<WikiNeuerungLesung>();
     public DbSet<WikiMeldung> WikiMeldungen => Set<WikiMeldung>();
 
@@ -366,6 +368,19 @@ public class ErpDbContext(
             e.HasOne(i => i.Verantwortlich).WithMany().HasForeignKey(i => i.VerantwortlichId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(i => i.Vertreter).WithMany().HasForeignKey(i => i.VertreterId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(i => i.GeaendertVon).WithMany().HasForeignKey(i => i.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<Zertifikat>(e =>
+        {
+            e.Property(z => z.Bezeichnung).HasMaxLength(200);
+            e.Property(z => z.Hostname).HasMaxLength(255);
+            e.Property(z => z.Anbieter).HasMaxLength(100);
+            e.Property(z => z.Empfaenger).HasMaxLength(1000);
+            e.Property(z => z.Notiz).HasMaxLength(2000);
+            e.Property(z => z.LetzterMailFehler).HasMaxLength(1000);
+            e.Property(z => z.LiveAussteller).HasMaxLength(300);
+            e.Property(z => z.LiveFehler).HasMaxLength(500);
+            e.HasOne(z => z.Server).WithMany().HasForeignKey(z => z.ServerId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(z => z.ErneuertVon).WithMany().HasForeignKey(z => z.ErneuertVonId).OnDelete(DeleteBehavior.NoAction);
         });
         modelBuilder.Entity<WikiNeuerung>(e =>
         {

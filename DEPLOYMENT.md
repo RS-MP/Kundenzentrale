@@ -27,6 +27,16 @@ Option dokumentiert.
   und .NET Desktop Runtime auf den aktuellen 10.0.x-Patch** heben (Download-
   Seite wie oben, danach `iisreset`). Danach prüfen: ein deaktivierter
   Testbenutzer bekommt überall 403.
+- [ ] **Publish aktualisieren (21.10.2026, FEEDBACK Nr. 23 SSL-Zertifikate):**
+  Seite Server → SSL-Zertifikate mit Ablauf-Erinnerung per E-Mail; Migration
+  `Zertifikate` (Tabelle + Mail-/Zertifikats-Einstellungen) läuft automatisch.
+  Nach dem Update: 1) Administration → „E-Mail-Versand und Zertifikats-
+  Erinnerungen": SMTP-Server, Port, Benutzer, Absender eintragen, Passwort
+  setzen, Testmail senden; Standardempfänger und Wiederholungstakt setzen.
+  2) Unter Benutzer & Rollen den Zuständigen die Rolle **Support** geben
+  (pflegen/bestätigen dürfen Support und Admin). 3) Alle Zertifikate mit
+  Hostname und Ablaufdatum erfassen; „jetzt prüfen" zeigt, ob die Live-Prüfung
+  vom Server aus durchkommt (ausgehend TCP 443 zu den Zielen nötig).
 - [ ] **HTTPS im Intranet** (SICHERHEIT.md V1, Code ist vorbereitet) — Schritte
   im Abschnitt „HTTPS im Intranet" unten; bis dahin bleibt `Hosting:HttpsErzwingen`
   auf `false` und der Testbetrieb läuft unverändert über http.

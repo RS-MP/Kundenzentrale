@@ -489,6 +489,39 @@ Compliance/Admin); echte, nicht mehr geltende Listen weiterhin nur „eingestell
 
 Status: umgesetzt · Pflege der Inhalte offen · Dokument-Freigabe über das Wiki offen · E-Mail-Benachrichtigung offen (SMTP)
 
+## Nr. 23 · SSL-Zertifikate aller Server mit Ablauf-Erinnerung (2026-10-21, MP)
+
+Anforderung (MP): Verwaltung der SSL-Zertifikate aller produktiven Server
+(nicht nur ID.prove-SaaS). Zertifikate liegen bei IONOS, Laufzeit 6 Monate;
+ca. 2 Wochen vor Ablauf per E-Mail erinnern, Empfänger einstellbar; die
+Erinnerung wiederholt sich, bis bestätigt wurde, dass das neue Zertifikat
+online ist.
+
+Umgesetzt (21.10.2026):
+- Seite **Server → SSL-Zertifikate** (`/zertifikate`): je Zertifikat
+  Bezeichnung, Hostname/Port für die Live-Prüfung, optional ID.prove-Server,
+  Anbieter (Standard IONOS), Laufzeit (6 Monate), Gültig bis, Vorlauf (14
+  Tage), Empfänger (leer = Standardempfänger), Notiz, aktiv. Pflegen und
+  bestätigen: **Support und Admin** (Policy „Betrieb"), lesen alle.
+- **Erinnerung:** Hintergrunddienst stündlich; ab dem Vorlauf E-Mail an die
+  Empfänger, wiederholt alle n Tage (Einstellung
+  `Zertifikate.ErinnerungIntervallTage`, Standard 1) — auch nach Ablauf —
+  bis jemand **„Neues Zertifikat ist online"** bestätigt und das neue
+  Ablaufdatum einträgt (Vorschlag: Live-Datum, sonst bisher + Laufzeit).
+  Versandfehler stehen am Zertifikat. „Erinnerungen jetzt prüfen und senden"
+  stößt den Lauf manuell an.
+- **Live-Prüfung:** TLS-Handshake zu Hostname:Port liest Ablaufdatum und
+  Aussteller des tatsächlich ausgelieferten Zertifikats (täglich + „jetzt
+  prüfen"); Abweichung zum eingetragenen Datum wird markiert („neuer als
+  eingetragen — bitte bestätigen").
+- **E-Mail-Versand (neu):** Administration → „E-Mail-Versand und
+  Zertifikats-Erinnerungen": SMTP-Server, Port, Benutzer, SSL, Absender,
+  Passwort verschlüsselt (Geheimnis `Mail.SmtpPasswort`), Testmail.
+  Grundlage auch für spätere Benachrichtigungen (z. B. Wiki-Meldungen).
+- Unit-Tests für die Erinnerungslogik (fällig/Intervall/Bestätigung/Vorschlag).
+
+Status: umgesetzt · auf dem Server SMTP einrichten und Zertifikate erfassen
+
 ## Backlog (Aufgaben beim Nutzer / für später)
 
 - **Entra + IIS:** Klick-Anleitung liegt in `DEPLOYMENT.md` — sobald die
