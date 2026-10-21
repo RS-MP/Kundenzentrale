@@ -81,8 +81,10 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
                 warnungen.Add($"Zertifikat passt nicht zum Hostnamen (ausgestellt für {zert.GetNameInfo(X509NameType.DnsName, false)})");
             if (fehler.HasFlag(SslPolicyErrors.RemoteCertificateChainErrors) && zert.NotAfter > jetzt)
                 warnungen.Add("Zertifikatskette unvollständig oder nicht vertrauenswürdig");
+#pragma warning disable SYSLIB0039 // Veraltete Protokolle werden bewusst erkannt, nicht verwendet
             if (protokoll is SslProtocols.Tls or SslProtocols.Tls11)
                 warnungen.Add($"Verbindung nur mit veraltetem {ProtokollName(protokoll)}");
+#pragma warning restore SYSLIB0039
             // Bietet der Server noch TLS 1.0/1.1 an? (Prüfung schlägt fehl, wenn das Betriebssystem sie nicht mehr kann — dann unbekannt)
 #pragma warning disable SYSLIB0039
             foreach (var alt in new[] { SslProtocols.Tls11, SslProtocols.Tls })
