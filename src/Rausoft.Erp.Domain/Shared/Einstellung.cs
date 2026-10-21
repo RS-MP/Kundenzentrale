@@ -47,4 +47,11 @@ public static class EinstellungsSchluessel
     // SSL-Zertifikate: Erinnerungstakt und Standardempfänger
     public const string ZertifikateErinnerungIntervallTage = "Zertifikate.ErinnerungIntervallTage";
     public const string ZertifikateStandardEmpfaenger = "Zertifikate.StandardEmpfaenger";
+    public const string ZertifikateEskalationTage = "Zertifikate.EskalationTage";
+    public const string ZertifikateEskalationEmpfaenger = "Zertifikate.EskalationEmpfaenger";
+    public const string ZertifikateAbgelaufenEmpfaenger = "Zertifikate.AbgelaufenEmpfaenger";
+    public const string ZertifikatePruefstoerungTage = "Zertifikate.PruefstoerungTage";
+    public const string ZertifikateWochenberichtTag = "Zertifikate.WochenberichtTag";
+    public const string ZertifikateLetzterWochenbericht = "Zertifikate.LetzterWochenbericht";
+    public const string ZertifikateServerAutomatisch = "Zertifikate.ServerAutomatisch";
 }

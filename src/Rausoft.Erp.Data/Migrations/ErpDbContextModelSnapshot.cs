@@ -673,6 +673,12 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("AutoErkennung")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutomatischAngelegt")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Bezeichnung")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -716,11 +722,25 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<DateTime?>("LiveFehlerGemeldetAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LiveFehlerSeit")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("LiveGeprueftAm")
                         .HasColumnType("datetime2");
 
                     b.Property<DateOnly?>("LiveGueltigBis")
                         .HasColumnType("date");
+
+                    b.Property<string>("LiveProtokoll")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("LiveWarnungen")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Notiz")
                         .HasMaxLength(2000)
@@ -742,6 +762,42 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasIndex("ServerId");
 
                     b.ToTable("Zertifikate");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Servers.ZertifikatEreignis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Art")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("VonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Zeitpunkt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ZertifikatId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VonId");
+
+                    b.HasIndex("ZertifikatId", "Zeitpunkt");
+
+                    b.ToTable("ZertifikatEreignisse");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Aktivitaet", b =>
@@ -1656,6 +1712,24 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Server");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Servers.ZertifikatEreignis", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "Von")
+                        .WithMany()
+                        .HasForeignKey("VonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Servers.Zertifikat", "Zertifikat")
+                        .WithMany("Ereignisse")
+                        .HasForeignKey("ZertifikatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Von");
+
+                    b.Navigation("Zertifikat");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Aktivitaet", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Customers.Ansprechpartner", "Ansprechpartner")
@@ -1854,6 +1928,11 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Adressen");
 
                     b.Navigation("Ansprechpartner");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Servers.Zertifikat", b =>
+                {
+                    b.Navigation("Ereignisse");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.Abo", b =>

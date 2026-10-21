@@ -46,6 +46,7 @@ public class ErpDbContext(
     public DbSet<WikiThemaInfo> WikiThemaInfos => Set<WikiThemaInfo>();
     public DbSet<WikiNeuerung> WikiNeuerungen => Set<WikiNeuerung>();
     public DbSet<Zertifikat> Zertifikate => Set<Zertifikat>();
+    public DbSet<ZertifikatEreignis> ZertifikatEreignisse => Set<ZertifikatEreignis>();
     public DbSet<WikiNeuerungLesung> WikiNeuerungLesungen => Set<WikiNeuerungLesung>();
     public DbSet<WikiMeldung> WikiMeldungen => Set<WikiMeldung>();
 
@@ -379,8 +380,18 @@ public class ErpDbContext(
             e.Property(z => z.LetzterMailFehler).HasMaxLength(1000);
             e.Property(z => z.LiveAussteller).HasMaxLength(300);
             e.Property(z => z.LiveFehler).HasMaxLength(500);
+            e.Property(z => z.LiveProtokoll).HasMaxLength(20);
+            e.Property(z => z.LiveWarnungen).HasMaxLength(1000);
             e.HasOne(z => z.Server).WithMany().HasForeignKey(z => z.ServerId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(z => z.ErneuertVon).WithMany().HasForeignKey(z => z.ErneuertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<ZertifikatEreignis>(e =>
+        {
+            e.HasIndex(x => new { x.ZertifikatId, x.Zeitpunkt });
+            e.Property(x => x.Art).HasMaxLength(30);
+            e.Property(x => x.Text).HasMaxLength(2000);
+            e.HasOne(x => x.Zertifikat).WithMany(z => z.Ereignisse).HasForeignKey(x => x.ZertifikatId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Von).WithMany().HasForeignKey(x => x.VonId).OnDelete(DeleteBehavior.NoAction);
         });
         modelBuilder.Entity<WikiNeuerung>(e =>
         {

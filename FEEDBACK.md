@@ -520,7 +520,32 @@ Umgesetzt (21.10.2026):
   Grundlage auch für spätere Benachrichtigungen (z. B. Wiki-Meldungen).
 - Unit-Tests für die Erinnerungslogik (fällig/Intervall/Bestätigung/Vorschlag).
 
-Status: umgesetzt · auf dem Server SMTP einrichten und Zertifikate erfassen
+**Ausbau 21.10.2026 (MP: „alles bis auf ACME"):**
+- **Automatische Erkennung:** Liefert der Server bei der Live-Prüfung ein
+  Zertifikat mit späterem Ablaufdatum, übernimmt die Kundenzentrale es selbst,
+  beendet die Erinnerung und schickt „Erledigt: … erneuert" an die Empfänger.
+  Je Zertifikat abschaltbar (dann Bestätigung von Hand wie bisher; ebenso für
+  Zertifikate ohne Hostname).
+- **Zertifikate aus der Serverliste:** täglich (Einstellung
+  `Zertifikate.ServerAutomatisch`) und per Knopf „Aus Serverliste anlegen" —
+  Hostname aus der Server-URL, Ablaufdatum aus der Live-Prüfung.
+- **Überwachung der Überwachung:** scheitert die Live-Prüfung n Tage am Stück
+  (`Zertifikate.PruefstoerungTage`, 3), Warnmail (höchstens wöchentlich);
+  **Wochenbericht** am eingestellten Wochentag (`Zertifikate.WochenberichtTag`,
+  Montag) als Lebenszeichen mit allen Zertifikaten, auch per Knopf.
+- **Erweiterte Prüfung:** Hostname-Abweichung, unvollständige Kette,
+  ausgehandeltes Protokoll, Angebot von TLS 1.0/1.1 → Warnungen am Zertifikat.
+- **Eskalation:** ab `Zertifikate.EskalationTage` (3) vor Ablauf zusätzlich an
+  `Zertifikate.EskalationEmpfaenger` (Betreff DRINGEND), nach Ablauf zusätzlich
+  an `Zertifikate.AbgelaufenEmpfaenger`.
+- **Abzeichen:** Navigation „Server" zählt Zertifikate mit Handlungsbedarf;
+  Server-Übersicht zeigt je Server ein SSL-Pill.
+- **Verlauf** je Zertifikat (angelegt, erinnert, eskaliert, erkannt/bestätigt,
+  Prüfstörung, Warnung, Versandfehler) — aufklappbar in der Liste.
+- Nicht umgesetzt (Entscheidung MP): automatische Erneuerung per ACME/Let's
+  Encrypt — als Thema fürs nächste Hosting-Gespräch notiert.
+
+Status: umgesetzt · auf dem Server SMTP einrichten, Empfängerstufen setzen, Zertifikate aus der Serverliste anlegen
 
 ## Backlog (Aufgaben beim Nutzer / für später)
 

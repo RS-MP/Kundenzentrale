@@ -5,10 +5,11 @@
 
 <div class="seitenkopf">
     <h1>SSL-Zertifikate</h1>
-    <span class="untertitel"><a href="server">Server</a> · Ablaufdaten aller produktiven Systeme, Erinnerung per E-Mail ab dem Vorlauf bis zur Bestätigung</span>
+    <span class="untertitel"><a href="server">Server</a> · Ablaufdaten aller produktiven Systeme — Erneuerung wird automatisch erkannt, sonst Erinnerung bis zur Bestätigung</span>
     <span style="flex:1"></span>
     @if (_uebersicht?.DarfBearbeiten == true && _formular is null)
     {
+        <button class="knopf sekundaer" disabled="@_sende" title="Für jeden aktiven ID.prove-Server ohne Zertifikat eines anlegen (Hostname aus der Server-URL)" @onclick="ServerAnlegenAsync">Aus Serverliste anlegen</button>
         <button class="knopf" @onclick="NeuOeffnen">+ Zertifikat</button>
     }
 </div>
@@ -34,7 +35,7 @@ else
     @if (!_uebersicht.MailEingerichtet)
     {
         <div class="zert-warnung">
-            <b>E-Mail-Versand ist noch nicht eingerichtet.</b> Erinnerungen können erst verschickt werden, wenn unter
+            <b>E-Mail-Versand ist noch nicht eingerichtet.</b> Erinnerungen und Berichte können erst verschickt werden, wenn unter
             <a href="admin">Administration → E-Mail-Versand</a> SMTP-Server, Absender und Passwort hinterlegt sind.
         </div>
     }
@@ -90,7 +91,10 @@ else
                         <textarea rows="2" @bind="f.Notiz"></textarea>
                     </label>
                     <label style="flex-direction:row; align-items:center; gap:6px">
-                        <input type="checkbox" @bind="f.Aktiv" /> aktiv (sonst keine Erinnerungen)
+                        <input type="checkbox" @bind="f.AutoErkennung" /> Erneuerung automatisch übernehmen, wenn die Live-Prüfung ein neueres Zertifikat sieht
+                    </label>
+                    <label style="flex-direction:row; align-items:center; gap:6px">
+                        <input type="checkbox" @bind="f.Aktiv" /> aktiv (sonst keine Prüfung und keine Erinnerungen)
                     </label>
                 </div>
                 <div class="formular-aktionen">
@@ -118,7 +122,10 @@ else
     @if (_uebersicht.Zertifikate.Count == 0)
     {
         <div class="karte"><div class="karte-koerper">
-            <div class="leer-hinweis">Noch keine Zertifikate erfasst.</div>
+            <div class="leer-hinweis">
+                Noch keine Zertifikate erfasst.
+                @if (_uebersicht.DarfBearbeiten) { <span>„Aus Serverliste anlegen" übernimmt alle aktiven ID.prove-Server, weitere Systeme mit „+ Zertifikat".</span> }
+            </div>
         </div></div>
     }
     else
@@ -130,9 +137,9 @@ else
                         <th>Zertifikat</th>
                         <th style="width:120px">Gültig bis</th>
                         <th style="width:150px">Status</th>
-                        <th style="width:200px">Live-Prüfung</th>
+                        <th style="width:230px">Live-Prüfung</th>
                         <th style="width:190px">Erinnerungen</th>
-                        <th style="width:260px"></th>
+                        <th style="width:250px"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -142,21 +149,50 @@ else
                             <td>
                                 <span class="haupt">@z.Bezeichnung</span>
                                 @if (!z.Aktiv) { <span class="pill" style="margin-left:6px">inaktiv</span> }
+                                @if (z.AutomatischAngelegt) { <span class="pill" style="margin-left:6px" title="Aus der Serverliste angelegt">Server</span> }
                                 <div class="neben">
                                     @(z.Hostname is not null ? $"{z.Hostname}:{z.Port}" : "ohne Live-Prüfung")@(z.ServerAlias is not null ? $" · Server {z.ServerAlias}" : "") · @z.Anbieter · @z.LaufzeitMonate Monate
+                                    @(z.Hostname is not null ? (z.AutoErkennung ? " · Erneuerung wird erkannt" : " · Bestätigung von Hand") : "")
                                 </div>
                                 @if (z.Notiz is not null) { <div class="neben">@z.Notiz</div> }
+                                <button class="mehr" style="padding:2px 0; font-size:12.5px" @onclick="() => VerlaufUmschaltenAsync(z.Id)">
+                                    Verlauf @(_verlaufOffen.Contains(z.Id) ? "▾" : "▸")
+                                </button>
+                                @if (_verlaufOffen.Contains(z.Id))
+                                {
+                                    <div class="zert-verlauf">
+                                        @if (!_verlauf.TryGetValue(z.Id, out var ereignisse))
+                                        {
+                                            <span class="neben">Lade …</span>
+                                        }
+                                        else if (ereignisse.Count == 0)
+                                        {
+                                            <span class="neben">noch keine Einträge</span>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var e in ereignisse)
+                                            {
+                                                <div class="zert-ereignis @e.Art.ToLowerInvariant()">
+                                                    <span class="zert-ereignis-zeit">@e.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                                                    <span class="zert-ereignis-art">@ArtText(e.Art)</span>
+                                                    <span>@e.Text@(e.Von is not null ? $" — {e.Von}" : "")</span>
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                }
                             </td>
                             <td>
                                 @z.GueltigBis.ToString("dd.MM.yyyy")
                                 @if (z.ErneuertAm is not null)
                                 {
-                                    <div class="neben" title="@z.ErneuertVon">bestätigt @z.ErneuertAm.Value.ToLocalTime().ToString("dd.MM.yyyy")</div>
+                                    <div class="neben">@(z.ErneuertVon is null ? "erkannt" : "bestätigt") @z.ErneuertAm.Value.ToLocalTime().ToString("dd.MM.yyyy")@(z.ErneuertVon is not null ? $" · {z.ErneuertVon}" : "")</div>
                                 }
                             </td>
                             <td>
                                 <span class="status @StatusKlasse(z)">@StatusText(z)</span>
-                                <div class="neben">Erinnerung ab @z.VorlaufTage Tage vorher</div>
+                                <div class="neben">@StufenText(z)</div>
                             </td>
                             <td>
                                 @if (z.Hostname is null)
@@ -165,7 +201,7 @@ else
                                 }
                                 else if (z.LiveFehler is not null)
                                 {
-                                    <span class="warntext" style="font-size:13px" title="@z.LiveFehler">Prüfung fehlgeschlagen</span>
+                                    <span class="warntext" style="font-size:13px" title="@z.LiveFehler">Prüfung fehlgeschlagen@(z.LiveFehlerSeit is not null ? $" seit {z.LiveFehlerSeit.Value.ToLocalTime():dd.MM.}" : "")</span>
                                     <div class="neben">@z.LiveFehler</div>
                                 }
                                 else if (z.LiveGueltigBis is { } live)
@@ -173,13 +209,17 @@ else
                                     <span class="@(live != z.GueltigBis ? "warntext" : "")">gültig bis @live.ToString("dd.MM.yyyy")</span>
                                     @if (live > z.GueltigBis)
                                     {
-                                        <div class="neben warntext">neuer als eingetragen — bitte bestätigen</div>
+                                        <div class="neben warntext">neuer als eingetragen — @(z.AutoErkennung ? "wird bei der nächsten Prüfung übernommen" : "bitte bestätigen")</div>
                                     }
                                     else if (live < z.GueltigBis)
                                     {
                                         <div class="neben warntext">älter als eingetragen — Zertifikat wirklich eingespielt?</div>
                                     }
-                                    <div class="neben">@z.LiveAussteller · @z.LiveGeprueftAm?.ToLocalTime().ToString("dd.MM. HH:mm")</div>
+                                    <div class="neben">@z.LiveAussteller · @z.LiveProtokoll · @z.LiveGeprueftAm?.ToLocalTime().ToString("dd.MM. HH:mm")</div>
+                                    @if (z.LiveWarnungen is not null)
+                                    {
+                                        <div class="neben warntext" title="@z.LiveWarnungen">⚠ @z.LiveWarnungen</div>
+                                    }
                                 }
                                 else
                                 {
@@ -216,7 +256,7 @@ else
                                     }
                                     else
                                     {
-                                        <button class="knopf @(z.Status == "ok" ? "sekundaer" : "") klein" title="Erinnerungen beenden und neues Ablaufdatum eintragen" @onclick="() => ErneuernOeffnen(z)">Neues Zertifikat ist online</button>
+                                        <button class="knopf @(z.Status == "ok" ? "sekundaer" : "") klein" title="Erinnerungen beenden und neues Ablaufdatum eintragen — nötig nur ohne Live-Prüfung oder wenn die Erkennung ausgeschaltet ist" @onclick="() => ErneuernOeffnen(z)">Neues Zertifikat ist online</button>
                                         <button class="knopf sekundaer klein" @onclick="() => Bearbeiten(z)">Bearbeiten</button>
                                     }
                                 }
@@ -235,10 +275,15 @@ else
         {
             <div style="display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap">
                 <button class="knopf sekundaer klein" disabled="@_sende" @onclick="ErinnerungenJetztAsync">Erinnerungen jetzt prüfen und senden</button>
-                <span class="neben" style="display:inline">
-                    Läuft sonst stündlich im Hintergrund; eine fällige Erinnerung wird alle @_uebersicht.ErinnerungIntervallTage Tag(e) wiederholt,
-                    bis „Neues Zertifikat ist online" bestätigt wurde. Takt und Standardempfänger unter <a href="admin">Administration → E-Mail-Versand</a>.
-                </span>
+                <button class="knopf sekundaer klein" disabled="@_sende" @onclick="WochenberichtAsync" title="Lebenszeichen der Überwachung mit allen Zertifikaten an die Standardempfänger">Wochenbericht jetzt senden</button>
+            </div>
+            <div class="neben" style="margin-top:8px; max-width:900px">
+                Läuft sonst stündlich im Hintergrund, Live-Prüfung täglich. Erinnerung ab dem Vorlauf alle @_uebersicht.ErinnerungIntervallTage Tag(e) an die Empfänger des Zertifikats;
+                ab @_uebersicht.EskalationTage Tage vor Ablauf zusätzlich an @(_uebersicht.EskalationEmpfaenger ?? "— Eskalationsempfänger nicht gesetzt —"),
+                nach Ablauf zusätzlich an @(_uebersicht.AbgelaufenEmpfaenger ?? "— Abgelaufen-Empfänger nicht gesetzt —").
+                Sie endet, sobald die Live-Prüfung das neue Zertifikat sieht oder jemand bestätigt. Scheitert die Prüfung mehrere Tage, gibt es eine eigene Warnmail.
+                @(_uebersicht.ServerAutomatisch ? "Neue ID.prove-Server werden täglich automatisch übernommen." : "Automatische Übernahme neuer Server ist ausgeschaltet.")
+                Einstellungen unter <a href="admin">Administration → E-Mail-Versand und Zertifikats-Erinnerungen</a>.
             </div>
         }
     }
@@ -253,6 +298,8 @@ else
     private bool _sende;
     private string? _fehler;
     private string? _hinweis;
+    private readonly HashSet<int> _verlaufOffen = [];
+    private readonly Dictionary<int, List<ZertifikatEreignisEintrag>> _verlauf = [];
 
     private class Formular
     {
@@ -268,6 +315,7 @@ else
         public string? Empfaenger { get; set; }
         public string? Notiz { get; set; }
         public bool Aktiv { get; set; } = true;
+        public bool AutoErkennung { get; set; } = true;
     }
 
     protected override Task OnInitializedAsync() => LadenAsync();
@@ -278,6 +326,8 @@ else
         try
         {
             _uebersicht = await Http.GetFromJsonAsync<ZertifikatUebersicht>("api/zertifikate");
+            foreach (var id in _verlaufOffen.ToList())
+                _verlauf[id] = await Http.GetFromJsonAsync<List<ZertifikatEreignisEintrag>>($"api/zertifikate/{id}/ereignisse") ?? [];
         }
         catch (Exception ex)
         {
@@ -289,7 +339,7 @@ else
     {
         "abgelaufen" => "kritisch",
         "bald" => "warnung",
-        _ => "gut",
+        _ => z.LiveFehlerSeit is not null || z.LiveWarnungen is not null ? "warnung" : "gut",
     };
 
     private static string StatusText(ZertifikatEintrag z) => z.Status switch
@@ -299,10 +349,41 @@ else
         _ => $"noch {z.TageBisAblauf} Tage",
     };
 
+    private static string StufenText(ZertifikatEintrag z) => z.Stufe switch
+    {
+        "abgelaufen" => "Meldung an alle Stufen",
+        "eskalation" => "Eskalation läuft",
+        "erinnerung" => "Erinnerung läuft",
+        _ => $"Erinnerung ab {z.VorlaufTage} Tage vorher",
+    };
+
+    private static string ArtText(string art) => art switch
+    {
+        "Angelegt" => "Angelegt",
+        "Geaendert" => "Geändert",
+        "Erinnerung" => "Erinnerung",
+        "Eskalation" => "Eskalation",
+        "Abgelaufen" => "Abgelaufen",
+        "ErneuertBestaetigt" => "Bestätigt",
+        "ErneuertErkannt" => "Erkannt",
+        "Pruefstoerung" => "Prüfung",
+        "Warnung" => "Warnung",
+        "Versandfehler" => "Versandfehler",
+        _ => art,
+    };
+
+    private async Task VerlaufUmschaltenAsync(int id)
+    {
+        if (_verlaufOffen.Remove(id))
+            return;
+        _verlaufOffen.Add(id);
+        _verlauf[id] = await Http.GetFromJsonAsync<List<ZertifikatEreignisEintrag>>($"api/zertifikate/{id}/ereignisse") ?? [];
+    }
+
     private void NeuOeffnen()
     {
         _loeschenBestaetigen = false;
-        _formular = new Formular { Empfaenger = null };
+        _formular = new Formular();
     }
 
     private void Bearbeiten(ZertifikatEintrag z)
@@ -312,7 +393,7 @@ else
         {
             Id = z.Id, Bezeichnung = z.Bezeichnung, Hostname = z.Hostname, Port = z.Port, ServerId = z.ServerId,
             Anbieter = z.Anbieter, LaufzeitMonate = z.LaufzeitMonate, GueltigBis = z.GueltigBis.ToDateTime(TimeOnly.MinValue),
-            VorlaufTage = z.VorlaufTage, Empfaenger = z.Empfaenger, Notiz = z.Notiz, Aktiv = z.Aktiv,
+            VorlaufTage = z.VorlaufTage, Empfaenger = z.Empfaenger, Notiz = z.Notiz, Aktiv = z.Aktiv, AutoErkennung = z.AutoErkennung,
         };
     }
 
@@ -320,56 +401,33 @@ else
     {
         if (_formular is not { } f)
             return;
-        _fehler = null;
-        _hinweis = null;
-        _sende = true;
-        try
+        await AusfuehrenAsync(async () =>
         {
             var daten = new ZertifikatSpeichern(f.Bezeichnung, f.Hostname, f.Port, f.ServerId, f.Anbieter, f.LaufzeitMonate,
-                DateOnly.FromDateTime(f.GueltigBis), f.VorlaufTage, f.Empfaenger, f.Notiz, f.Aktiv);
+                DateOnly.FromDateTime(f.GueltigBis), f.VorlaufTage, f.Empfaenger, f.Notiz, f.Aktiv, f.AutoErkennung);
             var antwort = f.Id is { } id
                 ? await Http.PutAsJsonAsync($"api/zertifikate/{id}", daten)
                 : await Http.PostAsJsonAsync("api/zertifikate", daten);
             if (!antwort.IsSuccessStatusCode)
-            {
-                _fehler = await antwort.Content.ReadAsStringAsync();
-                return;
-            }
+                return await antwort.Content.ReadAsStringAsync();
             _formular = null;
-            await LadenAsync();
-        }
-        catch (Exception ex)
-        {
-            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
-        }
-        finally
-        {
-            _sende = false;
-        }
+            return null;
+        });
     }
 
     private async Task LoeschenAsync()
     {
         if (_formular?.Id is not { } id)
             return;
-        _fehler = null;
-        _sende = true;
-        try
+        await AusfuehrenAsync(async () =>
         {
             var antwort = await Http.DeleteAsync($"api/zertifikate/{id}");
             if (!antwort.IsSuccessStatusCode)
-            {
-                _fehler = await antwort.Content.ReadAsStringAsync();
-                return;
-            }
+                return await antwort.Content.ReadAsStringAsync();
             _formular = null;
             _loeschenBestaetigen = false;
-            await LadenAsync();
-        }
-        finally
-        {
-            _sende = false;
-        }
+            return null;
+        });
     }
 
     private void ErneuernOeffnen(ZertifikatEintrag z)
@@ -378,68 +436,70 @@ else
         _erneuernDatum = z.VorschlagNeuesGueltigBis.ToDateTime(TimeOnly.MinValue);
     }
 
-    private async Task ErneuertAsync(int id)
+    private Task ErneuertAsync(int id) => AusfuehrenAsync(async () =>
+    {
+        var antwort = await Http.PostAsJsonAsync($"api/zertifikate/{id}/erneuert", new ZertifikatErneuern(DateOnly.FromDateTime(_erneuernDatum)));
+        if (!antwort.IsSuccessStatusCode)
+            return await antwort.Content.ReadAsStringAsync();
+        _erneuernId = null;
+        _hinweis = "Bestätigt — die Erinnerungen für dieses Zertifikat sind beendet, die nächste beginnt wieder vor dem neuen Ablaufdatum.";
+        return null;
+    });
+
+    private Task PruefenAsync(int id) => AusfuehrenAsync(async () =>
+    {
+        var antwort = await Http.PostAsync($"api/zertifikate/{id}/pruefen", null);
+        return antwort.IsSuccessStatusCode ? null : await antwort.Content.ReadAsStringAsync();
+    });
+
+    private Task ErinnerungenJetztAsync() => AusfuehrenAsync(async () =>
+    {
+        var antwort = await Http.PostAsync("api/zertifikate/erinnerungen", null);
+        if (!antwort.IsSuccessStatusCode)
+            return await antwort.Content.ReadAsStringAsync();
+        var lauf = await antwort.Content.ReadFromJsonAsync<ErinnerungsLauf>();
+        _hinweis = lauf is null ? null
+            : $"{lauf.Geprueft} Zertifikate geprüft, {lauf.Gesendet} Erinnerung(en) gesendet" +
+              (lauf.Fehler.Count > 0 ? $" — Fehler: {string.Join(" · ", lauf.Fehler)}" : ".");
+        return null;
+    });
+
+    private Task ServerAnlegenAsync() => AusfuehrenAsync(async () =>
+    {
+        var antwort = await Http.PostAsync("api/zertifikate/server-anlegen", null);
+        if (!antwort.IsSuccessStatusCode)
+            return await antwort.Content.ReadAsStringAsync();
+        var ergebnis = await antwort.Content.ReadFromJsonAsync<ServerZertifikateErgebnis>();
+        _hinweis = ergebnis is null || ergebnis.Angelegt == 0
+            ? "Alle aktiven ID.prove-Server haben bereits ein Zertifikat."
+            : $"{ergebnis.Angelegt} Zertifikat(e) angelegt: {string.Join(", ", ergebnis.Hostnamen)} — Ablaufdaten aus der Live-Prüfung übernommen.";
+        return null;
+    });
+
+    private Task WochenberichtAsync() => AusfuehrenAsync(async () =>
+    {
+        var antwort = await Http.PostAsync("api/zertifikate/wochenbericht", null);
+        if (!antwort.IsSuccessStatusCode)
+            return await antwort.Content.ReadAsStringAsync();
+        _hinweis = "Wochenbericht gesendet.";
+        return null;
+    });
+
+    /// <summary>Gemeinsamer Rahmen: Sperre, Fehlertext, Neuladen.</summary>
+    private async Task AusfuehrenAsync(Func<Task<string?>> aktion)
     {
         _fehler = null;
         _hinweis = null;
         _sende = true;
         try
         {
-            var antwort = await Http.PostAsJsonAsync($"api/zertifikate/{id}/erneuert",
-                new ZertifikatErneuern(DateOnly.FromDateTime(_erneuernDatum)));
-            if (!antwort.IsSuccessStatusCode)
-            {
-                _fehler = await antwort.Content.ReadAsStringAsync();
-                return;
-            }
-            _erneuernId = null;
-            _hinweis = "Bestätigt — die Erinnerungen für dieses Zertifikat sind beendet, die nächste beginnt wieder vor dem neuen Ablaufdatum.";
-            await LadenAsync();
+            _fehler = await aktion();
+            if (_fehler is null)
+                await LadenAsync();
         }
-        finally
+        catch (Exception ex)
         {
-            _sende = false;
-        }
-    }
-
-    private async Task PruefenAsync(int id)
-    {
-        _fehler = null;
-        _sende = true;
-        try
-        {
-            var antwort = await Http.PostAsync($"api/zertifikate/{id}/pruefen", null);
-            if (!antwort.IsSuccessStatusCode)
-            {
-                _fehler = await antwort.Content.ReadAsStringAsync();
-                return;
-            }
-            await LadenAsync();
-        }
-        finally
-        {
-            _sende = false;
-        }
-    }
-
-    private async Task ErinnerungenJetztAsync()
-    {
-        _fehler = null;
-        _hinweis = null;
-        _sende = true;
-        try
-        {
-            var antwort = await Http.PostAsync("api/zertifikate/erinnerungen", null);
-            if (!antwort.IsSuccessStatusCode)
-            {
-                _fehler = await antwort.Content.ReadAsStringAsync();
-                return;
-            }
-            var lauf = await antwort.Content.ReadFromJsonAsync<ErinnerungsLauf>();
-            _hinweis = lauf is null ? null
-                : $"{lauf.Geprueft} Zertifikate geprüft, {lauf.Gesendet} Erinnerung(en) gesendet" +
-                  (lauf.Fehler.Count > 0 ? $" — Fehler: {string.Join(" · ", lauf.Fehler)}" : ".");
-            await LadenAsync();
+            _fehler = $"Fehler: {ex.Message}";
         }
         finally
         {

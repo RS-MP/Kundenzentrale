@@ -495,3 +495,14 @@ a.wiki-thema:hover { border-color: var(--accent-line); }
 .zert-aktionen { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .zert-warnung { padding: 10px 14px; border: 1px solid var(--warn); border-radius: 8px; margin-bottom: 14px; font-size: 13.5px; }
 .zert-hinweis { padding: 10px 14px; border: 1px solid var(--accent-line); border-radius: 8px; margin-bottom: 14px; font-size: 13.5px; }
+.zert-pill { text-decoration: none; margin-left: 4px; font-size: 11.5px; }
+.zert-pill.warnung { color: var(--warn); border-color: var(--warn); }
+.zert-pill.kritisch { color: var(--crit); border-color: var(--crit); font-weight: 600; }
+.zert-pill.gut { color: var(--muted); }
+.abzeichen.kritisch { color: var(--crit); border-color: var(--crit); }
+.zert-verlauf { margin-top: 6px; padding: 6px 8px; background: var(--surface2); border-radius: 6px; font-size: 12.5px; max-width: 520px; }
+.zert-ereignis { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+.zert-ereignis-zeit { color: var(--muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.zert-ereignis-art { flex-shrink: 0; width: 88px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.zert-ereignis.erneuerterkannt .zert-ereignis-art, .zert-ereignis.erneuertbestaetigt .zert-ereignis-art { color: var(--good); }
+.zert-ereignis.eskalation .zert-ereignis-art, .zert-ereignis.abgelaufen .zert-ereignis-art, .zert-ereignis.versandfehler .zert-ereignis-art, .zert-ereignis.warnung .zert-ereignis-art { color: var(--warn); }

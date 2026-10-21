@@ -1,7 +1,8 @@
 namespace Rausoft.Erp.Dtos;
 
 // ---------------------------------------------------------------------------
-// SSL-Zertifikate: Verwaltung, Ablauf-Erinnerung per E-Mail, Bestätigung.
+// SSL-Zertifikate: Verwaltung, Live-Prüfung, Ablauf-Erinnerung per E-Mail mit
+// Eskalation, automatische Erkennung der Erneuerung, Verlauf.
 // ---------------------------------------------------------------------------
 
 public record ZertifikatEintrag(
@@ -18,10 +19,15 @@ public record ZertifikatEintrag(
     string? Empfaenger,
     string? Notiz,
     bool Aktiv,
+    bool AutoErkennung,
+    bool AutomatischAngelegt,
     // „ok" · „bald" · „abgelaufen" (bezogen auf GueltigBis)
     string Status,
+    // „keine" · „erinnerung" · „eskalation" · „abgelaufen"
+    string Stufe,
     int TageBisAblauf,
     DateTime? ErneuertAm,
+    // null = automatisch erkannt
     string? ErneuertVon,
     DateTime? LetzteErinnerungAm,
     int ErinnerungenGesendet,
@@ -30,6 +36,9 @@ public record ZertifikatEintrag(
     DateOnly? LiveGueltigBis,
     string? LiveAussteller,
     string? LiveFehler,
+    DateTime? LiveFehlerSeit,
+    string? LiveProtokoll,
+    string? LiveWarnungen,
     // Vorschlag für „neues Zertifikat ist online"
     DateOnly VorschlagNeuesGueltigBis);
 
@@ -44,18 +53,25 @@ public record ZertifikatSpeichern(
     int VorlaufTage,
     string? Empfaenger,
     string? Notiz,
-    bool Aktiv);
+    bool Aktiv,
+    bool AutoErkennung);
 
 /// <summary>Bestätigung „neues Zertifikat ist online" mit dem neuen Ablaufdatum.</summary>
 public record ZertifikatErneuern(DateOnly NeuesGueltigBis);
 
-/// <summary>Übersicht: Zertifikate + ob der Benutzer pflegen darf + Hinweis, ob E-Mail-Versand eingerichtet ist.</summary>
+public record ZertifikatEreignisEintrag(int Id, DateTime Zeitpunkt, string Art, string Text, string? Von);
+
+/// <summary>Übersicht: Zertifikate + ob der Benutzer pflegen darf + Einstellungen, die die Seite erklärt.</summary>
 public record ZertifikatUebersicht(
     List<ZertifikatEintrag> Zertifikate,
     bool DarfBearbeiten,
     bool MailEingerichtet,
     string? StandardEmpfaenger,
+    string? EskalationEmpfaenger,
+    string? AbgelaufenEmpfaenger,
     int ErinnerungIntervallTage,
+    int EskalationTage,
+    bool ServerAutomatisch,
     List<ServerAuswahl> Server);
 
 public record ServerAuswahl(int Id, string Alias);
@@ -64,3 +80,9 @@ public record TestmailSenden(string Empfaenger);
 
 /// <summary>Ergebnis eines manuell angestoßenen Erinnerungslaufs.</summary>
 public record ErinnerungsLauf(int Geprueft, int Gesendet, List<string> Fehler);
+
+/// <summary>Ergebnis „Zertifikate aus der Serverliste anlegen".</summary>
+public record ServerZertifikateErgebnis(int Angelegt, List<string> Hostnamen);
+
+/// <summary>Für Abzeichen in Navigation und Server-Übersicht: was braucht Aufmerksamkeit?</summary>
+public record ZertifikatHinweise(int Bald, int Abgelaufen, int Pruefstoerungen, int Warnungen);

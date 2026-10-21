@@ -11,8 +11,9 @@ namespace Rausoft.Erp.Api.Controllers;
 
 /// <summary>
 /// SSL-Zertifikate aller produktiven Systeme: Ablaufdaten, Erinnerung per
-/// E-Mail ab dem Vorlauf (wiederholt bis zur Bestätigung), Live-Prüfung.
-/// Lesen dürfen alle Mitarbeiter, pflegen und bestätigen Support und Admin.
+/// E-Mail ab dem Vorlauf mit Eskalation (wiederholt bis erneuert), Live-Prüfung
+/// mit automatischer Erkennung der Erneuerung, Verlauf. Lesen dürfen alle
+/// Mitarbeiter, pflegen und bestätigen Support und Admin.
 /// </summary>
 [ApiController]
 [Route("api/zertifikate")]
@@ -29,10 +30,24 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
         var server = await db.Server.AsNoTracking().OrderBy(s => s.Alias)
             .Select(s => new ServerAuswahl(s.Id, s.Alias)).ToListAsync(ct);
         var darf = (await autorisierung.AuthorizeAsync(User, null, new BetriebAnforderung())).Succeeded;
+        var e = await dienst.EinstellungenAsync(ct);
         return Ok(new ZertifikatUebersicht(
-            liste.Select(NachEintrag).ToList(), darf, await mail.IstEingerichtetAsync(ct),
-            await dienst.StandardEmpfaengerAsync(ct), await dienst.ErinnerungIntervallTageAsync(ct), server));
+            liste.Select(z => NachEintrag(z, e.EskalationTage)).ToList(), darf, await mail.IstEingerichtetAsync(ct),
+            e.StandardEmpfaenger, e.EskalationEmpfaenger, e.AbgelaufenEmpfaenger, e.IntervallTage, e.EskalationTage,
+            e.ServerAutomatisch, server));
     }
+
+    /// <summary>Für Abzeichen in Navigation und Server-Übersicht.</summary>
+    [HttpGet("hinweise")]
+    public async Task<ActionResult<ZertifikatHinweise>> Hinweise(CancellationToken ct) => Ok(await dienst.HinweiseAsync(ct));
+
+    [HttpGet("{id:int}/ereignisse")]
+    public async Task<ActionResult<List<ZertifikatEreignisEintrag>>> Ereignisse(int id, CancellationToken ct) =>
+        Ok(await db.ZertifikatEreignisse.AsNoTracking()
+            .Where(x => x.ZertifikatId == id)
+            .OrderByDescending(x => x.Zeitpunkt).Take(200)
+            .Select(x => new ZertifikatEreignisEintrag(x.Id, x.Zeitpunkt, x.Art, x.Text, x.Von != null ? x.Von.Anzeigename : null))
+            .ToListAsync(ct));
 
     [Authorize(Policy = "Betrieb")]
     [HttpPost]
@@ -42,10 +57,12 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
             return BadRequest(fehler);
         var z = new Zertifikat { Bezeichnung = daten.Bezeichnung.Trim() };
         Uebernehmen(z, daten);
+        z.Protokoll(ZertifikatEreignisArt.Angelegt, $"Angelegt, gültig bis {z.GueltigBis:dd.MM.yyyy}", await EigeneIdAsync(ct), DateTime.UtcNow);
         db.Zertifikate.Add(z);
-        await dienst.PruefeLiveAsync(z, ct);
+        var e = await dienst.EinstellungenAsync(ct);
+        await dienst.PruefeLiveAsync(z, e, ct);
         await db.SaveChangesAsync(ct);
-        return Ok(NachEintrag(z));
+        return Ok(NachEintrag(z, e.EskalationTage));
     }
 
     [Authorize(Policy = "Betrieb")]
@@ -57,10 +74,16 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
         var z = await db.Zertifikate.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (z is null)
             return NotFound();
-        var hostGeaendert = z.Hostname != daten.Hostname?.Trim() || z.Port != daten.Port;
+        var hostGeaendert = z.Hostname != (string.IsNullOrWhiteSpace(daten.Hostname) ? null : daten.Hostname.Trim()) || z.Port != daten.Port;
+        var datumGeaendert = z.GueltigBis != daten.GueltigBis;
         Uebernehmen(z, daten);
+        z.Protokoll(ZertifikatEreignisArt.Geaendert,
+            datumGeaendert ? $"Bearbeitet, Ablaufdatum jetzt {z.GueltigBis:dd.MM.yyyy}" : "Bearbeitet", await EigeneIdAsync(ct), DateTime.UtcNow);
         if (hostGeaendert)
-            await dienst.PruefeLiveAsync(z, ct);
+        {
+            z.LiveFehlerSeit = null;
+            await dienst.PruefeLiveAsync(z, null, ct);
+        }
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -77,7 +100,7 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
         return NoContent();
     }
 
-    /// <summary>Bestätigung „neues Zertifikat ist online" — beendet die Erinnerungen und setzt das neue Ablaufdatum.</summary>
+    /// <summary>Manuelle Bestätigung „neues Zertifikat ist online" — für Zertifikate ohne Live-Prüfung oder als Abkürzung.</summary>
     [Authorize(Policy = "Betrieb")]
     [HttpPost("{id:int}/erneuert")]
     public async Task<ActionResult<ZertifikatEintrag>> Erneuert(int id, ZertifikatErneuern daten, CancellationToken ct)
@@ -87,26 +110,28 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
             return NotFound();
         if (daten.NeuesGueltigBis <= DateOnly.FromDateTime(DateTime.UtcNow))
             return BadRequest("Das neue Ablaufdatum muss in der Zukunft liegen.");
-        var eigeneId = await db.Mitarbeiter
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+        var eigeneId = await EigeneIdAsync(ct);
+        var alt = z.GueltigBis;
         z.Erneuern(daten.NeuesGueltigBis, eigeneId, DateTime.UtcNow);
-        await dienst.PruefeLiveAsync(z, ct);
+        z.Protokoll(ZertifikatEreignisArt.ErneuertBestaetigt, $"Bestätigt: gültig bis {z.GueltigBis:dd.MM.yyyy} (vorher {alt:dd.MM.yyyy})", eigeneId, DateTime.UtcNow);
+        var e = await dienst.EinstellungenAsync(ct);
+        await dienst.PruefeLiveAsync(z, e, ct);
         await db.SaveChangesAsync(ct);
         await db.Entry(z).Reference(x => x.ErneuertVon).LoadAsync(ct);
-        return Ok(NachEintrag(z));
+        return Ok(NachEintrag(z, e.EskalationTage));
     }
 
-    /// <summary>Live-Prüfung eines Zertifikats jetzt ausführen.</summary>
+    /// <summary>Live-Prüfung eines Zertifikats jetzt ausführen (erkennt auch eine Erneuerung).</summary>
     [HttpPost("{id:int}/pruefen")]
     public async Task<ActionResult<ZertifikatEintrag>> Pruefen(int id, CancellationToken ct)
     {
         var z = await db.Zertifikate.Include(x => x.Server).Include(x => x.ErneuertVon).FirstOrDefaultAsync(x => x.Id == id, ct);
         if (z is null)
             return NotFound();
-        await dienst.PruefeLiveAsync(z, ct);
+        var e = await dienst.EinstellungenAsync(ct);
+        await dienst.PruefeLiveAsync(z, e, ct);
         await db.SaveChangesAsync(ct);
-        return Ok(NachEintrag(z));
+        return Ok(NachEintrag(z, e.EskalationTage));
     }
 
     /// <summary>Erinnerungslauf sofort ausführen (sonst stündlich im Hintergrund).</summary>
@@ -114,6 +139,20 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
     [HttpPost("erinnerungen")]
     public async Task<ActionResult<ErinnerungsLauf>> Erinnerungen(CancellationToken ct) =>
         Ok(await dienst.ErinnerungenAsync(ct));
+
+    /// <summary>Zertifikate aus der Serverliste anlegen (sonst täglich im Hintergrund, wenn eingeschaltet).</summary>
+    [Authorize(Policy = "Betrieb")]
+    [HttpPost("server-anlegen")]
+    public async Task<ActionResult<ServerZertifikateErgebnis>> ServerAnlegen(CancellationToken ct) =>
+        Ok(await dienst.ServerZertifikateAnlegenAsync(await EigeneIdAsync(ct), ct));
+
+    /// <summary>Wochenbericht jetzt senden (Test des Lebenszeichens).</summary>
+    [Authorize(Policy = "Betrieb")]
+    [HttpPost("wochenbericht")]
+    public async Task<IActionResult> Wochenbericht(CancellationToken ct) =>
+        await dienst.WochenberichtAsync(erzwingen: true, ct)
+            ? NoContent()
+            : BadRequest("Wochenbericht konnte nicht gesendet werden — E-Mail-Versand und Standardempfänger prüfen.");
 
     /// <summary>Testmail, um die SMTP-Einstellungen zu prüfen.</summary>
     [Authorize(Policy = "Admin")]
@@ -135,6 +174,10 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
     }
 
     // --- Hilfen ----------------------------------------------------------------
+
+    private Task<int?> EigeneIdAsync(CancellationToken ct) =>
+        db.Mitarbeiter.Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
+            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
 
     private async Task<string?> PruefeAsync(ZertifikatSpeichern d, CancellationToken ct)
     {
@@ -168,19 +211,21 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
         z.Empfaenger = string.IsNullOrWhiteSpace(d.Empfaenger) ? null : d.Empfaenger.Trim();
         z.Notiz = string.IsNullOrWhiteSpace(d.Notiz) ? null : d.Notiz.Trim();
         z.Aktiv = d.Aktiv;
+        z.AutoErkennung = d.AutoErkennung;
     }
 
-    private static ZertifikatEintrag NachEintrag(Zertifikat z)
+    private static ZertifikatEintrag NachEintrag(Zertifikat z, int eskalationTage)
     {
         var heute = DateOnly.FromDateTime(DateTime.UtcNow);
         return new ZertifikatEintrag(
             z.Id, z.Bezeichnung, z.Hostname, z.Port, z.ServerId, z.Server?.Alias, z.Anbieter, z.LaufzeitMonate,
-            z.GueltigBis, z.VorlaufTage, z.Empfaenger, z.Notiz, z.Aktiv,
+            z.GueltigBis, z.VorlaufTage, z.Empfaenger, z.Notiz, z.Aktiv, z.AutoErkennung, z.AutomatischAngelegt,
             ZertifikatErinnerung.Status(z.GueltigBis, z.VorlaufTage, heute),
+            ZertifikatErinnerung.Stufe(z.GueltigBis, z.VorlaufTage, eskalationTage, heute),
             ZertifikatErinnerung.TageBisAblauf(z.GueltigBis, heute),
             z.ErneuertAm, z.ErneuertVon?.Anzeigename,
             z.LetzteErinnerungAm, z.ErinnerungenGesendet, z.LetzterMailFehler,
-            z.LiveGeprueftAm, z.LiveGueltigBis, z.LiveAussteller, z.LiveFehler,
+            z.LiveGeprueftAm, z.LiveGueltigBis, z.LiveAussteller, z.LiveFehler, z.LiveFehlerSeit, z.LiveProtokoll, z.LiveWarnungen,
             ZertifikatErinnerung.VorschlagNeuesGueltigBis(z.GueltigBis, z.LaufzeitMonate, z.LiveGueltigBis, heute));
     }
 }

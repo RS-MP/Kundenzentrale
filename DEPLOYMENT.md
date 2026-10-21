@@ -37,6 +37,13 @@ Option dokumentiert.
   (pflegen/bestätigen dürfen Support und Admin). 3) Alle Zertifikate mit
   Hostname und Ablaufdatum erfassen; „jetzt prüfen" zeigt, ob die Live-Prüfung
   vom Server aus durchkommt (ausgehend TCP 443 zu den Zielen nötig).
+  **Ausbau 21.10. (Migration `ZertifikateAutomatik`):** 4) „Aus Serverliste
+  anlegen" klicken — legt für jeden aktiven ID.prove-Server ein Zertifikat mit
+  Live-Ablaufdatum an; danach übernimmt die Kundenzentrale Erneuerungen selbst
+  (keine Bestätigung mehr nötig). 5) In der Administration die
+  Eskalationsempfänger (DRINGEND ab 3 Tagen) und Abgelaufen-Empfänger setzen,
+  Wochenbericht-Tag prüfen (Standard Montag), einmal „Wochenbericht jetzt
+  senden" als Test.
 - [ ] **HTTPS im Intranet** (SICHERHEIT.md V1, Code ist vorbereitet) — Schritte
   im Abschnitt „HTTPS im Intranet" unten; bis dahin bleibt `Hosting:HttpsErzwingen`
   auf `false` und der Testbetrieb läuft unverändert über http.

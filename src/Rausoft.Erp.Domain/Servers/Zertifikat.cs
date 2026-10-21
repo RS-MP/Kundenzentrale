@@ -6,8 +6,10 @@ namespace Rausoft.Erp.Domain.Servers;
 /// SSL-Zertifikat eines produktiven Systems — ID.prove-SaaS-Server und alle
 /// weiteren Server. Die Zertifikate (z. B. bei IONOS) laufen nach kurzer
 /// Laufzeit ab; die Kundenzentrale erinnert ab <see cref="VorlaufTage"/>
-/// vor Ablauf per E-Mail und wiederholt die Erinnerung, bis jemand
-/// bestätigt, dass das neue Zertifikat online ist (<see cref="Erneuern"/>).
+/// vor Ablauf per E-Mail, eskaliert kurz vor Ablauf und wiederholt die
+/// Erinnerung, bis das neue Zertifikat online ist — erkannt automatisch
+/// über die Live-Prüfung (<see cref="AutoErkennung"/>) oder bestätigt von
+/// Hand (<see cref="Erneuern"/>).
 /// </summary>
 public class Zertifikat
 {
@@ -44,24 +46,40 @@ public class Zertifikat
 
     public bool Aktiv { get; set; } = true;
 
-    // --- Letzte Bestätigung „neues Zertifikat ist online" ---------------------
+    /// <summary>Liefert der Server ein neueres Zertifikat, übernimmt die Kundenzentrale das Ablaufdatum selbst und beendet die Erinnerung.</summary>
+    public bool AutoErkennung { get; set; } = true;
+
+    /// <summary>Aus der Serverliste automatisch angelegt (Hostname aus der Server-URL).</summary>
+    public bool AutomatischAngelegt { get; set; }
+
+    // --- Letzte Bestätigung / Erkennung „neues Zertifikat ist online" -----------
     public DateTime? ErneuertAm { get; set; }
     public int? ErneuertVonId { get; set; }
     public Mitarbeiter? ErneuertVon { get; set; }
 
-    // --- Erinnerungen (seit der letzten Bestätigung) ---------------------------
+    // --- Erinnerungen (seit der letzten Erneuerung) ------------------------------
     public DateTime? LetzteErinnerungAm { get; set; }
     public int ErinnerungenGesendet { get; set; }
     /// <summary>Fehlertext des letzten Versandversuchs (null = ok).</summary>
     public string? LetzterMailFehler { get; set; }
 
-    // --- Automatische Prüfung des live ausgelieferten Zertifikats --------------
+    // --- Automatische Prüfung des live ausgelieferten Zertifikats -----------------
     public DateTime? LiveGeprueftAm { get; set; }
     public DateOnly? LiveGueltigBis { get; set; }
     public string? LiveAussteller { get; set; }
     public string? LiveFehler { get; set; }
+    /// <summary>Seit wann die Prüfung durchgehend scheitert (null = letzte Prüfung erfolgreich).</summary>
+    public DateTime? LiveFehlerSeit { get; set; }
+    /// <summary>Wann die andauernde Prüfstörung zuletzt per Mail gemeldet wurde.</summary>
+    public DateTime? LiveFehlerGemeldetAm { get; set; }
+    /// <summary>Ausgehandeltes Protokoll, z. B. „TLS 1.3".</summary>
+    public string? LiveProtokoll { get; set; }
+    /// <summary>Befunde jenseits des Ablaufdatums: Hostname passt nicht, Kette unvollständig, veraltetes TLS angeboten … (durch „ · " getrennt).</summary>
+    public string? LiveWarnungen { get; set; }
 
-    /// <summary>Bestätigung: neues Zertifikat ist online — Ablaufdatum übernehmen, Erinnerungen zurücksetzen.</summary>
+    public List<ZertifikatEreignis> Ereignisse { get; set; } = [];
+
+    /// <summary>Neues Zertifikat ist online — Ablaufdatum übernehmen, Erinnerungen zurücksetzen. vonId null = automatisch erkannt.</summary>
     public void Erneuern(DateOnly neuesGueltigBis, int? vonId, DateTime jetzt)
     {
         GueltigBis = neuesGueltigBis;
@@ -71,12 +89,49 @@ public class Zertifikat
         ErinnerungenGesendet = 0;
         LetzterMailFehler = null;
     }
+
+    public void Protokoll(string art, string text, int? vonId, DateTime jetzt) =>
+        Ereignisse.Add(new ZertifikatEreignis { Zertifikat = this, Art = art, Text = text, VonId = vonId, Zeitpunkt = jetzt });
+}
+
+/// <summary>Verlauf je Zertifikat: angelegt, erinnert, eskaliert, erneuert (erkannt/bestätigt), Prüfstörung …</summary>
+public class ZertifikatEreignis
+{
+    public int Id { get; set; }
+
+    public int ZertifikatId { get; set; }
+    public Zertifikat? Zertifikat { get; set; }
+
+    public DateTime Zeitpunkt { get; set; }
+
+    /// <summary>Siehe <see cref="ZertifikatEreignisArt"/>.</summary>
+    public required string Art { get; set; }
+
+    public required string Text { get; set; }
+
+    /// <summary>Auslösender Mitarbeiter; null = automatisch.</summary>
+    public int? VonId { get; set; }
+    public Mitarbeiter? Von { get; set; }
+}
+
+public static class ZertifikatEreignisArt
+{
+    public const string Angelegt = "Angelegt";
+    public const string Geaendert = "Geaendert";
+    public const string Erinnerung = "Erinnerung";
+    public const string Eskalation = "Eskalation";
+    public const string Abgelaufen = "Abgelaufen";
+    public const string ErneuertBestaetigt = "ErneuertBestaetigt";
+    public const string ErneuertErkannt = "ErneuertErkannt";
+    public const string Pruefstoerung = "Pruefstoerung";
+    public const string Warnung = "Warnung";
+    public const string Versandfehler = "Versandfehler";
 }
 
 /// <summary>
 /// Reine Erinnerungslogik (ohne DB/Mail), damit sie testbar ist: Wann ist eine
-/// Erinnerung fällig, welcher Status gilt, welches Ablaufdatum wird beim
-/// Bestätigen vorgeschlagen?
+/// Erinnerung fällig, welche Stufe gilt, welches Ablaufdatum wird beim
+/// Bestätigen vorgeschlagen, wann gilt eine Erneuerung als erkannt?
 /// </summary>
 public static class ZertifikatErinnerung
 {
@@ -91,9 +146,23 @@ public static class ZertifikatErinnerung
     }
 
     /// <summary>
+    /// Eskalationsstufe der Erinnerung: „keine" (vor dem Vorlauf), „erinnerung",
+    /// „eskalation" (ab <paramref name="eskalationTage"/> vor Ablauf, zusätzliche
+    /// Empfänger), „abgelaufen" (weitere Empfänger, z. B. Geschäftsführung).
+    /// </summary>
+    public static string Stufe(DateOnly gueltigBis, int vorlaufTage, int eskalationTage, DateOnly heute)
+    {
+        var tage = TageBisAblauf(gueltigBis, heute);
+        return tage < 0 ? "abgelaufen"
+            : tage <= Math.Min(eskalationTage, vorlaufTage) ? "eskalation"
+            : tage <= vorlaufTage ? "erinnerung"
+            : "keine";
+    }
+
+    /// <summary>
     /// Fällig, wenn der Vorlauf erreicht ist und seit der letzten Erinnerung
     /// mindestens <paramref name="intervallTage"/> vergangen sind. Nach einer
-    /// Bestätigung ist die letzte Erinnerung null → sofort wieder fällig, sobald
+    /// Erneuerung ist die letzte Erinnerung null → sofort wieder fällig, sobald
     /// der nächste Vorlauf erreicht ist.
     /// </summary>
     public static bool ErinnerungFaellig(DateOnly gueltigBis, int vorlaufTage, DateTime? letzteErinnerungAm,
@@ -107,6 +176,9 @@ public static class ZertifikatErinnerung
         return (jetzt - letzteErinnerungAm.Value).TotalDays >= Math.Max(1, intervallTage);
     }
 
+    /// <summary>Erneuerung erkannt: der Server liefert ein Zertifikat, das später abläuft als das eingetragene.</summary>
+    public static bool ErneuerungErkannt(DateOnly bisher, DateOnly? live) => live is { } l && l > bisher;
+
     /// <summary>
     /// Vorschlag für das neue Ablaufdatum: das live erkannte Datum, wenn es
     /// später als das bisherige ist; sonst bisheriges Datum + Laufzeit (bei
@@ -114,14 +186,24 @@ public static class ZertifikatErinnerung
     /// </summary>
     public static DateOnly VorschlagNeuesGueltigBis(DateOnly bisher, int laufzeitMonate, DateOnly? live, DateOnly heute)
     {
-        if (live is { } l && l > bisher)
-            return l;
+        if (ErneuerungErkannt(bisher, live))
+            return live!.Value;
         var basis = bisher < heute ? heute : bisher;
         return basis.AddMonths(Math.Max(1, laufzeitMonate));
     }
+
+    /// <summary>Prüfstörung melden, wenn sie seit <paramref name="stoerungTage"/> Tagen andauert und seit 7 Tagen nicht gemeldet wurde.</summary>
+    public static bool PruefstoerungMelden(DateTime? fehlerSeit, DateTime? gemeldetAm, int stoerungTage, DateTime jetzt) =>
+        fehlerSeit is { } seit
+        && (jetzt - seit).TotalDays >= Math.Max(1, stoerungTage)
+        && (gemeldetAm is null || (jetzt - gemeldetAm.Value).TotalDays >= 7);
 
     /// <summary>Empfängerliste aus Komma-/Semikolon-Text — leere Einträge fallen weg.</summary>
     public static List<string> Empfaenger(string? text) =>
         (text ?? "").Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(e => e.Contains('@')).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>Hostname aus einer Server-URL (null, wenn keine gültige http(s)-URL).</summary>
+    public static string? HostAusUrl(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri.Host : null;
 }

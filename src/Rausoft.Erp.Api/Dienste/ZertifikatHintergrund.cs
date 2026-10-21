@@ -1,15 +1,16 @@
 namespace Rausoft.Erp.Api.Dienste;
 
 /// <summary>
-/// Stündlicher Takt für die SSL-Zertifikate: einmal täglich Live-Prüfung aller
-/// Zertifikate mit Hostname, danach fällige Erinnerungen senden (der Dienst
-/// selbst prüft über Zertifikate.ErinnerungIntervallTage, ob eine Erinnerung
-/// erneut fällig ist). Fehler brechen den Takt nie ab.
+/// Stündlicher Takt für die SSL-Zertifikate. Einmal täglich: Zertifikate aus
+/// der Serverliste anlegen (wenn eingeschaltet), Live-Prüfung aller
+/// Zertifikate (erkennt Erneuerungen selbst), Prüfstörungen melden,
+/// Wochenbericht. Stündlich: fällige Erinnerungen/Eskalationen senden.
+/// Fehler brechen den Takt nie ab.
 /// </summary>
 public class ZertifikatHintergrund(IServiceScopeFactory scopeFactory, ILogger<ZertifikatHintergrund> log)
     : BackgroundService
 {
-    private DateOnly? _letzteLivePruefung;
+    private DateOnly? _letzterTageslauf;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -23,10 +24,22 @@ public class ZertifikatHintergrund(IServiceScopeFactory scopeFactory, ILogger<Ze
                 var dienst = scope.ServiceProvider.GetRequiredService<ZertifikatDienst>();
 
                 var heute = DateOnly.FromDateTime(DateTime.UtcNow);
-                if (_letzteLivePruefung != heute)
+                if (_letzterTageslauf != heute)
                 {
+                    var einstellungen = await dienst.EinstellungenAsync(stoppingToken);
+                    if (einstellungen.ServerAutomatisch)
+                    {
+                        var neu = await dienst.ServerZertifikateAnlegenAsync(null, stoppingToken);
+                        if (neu.Angelegt > 0)
+                            log.LogInformation("Zertifikate aus der Serverliste angelegt: {Hosts}", string.Join(", ", neu.Hostnamen));
+                    }
                     await dienst.PruefeAlleLiveAsync(stoppingToken);
-                    _letzteLivePruefung = heute;
+                    var gestoert = await dienst.PruefstoerungenMeldenAsync(stoppingToken);
+                    if (gestoert > 0)
+                        log.LogWarning("Zertifikats-Prüfstörungen gemeldet: {Anzahl}", gestoert);
+                    if (await dienst.WochenberichtAsync(erzwingen: false, stoppingToken))
+                        log.LogInformation("Wochenbericht SSL-Zertifikate gesendet");
+                    _letzterTageslauf = heute;
                 }
 
                 var lauf = await dienst.ErinnerungenAsync(stoppingToken);

@@ -46,6 +46,10 @@ else
                     @(server.SanktionslistenStand is not null ? $"· Sanktionsliste {server.SanktionslistenStand}" : "")
                     @(server.Fehlertext is not null ? $"· {server.Fehlertext}" : "")
                 </span>
+                @if (_zertifikate.TryGetValue(server.Id, out var zert))
+                {
+                    <a class="pill zert-pill @ZertKlasse(zert)" href="zertifikate" title="@ZertTitel(zert)" @onclick:stopPropagation="true">SSL @ZertText(zert)</a>
+                }
                 <span class="zahl">@server.KundenAnzahl Kunden</span>
             </summary>
             <div class="gruppe-inhalt">
@@ -79,6 +83,27 @@ else
 
 @code {
     private List<ServerEintrag>? _server;
+    // Je Server das am frühesten ablaufende aktive Zertifikat (Abzeichen in der Kopfzeile)
+    private Dictionary<int, ZertifikatEintrag> _zertifikate = [];
+
+    private static string ZertKlasse(ZertifikatEintrag z) => z.Status switch
+    {
+        "abgelaufen" => "kritisch",
+        "bald" => "warnung",
+        _ => z.LiveFehlerSeit is not null || z.LiveWarnungen is not null ? "warnung" : "gut",
+    };
+
+    private static string ZertText(ZertifikatEintrag z) => z.Status switch
+    {
+        "abgelaufen" => "abgelaufen",
+        "bald" => $"noch {z.TageBisAblauf} Tage",
+        _ => z.LiveFehlerSeit is not null ? "Prüfung gestört" : z.LiveWarnungen is not null ? "Warnung" : $"bis {z.GueltigBis:dd.MM.yyyy}",
+    };
+
+    private static string ZertTitel(ZertifikatEintrag z) =>
+        $"SSL-Zertifikat {z.Bezeichnung}: gültig bis {z.GueltigBis:dd.MM.yyyy}" +
+        (z.LiveFehler is not null ? $" · Prüfung: {z.LiveFehler}" : "") +
+        (z.LiveWarnungen is not null ? $" · {z.LiveWarnungen}" : "");
     private readonly Dictionary<int, List<ServerKunde>> _kunden = [];
     private string _portalUrl = "";
     private string? _fehler;
@@ -88,6 +113,15 @@ else
         try
         {
             _server = await Http.GetFromJsonAsync<List<ServerEintrag>>("api/server") ?? [];
+            try
+            {
+                var zertifikate = await Http.GetFromJsonAsync<ZertifikatUebersicht>("api/zertifikate");
+                _zertifikate = (zertifikate?.Zertifikate ?? [])
+                    .Where(z => z.Aktiv && z.ServerId is not null)
+                    .GroupBy(z => z.ServerId!.Value)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(z => z.GueltigBis).First());
+            }
+            catch { /* Zertifikate sind Zusatzinfo — die Server-Übersicht bleibt ohne sie nutzbar */ }
             _portalUrl = await Http.GetStringAsync("api/server/portal-url");
         }
         catch (Exception ex)
