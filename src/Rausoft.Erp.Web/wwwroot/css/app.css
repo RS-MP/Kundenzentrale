@@ -506,3 +506,19 @@ a.wiki-thema:hover { border-color: var(--accent-line); }
 .zert-ereignis-art { flex-shrink: 0; width: 88px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .zert-ereignis.erneuerterkannt .zert-ereignis-art, .zert-ereignis.erneuertbestaetigt .zert-ereignis-art { color: var(--good); }
 .zert-ereignis.eskalation .zert-ereignis-art, .zert-ereignis.abgelaufen .zert-ereignis-art, .zert-ereignis.versandfehler .zert-ereignis-art, .zert-ereignis.warnung .zert-ereignis-art { color: var(--warn); }
+
+/* Zertifikat-Formular: feste vier Spalten mit Blocküberschriften statt automatischem Umbruch */
+.zert-formular { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; margin-top: 10px; max-width: 980px; }
+.zert-formular .sp2 { grid-column: span 2; }
+.zert-formular .sp3 { grid-column: span 3; }
+.zert-formular .sp4 { grid-column: 1 / -1; }
+.zert-formular .zert-block { grid-column: 1 / -1; font-weight: 600; font-size: 13px; color: var(--ink); margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.zert-formular .zert-block:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.zert-formular input, .zert-formular select, .zert-formular textarea { min-width: 0; width: 100%; box-sizing: border-box; }
+.zert-formular .zert-einheit { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--muted); font-size: 12.5px; }
+.zert-formular .zert-einheit input { width: 90px; flex-shrink: 0; }
+.zert-formular .neben { color: var(--muted); font-size: 12.5px; }
+.zert-formular .zert-schalter { flex-direction: row; align-items: flex-start; gap: 10px; }
+.zert-formular .zert-schalter input { width: auto; margin-top: 3px; }
+.zert-formular .zert-schalter b { display: block; font-weight: 600; color: var(--ink); }
+@media (max-width: 760px) { .zert-formular { grid-template-columns: repeat(2, minmax(0, 1fr)); } .zert-formular .sp3 { grid-column: span 2; } }

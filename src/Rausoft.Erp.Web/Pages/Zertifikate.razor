@@ -46,55 +46,66 @@ else
         <div class="karte" style="margin-bottom:16px">
             <div class="karte-koerper">
                 <b>@(f.Id is null ? "Zertifikat anlegen" : "Zertifikat bearbeiten")</b>
-                <div class="formular" style="margin-top:10px">
-                    <label>
+                <div class="formular zert-formular">
+                    <div class="zert-block">Zertifikat</div>
+                    <label class="sp2">
                         Bezeichnung
                         <input type="text" maxlength="200" @bind="f.Bezeichnung" placeholder="z. B. idprove.rausoft.de" />
                     </label>
-                    <label>
-                        Hostname für die Live-Prüfung (optional)
-                        <input type="text" maxlength="255" @bind="f.Hostname" placeholder="z. B. idprove.rausoft.de" />
-                    </label>
-                    <label>
-                        Port
-                        <input type="number" min="1" max="65535" @bind="f.Port" />
-                    </label>
-                    <label>
+                    <label class="sp2">
                         ID.prove-Server (optional)
                         <select @bind="f.ServerId">
                             <option value="">— keiner —</option>
                             @foreach (var s in _uebersicht.Server) { <option value="@s.Id">@s.Alias</option> }
                         </select>
                     </label>
-                    <label>
-                        Anbieter
-                        <input type="text" maxlength="100" @bind="f.Anbieter" />
+
+                    <div class="zert-block">Live-Prüfung <span class="neben" style="display:inline; font-weight:400">— die Kundenzentrale liest täglich das ausgelieferte Zertifikat; leer = keine Prüfung, Bestätigung von Hand</span></div>
+                    <label class="sp3">
+                        Hostname
+                        <input type="text" maxlength="255" @bind="f.Hostname" placeholder="z. B. idprove.rausoft.de" />
                     </label>
+                    <label>
+                        Port
+                        <input type="number" min="1" max="65535" @bind="f.Port" />
+                    </label>
+
+                    <div class="zert-block">Laufzeit und Erinnerung</div>
                     <label>
                         Gültig bis
                         <input type="date" @bind="f.GueltigBis" />
                     </label>
                     <label>
-                        Laufzeit neuer Zertifikate (Monate)
-                        <input type="number" min="1" max="120" @bind="f.LaufzeitMonate" />
+                        Laufzeit neuer Zertifikate
+                        <span class="zert-einheit"><input type="number" min="1" max="120" @bind="f.LaufzeitMonate" /> Monate</span>
                     </label>
                     <label>
-                        Erinnerung ab (Tage vor Ablauf)
-                        <input type="number" min="1" max="365" @bind="f.VorlaufTage" />
+                        Erinnerung ab
+                        <span class="zert-einheit"><input type="number" min="1" max="365" @bind="f.VorlaufTage" /> Tage vor Ablauf</span>
                     </label>
-                    <label class="breit">
-                        E-Mail-Empfänger (mehrere mit Komma; leer = Standardempfänger@(_uebersicht.StandardEmpfaenger is { Length: > 0 } se ? $": {se}" : " — noch nicht gesetzt"))
+                    <label>
+                        Anbieter
+                        <input type="text" maxlength="100" @bind="f.Anbieter" />
+                    </label>
+
+                    <div class="zert-block">Benachrichtigung</div>
+                    <label class="sp4">
+                        E-Mail-Empfänger
                         <input type="text" maxlength="1000" @bind="f.Empfaenger" placeholder="technik@rausoft.de, mp@rausoft.de" />
+                        <span class="neben">Mehrere mit Komma. Leer = Standardempfänger@(_uebersicht.StandardEmpfaenger is { Length: > 0 } se ? $" ({se})" : " — in der Administration noch nicht gesetzt").</span>
                     </label>
-                    <label class="breit">
-                        Notiz (z. B. wo das Zertifikat eingespielt wird)
-                        <textarea rows="2" @bind="f.Notiz"></textarea>
+                    <label class="sp4">
+                        Notiz
+                        <textarea rows="2" @bind="f.Notiz" placeholder="z. B. wo das Zertifikat eingespielt wird"></textarea>
                     </label>
-                    <label style="flex-direction:row; align-items:center; gap:6px">
-                        <input type="checkbox" @bind="f.AutoErkennung" /> Erneuerung automatisch übernehmen, wenn die Live-Prüfung ein neueres Zertifikat sieht
+
+                    <label class="sp4 zert-schalter">
+                        <input type="checkbox" @bind="f.AutoErkennung" />
+                        <span><b>Erneuerung automatisch übernehmen</b><span class="neben">Sieht die Live-Prüfung ein neueres Zertifikat, wird das Ablaufdatum übernommen und die Erinnerung beendet — niemand muss bestätigen.</span></span>
                     </label>
-                    <label style="flex-direction:row; align-items:center; gap:6px">
-                        <input type="checkbox" @bind="f.Aktiv" /> aktiv (sonst keine Prüfung und keine Erinnerungen)
+                    <label class="sp4 zert-schalter">
+                        <input type="checkbox" @bind="f.Aktiv" />
+                        <span><b>Aktiv</b><span class="neben">Ohne Haken keine Prüfung und keine Erinnerungen.</span></span>
                     </label>
                 </div>
                 <div class="formular-aktionen">
