@@ -69,7 +69,9 @@ public static class OdooZugang
                 b => b.SetApplicationName(GeheimnisAblage.Anwendungsname)
                       .ProtectKeysWithDpapi(protectToLocalMachine: true));
 #pragma warning restore CA1416
-            return schutz.CreateProtector(GeheimnisAblage.Zweck).Unprotect(eintrag.WertVerschluesselt);
+            // Trim: ein beim Einfügen mitkopiertes Leerzeichen oder Zeilenende lässt die Anmeldung sonst scheitern
+            var wert = schutz.CreateProtector(GeheimnisAblage.Zweck).Unprotect(eintrag.WertVerschluesselt).Trim();
+            return wert.Length == 0 ? null : wert;
         }
         catch (System.Security.Cryptography.CryptographicException)
         {

@@ -14,7 +14,22 @@ if (args.Contains("vertragsscan"))
 // nie aus Dateien. Modus "zugangstest" prüft nur die Auflösung.
 var zugang = await OdooZugang.ErmittelnAsync(ausgabe: args.Contains("zugangstest"));
 if (args.Contains("zugangstest"))
-    return zugang is null ? 1 : 0;
+{
+    if (zugang is null)
+        return 1;
+    // Anmeldung wirklich versuchen — zeigt, ob der hinterlegte Key bei Odoo gültig ist
+    try
+    {
+        var testUid = await new OdooClient(zugang.Url, zugang.Db, zugang.Benutzer, zugang.ApiKey).AnmeldenAsync();
+        Console.WriteLine($"  Anmeldung:   erfolgreich (uid {testUid})");
+        return 0;
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
+    {
+        Console.WriteLine($"  Anmeldung:   FEHLGESCHLAGEN — {ex.Message}");
+        return 1;
+    }
+}
 if (zugang is null)
 {
     Console.Error.WriteLine("Odoo-Zugangsdaten unvollständig. In der Kundenzentrale unter " +

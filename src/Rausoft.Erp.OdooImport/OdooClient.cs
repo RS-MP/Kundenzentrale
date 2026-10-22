@@ -25,7 +25,9 @@ public class OdooClient(string url, string db, string benutzer, string apiKey)
         var result = await RpcAsync("common", "authenticate", [db, benutzer, apiKey, new Dictionary<string, object>()]);
         if (result.ValueKind != JsonValueKind.Number)
             throw new InvalidOperationException(
-                "Odoo-Anmeldung fehlgeschlagen — Benutzer/API-Key/Datenbankname prüfen.");
+                "Odoo-Anmeldung fehlgeschlagen — Benutzer/API-Key/Datenbankname prüfen " +
+                $"(Odoo antwortete: {(result.ValueKind == JsonValueKind.Undefined ? "kein Ergebnis" : result.GetRawText())}; " +
+                $"Benutzer '{benutzer}', Datenbank '{db}', Key-Länge {apiKey.Length}).");
         _uid = result.GetInt32();
         return _uid;
     }
