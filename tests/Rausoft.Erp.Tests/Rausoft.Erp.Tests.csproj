@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Rausoft.Erp.Domain\Rausoft.Erp.Domain.csproj" />
     <ProjectReference Include="..\..\src\Rausoft.Erp.Data\Rausoft.Erp.Data.csproj" />
     <ProjectReference Include="..\..\src\Rausoft.Erp.Dtos\Rausoft.Erp.Dtos.csproj" />
+    <ProjectReference Include="..\..\src\Rausoft.Erp.OdooImport\Rausoft.Erp.OdooImport.csproj" />
   </ItemGroup>
 
 </Project>

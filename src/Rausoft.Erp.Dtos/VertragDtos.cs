@@ -146,7 +146,18 @@ public record VerlaufEintrag(
     string Betreff,
     string? Inhalt,
     string? VerweisTyp,
-    int? VerweisId);
+    int? VerweisId,
+    /// <summary>„Kundenzentrale" oder „OdooImport" — in der Akte umschaltbar.</summary>
+    string Quelle,
+    /// <summary>„Eingehend", „Ausgehend", „Intern" oder null.</summary>
+    string? Richtung,
+    /// <summary>Urheber als Text, wenn keine Person zugeordnet ist (externer Absender).</summary>
+    string? AutorName,
+    /// <summary>Vorgang, an dem der Eintrag hing — z. B. „Auftrag S01194".</summary>
+    string? Bezug,
+    List<VerlaufAnhang> Anhaenge);
+
+public record VerlaufAnhang(int Id, string Dateiname, long Groesse, string? MimeType);
 
 public record AboEintrag(
     int Id,

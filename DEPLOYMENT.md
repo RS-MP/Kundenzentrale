@@ -366,8 +366,25 @@ und Import teilen sich dafür den Data-Protection-Schlüsselbund unter
      Angebote/Verkaufsaufträge, Rechnungen) mit Anhängen und der Entscheidung
      der Filterregeln aus `ChatterFilter.cs`:
      `[+]` übernehmen, `[~]` zu Systemeintrag verdichten, `[-]` nicht
-     übernehmen. Dient dazu, die Regeln an echten Daten zu bewerten, bevor der
-     eigentliche Chatter-Import gebaut wird.
+     übernehmen. Dient dazu, die Regeln an echten Daten zu bewerten.
+10. `chatter-import` (Odoo-Chatter → Kunden-Timeline, Stand 22.10.2026):
+    - Voraussetzungen: Kontakt-Import ist gelaufen (Kunden haben Odoo-Ids),
+      Migration `ChatterImport` ist eingespielt, und **Administration →
+      Verzeichnisse → Dokumentablage** zeigt auf ein erreichbares Verzeichnis —
+      dort landen die Anhänge unter `<Kundennummer>\Odoo-Chatter\`.
+    - `Rausoft.Erp.OdooImport.exe chatter-import --dry-run` — Bericht, was
+      übernommen, verdichtet und verworfen würde, inkl. Anhang-Volumen.
+      `--kunde 25757` beschränkt auf einen Kunden (KundenNr oder Odoo-Id),
+      `--ohne-anhaenge` lässt die Dateien weg.
+    - `Rausoft.Erp.OdooImport.exe chatter-import` — Übernahme. Wiederholbar:
+      bereits übernommene Nachrichten (Aktivitaet.OdooId) werden übersprungen,
+      fehlende Anhänge nachgeladen. Kann während des Parallelbetriebs als
+      dritte Aktion der nächtlichen Aufgabe laufen (nach `import` und `abos`),
+      damit neue Odoo-Notizen in der Akte erscheinen.
+    - In der Kundenakte blendet der Schalter „Odoo-Verlauf" die übernommenen
+      Einträge ein oder aus; Anhänge werden über die API aus der Dokumentablage
+      geladen. Passwort-Zeilen aus Zugangsdaten-Mails sind beim Import
+      maskiert worden.
 
 **Wichtig nach diesem Update:** Der Schlüsselbund zieht in den
 ProgramData-Ordner um — zuvor gesetzte Geheimnisse (Portal-Push-Token) sind

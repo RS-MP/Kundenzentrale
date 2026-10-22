@@ -64,7 +64,19 @@
                 const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
                 return URL.createObjectURL(new Blob([bytes], { type: typ }));
             },
-            freigeben: (url) => URL.revokeObjectURL(url)
+            freigeben: (url) => URL.revokeObjectURL(url),
+            // Datei aus der API als Download anstoßen (Anhänge im Verlauf)
+            herunterladen: (base64, typ, name) => {
+                const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                const url = URL.createObjectURL(new Blob([bytes], { type: typ }));
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 10000);
+            }
         };
     </script>
     <script src="_framework/blazor.webassembly.js"></script>

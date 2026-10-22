@@ -224,7 +224,15 @@ details.gruppe summary .zahl {
 .verlauf2 li:last-child { border-bottom: none; }
 .verlauf2 .datum { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; padding-top: 1px; }
 .verlauf2 .paar { color: var(--muted); font-size: 12.5px; margin-top: 1px; }
-.verlauf2 .textzeile { color: var(--ink2); margin-top: 2px; }
+.verlauf2 .textzeile { color: var(--ink2); margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.verlauf2 li.odoo .datum::after { content: "Odoo"; display: block; font-size: 10.5px; letter-spacing: .3px; opacity: .8; }
+.verlauf2 .richtung { color: var(--muted); margin-right: 4px; }
+.verlauf2 .bezug { color: var(--muted); font-size: 12.5px; margin-left: 8px; }
+.verlauf2 .anhaenge { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.verlauf2 .anhang { font: inherit; font-size: 12.5px; color: inherit; background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.verlauf2 .anhang:hover { border-color: var(--muted); }
+.verlauf2 .mehr { font: inherit; font-size: 12.5px; color: var(--muted); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
+.umschalter { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
 
 /* Formulare */
 input[type=text], input[type=search], input[type=url] {

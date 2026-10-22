@@ -22,6 +22,7 @@ public class ErpDbContext(
     public DbSet<Bereich> Bereiche => Set<Bereich>();
     public DbSet<Nummernkreis> Nummernkreise => Set<Nummernkreis>();
     public DbSet<Aktivitaet> Aktivitaeten => Set<Aktivitaet>();
+    public DbSet<AktivitaetAnhang> Aktivitaetsanhaenge => Set<AktivitaetAnhang>();
     public DbSet<AuditLogEintrag> AuditLog => Set<AuditLogEintrag>();
     public DbSet<Einstellung> Einstellungen => Set<Einstellung>();
 
@@ -105,6 +106,21 @@ public class ErpDbContext(
             e.HasOne(a => a.Kunde).WithMany().OnDelete(DeleteBehavior.Restrict);
             e.HasOne(a => a.Mitarbeiter).WithMany().OnDelete(DeleteBehavior.Restrict);
             e.HasOne(a => a.Ansprechpartner).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.Property(a => a.AutorName).HasMaxLength(200);
+            e.Property(a => a.Bezug).HasMaxLength(300);
+            // Odoo-Nachricht nur einmal übernehmen (gefilterter Unique-Index: NULL mehrfach erlaubt)
+            e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+            e.HasIndex(a => new { a.KundeId, a.Quelle });
+        });
+
+        modelBuilder.Entity<AktivitaetAnhang>(e =>
+        {
+            e.Property(a => a.Dateiname).HasMaxLength(300);
+            e.Property(a => a.MimeType).HasMaxLength(100);
+            e.Property(a => a.RelativerPfad).HasMaxLength(500);
+            e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+            e.HasOne(a => a.Aktivitaet).WithMany(a => a.Anhaenge)
+                .HasForeignKey(a => a.AktivitaetId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AuditLogEintrag>(e =>
@@ -485,7 +501,7 @@ public class ErpDbContext(
     // GeheimeEinstellung: NIE auditieren — sonst landet der (verschlüsselte)
     // Wert im Audit-JSON. Server: der Healthcheck-Takt würde das Log fluten.
     private static readonly HashSet<Type> NichtAuditieren =
-        [typeof(AuditLogEintrag), typeof(Aktivitaet), typeof(Nummernkreis),
+        [typeof(AuditLogEintrag), typeof(Aktivitaet), typeof(AktivitaetAnhang), typeof(Nummernkreis),
          typeof(GeheimeEinstellung), typeof(Domain.Servers.Server)];
 
     private List<(EntityEntry Entry, AuditLogEintrag Eintrag)> SammleAuditEintraege()

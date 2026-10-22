@@ -37,6 +37,34 @@ public class Aktivitaet
     /// <summary>Sprungziel des Eintrags (z. B. Vertrag), typisiert + Id.</summary>
     public AktivitaetsVerweisTyp? VerweisTyp { get; set; }
     public int? VerweisId { get; set; }
+
+    /// <summary>Woher der Eintrag stammt — in der Akte umschaltbar (z. B. Odoo-Verlauf aus-/einblenden).</summary>
+    public AktivitaetsQuelle Quelle { get; set; } = AktivitaetsQuelle.Kundenzentrale;
+
+    /// <summary>Odoo mail.message-Id beim Chatter-Import — macht den Import wiederholbar.</summary>
+    public int? OdooId { get; set; }
+
+    /// <summary>
+    /// Anzeigename des Urhebers, wenn weder Mitarbeiter noch Ansprechpartner
+    /// zugeordnet werden konnten (externer Absender, unbekannter Odoo-Benutzer).
+    /// </summary>
+    public string? AutorName { get; set; }
+
+    /// <summary>
+    /// Vorgang, an dem der Eintrag ursprünglich hing, als Text — z. B. „Auftrag S01194",
+    /// „Verkaufschance von …", „Rechnung RE/2026/00774". Für Odoo-Vorgänge gibt es
+    /// kein eigenes Ziel in der Kundenzentrale; der Text hält den Zusammenhang.
+    /// </summary>
+    public string? Bezug { get; set; }
+
+    public List<AktivitaetAnhang> Anhaenge { get; set; } = [];
+}
+
+public enum AktivitaetsQuelle
+{
+    Kundenzentrale = 0,
+    /// <summary>Aus dem Odoo-Chatter übernommen (Notizen, E-Mails, verdichtete Ereignisse).</summary>
+    OdooImport = 1,
 }
 
 public enum AktivitaetsTyp

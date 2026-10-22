@@ -1,0 +1,162 @@
+using Rausoft.Erp.Domain.Shared;
+using Rausoft.Erp.OdooImport;
+
+namespace Rausoft.Erp.Tests.OdooImport;
+
+/// <summary>
+/// Filterregeln „nur das Wesentliche" — bewertet am Beispielkunden 25757
+/// (Entscheidungen 22.10.2026). Analyse und Import nutzen dieselbe Klasse.
+/// </summary>
+public class ChatterFilterTests
+{
+    private const int Mitarbeiter = 10;
+    private const int Kunde = 20;
+    private const int Bot = 2;
+
+    private static readonly ChatterFilter Filter = new(new HashSet<int> { Mitarbeiter }, Bot);
+
+    private static ChatterNachricht Nachricht(
+        string messageType = "comment",
+        string? subtypeXmlId = null,
+        int? autor = Mitarbeiter,
+        string? betreff = null,
+        string klartext = "Kunde kommt über Consys.",
+        string modell = "res.partner",
+        bool intern = false,
+        int trackingAnzahl = 0,
+        int anhaenge = 0,
+        IReadOnlyList<(string Feld, string Alt, string Neu)>? aenderungen = null) =>
+        new(Id: 1, Modell: modell, ResId: 1, RecordName: null, MessageType: messageType,
+            SubtypeId: null, SubtypeXmlId: subtypeXmlId, SubtypeName: subtypeXmlId,
+            AutorPartnerId: autor, AutorName: autor == Bot ? "OdooBot" : "Jemand", EmailFrom: null,
+            Datum: new DateTime(2026, 9, 16, 9, 0, 0), Betreff: betreff, Klartext: klartext,
+            IstIntern: intern, TrackingAnzahl: trackingAnzahl, AnhangAnzahl: anhaenge,
+            Aenderungen: aenderungen ?? []);
+
+    [Fact]
+    public void Notiz_WirdBehalten_AlsInterneNotiz()
+    {
+        var b = Filter.Bewerten(Nachricht(subtypeXmlId: "mail.mt_note"));
+        Assert.Equal(ChatterEntscheidung.Behalten, b.Entscheidung);
+        Assert.Equal(AktivitaetsTyp.Notiz, b.Typ);
+        Assert.Equal(AktivitaetsRichtung.Intern, b.Richtung);
+    }
+
+    [Fact]
+    public void GesendeteNachricht_IstAusgehendeEMail()
+    {
+        var b = Filter.Bewerten(Nachricht(subtypeXmlId: "mail.mt_comment", klartext: "Anbei unser Angebot."));
+        Assert.Equal(ChatterEntscheidung.Behalten, b.Entscheidung);
+        Assert.Equal(AktivitaetsTyp.EMail, b.Typ);
+        Assert.Equal(AktivitaetsRichtung.Ausgehend, b.Richtung);
+    }
+
+    [Fact]
+    public void EingehendeEMailVomKunden_IstEingehend()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "email", autor: Kunde,
+            betreff: "AW: Auftragsbestätigung", klartext: "Im Anhang der unterschriebene Vertrag."));
+        Assert.Equal(ChatterEntscheidung.Behalten, b.Entscheidung);
+        Assert.Equal(AktivitaetsRichtung.Eingehend, b.Richtung);
+    }
+
+    [Fact]
+    public void Abwesenheitsnotiz_WirdVerworfen()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "email", autor: Kunde,
+            betreff: "Automatische Antwort: Ihre Bestellung", klartext: "Thank you for your message."));
+        Assert.Equal(ChatterEntscheidung.Verwerfen, b.Entscheidung);
+    }
+
+    [Fact]
+    public void Feldaenderung_Odoo19_Tracking_WirdVerworfen()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "tracking", trackingAnzahl: 1,
+            aenderungen: [("KundenNr (Contact)", "0", "25757")]));
+        Assert.Equal(ChatterEntscheidung.Verwerfen, b.Entscheidung);
+        Assert.Equal("Feldänderung", b.Grund);
+    }
+
+    [Fact]
+    public void WartungsHaken_WirdVerdichtet()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "tracking", trackingAnzahl: 2,
+            aenderungen: [("Wartung (Contact)", "0", "1"), ("Sanktionslisten (Contact)", "0", "1")]));
+        Assert.Equal(ChatterEntscheidung.Verdichten, b.Entscheidung);
+        Assert.Equal(AktivitaetsTyp.System, b.Typ);
+    }
+
+    [Fact]
+    public void Auftragsstatus_WirdVerdichtet()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "tracking", modell: "sale.order", trackingAnzahl: 1,
+            aenderungen: [("Status (Sales Order)", "Angebot gesendet", "Verkaufsauftrag")]));
+        Assert.Equal(ChatterEntscheidung.Verdichten, b.Entscheidung);
+        Assert.Equal(AktivitaetsTyp.Angebot, b.Typ);
+    }
+
+    [Fact]
+    public void RechnungBezahlt_AmAuftrag_WirdVerdichtet()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "notification", modell: "sale.order",
+            klartext: "Rechnung RE/2026/00774 bezahlt"));
+        Assert.Equal(ChatterEntscheidung.Verdichten, b.Entscheidung);
+        Assert.Equal(AktivitaetsTyp.Rechnung, b.Typ);
+    }
+
+    [Fact]
+    public void KontaktErstellt_WirdVerworfen()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "notification", klartext: "Kontakt erstellt"));
+        Assert.Equal(ChatterEntscheidung.Verwerfen, b.Entscheidung);
+    }
+
+    [Fact]
+    public void OdooBot_WirdVerworfen()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "auto_comment", autor: Bot, klartext: "Sehr geehrte Damen und Herren"));
+        Assert.Equal(ChatterEntscheidung.Verwerfen, b.Entscheidung);
+    }
+
+    [Fact]
+    public void CrmGewonnen_WirdVerdichtet()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "tracking", modell: "crm.lead", subtypeXmlId: "crm.mt_lead_won"));
+        Assert.Equal(ChatterEntscheidung.Verdichten, b.Entscheidung);
+    }
+
+    [Fact]
+    public void LeadAusTicket_WirdVerdichtet()
+    {
+        var b = Filter.Bewerten(Nachricht(modell: "crm.lead",
+            klartext: "Dieser Lead wurde aus einem Ticket erstellt: Automatische Antwort #(00333)"));
+        Assert.Equal(ChatterEntscheidung.Verdichten, b.Entscheidung);
+    }
+
+    [Fact]
+    public void LeereNotizOhneAnhang_WirdVerworfen_MitAnhangBehalten()
+    {
+        Assert.Equal(ChatterEntscheidung.Verwerfen, Filter.Bewerten(Nachricht(klartext: "")).Entscheidung);
+        Assert.Equal(ChatterEntscheidung.Behalten, Filter.Bewerten(Nachricht(klartext: "", anhaenge: 1)).Entscheidung);
+    }
+
+    [Fact]
+    public void Klartext_EntferntHtml_UndMaskiertPasswoerter()
+    {
+        var html = "<p>Sehr geehrter Herr Quint,</p><p>Link: https://shared.idprove.cloud<br>" +
+                   "Benutzername: kai.quint@rhb-industries.de<br>Passwort: Geheim123!</p><p>Viele Gr&uuml;&szlig;e</p>";
+        var text = ChatterFilter.Klartext(html);
+        Assert.Contains("Benutzername: kai.quint@rhb-industries.de", text);
+        Assert.Contains("Passwort: •••", text);
+        Assert.DoesNotContain("Geheim123", text);
+        Assert.Contains("Viele Grüße", text);
+        Assert.DoesNotContain("<p>", text);
+    }
+
+    [Fact]
+    public void Klartext_MaskiertAuchKennwortUndEnglisch()
+    {
+        var text = ChatterFilter.Klartext("Kennwort = abc\nPassword: xyz\nPW: 123\nHinweis: nichts");
+        Assert.Equal("Kennwort = •••\nPassword: •••\nPW: •••\nHinweis: nichts", text);
+    }
+}

@@ -405,25 +405,68 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 .ToList())).ToList());
     }
 
-    /// <summary>Timeline der Kundenakte — neueste Einträge zuerst.</summary>
+    /// <summary>
+    /// Timeline der Kundenakte — neueste Einträge zuerst. <paramref name="mitOdoo"/> = false
+    /// blendet die aus dem Odoo-Chatter übernommenen Einträge aus (Umschalter in der Akte).
+    /// </summary>
     [HttpGet("{id:int}/verlauf")]
-    public async Task<ActionResult<List<VerlaufEintrag>>> Verlauf(int id, CancellationToken ct)
+    public async Task<ActionResult<List<VerlaufEintrag>>> Verlauf(int id, [FromQuery] bool mitOdoo = true,
+        CancellationToken ct = default)
     {
-        var roh = await db.Aktivitaeten
-            .AsNoTracking()
-            .Where(a => a.KundeId == id)
+        var abfrage = db.Aktivitaeten.AsNoTracking().Where(a => a.KundeId == id);
+        if (!mitOdoo)
+            abfrage = abfrage.Where(a => a.Quelle != Domain.Shared.AktivitaetsQuelle.OdooImport);
+
+        var roh = await abfrage
             .OrderByDescending(a => a.Zeitpunkt)
-            .Take(100)
+            .Take(300)
             .Select(a => new
             {
                 a.Id, a.Typ, a.Zeitpunkt, a.Betreff, a.Inhalt, a.VerweisTyp, a.VerweisId,
+                a.Quelle, a.Richtung, a.AutorName, a.Bezug,
                 Mitarbeiter = a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : null,
                 Ansprechpartner = a.Ansprechpartner != null ? a.Ansprechpartner.Nachname : null,
+                Anhaenge = a.Anhaenge.OrderBy(x => x.Dateiname)
+                    .Select(x => new VerlaufAnhang(x.Id, x.Dateiname, x.Groesse, x.MimeType)).ToList(),
             })
             .ToListAsync(ct);
         return Ok(roh.Select(a => new VerlaufEintrag(
             a.Id, a.Typ.ToString(), a.Zeitpunkt, a.Mitarbeiter, a.Ansprechpartner,
-            a.Betreff, a.Inhalt, a.VerweisTyp?.ToString(), a.VerweisId)).ToList());
+            a.Betreff, a.Inhalt, a.VerweisTyp?.ToString(), a.VerweisId,
+            a.Quelle.ToString(), a.Richtung?.ToString(), a.AutorName, a.Bezug, a.Anhaenge)).ToList());
+    }
+
+    /// <summary>
+    /// Datei eines Timeline-Anhangs (z. B. aus dem Odoo-Chatter übernommene E-Mail-Anlage).
+    /// Die Datei liegt in der Dokumentablage; nur Pfade unterhalb des Basisverzeichnisses werden ausgeliefert.
+    /// </summary>
+    [HttpGet("verlauf/anhaenge/{anhangId:int}/datei")]
+    public async Task<IActionResult> VerlaufAnhangDatei(int anhangId, CancellationToken ct)
+    {
+        var anhang = await db.Aktivitaetsanhaenge.AsNoTracking().FirstOrDefaultAsync(a => a.Id == anhangId, ct);
+        if (anhang is null)
+            return NotFound();
+
+        var basis = (await db.Einstellungen.AsNoTracking()
+            .Where(e => e.Schluessel == Domain.Shared.EinstellungsSchluessel.DokumentablageVerzeichnis)
+            .Select(e => e.Wert).FirstOrDefaultAsync(ct))?.Trim();
+        if (string.IsNullOrWhiteSpace(basis))
+            return BadRequest("Das Verzeichnis der Dokumentablage ist nicht konfiguriert (Administration → Verzeichnisse).");
+
+        var basisVoll = Path.GetFullPath(basis).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var dateiVoll = Path.GetFullPath(Path.Combine(basisVoll, anhang.RelativerPfad));
+        if (!dateiVoll.StartsWith(basisVoll, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Der Pfad liegt außerhalb der Dokumentablage.");
+        if (!System.IO.File.Exists(dateiVoll))
+            return NotFound($"Die Datei liegt nicht (mehr) in der Dokumentablage: {anhang.RelativerPfad}");
+
+        var contentType = anhang.MimeType;
+        if (string.IsNullOrWhiteSpace(contentType))
+            new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider()
+                .TryGetContentType(anhang.Dateiname, out contentType);
+
+        var stream = System.IO.File.OpenRead(dateiVoll);
+        return File(stream, contentType ?? "application/octet-stream", anhang.Dateiname, enableRangeProcessing: true);
     }
 
     /// <summary>

@@ -811,8 +811,16 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int?>("AnsprechpartnerId")
                         .HasColumnType("int");
 
+                    b.Property<string>("AutorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Betreff")
                         .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Bezug")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
@@ -824,6 +832,12 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<int?>("MitarbeiterId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("OdooId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quelle")
                         .HasColumnType("int");
 
                     b.Property<int?>("Richtung")
@@ -847,10 +861,58 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.HasIndex("MitarbeiterId");
 
+                    b.HasIndex("OdooId")
+                        .IsUnique()
+                        .HasFilter("[OdooId] IS NOT NULL");
+
+                    b.HasIndex("KundeId", "Quelle");
+
                     b.HasIndex("KundeId", "Zeitpunkt")
                         .IsDescending(false, true);
 
                     b.ToTable("Aktivitaeten");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.AktivitaetAnhang", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AktivitaetId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Dateiname")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<long>("Groesse")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("MimeType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("OdooId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RelativerPfad")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AktivitaetId");
+
+                    b.HasIndex("OdooId")
+                        .IsUnique()
+                        .HasFilter("[OdooId] IS NOT NULL");
+
+                    b.ToTable("Aktivitaetsanhaenge");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.AuditLogEintrag", b =>
@@ -1755,6 +1817,17 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Mitarbeiter");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.AktivitaetAnhang", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Aktivitaet", "Aktivitaet")
+                        .WithMany("Anhaenge")
+                        .HasForeignKey("AktivitaetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Aktivitaet");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Mitarbeiter", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Shared.Bereich", "Bereich")
@@ -1933,6 +2006,11 @@ namespace Rausoft.Erp.Data.Migrations
             modelBuilder.Entity("Rausoft.Erp.Domain.Servers.Zertifikat", b =>
                 {
                     b.Navigation("Ereignisse");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Aktivitaet", b =>
+                {
+                    b.Navigation("Anhaenge");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.Abo", b =>

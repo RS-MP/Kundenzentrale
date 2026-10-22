@@ -1,5 +1,6 @@
 @page "/kunden/{Id:int}"
 @inject HttpClient Http
+@inject IJSRuntime JS
 
 <PageTitle>@(_kunde?.Firmenname ?? "Kundenakte") · Kundenzentrale</PageTitle>
 
@@ -96,8 +97,15 @@ else
                     {
                         <span style="color:var(--muted); font-size:13px">@_verlauf.Count Einträge</span>
                     }
+                    <label class="umschalter" title="Aus Odoo übernommene Notizen, E-Mails und Ereignisse ein- oder ausblenden">
+                        <input type="checkbox" checked="@_mitOdoo" @onchange="OdooUmschaltenAsync" /> Odoo-Verlauf
+                    </label>
                 </div>
                 <div class="karte-koerper eng">
+                    @if (_verlaufFehler is not null)
+                    {
+                        <div class="leer-hinweis" style="color:var(--rot, #b00020)">@_verlaufFehler</div>
+                    }
                     @if (_verlauf is null || _verlauf.Count == 0)
                     {
                         <div class="leer-hinweis">
@@ -110,9 +118,13 @@ else
                         <ul class="verlauf2">
                             @foreach (var eintrag in _verlauf)
                             {
-                                <li>
-                                    <span class="datum">@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                                <li class="@(eintrag.Quelle == "OdooImport" ? "odoo" : "")">
+                                    <span class="datum" title="@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")">@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy")</span>
                                     <div>
+                                        @if (RichtungZeichen(eintrag) is { Length: > 0 } richtung)
+                                        {
+                                            <span class="richtung" title="@eintrag.Richtung">@richtung</span>
+                                        }
                                         @if (eintrag.VerweisTyp == "Vertrag" && eintrag.VerweisId is not null)
                                         {
                                             <a href="vertraege/@eintrag.VerweisId">@eintrag.Betreff</a>
@@ -121,9 +133,26 @@ else
                                         {
                                             <span>@eintrag.Betreff</span>
                                         }
+                                        @if (eintrag.Bezug is not null)
+                                        {
+                                            <span class="bezug">@eintrag.Bezug</span>
+                                        }
                                         @if (eintrag.Inhalt is not null)
                                         {
-                                            <div class="textzeile">@eintrag.Inhalt</div>
+                                            <div class="textzeile">@InhaltText(eintrag)@if (eintrag.Inhalt.Length > InhaltKurz && !_aufgeklappt.Contains(eintrag.Id))
+                                                {
+                                                    <text> </text><button type="button" class="mehr" @onclick="() => _aufgeklappt.Add(eintrag.Id)">mehr anzeigen</button>
+                                                }</div>
+                                        }
+                                        @if (eintrag.Anhaenge.Count > 0)
+                                        {
+                                            <div class="anhaenge">
+                                                @foreach (var anhang in eintrag.Anhaenge)
+                                                {
+                                                    <button type="button" class="anhang" title="@GroesseText(anhang.Groesse)"
+                                                            @onclick="() => AnhangHerunterladenAsync(anhang)">📎 @anhang.Dateiname</button>
+                                                }
+                                            </div>
                                         }
                                         @if (VerlaufMeta(eintrag) is { } meta)
                                         {
@@ -323,6 +352,10 @@ else
 
     private KundeDetail? _kunde;
     private List<VerlaufEintrag>? _verlauf;
+    private bool _mitOdoo = true;
+    private string? _verlaufFehler;
+    private readonly HashSet<int> _aufgeklappt = [];
+    private const int InhaltKurz = 400;
     private List<VertragListenEintrag>? _vertraege;
     private List<AboEintrag>? _abos;
     private List<AboEintrag> _laufendeAbos = [];
@@ -359,7 +392,7 @@ else
             _merkmalGespeichert = false;
             _individualentwicklung = _kunde?.Individualentwicklung ?? "";
             _individualGespeichert = false;
-            _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>($"api/kunden/{Id}/verlauf");
+            await VerlaufLadenAsync();
             var vertraege = await Http.GetFromJsonAsync<SeitenErgebnis<VertragListenEintrag>>(
                 $"api/vertraege?kundeId={Id}&seite=1&proSeite=50");
             _vertraege = vertraege?.Eintraege;
@@ -405,7 +438,72 @@ else
             teile.Add($"{eintrag.Mitarbeiter} ↔ {eintrag.Ansprechpartner}");
         else if (eintrag.Mitarbeiter is not null)
             teile.Add(eintrag.Mitarbeiter);
+        else if (eintrag.Ansprechpartner is not null)
+            teile.Add(eintrag.Ansprechpartner);
+        else if (eintrag.AutorName is not null)
+            teile.Add(eintrag.AutorName);
+        if (eintrag.Quelle == "OdooImport")
+            teile.Add("aus Odoo");
         return string.Join(" · ", teile);
+    }
+
+    private async Task VerlaufLadenAsync()
+    {
+        _verlaufFehler = null;
+        try
+        {
+            _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>(
+                $"api/kunden/{Id}/verlauf?mitOdoo={(_mitOdoo ? "true" : "false")}");
+        }
+        catch (Exception ex)
+        {
+            _verlaufFehler = $"Verlauf konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task OdooUmschaltenAsync(ChangeEventArgs e)
+    {
+        _mitOdoo = e.Value is true;
+        await VerlaufLadenAsync();
+    }
+
+    private static string RichtungZeichen(VerlaufEintrag eintrag) => eintrag.Richtung switch
+    {
+        "Eingehend" => "←",
+        "Ausgehend" => "→",
+        _ => "",
+    };
+
+    private static string GroesseText(long bytes) => bytes >= 1024 * 1024
+        ? $"{bytes / 1024.0 / 1024.0:0.0} MB"
+        : $"{Math.Max(1, bytes / 1024)} KB";
+
+    private string InhaltText(VerlaufEintrag eintrag) => eintrag.Inhalt is null
+        ? ""
+        : _aufgeklappt.Contains(eintrag.Id) || eintrag.Inhalt.Length <= InhaltKurz
+            ? eintrag.Inhalt
+            : eintrag.Inhalt[..InhaltKurz] + " …";
+
+    /// <summary>Lädt den Anhang über die API (funktioniert in beiden Anmeldemodi) und stößt den Browser-Download an.</summary>
+    private async Task AnhangHerunterladenAsync(VerlaufAnhang anhang)
+    {
+        _verlaufFehler = null;
+        try
+        {
+            var antwort = await Http.GetAsync($"api/kunden/verlauf/anhaenge/{anhang.Id}/datei");
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _verlaufFehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var bytes = await antwort.Content.ReadAsByteArrayAsync();
+            var typ = antwort.Content.Headers.ContentType?.MediaType ?? anhang.MimeType ?? "application/octet-stream";
+            await JS.InvokeVoidAsync("dateiVorschau.herunterladen", Convert.ToBase64String(bytes), typ, anhang.Dateiname);
+        }
+        catch (Exception ex)
+        {
+            _verlaufFehler = $"Anhang konnte nicht geladen werden: {ex.Message}";
+        }
     }
 
     private RenderFragment PersonZeile(AnsprechpartnerEintrag person) => @<div class="person @(person.Aktiv ? "" : "inaktiv")">
