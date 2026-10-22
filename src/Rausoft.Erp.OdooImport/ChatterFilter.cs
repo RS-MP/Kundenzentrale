@@ -56,6 +56,8 @@ public record ChatterBewertung(
 ///   Ausnahme: Änderung des Wartungs-Hakens → Verdichten (in Odoo ist das der
 ///   Vertragsbeginn bzw. die Kündigung).
 /// - Phasenwechsel / gewonnen / verloren / angelegt im CRM → Verdichten.
+/// - Statuswechsel eines Angebots/Auftrags (sale.order) → Verdichten.
+/// - Passwort-Zeilen im Text werden maskiert (Zugangsdaten-Mails).
 /// - Hinweis „Lead wurde aus Ticket erstellt" → Verdichten (Herkunft).
 /// - Abwesenheitsnotizen und andere Auto-Antworten → Verwerfen.
 /// - Manuelle Notizen → Notiz (intern); „Nachricht senden" → E-Mail ausgehend.
@@ -103,6 +105,14 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
         if (n.Aenderungen.Any(a => a.Feld.StartsWith("Wartung", StringComparison.OrdinalIgnoreCase)))
             return new(ChatterEntscheidung.Verdichten, "Wartungs-Haken geändert",
                 AktivitaetsTyp.System, AktivitaetsRichtung.Intern);
+
+        // Angebot → Verkaufsauftrag (bzw. storniert): Meilenstein des Verkaufsprozesses.
+        // In Odoo 19 trägt diese Feldänderung nicht immer den sale-Untertyp, daher über das Feld.
+        if (n.Modell == "sale.order" && n.Aenderungen.Any(a =>
+                a.Feld.StartsWith("Status", StringComparison.OrdinalIgnoreCase)
+                || a.Feld.StartsWith("State", StringComparison.OrdinalIgnoreCase)))
+            return new(ChatterEntscheidung.Verdichten, "Auftragsstatus geändert",
+                AktivitaetsTyp.Angebot, AktivitaetsRichtung.Intern);
 
         if (BeginntMit(n.Klartext, TicketHerkunftAnfaenge))
             return new(ChatterEntscheidung.Verdichten, "Herkunft aus Ticket",
@@ -154,7 +164,19 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
     private static readonly Regex MehrfachLeerzeichen = new(@"[ \t ]+", RegexOptions.Compiled);
     private static readonly Regex MehrfachUmbrueche = new(@"(\r?\n\s*){2,}", RegexOptions.Compiled);
 
-    /// <summary>HTML-Body aus Odoo → lesbarer Klartext (Absätze bleiben als Zeilen erhalten).</summary>
+    /// <summary>
+    /// Zeilen wie „Passwort: geheim123" → „Passwort: •••". Zugangsdaten aus
+    /// alten Odoo-Mails dürfen nicht im Klartext in die Kundenzentrale wandern
+    /// (Verschlüsselungs-Konvention); der Rest der Mail bleibt lesbar.
+    /// </summary>
+    private static readonly Regex PasswortZeile = new(
+        @"(?im)^(.*\b(?:passwor[dt]|kennwort|pwd?|initial-?passwor[dt])\b\s*[:=]\s*)\S.*$",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// HTML-Body aus Odoo → lesbarer Klartext (Absätze bleiben als Zeilen
+    /// erhalten), Passwort-Zeilen maskiert.
+    /// </summary>
     public static string Klartext(string? html)
     {
         if (string.IsNullOrWhiteSpace(html))
@@ -164,6 +186,7 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
         text = WebUtility.HtmlDecode(text);
         text = MehrfachLeerzeichen.Replace(text, " ");
         text = MehrfachUmbrueche.Replace(text, "\n");
+        text = PasswortZeile.Replace(text, "$1•••");
         return text.Trim();
     }
 }
