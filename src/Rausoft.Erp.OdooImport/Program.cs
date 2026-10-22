@@ -27,7 +27,15 @@ var odoo = new OdooClient(zugang.Url, zugang.Db, benutzer, zugang.ApiKey);
 
 // Modus "import": Kontakte übernehmen (mit --dry-run nur Vorschau).
 // Modus "abos": Abonnements + Lizenzen übernehmen, Laufzeiten anreichern.
+// Modus "chatter": Chatter-Analyse (nur lesen) — ohne --kunde Gesamtüberblick,
+//   mit --kunde <KundenNr|Odoo-ID|Name> Chronologie eines Beispielkunden mit
+//   Filterentscheidung; --ausgabe <Datei> schreibt den Bericht zusätzlich als Datei.
 // Ohne Argumente läuft die Analyse (Verbindungstest + Datenprofil).
+if (args.Contains("chatter"))
+{
+    await new ChatterAnalyse(odoo, Option("--kunde"), Option("--ausgabe")).AusfuehrenAsync();
+    return 0;
+}
 if (args.Contains("import"))
 {
     await new OdooImporter(odoo, dryRun: args.Contains("--dry-run")).AusfuehrenAsync();
@@ -215,3 +223,10 @@ foreach (var k in kundenNummern.EnumerateArray())
 Console.WriteLine();
 Console.WriteLine("Verbindungstest erfolgreich. Nächster Schritt: Feld-Zuordnung festlegen, dann Import.");
 return 0;
+
+// Wert hinter einer Option, z. B. --kunde 12345
+string? Option(string name)
+{
+    var i = Array.IndexOf(args, name);
+    return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+}
