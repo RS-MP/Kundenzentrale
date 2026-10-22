@@ -41,31 +41,8 @@ public class OdooImportDienst(
     {
         try
         {
-            string url, datenbank, benutzer;
-            string? apiKey;
-            using (var scope = scopeFactory.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<ErpDbContext>();
-                var einstellungen = await db.Einstellungen.AsNoTracking()
-                    .Where(e => e.Schluessel.StartsWith("Odoo."))
-                    .ToDictionaryAsync(e => e.Schluessel, e => e.Wert);
-                url = einstellungen.GetValueOrDefault(EinstellungsSchluessel.OdooUrl, "").Trim();
-                datenbank = einstellungen.GetValueOrDefault(EinstellungsSchluessel.OdooDatenbank, "").Trim();
-                benutzer = einstellungen.GetValueOrDefault(EinstellungsSchluessel.OdooBenutzer, "").Trim();
-                apiKey = await scope.ServiceProvider.GetRequiredService<GeheimnisDienst>()
-                    .HolenAsync(GeheimnisSchluessel.OdooApiKey);
-            }
-
-            if (url == "" || datenbank == "" || benutzer == "" || string.IsNullOrEmpty(apiKey))
-                throw new InvalidOperationException(
-                    "Odoo-Zugangsdaten unvollständig — bitte URL, Datenbank, Benutzer und API-Key " +
-                    "unter Administration → Odoo-Anbindung pflegen.");
-
-            var verbindung = konfiguration.GetConnectionString("Kundenzentrale")
-                ?? throw new InvalidOperationException("Connection String 'Kundenzentrale' fehlt.");
-
+            var (odoo, verbindung) = await VerbindenAsync(scopeFactory, konfiguration);
             logger.LogInformation("Odoo-Import gestartet (manuell aus der Administration).");
-            var odoo = new OdooClient(url, datenbank, benutzer, apiKey);
             await new OdooImporter(odoo, dryRun: false, verbindung).AusfuehrenAsync();
             await new AboImporter(odoo, dryRun: false, verbindung).AusfuehrenAsync();
             logger.LogInformation("Odoo-Import abgeschlossen.");
@@ -86,6 +63,39 @@ public class OdooImportDienst(
                 BeendetAm = DateTime.UtcNow;
             }
         }
+    }
+
+    /// <summary>
+    /// Odoo-Client aus den Einstellungen + verschlüsseltem API-Key sowie der
+    /// Connection String der Kundenzentrale — gemeinsam für Kontakt-/Abo-Import
+    /// und Chatter-Import aus der Administration.
+    /// </summary>
+    internal static async Task<(OdooClient Odoo, string Verbindung)> VerbindenAsync(
+        IServiceScopeFactory scopeFactory, IConfiguration konfiguration)
+    {
+        string url, datenbank, benutzer;
+        string? apiKey;
+        using (var scope = scopeFactory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ErpDbContext>();
+            var einstellungen = await db.Einstellungen.AsNoTracking()
+                .Where(e => e.Schluessel.StartsWith("Odoo."))
+                .ToDictionaryAsync(e => e.Schluessel, e => e.Wert);
+            url = einstellungen.GetValueOrDefault(EinstellungsSchluessel.OdooUrl, "").Trim();
+            datenbank = einstellungen.GetValueOrDefault(EinstellungsSchluessel.OdooDatenbank, "").Trim();
+            benutzer = einstellungen.GetValueOrDefault(EinstellungsSchluessel.OdooBenutzer, "").Trim();
+            apiKey = (await scope.ServiceProvider.GetRequiredService<GeheimnisDienst>()
+                .HolenAsync(GeheimnisSchluessel.OdooApiKey))?.Trim();
+        }
+
+        if (url == "" || datenbank == "" || benutzer == "" || string.IsNullOrEmpty(apiKey))
+            throw new InvalidOperationException(
+                "Odoo-Zugangsdaten unvollständig — bitte URL, Datenbank, Benutzer und API-Key " +
+                "unter Administration → Odoo-Anbindung pflegen.");
+
+        var verbindung = konfiguration.GetConnectionString("Kundenzentrale")
+            ?? throw new InvalidOperationException("Connection String 'Kundenzentrale' fehlt.");
+        return (new OdooClient(url, datenbank, benutzer, apiKey), verbindung);
     }
 
     private async Task LetztenLaufSpeichernAsync(string wert)

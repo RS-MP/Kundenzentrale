@@ -232,6 +232,7 @@ details.gruppe summary .zahl {
 .verlauf2 .anhang { font: inherit; font-size: 12.5px; color: inherit; background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .verlauf2 .anhang:hover { border-color: var(--muted); }
 .verlauf2 .mehr { font: inherit; font-size: 12.5px; color: var(--muted); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
+pre.bericht { margin: 8px 0 0; padding: 10px 12px; max-height: 520px; overflow: auto; font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--border) 25%, transparent); }
 .umschalter { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
 
 /* Formulare */

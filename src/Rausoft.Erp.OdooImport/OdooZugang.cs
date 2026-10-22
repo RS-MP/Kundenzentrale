@@ -43,11 +43,18 @@ public static class OdooZugang
 
         if (ausgabe)
         {
-            Console.WriteLine("Zugangsdaten-Prüfung (Quelle: Umgebungsvariable > Administration):");
-            Console.WriteLine($"  Odoo-URL:    {(url is null ? "FEHLT" : url)}");
-            Console.WriteLine($"  Datenbank:   {(db is null ? "FEHLT" : db)}");
-            Console.WriteLine($"  Benutzer:    {(benutzer is null ? "FEHLT" : benutzer)}");
-            Console.WriteLine($"  API-Key:     {(apiKey is null ? "FEHLT" : "vorhanden (wird nie angezeigt)")}");
+            // Die Quelle je Wert ist entscheidend: eine vergessene, dauerhaft gesetzte
+            // Umgebungsvariable (z. B. aus der Entwicklung) übersteuert die Administration
+            // und lässt die Anmeldung mit einem alten Key scheitern.
+            static string Quelle(bool ausUmgebung) => ausUmgebung ? "Umgebungsvariable" : "Administration";
+            Console.WriteLine("Zugangsdaten-Prüfung (Umgebungsvariable übersteuert Administration):");
+            Console.WriteLine($"  Odoo-URL:    {(url is null ? "FEHLT" : url),-45} [{Quelle(Umgebungsvariable("ODOO_URL") is not null)}]");
+            Console.WriteLine($"  Datenbank:   {(db is null ? "FEHLT" : db),-45} [{Quelle(Umgebungsvariable("ODOO_DB") is not null)}]");
+            Console.WriteLine($"  Benutzer:    {(benutzer is null ? "FEHLT" : benutzer),-45} [{Quelle(Umgebungsvariable("ODOO_BENUTZER") is not null)}]");
+            Console.WriteLine($"  API-Key:     {(apiKey is null ? "FEHLT" : "vorhanden (wird nie angezeigt)"),-45} [{Quelle(Umgebungsvariable("ODOO_API_KEY") is not null)}]");
+            if (Umgebungsvariable("ODOO_API_KEY") is not null)
+                Console.WriteLine("  Hinweis: ODOO_API_KEY kommt aus einer Umgebungsvariablen — der in der " +
+                                  "Administration gespeicherte Key wird dadurch ignoriert.");
         }
 
         return url is null || db is null || benutzer is null || apiKey is null

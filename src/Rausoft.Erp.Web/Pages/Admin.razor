@@ -275,6 +275,38 @@
         {
             <div class="krittext" style="margin-top:6px; font-size:13px">@_odooImport.Fehler</div>
         }
+
+        @* Chatter → Kunden-Timeline: im Testbetrieb manuell, Automatik zum Produktivstart *@
+        <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:10px">
+            <div style="font-weight:600; margin-bottom:2px">
+                Chatter → Kunden-Timeline
+                <span style="color:var(--muted); font-weight:400; font-size:12.5px; margin-left:6px">Testbetrieb: manuell</span>
+            </div>
+            <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
+                Notizen, E-Mails und Meilensteine aus dem Odoo-Chatter in die Akten übernehmen.
+                <b>Analyse</b> zeigt die Chronologie eines Kunden mit Filterentscheidung,
+                <b>Dry-Run</b> zählt nur, <b>Import</b> schreibt die Einträge und legt Anhänge in der Dokumentablage ab.
+                Ohne Kunde gelten Dry-Run und Import für alle Kunden mit Odoo-ID.
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+                <input type="text" style="width:230px" @bind="_chatterKunde" @bind:event="oninput" disabled="@(_chatter?.Laeuft == true)"
+                       placeholder="KundenNr oder Odoo-ID (leer = alle)" />
+                <button class="knopf sekundaer" disabled="@(_chatter?.Laeuft == true)" @onclick='() => ChatterStartenAsync("analyse")'>Analyse</button>
+                <button class="knopf sekundaer" disabled="@(_chatter?.Laeuft == true)" @onclick='() => ChatterStartenAsync("dryrun")'>Dry-Run</button>
+                <button class="knopf" disabled="@(_chatter?.Laeuft == true)" @onclick='() => ChatterStartenAsync("import")'>
+                    @(string.IsNullOrWhiteSpace(_chatterKunde) ? "Import (alle Kunden)" : "Import ausführen")
+                </button>
+                <span style="color:var(--muted); font-size:13px">@ChatterText()</span>
+            </div>
+            @if (_chatter?.Fehler is not null)
+            {
+                <div class="krittext" style="margin-top:6px; font-size:13px">@_chatter.Fehler</div>
+            }
+            @if (!string.IsNullOrEmpty(_chatter?.Bericht))
+            {
+                <pre class="bericht">@_chatter.Bericht</pre>
+            }
+        </div>
     </div>
 </details>
 
@@ -559,6 +591,9 @@
             _odooImport = await Http.GetFromJsonAsync<OdooImportStatus>("api/odoo-import");
             if (_odooImport?.Laeuft == true)
                 _ = OdooImportVerfolgenAsync();
+            _chatter = await Http.GetFromJsonAsync<ChatterImportStatus>("api/odoo-import/chatter");
+            if (_chatter?.Laeuft == true)
+                _ = ChatterVerfolgenAsync();
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
@@ -739,6 +774,61 @@
         catch (OperationCanceledException)
         {
             // Seite verlassen — Import läuft serverseitig weiter
+        }
+    }
+
+    // --- Chatter → Kunden-Timeline -------------------------------------------------
+
+    private ChatterImportStatus? _chatter;
+    private string _chatterKunde = "";
+
+    private string ChatterText()
+    {
+        if (_chatter is null)
+            return "";
+        var modus = _chatter.Modus switch
+        {
+            "analyse" => "Analyse",
+            "dryrun" => "Dry-Run",
+            "import" => "Import",
+            _ => "Lauf",
+        };
+        var kunde = _chatter.Kunde is { Length: > 0 } k ? $" für {k}" : "";
+        if (_chatter.Laeuft)
+            return $"{modus}{kunde} läuft seit {_chatter.GestartetAm?.ToLocalTime():HH:mm} Uhr …";
+        return _chatter.BeendetAm is { } ende
+            ? $"{modus}{kunde} beendet {ende.ToLocalTime():dd.MM.yyyy HH:mm}"
+            : "Noch nie gelaufen";
+    }
+
+    private async Task ChatterStartenAsync(string modus)
+    {
+        _fehler = null;
+        var antwort = await Http.PostAsJsonAsync("api/odoo-import/chatter/start",
+            new ChatterImportStart(modus, string.IsNullOrWhiteSpace(_chatterKunde) ? null : _chatterKunde.Trim()));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await antwort.Content.ReadAsStringAsync();
+            return;
+        }
+        _chatter = await antwort.Content.ReadFromJsonAsync<ChatterImportStatus>();
+        _ = ChatterVerfolgenAsync();
+    }
+
+    private async Task ChatterVerfolgenAsync()
+    {
+        try
+        {
+            while (_chatter?.Laeuft == true && !_seiteVerlassen.IsCancellationRequested)
+            {
+                await Task.Delay(2000, _seiteVerlassen.Token);
+                _chatter = await Http.GetFromJsonAsync<ChatterImportStatus>("api/odoo-import/chatter", _seiteVerlassen.Token);
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Seite verlassen — der Lauf geht serverseitig weiter, der Bericht bleibt abrufbar
         }
     }
 

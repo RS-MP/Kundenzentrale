@@ -23,9 +23,11 @@ namespace Rausoft.Erp.OdooImport;
 /// Dokumentablage unter &lt;Kundennummer&gt;\Odoo-Chatter\.
 /// </summary>
 public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = null, bool ohneAnhaenge = false,
-    string? verbindung = null)
+    string? verbindung = null, TextWriter? ausgabe = null)
 {
     private const int BatchGroesse = 2000;
+    /// <summary>Berichtsausgabe — Konsole im Tool, Puffer beim Aufruf aus der Administration.</summary>
+    private readonly TextWriter _aus = ausgabe ?? Console.Out;
     private const int IdChunk = 500;
     private const long MaxAnhangBytes = 50L * 1024 * 1024;
 
@@ -39,7 +41,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
 
     public async Task AusfuehrenAsync()
     {
-        Console.WriteLine(dryRun
+        _aus.WriteLine(dryRun
             ? "=== ODOO-CHATTER-IMPORT (DRY-RUN — es wird nichts gespeichert) ==="
             : "=== ODOO-CHATTER-IMPORT ===");
 
@@ -63,20 +65,20 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             {
                 if (dryRun)
                 {
-                    Console.WriteLine("Hinweis: Dokumentablage.Verzeichnis ist nicht konfiguriert — " +
+                    _aus.WriteLine("Hinweis: Dokumentablage.Verzeichnis ist nicht konfiguriert — " +
                                       "Anhänge würden beim echten Import fehlen (Administration → Verzeichnisse).");
                     ablage = null;
                 }
                 else
                 {
-                    Console.Error.WriteLine("Abbruch: Dokumentablage.Verzeichnis ist nicht konfiguriert " +
+                    _aus.WriteLine("Abbruch: Dokumentablage.Verzeichnis ist nicht konfiguriert " +
                                             "(Administration → Verzeichnisse). Alternativ --ohne-anhaenge.");
                     return;
                 }
             }
             else if (!dryRun && !Directory.Exists(ablage))
             {
-                Console.Error.WriteLine($"Abbruch: Dokumentablage nicht erreichbar: {ablage}");
+                _aus.WriteLine($"Abbruch: Dokumentablage nicht erreichbar: {ablage}");
                 return;
             }
         }
@@ -90,9 +92,12 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
                 || (odooIdSuche != null && k.OdooId == odooIdSuche));
         }
         var kunden = await kundenAbfrage.ToListAsync();
+        // Kundennummer hat Vorrang: trifft sie, ist eine zufällig gleiche Odoo-Id nicht gemeint
+        if (nurKunde is not null && kunden.Any(k => k.Kundennummer == nurKunde))
+            kunden = kunden.Where(k => k.Kundennummer == nurKunde).ToList();
         if (kunden.Count == 0)
         {
-            Console.WriteLine(nurKunde is null
+            _aus.WriteLine(nurKunde is null
                 ? "Keine Kunden mit Odoo-Id vorhanden — zuerst den Kontakt-Import ('import') laufen lassen."
                 : $"Kein Kunde zu '{nurKunde}' (Kundennummer oder Odoo-Id) gefunden.");
             return;
@@ -111,12 +116,12 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         var vorhandeneAnhaenge = (await db.Aktivitaetsanhaenge
                 .Where(a => a.OdooId != null).Select(a => a.OdooId!.Value).ToListAsync())
             .ToHashSet();
-        Console.WriteLine($"Kunden mit Odoo-Id: {kunden.Count} · bereits übernommene Nachrichten: {vorhandeneNachrichten.Count}");
+        _aus.WriteLine($"Kunden mit Odoo-Id: {kunden.Count} · bereits übernommene Nachrichten: {vorhandeneNachrichten.Count}");
 
         // --- Odoo: Datensätze, an denen Nachrichten hängen, je Kunde zuordnen ---
         var firmaIds = kundeNachOdooId.Keys.ToHashSet();
         var quellen = await QuellenErmittelnAsync(firmaIds);
-        Console.WriteLine($"Odoo-Datensätze der Kunden: {quellen.Count} " +
+        _aus.WriteLine($"Odoo-Datensätze der Kunden: {quellen.Count} " +
                           $"({string.Join(", ", quellen.Keys.GroupBy(k => k.Modell).Select(g => $"{g.Key} {g.Count()}"))})");
 
         // --- Nachrichten laden (je Modell in Id-Blöcken) ---
@@ -132,7 +137,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             }
         }
         _stat.Gelesen = roh.Count;
-        Console.WriteLine($"Nachrichten gelesen: {roh.Count}");
+        _aus.WriteLine($"Nachrichten gelesen: {roh.Count}");
 
         // Feldänderungen nur dort, wo Regeln darauf schauen (Wartung am Kontakt, Status am Auftrag)
         var trackingIds = roh
@@ -184,7 +189,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             neueEintraege.Add((eintrag, mitAnhaengen));
         }
 
-        Console.WriteLine($"Zu übernehmen: {neueEintraege.Count} ({_stat.Behalten} Einträge, {_stat.Verdichtet} verdichtet) · " +
+        _aus.WriteLine($"Zu übernehmen: {neueEintraege.Count} ({_stat.Behalten} Einträge, {_stat.Verdichtet} verdichtet) · " +
                           $"verworfen: {_stat.Verworfen} · bereits vorhanden: {_stat.Uebersprungen}");
 
         // --- Speichern (in Blöcken), Anhänge laden ---
@@ -508,7 +513,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             }
             catch (InvalidOperationException ex)
             {
-                Console.WriteLine($"Hinweis: Feldänderungen nicht lesbar ({Kuerzen(ex.Message, 100)}) — Wartungs-/Statusregeln greifen nicht.");
+                _aus.WriteLine($"Hinweis: Feldänderungen nicht lesbar ({Kuerzen(ex.Message, 100)}) — Wartungs-/Statusregeln greifen nicht.");
                 return ergebnis;
             }
             foreach (var w in werte)
@@ -550,7 +555,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         }
         catch (InvalidOperationException)
         {
-            Console.WriteLine("Hinweis: ir.model.data nicht lesbar — Untertypen werden nur per Name erkannt.");
+            _aus.WriteLine("Hinweis: ir.model.data nicht lesbar — Untertypen werden nur per Name erkannt.");
         }
         var subtypes = await LadeAlleAsync("mail.message.subtype", [], ["id", "name", "internal"]);
         _subtypes = subtypes.ToDictionary(s => s.GetProperty("id").GetInt32(),
@@ -603,30 +608,30 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
 
     private void AusgabeStatistik()
     {
-        Console.WriteLine();
-        Console.WriteLine("--- Ergebnis ---");
-        Console.WriteLine($"Nachrichten gelesen:        {_stat.Gelesen}");
-        Console.WriteLine($"Übernommen als Eintrag:     {_stat.Behalten}");
-        Console.WriteLine($"Verdichtet (Meilenstein):   {_stat.Verdichtet}");
-        Console.WriteLine($"Verworfen:                  {_stat.Verworfen}");
-        Console.WriteLine($"Bereits vorhanden:          {_stat.Uebersprungen}");
-        Console.WriteLine($"Anhänge{(dryRun ? " (würden geladen)" : "")}: {_stat.Anhaenge} ({_stat.AnhangBytes / 1024.0 / 1024.0:0.0} MB)");
-        Console.WriteLine();
-        Console.WriteLine("Nach Grund:");
+        _aus.WriteLine();
+        _aus.WriteLine("--- Ergebnis ---");
+        _aus.WriteLine($"Nachrichten gelesen:        {_stat.Gelesen}");
+        _aus.WriteLine($"Übernommen als Eintrag:     {_stat.Behalten}");
+        _aus.WriteLine($"Verdichtet (Meilenstein):   {_stat.Verdichtet}");
+        _aus.WriteLine($"Verworfen:                  {_stat.Verworfen}");
+        _aus.WriteLine($"Bereits vorhanden:          {_stat.Uebersprungen}");
+        _aus.WriteLine($"Anhänge{(dryRun ? " (würden geladen)" : "")}: {_stat.Anhaenge} ({_stat.AnhangBytes / 1024.0 / 1024.0:0.0} MB)");
+        _aus.WriteLine();
+        _aus.WriteLine("Nach Grund:");
         foreach (var (grund, anzahl) in _stat.Gruende.OrderByDescending(g => g.Value))
-            Console.WriteLine($"  {grund,-36} {anzahl,7}");
+            _aus.WriteLine($"  {grund,-36} {anzahl,7}");
         if (_stat.UnbekannteBenutzer.Count > 0)
-            Console.WriteLine($"Odoo-Benutzer ohne Mitarbeiter-Zuordnung (Name als Text gespeichert): " +
+            _aus.WriteLine($"Odoo-Benutzer ohne Mitarbeiter-Zuordnung (Name als Text gespeichert): " +
                               string.Join(", ", _stat.UnbekannteBenutzer.Order()));
         if (_stat.AnhangFehler.Count > 0)
         {
-            Console.WriteLine($"Anhänge mit Problemen: {_stat.AnhangFehler.Count}");
+            _aus.WriteLine($"Anhänge mit Problemen: {_stat.AnhangFehler.Count}");
             foreach (var f in _stat.AnhangFehler.Take(20))
-                Console.WriteLine($"  {f}");
+                _aus.WriteLine($"  {f}");
         }
-        Console.WriteLine($"Kunden mit neuen Einträgen: {_stat.JeKunde.Count}");
+        _aus.WriteLine($"Kunden mit neuen Einträgen: {_stat.JeKunde.Count}");
         if (dryRun)
-            Console.WriteLine("DRY-RUN: nichts gespeichert.");
+            _aus.WriteLine("DRY-RUN: nichts gespeichert.");
     }
 
     private static string? Kuerzen(string? text, int max) =>

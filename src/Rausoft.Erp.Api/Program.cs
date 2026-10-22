@@ -96,6 +96,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<GeheimnisDienst>();
 builder.Services.AddScoped<ServerStatusDienst>();
 builder.Services.AddSingleton<OdooImportDienst>();
+builder.Services.AddSingleton<ChatterImportDienst>();
 builder.Services.AddScoped<PdfDienst>();
 builder.Services.AddHostedService<ServerStatusHintergrund>();
 builder.Services.AddScoped<MailDienst>();

@@ -15,9 +15,11 @@ namespace Rausoft.Erp.OdooImport;
 /// der Entscheidung des <see cref="ChatterFilter"/> — zum Bewerten der Regeln.
 /// Liest nur; es wird nichts gespeichert.
 /// </summary>
-public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei)
+public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei, TextWriter? ausgabe = null)
 {
     private const int BatchGroesse = 2000;
+    /// <summary>Berichtsausgabe — Konsole im Tool, Puffer beim Aufruf aus der Administration.</summary>
+    private readonly TextWriter _aus = ausgabe ?? Console.Out;
     private readonly StringBuilder _bericht = new();
     private Dictionary<int, (string Name, string? XmlId, bool Intern)> _subtypes = [];
     private HashSet<int> _internePartner = [];
@@ -42,8 +44,8 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
         if (ausgabeDatei is not null)
         {
             await File.WriteAllTextAsync(ausgabeDatei, _bericht.ToString(), Encoding.UTF8);
-            Console.WriteLine();
-            Console.WriteLine($"Bericht geschrieben: {Path.GetFullPath(ausgabeDatei)}");
+            _aus.WriteLine();
+            _aus.WriteLine($"Bericht geschrieben: {Path.GetFullPath(ausgabeDatei)}");
         }
     }
 
@@ -477,7 +479,7 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
 
     private void Zeile(string text = "")
     {
-        Console.WriteLine(text);
+        _aus.WriteLine(text);
         _bericht.AppendLine(text);
     }
 
