@@ -133,6 +133,35 @@ public class OdooImporter(OdooClient odoo, bool dryRun, string? verbindung = nul
             else
             {
                 _stat.KundenAktualisiert++;
+
+                // Kundennummer nachziehen: Der Kunde wurde ohne KundenNr importiert (Odoo-ID als
+                // Fallback) und hat sie inzwischen in Odoo bekommen. Echte Nummern bleiben unangetastet.
+                var neueKundenNr = Text(firma, "x_studio_kundenr");
+                if (neueKundenNr is not null && IstFallbackNummer(kunde!.Kundennummer, odooId)
+                    && !neueKundenNr.Equals(kunde.Kundennummer, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (vergebeneNummern.Contains(neueKundenNr))
+                    {
+                        _stat.Warnungen.Add($"KundenNr '{neueKundenNr}' (Odoo-Id {odooId}) ist bereits vergeben — " +
+                                            $"Kunde behält '{kunde.Kundennummer}'.");
+                    }
+                    else
+                    {
+                        var alt = kunde.Kundennummer;
+                        vergebeneNummern.Remove(alt);
+                        vergebeneNummern.Add(neueKundenNr);
+                        kunde.Kundennummer = Kuerzen(neueKundenNr, 20)!;
+                        _stat.KundenNummerNachgezogen++;
+                        db.Aktivitaeten.Add(new Domain.Shared.Aktivitaet
+                        {
+                            KundeId = kunde.Id,
+                            Typ = Domain.Shared.AktivitaetsTyp.System,
+                            Zeitpunkt = DateTime.UtcNow,
+                            Richtung = Domain.Shared.AktivitaetsRichtung.Intern,
+                            Betreff = $"Kundennummer {kunde.Kundennummer} aus Odoo übernommen (vorher {alt})",
+                        });
+                    }
+                }
             }
 
             // Für Merkmal-Träger: erkennen, ob Odoo den Kunden geändert hat (→ Merkmal prüfen)
@@ -462,12 +491,18 @@ public class OdooImporter(OdooClient odoo, bool dryRun, string? verbindung = nul
             ? wert[1].GetString()
             : null;
 
+    /// <summary>Kundennummer, die beim Import mangels KundenNr aus der Odoo-ID gebildet wurde („61917", „O61917", „61917-…").</summary>
+    private static bool IstFallbackNummer(string kundennummer, int odooId) =>
+        kundennummer == odooId.ToString()
+        || kundennummer.Equals($"O{odooId}", StringComparison.OrdinalIgnoreCase)
+        || kundennummer.StartsWith($"{odooId}-", StringComparison.Ordinal);
+
     private static string? Kuerzen(string? text, int max) =>
         text is null ? null : text.Length <= max ? text : text[..max];
 
     private class Statistik
     {
-        public int KundenNeu, KundenAktualisiert, KundenOhneNummer;
+        public int KundenNeu, KundenAktualisiert, KundenOhneNummer, KundenNummerNachgezogen;
         public int AnsprechpartnerNeu, AnsprechpartnerAktualisiert, PersonenOhneFirma;
         public int AdressenNeu, PartnerNeu, RechnungsEmpfaengerNeu;
         public List<string> Warnungen { get; } = [];
@@ -476,7 +511,7 @@ public class OdooImporter(OdooClient odoo, bool dryRun, string? verbindung = nul
         {
             Console.WriteLine();
             Console.WriteLine($"Kunden:          {KundenNeu} neu, {KundenAktualisiert} aktualisiert " +
-                $"({KundenOhneNummer} ohne KundenNr → Odoo-ID als Nummer)");
+                $"({KundenOhneNummer} ohne KundenNr → Odoo-ID als Nummer, {KundenNummerNachgezogen} KundenNr nachgezogen)");
             Console.WriteLine($"Ansprechpartner: {AnsprechpartnerNeu} neu, {AnsprechpartnerAktualisiert} aktualisiert, " +
                 $"{PersonenOhneFirma} ohne zuordenbare Firma übersprungen");
             Console.WriteLine($"Adressen:        {AdressenNeu} neu · Partner: {PartnerNeu} neu · " +

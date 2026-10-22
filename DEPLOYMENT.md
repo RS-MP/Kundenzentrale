@@ -28,6 +28,10 @@ Option dokumentiert.
   (Odoo-Anbindung → „Chatter → Kunden-Timeline": Analyse / Dry-Run / Import,
   Bericht erscheint darunter); die nächtliche Automatik kommt erst zum
   Produktivstart. Nach dem Update:
+  0) Administration → Odoo-Anbindung → **„Import jetzt ausführen"** einmal laufen
+     lassen: Der Kontakt-Import zieht jetzt Kundennummern nach, die in Odoo erst
+     nach dem ersten Import vergeben wurden (z. B. 25757 statt Odoo-ID 61917);
+     erst danach findet die Kundensuche solche Kunden über ihre Nummer.
   1) Administration → Verzeichnisse → **Dokumentablage.Verzeichnis** setzen
      (dort landen die Anhänge unter `<KundenNr>\Odoo-Chatter\`; der App-Pool
      braucht Schreibrecht, da der Import im IIS-Prozess läuft).
