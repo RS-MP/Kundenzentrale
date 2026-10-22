@@ -35,6 +35,20 @@ Option dokumentiert.
   1) Administration → Verzeichnisse → **Dokumentablage.Verzeichnis** setzen
      (dort landen die Anhänge unter `<KundenNr>\Odoo-Chatter\`; der App-Pool
      braucht Schreibrecht, da der Import im IIS-Prozess läuft).
+     **Stolperfalle (22.10.2026): „Access to the path … is denied"** — der
+     Import läuft als App-Pool-Konto, nicht als angemeldeter Benutzer. Weil die
+     Freigabe auf demselben Server liegt, am einfachsten den **lokalen Pfad**
+     eintragen (physischer Ordner der Freigabe, auf dem Server per
+     `Get-SmbShare -Name "Kunden Archiv"` ablesen, z. B.
+     `D:\Kunden Archiv\8_Ablage_Kundenzentrale`) und dem App-Pool-Konto NTFS-
+     Änderungsrecht geben:
+     ```powershell
+     icacls "D:\Kunden Archiv\8_Ablage_Kundenzentrale" /grant "IIS APPPOOL\Kundenzentrale:(OI)(CI)M"
+     ```
+     (bei einem Domänen-Dienstkonto als App-Pool-Identität dieses Konto statt
+     `IIS APPPOOL\Kundenzentrale`; bleibt es beim UNC-Pfad, braucht zusätzlich
+     die Freigabe „Ändern" für dieses Konto). Anhänge werden über die API
+     ausgeliefert, der Pfad muss für Arbeitsplätze nicht erreichbar sein.
   2) Administration → Odoo-Anbindung → Kunde `25757` eintragen → **Analyse**:
      Chronologie mit Filterentscheidung prüfen.
   3) **Dry-Run** für 25757, dann **Import ausführen**; Akte des Kunden ansehen
