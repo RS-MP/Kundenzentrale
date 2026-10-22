@@ -18,6 +18,22 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (22.10.2026, Odoo-Chatter → Kunden-Timeline):**
+  Migration `ChatterImport` läuft beim Start automatisch (Aktivitaet.Quelle/
+  OdooId/AutorName/Bezug, Tabelle Aktivitaetsanhaenge). Kundenakte: Schalter
+  „Odoo-Verlauf", Anhänge im Verlauf. **Import-Tool (`publish-import`)
+  ebenfalls neu kopieren** — neue Modi `chatter` (Analyse) und `chatter-import`,
+  `zugangstest` prüft jetzt die Anmeldung bei Odoo. Nach dem Update:
+  1) Administration → Verzeichnisse → **Dokumentablage.Verzeichnis** setzen
+     (dort landen die Anhänge unter `<KundenNr>\Odoo-Chatter\`; das Konto der
+     geplanten Aufgabe braucht Schreibrecht).
+  2) `Rausoft.Erp.OdooImport.exe zugangstest` — muss „Anmeldung: erfolgreich" zeigen.
+  3) `Rausoft.Erp.OdooImport.exe chatter-import --dry-run --kunde 25757` — Bericht
+     prüfen (Einträge, verdichtet, verworfen, Anhang-Volumen, unbekannte Odoo-Benutzer).
+  4) `Rausoft.Erp.OdooImport.exe chatter-import --kunde 25757`, Akte des Kunden
+     ansehen; dann ohne `--kunde` für alle Kunden (dauert, Anhänge werden geladen).
+  5) Optional als Aktion 3 der nächtlichen Aufgabe (nach `import` und `abos`),
+     damit neue Odoo-Notizen während des Parallelbetriebs nachlaufen.
 - [ ] **Publish aktualisieren (15.10.2026, Sicherheit — SICHERHEIT.md V2/V3):**
   Pakete auf 10.0.13 (Schwachstellen-Scan sauber) und neue Grundberechtigung:
   jeder Zugriff braucht jetzt einen **aktiven** Mitarbeiter-Datensatz —
