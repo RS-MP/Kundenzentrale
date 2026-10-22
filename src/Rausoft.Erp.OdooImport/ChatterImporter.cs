@@ -37,7 +37,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
     private Dictionary<int, (string Name, string? Login)> _benutzerNachPartner = [];
     private int? _odooBot;
 
-    private record Quelle(int FirmaOdooId, string? Bezug, int? PersonOdooId);
+    private record Quelle(int FirmaOdooId, string? Bezug, int? PersonOdooId, bool Archiviert = false);
 
     public async Task AusfuehrenAsync()
     {
@@ -154,9 +154,9 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
 
         foreach (var m in roh.OrderBy(m => Text(m, "date")).ThenBy(m => m.GetProperty("id").GetInt32()))
         {
-            var n = Umwandeln(m, tracking);
-            if (!quellen.TryGetValue((n.Modell, n.ResId), out var quelle))
+            if (!quellen.TryGetValue((Text(m, "model") ?? "", Zahl(m, "res_id") ?? 0), out var quelle))
                 continue;
+            var n = Umwandeln(m, tracking, quelle.Archiviert);
             var anhangIds = Ids(m, "attachment_ids");
 
             if (vorhandeneNachrichten.TryGetValue(n.Id, out var vorhandeneId))
@@ -317,7 +317,6 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             "crm.mt_lead_stage" => (Aenderung("Stage") ?? Aenderung("Phase")) is { } p ? $"Phase: {p}" : "Phase geändert",
             "sale.mt_order_sent" => "Angebot gesendet",
             "sale.mt_order_confirmed" => "Auftrag bestätigt",
-            "account.mt_invoice_created" => "Rechnung erstellt",
             "account.mt_invoice_validated" => "Rechnung gestellt",
             "account.mt_invoice_paid" => "Rechnung bezahlt",
             _ => null,
@@ -329,9 +328,15 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             _ => ErsteZeile(n.Klartext) is { Length: > 0 } z ? z : b.Grund,
         };
 
-        var inhalt = n.Aenderungen.Count > 0
-            ? string.Join("\n", n.Aenderungen.Select(a => $"{a.Feld}: {a.Alt} → {a.Neu}"))
-            : null;
+        // Nur die Feldänderungen, die den Meilenstein ausmachen — Beträge, Adressen und
+        // Termine gehören nicht in die Akte
+        string[] relevant = ["Status", "State", "Stage", "Phase", "Won", "Wartung", "Payment Status", "Zahlungsstatus"];
+        var zeilen = n.Aenderungen
+            .Where(a => relevant.Any(r => a.Feld.StartsWith(r, StringComparison.OrdinalIgnoreCase)))
+            .Where(a => !(a.Alt == "—" && a.Neu == "—"))
+            .Select(a => $"{a.Feld}: {a.Alt} → {a.Neu}")
+            .ToList();
+        var inhalt = zeilen.Count > 0 ? string.Join("\n", zeilen) : null;
         return (betreff, inhalt);
     }
 
@@ -379,6 +384,11 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
 
             var name = Text(daten, "name") ?? $"anhang-{anhangId}";
             var groesse = Zahl(daten, "file_size") ?? 0;
+            if (ChatterFilter.IstSignaturbild(name, Text(daten, "mimetype"), groesse))
+            {
+                _stat.AnhaengeUebersprungen++;
+                continue;
+            }
             if (groesse > MaxAnhangBytes)
             {
                 _stat.AnhangFehler.Add($"{name}: {groesse / 1024 / 1024} MB — übersprungen (Grenze {MaxAnhangBytes / 1024 / 1024} MB)");
@@ -446,11 +456,12 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             Many2OneId(e, feld) is { } pid && firmaVonPartner.TryGetValue(pid, out var f) ? f : null;
 
         var leads = await LadeAlleAsync("crm.lead", [new object[] { "partner_id", "!=", false }],
-            ["id", "name", "partner_id", "type"]);
+            ["id", "name", "partner_id", "type", "active"]);
         foreach (var l in leads)
             if (FirmaZu(l, "partner_id") is { } firma)
                 quellen[("crm.lead", l.GetProperty("id").GetInt32())] =
-                    new Quelle(firma, $"{(Text(l, "type") == "lead" ? "Lead" : "Verkaufschance")}: {Text(l, "name")}", null);
+                    new Quelle(firma, $"{(Text(l, "type") == "lead" ? "Lead" : "Verkaufschance")}: {Text(l, "name")}", null,
+                        Archiviert: !Wahr(l, "active"));
 
         var auftraege = await LadeAlleAsync("sale.order", [], ["id", "name", "state", "partner_id"]);
         foreach (var a in auftraege)
@@ -471,7 +482,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         return quellen;
     }
 
-    private ChatterNachricht Umwandeln(JsonElement m, Dictionary<int, List<(string Feld, string Alt, string Neu)>> tracking)
+    private ChatterNachricht Umwandeln(JsonElement m, Dictionary<int, List<(string Feld, string Alt, string Neu)>> tracking,
+        bool quelleArchiviert)
     {
         var subtypeId = Many2OneId(m, "subtype_id");
         _subtypes.TryGetValue(subtypeId ?? -1, out var subtype);
@@ -481,6 +493,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             Modell: Text(m, "model") ?? "?",
             ResId: Zahl(m, "res_id") ?? 0,
             RecordName: null,
+            QuelleArchiviert: quelleArchiviert,
             MessageType: Text(m, "message_type"),
             SubtypeId: subtypeId,
             SubtypeXmlId: subtype.XmlId,
@@ -615,7 +628,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         _aus.WriteLine($"Verdichtet (Meilenstein):   {_stat.Verdichtet}");
         _aus.WriteLine($"Verworfen:                  {_stat.Verworfen}");
         _aus.WriteLine($"Bereits vorhanden:          {_stat.Uebersprungen}");
-        _aus.WriteLine($"Anhänge{(dryRun ? " (würden geladen)" : "")}: {_stat.Anhaenge} ({_stat.AnhangBytes / 1024.0 / 1024.0:0.0} MB)");
+        _aus.WriteLine($"Anhänge{(dryRun ? " (würden geladen)" : "")}: {_stat.Anhaenge} ({_stat.AnhangBytes / 1024.0 / 1024.0:0.0} MB)" +
+                       (_stat.AnhaengeUebersprungen > 0 ? $" · Signaturbilder übersprungen: {_stat.AnhaengeUebersprungen}" : ""));
         _aus.WriteLine();
         _aus.WriteLine("Nach Grund:");
         foreach (var (grund, anzahl) in _stat.Gruende.OrderByDescending(g => g.Value))
@@ -639,7 +653,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
 
     private class Statistik
     {
-        public int Gelesen, Behalten, Verdichtet, Verworfen, Uebersprungen, Anhaenge;
+        public int Gelesen, Behalten, Verdichtet, Verworfen, Uebersprungen, Anhaenge, AnhaengeUebersprungen;
         public long AnhangBytes;
         public readonly Dictionary<string, int> Gruende = [];
         public readonly Dictionary<string, int> JeKunde = [];

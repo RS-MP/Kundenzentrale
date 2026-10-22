@@ -134,7 +134,7 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
             Zeile($"  - {partnerNamen[p.GetProperty("id").GetInt32()]}{(Wahr(p, "active") ? "" : " (archiviert)")}");
 
         // Quellen-Beschriftung je (Modell, Id) für die Chronologie
-        var quellen = partnerNamen.ToDictionary(p => ("res.partner", p.Key), p => p.Value);
+        var quellen = partnerNamen.ToDictionary(p => ("res.partner", p.Key), p => (Label: p.Value, Archiviert: false));
 
         // CRM-Leads/Chancen des Kunden (auch verlorene/archivierte)
         var leads = await LadeAlleAsync("crm.lead",
@@ -144,7 +144,7 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
         foreach (var l in leads)
         {
             var name = $"{Text(l, "name") ?? "?"} ({Many2OneLabel(l, "stage_id") ?? "ohne Phase"})";
-            quellen[("crm.lead", l.GetProperty("id").GetInt32())] = "Lead: " + name;
+            quellen[("crm.lead", l.GetProperty("id").GetInt32())] = ("Lead: " + name, !Wahr(l, "active"));
             Zeile($"  - {name}{(Wahr(l, "active") ? "" : " (archiviert)")}");
         }
 
@@ -165,7 +165,7 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
                 var s => s ?? "?",
             };
             var name = $"{Text(a, "name") ?? "?"} ({status})";
-            quellen[("sale.order", a.GetProperty("id").GetInt32())] = "Auftrag: " + name;
+            quellen[("sale.order", a.GetProperty("id").GetInt32())] = ("Auftrag: " + name, false);
             Zeile($"  - {name}");
         }
 
@@ -192,7 +192,7 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
                 },
             };
             var name = $"{Text(r, "name") ?? "?"} ({status}{(Text(r, "invoice_date") is { } d ? $", {d}" : "")})";
-            quellen[("account.move", r.GetProperty("id").GetInt32())] = $"{art}: " + name;
+            quellen[("account.move", r.GetProperty("id").GetInt32())] = ($"{art}: " + name, false);
             Zeile($"  - {art} {name}");
         }
         Zeile();
@@ -219,7 +219,8 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
         var tracking = await TrackingLadenAsync(roh
             .Where(m => AnzahlIds(m, "tracking_value_ids") > 0)
             .Select(m => m.GetProperty("id").GetInt32()));
-        var nachrichten = roh.Select(m => Umwandeln(m, tracking)).ToList();
+        var nachrichten = roh.Select(m => Umwandeln(m, tracking,
+            quellen.TryGetValue((Text(m, "model") ?? "", Zahl(m, "res_id") ?? 0), out var qu) && qu.Archiviert)).ToList();
         var anhangIdsJeNachricht = roh.ToDictionary(m => m.GetProperty("id").GetInt32(), m => Ids(m, "attachment_ids"));
         var anhaenge = await AnhaengeLadenAsync(anhangIdsJeNachricht.Values.SelectMany(ids => ids).Distinct());
 
@@ -234,7 +235,7 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
             var b = filter.Bewerten(n);
             zaehler[(b.Entscheidung, b.Grund)] = zaehler.GetValueOrDefault((b.Entscheidung, b.Grund)) + 1;
 
-            var quelle = quellen.TryGetValue((n.Modell, n.ResId), out var q) ? q : $"{n.Modell}#{n.ResId}";
+            var quelle = quellen.TryGetValue((n.Modell, n.ResId), out var q) ? q.Label : $"{n.Modell}#{n.ResId}";
             var autor = Kuerzen(n.AutorName ?? n.EmailFrom ?? "—", 28);
             if (n.AutorPartnerId is not null && _internePartner.Contains(n.AutorPartnerId.Value))
                 autor += " (rausoft)";
@@ -306,7 +307,8 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
         return null;
     }
 
-    private ChatterNachricht Umwandeln(JsonElement m, Dictionary<int, List<(string Feld, string Alt, string Neu)>> tracking)
+    private ChatterNachricht Umwandeln(JsonElement m, Dictionary<int, List<(string Feld, string Alt, string Neu)>> tracking,
+        bool quelleArchiviert)
     {
         var subtypeId = Many2OneId(m, "subtype_id");
         _subtypes.TryGetValue(subtypeId ?? -1, out var subtype);
@@ -316,6 +318,7 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
             Modell: Text(m, "model") ?? "?",
             ResId: Zahl(m, "res_id") ?? 0,
             RecordName: Text(m, "record_name"),
+            QuelleArchiviert: quelleArchiviert,
             MessageType: Text(m, "message_type"),
             SubtypeId: subtypeId,
             SubtypeXmlId: subtype.XmlId,
@@ -349,8 +352,12 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
                 var groesseText = groesse >= 1024 * 1024
                     ? $"{groesse / 1024.0 / 1024.0:0.0} MB"
                     : $"{Math.Max(1, groesse / 1024)} KB";
+                var name = Text(d, "name") ?? "?";
+                var signatur = ChatterFilter.IstSignaturbild(name, Text(d, "mimetype"), groesse)
+                    ? " — wird übersprungen (Signaturbild)"
+                    : string.Empty;
                 ergebnis[d.GetProperty("id").GetInt32()] =
-                    $"{Text(d, "name") ?? "?"} ({Text(d, "mimetype") ?? "?"}, {groesseText})";
+                    $"{name} ({Text(d, "mimetype") ?? "?"}, {groesseText}){signatur}";
             }
         }
         catch (InvalidOperationException ex)

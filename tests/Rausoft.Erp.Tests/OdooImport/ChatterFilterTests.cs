@@ -96,12 +96,59 @@ public class ChatterFilterTests
     }
 
     [Fact]
-    public void RechnungBezahlt_AmAuftrag_WirdVerdichtet()
+    public void RechnungBezahlt_AnDerRechnung_WirdVerdichtet()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "tracking", modell: "account.move",
+            subtypeXmlId: "account.mt_invoice_paid", trackingAnzahl: 1,
+            aenderungen: [("Payment Status (Journal Entry)", "Nicht bezahlt", "Bezahlt")]));
+        Assert.Equal(ChatterEntscheidung.Verdichten, b.Entscheidung);
+        Assert.Equal(AktivitaetsTyp.Rechnung, b.Typ);
+    }
+
+    [Fact]
+    public void RechnungBezahlt_MeldungAmAuftrag_IstDuplikat_WirdVerworfen()
     {
         var b = Filter.Bewerten(Nachricht(messageType: "notification", modell: "sale.order",
             klartext: "Rechnung RE/2026/00774 bezahlt"));
-        Assert.Equal(ChatterEntscheidung.Verdichten, b.Entscheidung);
-        Assert.Equal(AktivitaetsTyp.Rechnung, b.Typ);
+        Assert.Equal(ChatterEntscheidung.Verwerfen, b.Entscheidung);
+    }
+
+    [Fact]
+    public void RechnungsEntwurf_WirdVerworfen()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "notification", modell: "account.move",
+            subtypeXmlId: "account.mt_invoice_created", klartext: ""));
+        Assert.Equal(ChatterEntscheidung.Verwerfen, b.Entscheidung);
+    }
+
+    [Fact]
+    public void ArchivierterVorgang_MeilensteinWeg_NotizBleibt()
+    {
+        var archiviert = Nachricht(modell: "crm.lead",
+            klartext: "Dieser Lead wurde aus einem Ticket erstellt: Automatische Antwort #(00333)",
+            aenderungen: null) with { QuelleArchiviert = true };
+        Assert.Equal(ChatterEntscheidung.Verwerfen, Filter.Bewerten(archiviert).Entscheidung);
+
+        var notiz = Nachricht(modell: "crm.lead", subtypeXmlId: "mail.mt_note", klartext: "Echte Notiz") with { QuelleArchiviert = true };
+        Assert.Equal(ChatterEntscheidung.Behalten, Filter.Bewerten(notiz).Entscheidung);
+    }
+
+    [Fact]
+    public void GesendeteNachricht_VonFirmenpostfach_IstTrotzdemAusgehend()
+    {
+        var b = Filter.Bewerten(Nachricht(subtypeXmlId: "mail.mt_comment", autor: 99,
+            betreff: "Ihre Rechnung: RE/2026/00774", klartext: "Anbei unsere Rechnung."));
+        Assert.Equal(AktivitaetsRichtung.Ausgehend, b.Richtung);
+    }
+
+    [Fact]
+    public void Signaturbild_WirdErkannt()
+    {
+        Assert.True(ChatterFilter.IstSignaturbild("image001.jpg", "image/jpeg", 72 * 1024));
+        Assert.True(ChatterFilter.IstSignaturbild("Outlook-abc123.png", "image/png", 10 * 1024));
+        Assert.False(ChatterFilter.IstSignaturbild("Angebot - S01194.pdf", "application/pdf", 149 * 1024));
+        Assert.False(ChatterFilter.IstSignaturbild("Screenshot Fehler.png", "image/png", 50 * 1024));
+        Assert.False(ChatterFilter.IstSignaturbild("image001.jpg", "image/jpeg", 2 * 1024 * 1024));
     }
 
     [Fact]

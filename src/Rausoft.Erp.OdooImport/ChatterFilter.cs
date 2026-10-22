@@ -27,7 +27,9 @@ public record ChatterNachricht(
     int TrackingAnzahl,
     int AnhangAnzahl,
     /// <summary>Feldänderungen dieser Nachricht (Feldbezeichnung, alt, neu), falls geladen.</summary>
-    IReadOnlyList<(string Feld, string Alt, string Neu)> Aenderungen);
+    IReadOnlyList<(string Feld, string Alt, string Neu)> Aenderungen,
+    /// <summary>Der Vorgang (z. B. Lead), an dem die Nachricht hängt, ist in Odoo archiviert.</summary>
+    bool QuelleArchiviert = false);
 
 public enum ChatterEntscheidung
 {
@@ -57,9 +59,13 @@ public record ChatterBewertung(
 ///   Vertragsbeginn bzw. die Kündigung).
 /// - Phasenwechsel / gewonnen / verloren / angelegt im CRM → Verdichten.
 /// - Statuswechsel eines Angebots/Auftrags (sale.order) → Verdichten.
-/// - Rechnung gestellt / bezahlt (account.move bzw. Meldung am Auftrag) →
+/// - Rechnung gestellt / bezahlt (Untertypen an der Rechnung, account.move) →
 ///   Verdichten (Entscheidung 22.10.2026: Buchhaltung bleibt bei DATEV, die
-///   Information gehört trotzdem in die Akte).
+///   Information gehört trotzdem in die Akte). Rechnungsentwurf und die
+///   Duplikat-Meldung am Auftrag fallen weg.
+/// - Meilensteine archivierter Vorgänge (z. B. Junk-Lead aus Auto-Antwort) → Verwerfen.
+/// - „Nachricht senden" ist immer ausgehend, auch von Firmenpostfächern ohne Benutzer.
+/// - Signaturbilder (image001.jpg …) werden als Anhang übersprungen.
 /// - Anhänge an behaltenen Nachrichten werden beim Import mit übernommen
 ///   (Entscheidung 22.10.2026) — die Analyse listet sie mit Name und Größe.
 /// - Passwort-Zeilen im Text werden maskiert (Zugangsdaten-Mails).
@@ -82,18 +88,21 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
         // Verkauf: Angebot gesendet / Auftrag bestätigt — als Meilenstein, nicht als Mail
         ["sale.mt_order_sent"] = AktivitaetsTyp.Angebot,
         ["sale.mt_order_confirmed"] = AktivitaetsTyp.Angebot,
-        // Rechnung gestellt / bezahlt (Buchhaltung bleibt bei DATEV, die Info gehört in die Akte)
-        ["account.mt_invoice_created"] = AktivitaetsTyp.Rechnung,
+        // Rechnung gestellt / bezahlt (Buchhaltung bleibt bei DATEV, die Info gehört in die Akte).
+        // Bewusst nicht: mt_invoice_created (Entwurf) — erst die gebuchte Rechnung zählt.
         ["account.mt_invoice_validated"] = AktivitaetsTyp.Rechnung,
         ["account.mt_invoice_paid"] = AktivitaetsTyp.Rechnung,
     };
 
-    /// <summary>Odoo-Benachrichtigungen am Auftrag/der Rechnung wie „Rechnung RE/2026/00774 bezahlt".</summary>
-    private static readonly Regex RechnungBezahlt = new(
-        @"(?i)^(Rechnung|Invoice|Gutschrift|Credit note)\s+\S+.*\b(bezahlt|paid)\b", RegexOptions.Compiled);
-    private static readonly Regex RechnungGestellt = new(
-        @"(?i)^(Rechnung|Invoice|Gutschrift|Credit note)\s+\S+.*\b(erstellt|gestellt|gebucht|validiert|created|posted|validated)\b",
-        RegexOptions.Compiled);
+    /// <summary>
+    /// Eingebettete Signaturbilder aus E-Mails (image001.jpg, …) — kleine Bilder mit
+    /// generischem Namen, die als Anhang nur Rauschen wären.
+    /// </summary>
+    public static bool IstSignaturbild(string name, string? mimetype, long groesse) =>
+        mimetype is not null && mimetype.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+        && groesse < 300 * 1024
+        && Regex.IsMatch(name, @"^(image\d{3}|Outlook-[\w-]+|~WRD\d+|oledata)\.(jpe?g|png|gif|bmp|emz)$",
+            RegexOptions.IgnoreCase);
 
     /// <summary>Betreff-/Textanfänge automatischer Antworten (Abwesenheit, Auto-Reply).</summary>
     private static readonly string[] AutoAntwortAnfaenge =
@@ -110,6 +119,16 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
     ];
 
     public ChatterBewertung Bewerten(ChatterNachricht n)
+    {
+        var bewertung = BewertenRoh(n);
+        // Archivierte Vorgänge (z. B. ein aus einer Auto-Antwort entstandener Lead): echte
+        // Notizen/Mails bleiben, aber ihre Meilensteine wären nur Rauschen in der Akte.
+        if (n.QuelleArchiviert && bewertung.Entscheidung == ChatterEntscheidung.Verdichten)
+            return new(ChatterEntscheidung.Verwerfen, "archivierter Vorgang");
+        return bewertung;
+    }
+
+    private ChatterBewertung BewertenRoh(ChatterNachricht n)
     {
         var vonMitarbeiter = n.AutorPartnerId is not null && internePartnerIds.Contains(n.AutorPartnerId.Value);
         var leer = n.Klartext.Length < 3;
@@ -131,16 +150,8 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
                 meilensteinTyp, AktivitaetsRichtung.Intern);
         }
 
-        // Odoo meldet am Auftrag „Rechnung … bezahlt" bzw. „… erstellt" als Benachrichtigung
-        if (n.MessageType is "notification" && n.Modell is "sale.order" or "account.move")
-        {
-            if (RechnungBezahlt.IsMatch(n.Klartext))
-                return new(ChatterEntscheidung.Verdichten, "Rechnung bezahlt",
-                    AktivitaetsTyp.Rechnung, AktivitaetsRichtung.Intern);
-            if (RechnungGestellt.IsMatch(n.Klartext))
-                return new(ChatterEntscheidung.Verdichten, "Rechnung gestellt",
-                    AktivitaetsTyp.Rechnung, AktivitaetsRichtung.Intern);
-        }
+        // Die Meldung „Rechnung … bezahlt" am Auftrag ist ein Duplikat des Ereignisses an
+        // der Rechnung selbst (account.mt_invoice_paid) und fällt als Benachrichtigung weg.
 
         if (n.Aenderungen.Any(a => a.Feld.StartsWith("Wartung", StringComparison.OrdinalIgnoreCase)))
             return new(ChatterEntscheidung.Verdichten, "Wartungs-Haken geändert",
@@ -187,10 +198,11 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
                 if (n.SubtypeXmlId == "mail.mt_note" || n.IstIntern)
                     return new(ChatterEntscheidung.Behalten, "Notiz",
                         AktivitaetsTyp.Notiz, AktivitaetsRichtung.Intern);
-                // „Nachricht senden" im Chatter geht als E-Mail an die Follower/den Kunden
+                // „Nachricht senden" im Chatter geht als E-Mail an die Follower/den Kunden —
+                // immer aus Odoo heraus, also ausgehend, auch wenn der Absender ein
+                // Firmenpostfach ohne Benutzer ist (z. B. „Rausoft Buchhaltung")
                 return new(ChatterEntscheidung.Behalten, "Nachricht gesendet",
-                    AktivitaetsTyp.EMail,
-                    vonMitarbeiter ? AktivitaetsRichtung.Ausgehend : AktivitaetsRichtung.Eingehend);
+                    AktivitaetsTyp.EMail, AktivitaetsRichtung.Ausgehend);
             default:
                 return new(ChatterEntscheidung.Verwerfen, $"unbekannte Art '{n.MessageType}'");
         }
