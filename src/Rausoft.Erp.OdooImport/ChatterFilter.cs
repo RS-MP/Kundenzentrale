@@ -68,6 +68,8 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
     [
         "crm.mt_lead_stage", "crm.mt_lead_won", "crm.mt_lead_lost", "crm.mt_lead_create",
         "crm.mt_lead_restored",
+        // Verkauf: Angebot gesendet / Auftrag bestätigt — als Meilenstein, nicht als Mail
+        "sale.mt_order_sent", "sale.mt_order_confirmed",
     ];
 
     /// <summary>Betreff-/Textanfänge automatischer Antworten (Abwesenheit, Auto-Reply).</summary>

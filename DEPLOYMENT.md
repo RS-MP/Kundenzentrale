@@ -362,8 +362,9 @@ und Import teilen sich dafür den Data-Protection-Schlüsselbund unter
      Odoo-Chatter (`mail.message`): Anzahl je Modell, Nachrichtenart,
      Untertyp, Jahr und Autor.
    - `Rausoft.Erp.OdooImport.exe chatter --kunde <KundenNr|Odoo-ID|Name> --ausgabe C:\Temp\chatter-12345.txt`
-     — Chronologie eines Beispielkunden (Firma, Personen/Adressen, CRM-Leads)
-     mit der Entscheidung der Filterregeln aus `ChatterFilter.cs`:
+     — Chronologie eines Beispielkunden (Firma, Personen/Adressen, CRM-Leads,
+     Angebote/Verkaufsaufträge) mit der Entscheidung der Filterregeln aus
+     `ChatterFilter.cs`:
      `[+]` übernehmen, `[~]` zu Systemeintrag verdichten, `[-]` nicht
      übernehmen. Dient dazu, die Regeln an echten Daten zu bewerten, bevor der
      eigentliche Chatter-Import gebaut wird.

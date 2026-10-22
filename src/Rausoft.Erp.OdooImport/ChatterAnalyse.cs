@@ -131,29 +131,57 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
         foreach (var p in personen)
             Zeile($"  - {partnerNamen[p.GetProperty("id").GetInt32()]}{(Wahr(p, "active") ? "" : " (archiviert)")}");
 
+        // Quellen-Beschriftung je (Modell, Id) für die Chronologie
+        var quellen = partnerNamen.ToDictionary(p => ("res.partner", p.Key), p => p.Value);
+
         // CRM-Leads/Chancen des Kunden (auch verlorene/archivierte)
         var leads = await LadeAlleAsync("crm.lead",
             [new object[] { "partner_id", "child_of", firmaId }],
             ["id", "name", "type", "stage_id", "active", "probability", "create_date"]);
-        var leadNamen = leads.ToDictionary(l => l.GetProperty("id").GetInt32(),
-            l => $"{Text(l, "name") ?? "?"} ({Many2OneLabel(l, "stage_id") ?? "ohne Phase"})");
         Zeile($"CRM-Leads/Chancen: {leads.Count}");
         foreach (var l in leads)
-            Zeile($"  - {leadNamen[l.GetProperty("id").GetInt32()]}{(Wahr(l, "active") ? "" : " (archiviert)")}");
+        {
+            var name = $"{Text(l, "name") ?? "?"} ({Many2OneLabel(l, "stage_id") ?? "ohne Phase"})";
+            quellen[("crm.lead", l.GetProperty("id").GetInt32())] = "Lead: " + name;
+            Zeile($"  - {name}{(Wahr(l, "active") ? "" : " (archiviert)")}");
+        }
+
+        // Angebote/Verkaufsaufträge des Kunden — hier läuft oft der eigentliche
+        // E-Mail-Verkehr (Angebot verschickt, Rückfragen, Bestellung).
+        var auftraege = await LadeAlleAsync("sale.order",
+            [new object[] { "partner_id", "child_of", firmaId }],
+            ["id", "name", "state", "date_order"]);
+        Zeile($"Angebote/Verkaufsaufträge: {auftraege.Count}");
+        foreach (var a in auftraege)
+        {
+            var status = Text(a, "state") switch
+            {
+                "draft" => "Angebot",
+                "sent" => "Angebot gesendet",
+                "sale" => "Verkaufsauftrag",
+                "cancel" => "storniert",
+                var s => s ?? "?",
+            };
+            var name = $"{Text(a, "name") ?? "?"} ({status})";
+            quellen[("sale.order", a.GetProperty("id").GetInt32())] = "Auftrag: " + name;
+            Zeile($"  - {name}");
+        }
         Zeile();
 
-        // Alle Nachrichten an diesen Datensätzen
-        var partnerIds = partnerNamen.Keys.ToArray();
-        var leadIds = leadNamen.Keys.ToArray();
-        object[] domain = leadIds.Length == 0
-            ? [new object[] { "model", "=", "res.partner" }, new object[] { "res_id", "in", partnerIds }]
-            :
-            [
-                "|",
-                "&", new object[] { "model", "=", "res.partner" }, new object[] { "res_id", "in", partnerIds },
-                "&", new object[] { "model", "=", "crm.lead" }, new object[] { "res_id", "in", leadIds },
-            ];
-        var roh = await LadeAlleAsync("mail.message", domain,
+        // Alle Nachrichten an diesen Datensätzen: ODER über die Modelle,
+        // je Modell UND aus model = … und res_id in (…) (Odoo-Polnische-Notation)
+        var gruppen = quellen.Keys.GroupBy(k => k.Item1)
+            .Select(g => (Modell: g.Key, Ids: g.Select(k => k.Item2).ToArray())).ToList();
+        var domain = new List<object>();
+        for (var i = 1; i < gruppen.Count; i++)
+            domain.Add("|");
+        foreach (var (modell, ids) in gruppen)
+        {
+            domain.Add("&");
+            domain.Add(new object[] { "model", "=", modell });
+            domain.Add(new object[] { "res_id", "in", ids });
+        }
+        var roh = await LadeAlleAsync("mail.message", domain.ToArray(),
             ["id", "model", "res_id", "record_name", "message_type", "subtype_id", "author_id", "email_from",
              "date", "subject", "body", "is_internal", "tracking_value_ids", "attachment_ids"],
             "date asc, id asc");
@@ -175,9 +203,7 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
             var b = filter.Bewerten(n);
             zaehler[(b.Entscheidung, b.Grund)] = zaehler.GetValueOrDefault((b.Entscheidung, b.Grund)) + 1;
 
-            var quelle = n.Modell == "crm.lead"
-                ? "Lead: " + (leadNamen.TryGetValue(n.ResId, out var ln) ? ln : $"#{n.ResId}")
-                : (partnerNamen.TryGetValue(n.ResId, out var pn) ? pn : $"#{n.ResId}");
+            var quelle = quellen.TryGetValue((n.Modell, n.ResId), out var q) ? q : $"{n.Modell}#{n.ResId}";
             var autor = Kuerzen(n.AutorName ?? n.EmailFrom ?? "—", 28);
             if (n.AutorPartnerId is not null && _internePartner.Contains(n.AutorPartnerId.Value))
                 autor += " (rausoft)";
