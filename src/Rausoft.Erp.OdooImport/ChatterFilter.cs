@@ -57,6 +57,11 @@ public record ChatterBewertung(
 ///   Vertragsbeginn bzw. die Kündigung).
 /// - Phasenwechsel / gewonnen / verloren / angelegt im CRM → Verdichten.
 /// - Statuswechsel eines Angebots/Auftrags (sale.order) → Verdichten.
+/// - Rechnung gestellt / bezahlt (account.move bzw. Meldung am Auftrag) →
+///   Verdichten (Entscheidung 22.10.2026: Buchhaltung bleibt bei DATEV, die
+///   Information gehört trotzdem in die Akte).
+/// - Anhänge an behaltenen Nachrichten werden beim Import mit übernommen
+///   (Entscheidung 22.10.2026) — die Analyse listet sie mit Name und Größe.
 /// - Passwort-Zeilen im Text werden maskiert (Zugangsdaten-Mails).
 /// - Hinweis „Lead wurde aus Ticket erstellt" → Verdichten (Herkunft).
 /// - Abwesenheitsnotizen und andere Auto-Antworten → Verwerfen.
@@ -66,13 +71,29 @@ public record ChatterBewertung(
 /// </summary>
 public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPartnerId)
 {
-    private static readonly string[] VerdichtenSubtypes =
-    [
-        "crm.mt_lead_stage", "crm.mt_lead_won", "crm.mt_lead_lost", "crm.mt_lead_create",
-        "crm.mt_lead_restored",
+    /// <summary>Untertypen, die als Meilenstein verdichtet werden, mit dem Timeline-Typ des Eintrags.</summary>
+    private static readonly Dictionary<string, AktivitaetsTyp> VerdichtenSubtypes = new()
+    {
+        ["crm.mt_lead_stage"] = AktivitaetsTyp.System,
+        ["crm.mt_lead_won"] = AktivitaetsTyp.System,
+        ["crm.mt_lead_lost"] = AktivitaetsTyp.System,
+        ["crm.mt_lead_create"] = AktivitaetsTyp.System,
+        ["crm.mt_lead_restored"] = AktivitaetsTyp.System,
         // Verkauf: Angebot gesendet / Auftrag bestätigt — als Meilenstein, nicht als Mail
-        "sale.mt_order_sent", "sale.mt_order_confirmed",
-    ];
+        ["sale.mt_order_sent"] = AktivitaetsTyp.Angebot,
+        ["sale.mt_order_confirmed"] = AktivitaetsTyp.Angebot,
+        // Rechnung gestellt / bezahlt (Buchhaltung bleibt bei DATEV, die Info gehört in die Akte)
+        ["account.mt_invoice_created"] = AktivitaetsTyp.Rechnung,
+        ["account.mt_invoice_validated"] = AktivitaetsTyp.Rechnung,
+        ["account.mt_invoice_paid"] = AktivitaetsTyp.Rechnung,
+    };
+
+    /// <summary>Odoo-Benachrichtigungen am Auftrag/der Rechnung wie „Rechnung RE/2026/00774 bezahlt".</summary>
+    private static readonly Regex RechnungBezahlt = new(
+        @"(?i)^(Rechnung|Invoice|Gutschrift|Credit note)\s+\S+.*\b(bezahlt|paid)\b", RegexOptions.Compiled);
+    private static readonly Regex RechnungGestellt = new(
+        @"(?i)^(Rechnung|Invoice|Gutschrift|Credit note)\s+\S+.*\b(erstellt|gestellt|gebucht|validiert|created|posted|validated)\b",
+        RegexOptions.Compiled);
 
     /// <summary>Betreff-/Textanfänge automatischer Antworten (Abwesenheit, Auto-Reply).</summary>
     private static readonly string[] AutoAntwortAnfaenge =
@@ -98,9 +119,28 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
         if (n.AutorName is not null && n.AutorName.Contains("OdooBot", StringComparison.OrdinalIgnoreCase))
             return new(ChatterEntscheidung.Verwerfen, "OdooBot");
 
-        if (n.SubtypeXmlId is not null && VerdichtenSubtypes.Contains(n.SubtypeXmlId))
-            return new(ChatterEntscheidung.Verdichten, $"CRM-Ereignis ({n.SubtypeName})",
-                AktivitaetsTyp.System, AktivitaetsRichtung.Intern);
+        if (n.SubtypeXmlId is not null && VerdichtenSubtypes.TryGetValue(n.SubtypeXmlId, out var meilensteinTyp))
+        {
+            var bereich = meilensteinTyp switch
+            {
+                AktivitaetsTyp.Angebot => "Verkaufs-Ereignis",
+                AktivitaetsTyp.Rechnung => "Rechnungs-Ereignis",
+                _ => "CRM-Ereignis",
+            };
+            return new(ChatterEntscheidung.Verdichten, $"{bereich} ({n.SubtypeName})",
+                meilensteinTyp, AktivitaetsRichtung.Intern);
+        }
+
+        // Odoo meldet am Auftrag „Rechnung … bezahlt" bzw. „… erstellt" als Benachrichtigung
+        if (n.MessageType is "notification" && n.Modell is "sale.order" or "account.move")
+        {
+            if (RechnungBezahlt.IsMatch(n.Klartext))
+                return new(ChatterEntscheidung.Verdichten, "Rechnung bezahlt",
+                    AktivitaetsTyp.Rechnung, AktivitaetsRichtung.Intern);
+            if (RechnungGestellt.IsMatch(n.Klartext))
+                return new(ChatterEntscheidung.Verdichten, "Rechnung gestellt",
+                    AktivitaetsTyp.Rechnung, AktivitaetsRichtung.Intern);
+        }
 
         if (n.Aenderungen.Any(a => a.Feld.StartsWith("Wartung", StringComparison.OrdinalIgnoreCase)))
             return new(ChatterEntscheidung.Verdichten, "Wartungs-Haken geändert",

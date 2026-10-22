@@ -166,6 +166,33 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
             quellen[("sale.order", a.GetProperty("id").GetInt32())] = "Auftrag: " + name;
             Zeile($"  - {name}");
         }
+
+        // Ausgangsrechnungen/Gutschriften des Kunden — die Buchhaltung bleibt bei
+        // DATEV, aber „gestellt" und „bezahlt" gehören als Meilensteine in die Akte.
+        var rechnungen = await LadeAlleAsync("account.move",
+            [new object[] { "partner_id", "child_of", firmaId },
+             new object[] { "move_type", "in", new[] { "out_invoice", "out_refund" } }],
+            ["id", "name", "move_type", "state", "payment_state", "invoice_date"]);
+        Zeile($"Rechnungen/Gutschriften: {rechnungen.Count}");
+        foreach (var r in rechnungen)
+        {
+            var art = Text(r, "move_type") == "out_refund" ? "Gutschrift" : "Rechnung";
+            var status = Text(r, "state") switch
+            {
+                "draft" => "Entwurf",
+                "cancel" => "storniert",
+                _ => Text(r, "payment_state") switch
+                {
+                    "paid" or "in_payment" => "bezahlt",
+                    "partial" => "teilweise bezahlt",
+                    "reversed" => "storniert",
+                    _ => "offen",
+                },
+            };
+            var name = $"{Text(r, "name") ?? "?"} ({status}{(Text(r, "invoice_date") is { } d ? $", {d}" : "")})";
+            quellen[("account.move", r.GetProperty("id").GetInt32())] = $"{art}: " + name;
+            Zeile($"  - {art} {name}");
+        }
         Zeile();
 
         // Alle Nachrichten an diesen Datensätzen: ODER über die Modelle,
@@ -191,6 +218,8 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
             .Where(m => AnzahlIds(m, "tracking_value_ids") > 0)
             .Select(m => m.GetProperty("id").GetInt32()));
         var nachrichten = roh.Select(m => Umwandeln(m, tracking)).ToList();
+        var anhangIdsJeNachricht = roh.ToDictionary(m => m.GetProperty("id").GetInt32(), m => Ids(m, "attachment_ids"));
+        var anhaenge = await AnhaengeLadenAsync(anhangIdsJeNachricht.Values.SelectMany(ids => ids).Distinct());
 
         Zeile($"Nachrichten gesamt: {nachrichten.Count}");
         Zeile();
@@ -221,8 +250,8 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
                 : n.Klartext;
             if (inhalt.Length > 0)
                 Zeile($"      {Kuerzen(inhalt.Replace("\r", "").Replace('\n', ' '), b.Entscheidung == ChatterEntscheidung.Verwerfen ? 100 : 220)}");
-            if (n.AnhangAnzahl > 0)
-                Zeile($"      ({n.AnhangAnzahl} Anhang/Anhänge)");
+            foreach (var anhangId in anhangIdsJeNachricht.GetValueOrDefault(n.Id) ?? [])
+                Zeile($"      Anhang: {anhaenge.GetValueOrDefault(anhangId, $"#{anhangId}")}");
             foreach (var a in n.Aenderungen)
                 Zeile($"      Änderung: {a.Feld}: {Kuerzen(a.Alt, 40)} → {Kuerzen(a.Neu, 40)}");
         }
@@ -299,6 +328,34 @@ public class ChatterAnalyse(OdooClient odoo, string? kunde, string? ausgabeDatei
             TrackingAnzahl: AnzahlIds(m, "tracking_value_ids"),
             AnhangAnzahl: AnzahlIds(m, "attachment_ids"),
             Aenderungen: tracking.GetValueOrDefault(id) ?? []);
+    }
+
+    /// <summary>Anhänge (ir.attachment) als „Name (Typ, Größe)" je Anhang-Id — was der Import später laden würde.</summary>
+    private async Task<Dictionary<int, string>> AnhaengeLadenAsync(IEnumerable<int> anhangIds)
+    {
+        var ergebnis = new Dictionary<int, string>();
+        var ids = anhangIds.ToArray();
+        if (ids.Length == 0)
+            return ergebnis;
+        try
+        {
+            var daten = await LadeAlleAsync("ir.attachment",
+                [new object[] { "id", "in", ids }], ["id", "name", "mimetype", "file_size"]);
+            foreach (var d in daten)
+            {
+                var groesse = Zahl(d, "file_size") ?? 0;
+                var groesseText = groesse >= 1024 * 1024
+                    ? $"{groesse / 1024.0 / 1024.0:0.0} MB"
+                    : $"{Math.Max(1, groesse / 1024)} KB";
+                ergebnis[d.GetProperty("id").GetInt32()] =
+                    $"{Text(d, "name") ?? "?"} ({Text(d, "mimetype") ?? "?"}, {groesseText})";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Zeile($"(Anhänge nicht lesbar: {Kuerzen(ex.Message, 120)})");
+        }
+        return ergebnis;
     }
 
     /// <summary>Feldänderungen zu Benachrichtigungen ("Phase: Neu → Qualifiziert"), je Nachricht.</summary>
