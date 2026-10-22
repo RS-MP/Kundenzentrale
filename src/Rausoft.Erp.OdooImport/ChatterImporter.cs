@@ -223,11 +223,18 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
                 .Concat(nachzuladendeAnhaenge.SelectMany(e => e.AnhangIds)).Distinct().ToArray();
             foreach (var block in alleAnhangIds.Chunk(IdChunk))
             {
-                var meta = await LadeAlleAsync("ir.attachment", [new object[] { "id", "in", block }], ["id", "file_size"]);
+                var meta = await LadeAlleAsync("ir.attachment", [new object[] { "id", "in", block }],
+                    ["id", "name", "mimetype", "file_size"]);
                 foreach (var a in meta)
                 {
+                    var groesse = Zahl(a, "file_size") ?? 0;
+                    if (ChatterFilter.IstSignaturbild(Text(a, "name") ?? "", Text(a, "mimetype"), groesse))
+                    {
+                        _stat.AnhaengeUebersprungen++;
+                        continue;
+                    }
                     _stat.Anhaenge++;
-                    _stat.AnhangBytes += Zahl(a, "file_size") ?? 0;
+                    _stat.AnhangBytes += groesse;
                 }
             }
         }
