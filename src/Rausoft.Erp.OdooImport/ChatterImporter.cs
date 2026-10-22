@@ -373,25 +373,28 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         {
             if (vorhandeneAnhaenge.Contains(anhangId))
                 continue;
-            JsonElement daten;
+            // Metadaten zuerst (klein), dann erst den Inhalt — so kostet ein Signaturbild
+            // oder eine zu große Datei keinen Download
+            JsonElement meta;
             try
             {
                 var liste = await odoo.AusfuehrenAsync("ir.attachment", "read",
                     [new[] { anhangId }],
-                    new Dictionary<string, object> { ["fields"] = new[] { "name", "mimetype", "file_size", "datas" } });
+                    new Dictionary<string, object> { ["fields"] = new[] { "name", "mimetype", "file_size" } });
                 if (liste.ValueKind != JsonValueKind.Array || liste.GetArrayLength() == 0)
                     continue;
-                daten = liste[0];
+                meta = liste[0];
             }
             catch (InvalidOperationException ex)
             {
-                _stat.AnhangFehler.Add($"#{anhangId}: {Kuerzen(ex.Message, 100)}");
+                _stat.AnhangFehler.Add($"#{anhangId}: {Kuerzen(ex.Message, 400)}");
                 continue;
             }
 
-            var name = Text(daten, "name") ?? $"anhang-{anhangId}";
-            var groesse = Zahl(daten, "file_size") ?? 0;
-            if (ChatterFilter.IstSignaturbild(name, Text(daten, "mimetype"), groesse))
+            var name = Text(meta, "name") ?? $"anhang-{anhangId}";
+            var mimeType = Text(meta, "mimetype");
+            var groesse = Zahl(meta, "file_size") ?? 0;
+            if (ChatterFilter.IstSignaturbild(name, mimeType, groesse))
             {
                 _stat.AnhaengeUebersprungen++;
                 continue;
@@ -401,21 +404,33 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
                 _stat.AnhangFehler.Add($"{name}: {groesse / 1024 / 1024} MB — übersprungen (Grenze {MaxAnhangBytes / 1024 / 1024} MB)");
                 continue;
             }
-            var base64 = Text(daten, "datas");
-            if (base64 is null)
+
+            byte[] bytes;
+            try
+            {
+                bytes = await AnhangInhaltLadenAsync(odoo, anhangId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _stat.AnhangFehler.Add($"{name} (#{anhangId}): {Kuerzen(ex.Message, 400)}");
                 continue;
+            }
+            if (bytes.Length == 0)
+            {
+                _stat.AnhangFehler.Add($"{name} (#{anhangId}): Odoo lieferte keinen Inhalt (leer).");
+                continue;
+            }
 
             var dateiname = $"{eintrag.OdooId}_{SichererName(name)}";
             var relativerPfad = Path.Combine(relativerOrdner, dateiname);
             var voll = Path.Combine(ablage, relativerPfad);
-            var bytes = Convert.FromBase64String(base64);
             await File.WriteAllBytesAsync(voll, bytes);
 
             db.Aktivitaetsanhaenge.Add(new AktivitaetAnhang
             {
                 AktivitaetId = eintrag.Id,
                 Dateiname = Kuerzen(name, 300)!,
-                MimeType = Kuerzen(Text(daten, "mimetype"), 100),
+                MimeType = Kuerzen(mimeType, 100),
                 Groesse = bytes.LongLength,
                 RelativerPfad = relativerPfad,
                 OdooId = anhangId,
@@ -424,6 +439,41 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             _stat.Anhaenge++;
             _stat.AnhangBytes += bytes.LongLength;
         }
+    }
+
+    /// <summary>
+    /// Dateiinhalt eines Odoo-Anhangs als Bytes. Odoo liefert Binärfelder per RPC
+    /// Base64-kodiert; je nach Version heißt das Feld <c>datas</c> oder nur noch
+    /// <c>raw</c>, daher beide Wege. Wirft InvalidOperationException mit der
+    /// vollständigen Odoo-Meldung, wenn keiner funktioniert.
+    /// </summary>
+    public static async Task<byte[]> AnhangInhaltLadenAsync(OdooClient odoo, int anhangId)
+    {
+        var fehler = new List<string>();
+        foreach (var feld in new[] { "datas", "raw" })
+        {
+            try
+            {
+                var liste = await odoo.AusfuehrenAsync("ir.attachment", "read",
+                    [new[] { anhangId }],
+                    new Dictionary<string, object> { ["fields"] = new[] { feld } });
+                if (liste.ValueKind != JsonValueKind.Array || liste.GetArrayLength() == 0)
+                    throw new InvalidOperationException($"Anhang #{anhangId} nicht gefunden oder nicht lesbar.");
+                var wert = liste[0].TryGetProperty(feld, out var w) ? w : default;
+                if (wert.ValueKind != JsonValueKind.String)
+                    return [];
+                return Convert.FromBase64String(wert.GetString()!);
+            }
+            catch (InvalidOperationException ex)
+            {
+                fehler.Add($"{feld}: {ex.Message}");
+            }
+            catch (FormatException ex)
+            {
+                fehler.Add($"{feld}: kein gültiges Base64 ({ex.Message})");
+            }
+        }
+        throw new InvalidOperationException(string.Join(" | ", fehler));
     }
 
     private static string SichererName(string name)

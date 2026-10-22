@@ -49,6 +49,11 @@ Option dokumentiert.
      `IIS APPPOOL\Kundenzentrale`; bleibt es beim UNC-Pfad, braucht zusätzlich
      die Freigabe „Ändern" für dieses Konto). Anhänge werden über die API
      ausgeliefert, der Pfad muss für Arbeitsplätze nicht erreichbar sein.
+     **Anhänge „Odoo Server Error … ValueError"** beim ersten Server-Import
+     (22.10.2026): der Import versucht jetzt `datas` und ersatzweise `raw` und
+     zeigt die volle Odoo-Meldung; ein erneuter Lauf lädt fehlende Anhänge zu
+     bereits übernommenen Einträgen nach. Diagnose für einen einzelnen Anhang:
+     `Rausoft.Erp.OdooImport.exe anhangtest <ir.attachment-Id>` (Id steht im Bericht).
   2) Administration → Odoo-Anbindung → Kunde `25757` eintragen → **Analyse**:
      Chronologie mit Filterentscheidung prüfen.
   3) **Dry-Run** für 25757, dann **Import ausführen**; Akte des Kunden ansehen

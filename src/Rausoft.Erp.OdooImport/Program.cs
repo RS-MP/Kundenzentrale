@@ -49,6 +49,31 @@ var odoo = new OdooClient(zugang.Url, zugang.Db, benutzer, zugang.ApiKey);
 // Modus "chatter-import": Chatter in die Kunden-Timeline übernehmen (Regeln aus
 //   ChatterFilter, Anhänge in die Dokumentablage). --dry-run = nur Bericht,
 //   --kunde <KundenNr|Odoo-ID> = nur ein Kunde, --ohne-anhaenge = Dateien weglassen.
+// Modus "anhangtest <ir.attachment-Id>": Diagnose, ob ein Odoo-Anhang per RPC lesbar ist
+// (Metadaten + Inhalt); schreibt keine Datei.
+if (args.Contains("anhangtest"))
+{
+    if (!int.TryParse(Option("anhangtest"), out var anhangId))
+    {
+        Console.Error.WriteLine("Aufruf: anhangtest <ir.attachment-Id>");
+        return 1;
+    }
+    var meta = await odoo.AusfuehrenAsync("ir.attachment", "read", [new[] { anhangId }],
+        new Dictionary<string, object> { ["fields"] = new[] { "name", "mimetype", "file_size", "res_model", "res_id", "type" } });
+    Console.WriteLine($"Metadaten: {meta.GetRawText()}");
+    try
+    {
+        var bytes = await ChatterImporter.AnhangInhaltLadenAsync(odoo, anhangId);
+        Console.WriteLine($"Inhalt: {bytes.Length} Bytes" +
+            (bytes.Length >= 4 ? $", Anfang {Convert.ToHexString(bytes[..4])}" : ""));
+        return 0;
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.WriteLine($"Inhalt NICHT lesbar: {ex.Message}");
+        return 1;
+    }
+}
 if (args.Contains("chatter-import"))
 {
     await new ChatterImporter(odoo, dryRun: args.Contains("--dry-run"), nurKunde: Option("--kunde"),
