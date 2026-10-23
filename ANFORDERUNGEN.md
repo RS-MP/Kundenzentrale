@@ -152,8 +152,20 @@ Layout-Entscheidung nach Ansicht beider Varianten.
 > die Domain-Zuordnung. Darstellung in der Akte wie die Odoo-Mails (Quelle
 > „Outlook"), Anhänge in die Dokumentablage, Zugangsdaten maskiert.
 > Das BCC-/Weiterleitungs-Postfach bleibt als möglicher Zusatzweg beschrieben.
-> Offen: Postfächer bei IONOS oder Microsoft 365 (bestimmt Add-in-Verteilung
-> und ggf. Postfachzugriff). Zeitpunkt: später, nach dem Odoo-Chatter-Import.
+> **Postfächer: Exchange Online / Microsoft 365, alle Mitarbeiter über M365**
+> (geklärt 23.10.2026). Folgen für die Umsetzung:
+> - Verteilung des Add-ins zentral über das M365 Admin Center („Integrierte
+>   Apps") — kein Installieren je Arbeitsplatz; läuft in klassischem und
+>   neuem Outlook sowie Outlook im Web.
+> - Das Add-in liest die markierte Mail komplett über Office.js (inkl.
+>   Kopfzeilen und Anhängen) und schickt sie an die API — kein Postfachzugriff
+>   der Kundenzentrale nötig.
+> - Anmeldung des Add-ins an der API per Entra-ID-Token (Single Sign-on);
+>   dafür App-Registrierung in Entra ID. Die Kundenzentrale selbst bleibt bei
+>   Windows-Auth, nur der Add-in-Endpunkt akzeptiert zusätzlich Entra-Tokens.
+> - Zu prüfen beim E-Mail-Ausgang: Versand über Exchange Online statt der unten
+>   genannten IONOS-Limits.
+> Zeitpunkt: später, nach dem Odoo-Chatter-Import.
 
 Mitarbeiter schreiben weiter in Outlook — wichtige Mails sollen trotzdem für
 Kollegen in der Kundenakte lesbar sein:
