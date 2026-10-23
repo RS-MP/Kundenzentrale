@@ -18,6 +18,14 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (23.10.2026 abends, Stränge je Verkauf):**
+  Migration `VerlaufStraenge` läuft automatisch (Aktivitaet.StrangSchluessel/
+  StrangName). Ein Strang umfasst jetzt den ganzen Verkauf: Verkaufschance,
+  Angebote/Aufträge (über `opportunity_id`) und Rechnungen daraus (über
+  `invoice_origin`, auch Abo-Folgerechnungen) — z. B. „Verkauf S01194".
+  Notizen an Firma/Kontakt bleiben eigene Stränge. Nach dem Update den
+  Chatter-Import für 25757 erneut ausführen (setzt die Stränge an den
+  bestehenden Einträgen; behebt auch „Verkaufschance Verkaufschance …").
 - [ ] **Publish aktualisieren (23.10.2026 nachmittags, Verlauf Variante D):**
   Migration `VerlaufEmpfaenger` läuft automatisch (Aktivitaet.Empfaenger).
   Akte: chronologischer Verlauf mit Art und Person (inkl. **Bereich**) links,

@@ -250,6 +250,18 @@ public class ChatterFilterTests
     public void Absender_ZeigtNurDenNamen(string eingabe, string? erwartet) =>
         Assert.Equal(erwartet, Absender.Anzeigename(eingabe));
 
+    [Theory]
+    [InlineData("Verkaufschance", "Verkaufschance von RHB-Industries GmbH", "Verkaufschance von RHB-Industries GmbH")]
+    [InlineData("Verkaufschance", "Muster Industries", "Verkaufschance Muster Industries")]
+    [InlineData("Auftrag", "S01194", "Auftrag S01194")]
+    [InlineData("Rechnung", null, "Rechnung")]
+    public void VorgangsName_KeinDoppelterPraefix(string praefix, string? name, string erwartet) =>
+        Assert.Equal(erwartet, VorgangsName.MitPraefix(praefix, name));
+
+    [Fact]
+    public void VorgangsName_HerkunftMehrererAuftraege() =>
+        Assert.Equal(["S01194", "S01195"], VorgangsName.Herkunft("S01194, S01195").ToArray());
+
     [Fact]
     public void Standard_SindNurNotizenUndEMails() =>
         Assert.Equal([VerlaufKategorie.Notizen, VerlaufKategorie.EMails], VerlaufKategorien.Standard);

@@ -858,6 +858,14 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int?>("Richtung")
                         .HasColumnType("int");
 
+                    b.Property<string>("StrangName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("StrangSchluessel")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
                     b.Property<int>("Stufe")
                         .HasColumnType("int");
 
@@ -884,6 +892,8 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasFilter("[OdooId] IS NOT NULL");
 
                     b.HasIndex("KundeId", "Quelle");
+
+                    b.HasIndex("KundeId", "StrangSchluessel");
 
                     b.HasIndex("KundeId", "Zeitpunkt")
                         .IsDescending(false, true);

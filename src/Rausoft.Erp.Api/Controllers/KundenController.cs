@@ -427,7 +427,7 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             {
                 a.Id, a.Typ, a.Zeitpunkt, a.Betreff, a.Inhalt, a.VerweisTyp, a.VerweisId,
                 a.Quelle, a.Richtung, a.AutorName, a.Bezug, a.Stufe, a.FilterGrund, a.OdooId, a.OdooModell, a.OdooResId,
-                a.Empfaenger,
+                a.Empfaenger, a.StrangSchluessel, a.StrangName,
                 Mitarbeiter = a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : null,
                 Bereich = a.Mitarbeiter != null && a.Mitarbeiter.Bereich != null ? a.Mitarbeiter.Bereich.Name : null,
                 ApAnrede = a.Ansprechpartner != null ? a.Ansprechpartner.Anrede : (Anrede?)null,
@@ -470,10 +470,10 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 OdooLink: odooUrl is not null && x.OdooId is not null ? $"{odooUrl}/web/content/{x.OdooId}?download=true" : null)).ToList(),
             Domain.Shared.VerlaufKategorien.Von(a.Stufe, a.Typ).ToString(),
             a.FilterGrund,
-            a.OdooModell is not null && a.OdooResId is not null ? $"{a.OdooModell}:{a.OdooResId}" : null,
+            a.StrangSchluessel ?? (a.OdooModell is not null && a.OdooResId is not null ? $"{a.OdooModell}:{a.OdooResId}" : null),
             // /mail/message/<id> springt nach dem Odoo-Login direkt zur Nachricht im Chatter des Vorgangs
             odooUrl is not null && a.OdooId is not null ? $"{odooUrl}/mail/message/{a.OdooId}" : null,
-            autor, bereich, kunde, an);
+            autor, bereich, kunde, an, a.StrangName ?? a.Bezug);
         }).ToList());
     }
 
@@ -497,8 +497,13 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
         var abfrage = db.Aktivitaeten.AsNoTracking().Where(a => a.KundeId == kundeId);
         if (!mitOdoo)
             abfrage = abfrage.Where(a => a.Quelle != Domain.Shared.AktivitaetsQuelle.OdooImport);
-        if (vorgang?.Split(':') is [var modell, var resIdText] && int.TryParse(resIdText, out var resId))
+        if (string.IsNullOrWhiteSpace(vorgang))
+            return abfrage;
+        // Altbestand vor dem Neuimport: „sale.order:1198" (Modell mit Punkt) — sonst Strang-Schlüssel
+        if (vorgang.Split(':') is [var modell, var resIdText] && modell.Contains('.') && int.TryParse(resIdText, out var resId))
             abfrage = abfrage.Where(a => a.OdooModell == modell && a.OdooResId == resId);
+        else
+            abfrage = abfrage.Where(a => a.StrangSchluessel == vorgang);
         return abfrage;
     }
 

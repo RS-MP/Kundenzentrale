@@ -160,7 +160,10 @@ public record VerlaufEintrag(
     string Kategorie,
     /// <summary>Begründung des Import-Filters, z. B. „Feldänderung" (nur Odoo-Einträge).</summary>
     string? FilterGrund,
-    /// <summary>Schlüssel des Odoo-Vorgangs „modell:id" für Marke und Filter, z. B. „sale.order:1198".</summary>
+    /// <summary>
+    /// Schlüssel des Strangs für Bündelung und Filter, z. B. „verkauf:lead:5" (Verkauf aus
+    /// Verkaufschance, Aufträgen, Rechnungen) oder „partner:61917"; Altbestand „modell:id".
+    /// </summary>
     string? Vorgang,
     /// <summary>Direktlink auf die Nachricht in Odoo (nach Odoo-Login), null bei eigenen Einträgen.</summary>
     string? OdooLink,
@@ -171,7 +174,9 @@ public record VerlaufEintrag(
     /// <summary>Autor gehört zum Kunden (Ansprechpartner oder externer Absender).</summary>
     bool AutorIstKunde,
     /// <summary>Empfänger als Anzeigetext, z. B. „Frau Berger, Herr Kunz".</summary>
-    string? An);
+    string? An,
+    /// <summary>Name des Strangs, z. B. „Verkauf S01194" — Kopfzeile der Bündelung.</summary>
+    string? StrangName = null);
 
 /// <summary>Anhang am Verlauf: <paramref name="Lokal"/> = Datei in der Dokumentablage, sonst nur <paramref name="OdooLink"/>.</summary>
 public record VerlaufAnhang(int Id, string Dateiname, long Groesse, string? MimeType, bool Lokal, string? OdooLink);

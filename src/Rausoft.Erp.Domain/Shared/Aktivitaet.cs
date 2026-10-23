@@ -61,6 +61,17 @@ public class Aktivitaet
     public int? OdooResId { get; set; }
 
     /// <summary>
+    /// Fachlicher Zusammenhang für die Stränge der Akte, z. B. „verkauf:lead:5" — ein Verkauf
+    /// umfasst Verkaufschance, Angebote/Aufträge und die Rechnungen daraus; „partner:61917"
+    /// für Notizen an Firma oder Kontakt. Aufeinanderfolgende Einträge mit gleichem Schlüssel
+    /// werden gebündelt; der Schlüssel ist auch der Vorgangsfilter.
+    /// </summary>
+    public string? StrangSchluessel { get; set; }
+
+    /// <summary>Anzeigename des Strangs, z. B. „Verkauf S01194".</summary>
+    public string? StrangName { get; set; }
+
+    /// <summary>
     /// Anzeigename des Urhebers, wenn weder Mitarbeiter noch Ansprechpartner
     /// zugeordnet werden konnten (externer Absender, unbekannter Odoo-Benutzer).
     /// </summary>

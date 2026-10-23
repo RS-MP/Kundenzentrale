@@ -46,7 +46,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
     private readonly Dictionary<int, string> _partnerNamen = [];
     private int? _odooBot;
 
-    private record Quelle(int FirmaOdooId, string? Bezug, int? PersonOdooId, bool Archiviert = false);
+    private record Quelle(int FirmaOdooId, string? Bezug, int? PersonOdooId, bool Archiviert = false,
+        string? StrangSchluessel = null, string? StrangName = null);
 
     public async Task AusfuehrenAsync()
     {
@@ -249,6 +250,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             FilterGrund = Kuerzen(b.Grund, 100),
             OdooModell = n.Modell,
             OdooResId = n.ResId,
+            StrangSchluessel = Kuerzen(quelle.StrangSchluessel, 60),
+            StrangName = Kuerzen(quelle.StrangName, 300),
         };
 
         // Gesprächspaar: Autor → Mitarbeiter oder Ansprechpartner; sonst Name als Text
@@ -310,6 +313,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         Setze(ist.AnsprechpartnerId, soll.AnsprechpartnerId, v => ist.AnsprechpartnerId = v);
         Setze(ist.AutorName, soll.AutorName, v => ist.AutorName = v);
         Setze(ist.Empfaenger, soll.Empfaenger, v => ist.Empfaenger = v);
+        Setze(ist.StrangSchluessel, soll.StrangSchluessel, v => ist.StrangSchluessel = v);
+        Setze(ist.StrangName, soll.StrangName, v => ist.StrangName = v);
         return geaendert;
     }
 
@@ -577,39 +582,98 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
                 continue;
             firmaVonPartner[id] = firma;
             var typ = Text(p, "type");
-            quellen[("res.partner", id)] = id == firma
+            var quelle = id == firma
                 ? new Quelle(firma, "Firma", null)
                 : typ is null or "contact"
                     ? new Quelle(firma, $"Kontakt {Text(p, "name")}", id)
                     : new Quelle(firma, $"Adresse {Text(p, "name")}", null);
+            // Notizen an Firma und Kontakten betreffen den Kunden allgemein — je Partner ein Strang
+            quellen[("res.partner", id)] = quelle with { StrangSchluessel = $"partner:{id}", StrangName = quelle.Bezug };
         }
 
         int? FirmaZu(JsonElement e, string feld) =>
             Many2OneId(e, feld) is { } pid && firmaVonPartner.TryGetValue(pid, out var f) ? f : null;
 
-        var leads = await LadeAlleAsync("crm.lead", [new object[] { "partner_id", "!=", false }],
-            ["id", "name", "partner_id", "type", "active"]);
-        foreach (var l in leads)
-            if (FirmaZu(l, "partner_id") is { } firma)
-                quellen[("crm.lead", l.GetProperty("id").GetInt32())] =
-                    new Quelle(firma, $"{(Text(l, "type") == "lead" ? "Lead" : "Verkaufschance")} {Text(l, "name")}", null,
-                        Archiviert: !Wahr(l, "active"));
+        // --- Verkaufsvorgänge: Verkaufschance → Angebote/Aufträge → Rechnungen ---------
+        // Ein Verkauf ist ein Strang (Entscheidung 23.10.2026): alles, was über
+        // opportunity_id bzw. invoice_origin zusammenhängt, landet unter einem Schlüssel.
+        var leads = (await LadeAlleAsync("crm.lead", [new object[] { "partner_id", "!=", false }],
+                ["id", "name", "partner_id", "type", "active"]))
+            .Select(l => (Lead: l, Firma: FirmaZu(l, "partner_id")))
+            .Where(x => x.Firma is not null)
+            .ToDictionary(x => x.Lead.GetProperty("id").GetInt32());
 
-        var auftraege = await LadeAlleAsync("sale.order", [], ["id", "name", "state", "partner_id"]);
-        foreach (var a in auftraege)
-            if (FirmaZu(a, "partner_id") is { } firma)
-                quellen[("sale.order", a.GetProperty("id").GetInt32())] =
-                    new Quelle(firma, $"{(Text(a, "state") is "sale" or "done" ? "Auftrag" : "Angebot")} {Text(a, "name")}", null);
+        List<JsonElement> auftraegeRoh;
+        try
+        {
+            auftraegeRoh = await LadeAlleAsync("sale.order", [], ["id", "name", "state", "partner_id", "opportunity_id"]);
+        }
+        catch (InvalidOperationException)
+        {
+            // Ohne CRM-Verkaufsmodul gibt es opportunity_id nicht — dann je Auftrag ein Strang
+            auftraegeRoh = await LadeAlleAsync("sale.order", [], ["id", "name", "state", "partner_id"]);
+        }
+        var auftraege = auftraegeRoh
+            .Select(a => (Auftrag: a, Firma: FirmaZu(a, "partner_id")))
+            .Where(x => x.Firma is not null)
+            .ToList();
+
+        // Hauptauftrag je Verkaufschance: bestätigter vor Angebot, jüngster zuerst — er gibt dem Strang den Namen
+        static bool Bestaetigt(JsonElement a) => Text(a, "state") is "sale" or "done";
+        var auftraegeJeLead = auftraege
+            .Where(x => Many2OneId(x.Auftrag, "opportunity_id") is { } lid && leads.ContainsKey(lid))
+            .GroupBy(x => Many2OneId(x.Auftrag, "opportunity_id")!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Auftrag)
+                .OrderByDescending(Bestaetigt).ThenByDescending(a => a.GetProperty("id").GetInt32()).ToList());
+
+        (string Schluessel, string Name) LeadStrang(int leadId)
+        {
+            var name = auftraegeJeLead.TryGetValue(leadId, out var liste)
+                ? $"Verkauf {Text(liste[0], "name")}"
+                : VorgangsName.MitPraefix("Verkaufschance", Text(leads[leadId].Lead, "name"));
+            return ($"verkauf:lead:{leadId}", name);
+        }
+
+        foreach (var (leadId, (lead, firma)) in leads)
+        {
+            var (schluessel, name) = LeadStrang(leadId);
+            quellen[("crm.lead", leadId)] = new Quelle(firma!.Value,
+                VorgangsName.MitPraefix(Text(lead, "type") == "lead" ? "Lead" : "Verkaufschance", Text(lead, "name")), null,
+                Archiviert: !Wahr(lead, "active"), StrangSchluessel: schluessel, StrangName: name);
+        }
+
+        var strangJeAuftragsname = new Dictionary<string, (string Schluessel, string Name)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (auftrag, firma) in auftraege)
+        {
+            var id = auftrag.GetProperty("id").GetInt32();
+            var auftragsname = Text(auftrag, "name");
+            (string Schluessel, string Name) strang = Many2OneId(auftrag, "opportunity_id") is { } lid && leads.ContainsKey(lid)
+                ? LeadStrang(lid)
+                : ($"verkauf:order:{id}", $"Verkauf {auftragsname}");
+            if (auftragsname is not null)
+                strangJeAuftragsname[auftragsname] = strang;
+            quellen[("sale.order", id)] = new Quelle(firma!.Value,
+                VorgangsName.MitPraefix(Bestaetigt(auftrag) ? "Auftrag" : "Angebot", auftragsname), null,
+                StrangSchluessel: strang.Schluessel, StrangName: strang.Name);
+        }
 
         var rechnungen = await LadeAlleAsync("account.move",
             [new object[] { "move_type", "in", new[] { "out_invoice", "out_refund" } }],
-            ["id", "name", "move_type", "partner_id", "commercial_partner_id"]);
+            ["id", "name", "move_type", "partner_id", "commercial_partner_id", "invoice_origin"]);
         foreach (var r in rechnungen)
         {
             var firma = Many2OneId(r, "commercial_partner_id") is { } c && firmaIds.Contains(c) ? c : FirmaZu(r, "partner_id");
-            if (firma is not null)
-                quellen[("account.move", r.GetProperty("id").GetInt32())] =
-                    new Quelle(firma.Value, $"{(Text(r, "move_type") == "out_refund" ? "Gutschrift" : "Rechnung")} {Text(r, "name")}", null);
+            if (firma is null)
+                continue;
+            var id = r.GetProperty("id").GetInt32();
+            var art = Text(r, "move_type") == "out_refund" ? "Gutschrift" : "Rechnung";
+            // Rechnung aus einem Auftrag (auch Folgerechnungen eines Abos) gehört zu dessen Verkauf
+            var strang = VorgangsName.Herkunft(Text(r, "invoice_origin"))
+                .Select(n => strangJeAuftragsname.TryGetValue(n, out var s) ? s : ((string, string)?)null)
+                .FirstOrDefault(s => s is not null)
+                ?? ($"rechnung:{id}", VorgangsName.MitPraefix(art, Text(r, "name")));
+            quellen[("account.move", id)] = new Quelle(firma.Value, VorgangsName.MitPraefix(art, Text(r, "name")), null,
+                StrangSchluessel: strang.Item1, StrangName: strang.Item2);
         }
         return quellen;
     }

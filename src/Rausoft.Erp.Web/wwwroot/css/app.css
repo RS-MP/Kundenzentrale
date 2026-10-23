@@ -529,14 +529,15 @@ button.link:hover { text-decoration: underline; }
 button.link.klein { font-size: 12.5px; color: var(--muted); text-decoration: underline; }
 
 .verlauf3 { list-style: none; margin: 0; padding: 0; }
-.verlauf3 li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.verlauf3 li { display: grid; grid-template-columns: 172px minmax(0, 1fr); gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
 .verlauf3 li.kompakt { padding-top: 7px; padding-bottom: 7px; }
 .verlauf3 li.gering { opacity: .7; }
 .verlauf3 .links { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; min-width: 0; }
 .verlauf3 li.kompakt .links { flex-direction: row; flex-wrap: wrap; gap: 6px; align-items: center; }
 .verlauf3 .datum { color: var(--ink2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .verlauf3 .datum .zeit { color: var(--muted); margin-left: 6px; }
-.verlauf3 .wer { font-size: 13px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.verlauf3 .wer { font-size: 13px; font-weight: 600; color: var(--ink); }
+.nm { white-space: nowrap; }
 .verlauf3 .quelle { font-size: 11px; color: var(--muted); }
 .verlauf3 .rechts { min-width: 0; }
 .verlauf3 .betreff { font-weight: 600; overflow-wrap: anywhere; }
@@ -575,10 +576,9 @@ button.link.klein { font-size: 12.5px; color: var(--muted); text-decoration: und
 
 /* Stränge: aufeinanderfolgende Einträge desselben Odoo-Vorgangs */
 .strang { --rail: var(--border-strong); border-left: 3px solid var(--rail); }
-.strang.m-crm-lead { --rail: color-mix(in srgb, #8b5cf6 55%, transparent); }
-.strang.m-sale-order { --rail: color-mix(in srgb, #2563eb 55%, transparent); }
-.strang.m-account-move { --rail: color-mix(in srgb, #16a34a 55%, transparent); }
-.strang.m-res-partner { --rail: color-mix(in srgb, #64748b 55%, transparent); }
+.strang.m-verkauf, .strang.m-sale-order, .strang.m-crm-lead { --rail: color-mix(in srgb, #2563eb 55%, transparent); }
+.strang.m-rechnung, .strang.m-account-move { --rail: color-mix(in srgb, #16a34a 55%, transparent); }
+.strang.m-partner, .strang.m-res-partner { --rail: color-mix(in srgb, #64748b 55%, transparent); }
 .strang-kopf { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; width: 100%; text-align: left; font: inherit; font-size: 12.5px;
   color: var(--muted); background: var(--surface2); border: 0; border-bottom: 1px solid var(--border); padding: 6px 16px 6px 13px; cursor: pointer; }
 .strang-kopf .titel { color: var(--ink); font-weight: 600; }

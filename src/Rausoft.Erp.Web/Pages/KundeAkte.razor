@@ -155,7 +155,7 @@ else
                                     <span class="leute">
                                         @foreach (var (person, idx) in Beteiligte(strang.Eintraege).Select((p, i) => (p, i)))
                                         {
-                                            @(idx > 0 ? ", " : "")@person.Name@PersonTag(person.Bereich, person.Kunde)
+                                            @(idx > 0 ? ", " : "")<span class="nm">@person.Name</span>@PersonTag(person.Bereich, person.Kunde)
                                         }
                                     </span>
                                     <span class="spanne">@Spanne(strang.Eintraege)</span>
@@ -501,7 +501,8 @@ else
 
     /// <summary>Farbe der Vorgangsmarke nach Odoo-Modell: „sale.order:1198" → „m-sale-order".</summary>
     private static string MarkenKlasse(string? vorgang) =>
-        vorgang?.Split(':')[0] is { Length: > 0 } modell ? "m-" + modell.Replace('.', '-') : "";
+        // „verkauf:lead:5" → m-verkauf, „partner:61917" → m-partner, Altbestand „sale.order:1198" → m-sale-order
+        vorgang?.Split(':')[0] is { Length: > 0 } art ? "m-" + art.Replace('.', '-') : "";
 
     private static string GroesseText(long bytes) => bytes >= 1024 * 1024
         ? $"{bytes / 1024.0 / 1024.0:0.0} MB"
@@ -522,7 +523,7 @@ else
             if (e.Vorgang is not null && letzter?.Vorgang == e.Vorgang)
                 letzter.Eintraege.Add(e);
             else
-                ergebnis.Add(new Strang(e.Id, e.Vorgang, e.Bezug, [e]));
+                ergebnis.Add(new Strang(e.Id, e.Vorgang, e.StrangName ?? e.Bezug, [e]));
         }
         return ergebnis;
     }
@@ -613,7 +614,7 @@ else
                 <span class="art art-@art.Klasse"><span class="ic">@art.Symbol</span>@art.Text</span>
                 @if (!kompakt && e.Autor is not null)
                 {
-                    <span class="wer">@e.Autor@PersonTag(e.AutorBereich, e.AutorIstKunde)</span>
+                    <span class="wer"><span class="nm">@e.Autor</span>@PersonTag(e.AutorBereich, e.AutorIstKunde)</span>
                 }
                 @if (!kompakt && e.Quelle == "OdooImport")
                 {
@@ -674,12 +675,17 @@ else
                 <div class="fuss">
                     @if (kompakt && e.Autor is not null)
                     {
-                        <span>@e.Autor@PersonTag(e.AutorBereich, e.AutorIstKunde)</span>
+                        <span><span class="nm">@e.Autor</span>@PersonTag(e.AutorBereich, e.AutorIstKunde)</span>
                     }
                     @if (mitVorgang && e.Vorgang is not null && e.Bezug is not null)
                     {
-                        <button type="button" class="vorgang" title="Nur Einträge zu „@e.Bezug“ zeigen"
-                                @onclick="() => VorgangWaehlenAsync(e.Vorgang, e.Bezug)">↳ @e.Bezug</button>
+                        <button type="button" class="vorgang" title="Nur Einträge zu „@(e.StrangName ?? e.Bezug)“ zeigen"
+                                @onclick="() => VorgangWaehlenAsync(e.Vorgang, e.StrangName ?? e.Bezug)">↳ @e.Bezug</button>
+                    }
+                    else if (!mitVorgang && e.Bezug is not null && e.Bezug != e.StrangName)
+                    {
+                        @* Im Strang: woran der Eintrag in Odoo hing (Verkaufschance, Auftrag, Rechnung) *@
+                        <span>↳ @e.Bezug</span>
                     }
                     @if (e.OdooLink is not null)
                     {
