@@ -5,6 +5,12 @@
   --accent: #0B6875; --accent-strong: #084F5A; --accent-soft: #DCEEF1; --accent-line: #AFD8DE;
   --good: #1B7A44; --good-bg: #E0F1E7; --warn: #8A6100; --warn-bg: #F8EFD6; --crit: #B23730; --crit-bg: #FAE6E4;
   --knopf-text: #FFFFFF;
+  /* Kundenakte: im hellen Modus kräftiger (Rückmeldung MP 23.10.2026); dunkel unverändert */
+  --akte-an-bg: var(--accent-soft); --akte-an-rand: var(--accent-line); --akte-an-text: var(--accent-strong);
+  --akte-seg-bg: var(--accent-soft); --akte-seg-text: var(--accent-strong);
+  --akte-heiss: #CDE7EB; --akte-heiss-text: var(--accent-strong); --akte-kurz-bg: #F0F7F8;
+  --akte-flag: #C98500; --akte-verein-bg: #FDF3DC; --akte-verein-rand: #E0A526;
+  --akte-notiz: #9A6400; --akte-notiz-bg: #FCEFD2; --akte-periode: #E7ECF0;
   --shadow: 0 1px 2px rgba(20, 30, 40, .05), 0 8px 24px rgba(20, 30, 40, .06);
 }
 
@@ -16,6 +22,11 @@
     --accent: #56BDCB; --accent-strong: #8AD4DF; --accent-soft: #0F3138; --accent-line: #1D4A53;
     --good: #59C78F; --good-bg: #132A1E; --warn: #E3B75E; --warn-bg: #2C2312; --crit: #EB8078; --crit-bg: #341B18;
     --knopf-text: #08252B;
+    --akte-an-bg: var(--surface2); --akte-an-rand: var(--border-strong); --akte-an-text: var(--ink);
+    --akte-seg-bg: var(--surface); --akte-seg-text: var(--ink);
+    --akte-heiss: color-mix(in srgb, var(--accent) 10%, transparent); --akte-heiss-text: inherit; --akte-kurz-bg: transparent;
+    --akte-flag: var(--warn); --akte-verein-bg: var(--warn-bg); --akte-verein-rand: var(--warn);
+    --akte-notiz: var(--warn); --akte-notiz-bg: var(--warn-bg); --akte-periode: var(--surface2);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
   }
 }
@@ -27,6 +38,11 @@
   --accent: #56BDCB; --accent-strong: #8AD4DF; --accent-soft: #0F3138; --accent-line: #1D4A53;
   --good: #59C78F; --good-bg: #132A1E; --warn: #E3B75E; --warn-bg: #2C2312; --crit: #EB8078; --crit-bg: #341B18;
   --knopf-text: #08252B;
+  --akte-an-bg: var(--surface2); --akte-an-rand: var(--border-strong); --akte-an-text: var(--ink);
+  --akte-seg-bg: var(--surface); --akte-seg-text: var(--ink);
+  --akte-heiss: color-mix(in srgb, var(--accent) 10%, transparent); --akte-heiss-text: inherit; --akte-kurz-bg: transparent;
+  --akte-flag: var(--warn); --akte-verein-bg: var(--warn-bg); --akte-verein-rand: var(--warn);
+  --akte-notiz: var(--warn); --akte-notiz-bg: var(--warn-bg); --akte-periode: var(--surface2);
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
 }
 
@@ -526,7 +542,7 @@ a.wiki-thema:hover { border-color: var(--accent-line); }
 .kopf-aktionen { display: flex; align-items: center; gap: 12px; }
 .seg { display: flex; gap: 3px; background: var(--surface2); padding: 3px; border-radius: 9px; margin-left: auto; }
 .seg button { font: inherit; font-size: 12.5px; border: 0; background: transparent; padding: 3px 10px; border-radius: 7px; cursor: pointer; color: var(--ink2); }
-.seg button.an { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font-weight: 600; }
+.seg button.an { background: var(--akte-seg-bg); color: var(--akte-seg-text); box-shadow: var(--shadow); font-weight: 600; }
 .fehlerbox { color: var(--crit); background: var(--crit-bg); border-radius: 8px; padding: 8px 12px; font-size: 13px; white-space: pre-wrap; }
 .krit { color: var(--crit); }
 .hinweis-klein { color: var(--muted); font-size: 12.5px; font-weight: 400; }
@@ -535,7 +551,7 @@ button.link:hover { text-decoration: underline; }
 .nm { white-space: nowrap; }
 
 /* Kurzfassung + Wer mit wem */
-.kurzfassung { display: flex; flex-wrap: wrap; gap: 4px 22px; align-items: baseline; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.kurzfassung { background: var(--akte-kurz-bg); display: flex; flex-wrap: wrap; gap: 4px 22px; align-items: baseline; padding: 10px 16px; border-bottom: 1px solid var(--border); }
 .kurzfassung .gross { font-size: 15px; font-weight: 600; }
 .kurzfassung .klein { color: var(--muted); font-size: 13px; }
 .kurzfassung b { color: var(--ink); }
@@ -549,7 +565,8 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 .wer-mit-wem td.leer { color: var(--border-strong); cursor: default; }
 .wer-mit-wem td .anz { font-weight: 600; }
 .wer-mit-wem td .wann { display: block; color: var(--muted); font-size: 11.5px; }
-.wer-mit-wem td.heiss { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.wer-mit-wem td.heiss { background: var(--akte-heiss); }
+.wer-mit-wem td.heiss .anz { color: var(--akte-heiss-text); }
 .wer-mit-wem td.an { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
 .wer-mit-wem td:not(.leer):hover { background: var(--surface2); }
 
@@ -567,7 +584,7 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 .auf-zeile .beschreibung { font-size: 12.5px; color: var(--ink2); white-space: pre-wrap; margin-top: 2px; }
 .pool { font-size: 11.5px; border: 1px dashed var(--border-strong); border-radius: 4px; padding: 0 5px; color: var(--ink2); }
 .vb-zeile { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--border); align-items: start; }
-.vb-zeile .fl { color: var(--warn); line-height: 1.3; }
+.vb-zeile .fl { color: var(--akte-flag); line-height: 1.3; }
 .vb-zeile.erledigt .fl { color: var(--good); }
 .vb-status { font: inherit; font-size: 12px; font-weight: 600; border: 0; border-radius: 5px; padding: 1px 8px; cursor: pointer; white-space: nowrap; }
 .vb-status.offen { color: var(--warn); background: var(--warn-bg); }
@@ -585,16 +602,16 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 .erfassen .wahl { display: flex; flex-wrap: wrap; gap: 5px; }
 .erfassen .wahl button { font: inherit; font-size: 12.5px; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 2px 10px; cursor: pointer; color: var(--ink2); }
 .erfassen .wahl button.an { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 600; }
-.erfassen .vb-feld { display: flex; gap: 6px; align-items: center; color: var(--warn); }
+.erfassen .vb-feld { display: flex; gap: 6px; align-items: center; color: var(--akte-flag); }
 .erfassen .vb-feld input { flex: 1; }
 
 /* Verlauf: Filter, Zeitabschnitte, einzeilige Einträge */
 .verlauf-filter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); }
 .verlauf-filter .kat { font: inherit; font-size: 12.5px; color: var(--muted); background: transparent; border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
-.verlauf-filter .kat.an { color: var(--ink); border-color: var(--border-strong); background: var(--surface2); }
+.verlauf-filter .kat.an { color: var(--akte-an-text); border-color: var(--akte-an-rand); background: var(--akte-an-bg); }
 .verlauf-filter .kat .anz { font-variant-numeric: tabular-nums; opacity: .7; margin-left: 3px; }
 .verlauf-filter .filter-rechts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); }
-.periode { padding: 5px 16px; background: var(--surface2); color: var(--ink2); font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+.periode { padding: 5px 16px; background: var(--akte-periode); color: var(--ink2); font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
 .z { border-bottom: 1px solid var(--border); }
 .z.gering { opacity: .7; }
 .z-kopf { display: grid; grid-template-columns: 48px 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; text-align: left;
@@ -608,7 +625,7 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 .z .wer { font-size: 12.5px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .z .wer b { color: var(--ink); font-weight: 600; }
 .z .hinten { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; }
-.z .flag { color: var(--warn); }
+.z .flag { color: var(--akte-flag); }
 .z .pfeil { transition: transform .15s; }
 .z.offen .pfeil { transform: rotate(90deg); }
 .z-detail { padding: 2px 16px 12px 100px; color: var(--ink2); }
@@ -618,7 +635,7 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 .z-detail .anhaenge { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .z-detail .anhang { font: inherit; font-size: 12.5px; color: var(--ink2); background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 1px 8px; cursor: pointer; text-decoration: none; }
 .z-detail .anhang:hover { border-color: var(--border-strong); }
-.z-detail .verein { margin-top: 8px; padding: 6px 10px; border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--ink); font-size: 13px; border-radius: 0 6px 6px 0; }
+.z-detail .verein { margin-top: 8px; padding: 6px 10px; border-left: 3px solid var(--akte-verein-rand); background: var(--akte-verein-bg); color: var(--ink); font-size: 13px; border-radius: 0 6px 6px 0; }
 .z-detail .akt { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 12.5px; }
 .z-detail .akt button.link { font-size: 12.5px; }
 @media (max-width: 640px) {
@@ -630,7 +647,7 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 
 /* Art des Eintrags (Symbol im Verlauf) */
 .art-mail { color: #1D5FB8; background: #E3ECF8; }
-.art-notiz { color: var(--warn); background: var(--warn-bg); }
+.art-notiz { color: var(--akte-notiz); background: var(--akte-notiz-bg); }
 .art-anruf { color: #B4531B; background: color-mix(in srgb, #ea7a2b 14%, transparent); }
 .art-termin { color: #7A4FC2; background: color-mix(in srgb, #8b5cf6 13%, transparent); }
 .art-aufgabe { color: var(--accent); background: var(--accent-soft); }

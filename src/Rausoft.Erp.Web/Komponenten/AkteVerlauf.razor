@@ -780,7 +780,7 @@
         if (rausoft.Count == 0 && kunde.Count == 0)
             return @<text>@(e.Autor ?? "")@BereichTag(e.AutorIstKunde ? null : e.AutorBereich)</text>;
         return @<text>@PersonenText(rausoft, true)@if (kunde.Count > 0)
-            {<text> @pfeil </text>@PersonenText(kunde, false)}</text>;
+            {@($" {pfeil} ")@PersonenText(kunde, false)}</text>;
     }
 
     private RenderFragment PersonenText(List<AktePerson> personen, bool rausoft) => @<text>@for (var i = 0; i < personen.Count; i++)
