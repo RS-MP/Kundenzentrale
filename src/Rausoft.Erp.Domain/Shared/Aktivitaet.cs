@@ -67,6 +67,12 @@ public class Aktivitaet
     public string? AutorName { get; set; }
 
     /// <summary>
+    /// Empfänger einer Nachricht als Anzeigetext, z. B. „Frau Berger, Herr Kunz" —
+    /// beim Odoo-Import aus den Empfängern der Nachricht (partner_ids).
+    /// </summary>
+    public string? Empfaenger { get; set; }
+
+    /// <summary>
     /// Vorgang, an dem der Eintrag ursprünglich hing, als Text — z. B. „Auftrag S01194",
     /// „Verkaufschance von …", „Rechnung RE/2026/00774". Für Odoo-Vorgänge gibt es
     /// kein eigenes Ziel in der Kundenzentrale; der Text hält den Zusammenhang.
@@ -100,9 +106,8 @@ public enum VerlaufKategorie
 
 public static class VerlaufKategorien
 {
-    /// <summary>Standardmäßig eingeblendet — das Wesentliche.</summary>
-    public static readonly VerlaufKategorie[] Standard =
-        [VerlaufKategorie.Notizen, VerlaufKategorie.EMails, VerlaufKategorie.Meilensteine];
+    /// <summary>Beim Öffnen der Akte eingeblendet: die Kommunikation (Entscheidung 23.10.2026).</summary>
+    public static readonly VerlaufKategorie[] Standard = [VerlaufKategorie.Notizen, VerlaufKategorie.EMails];
 
     /// <summary>Kategorie eines Eintrags aus Stufe und Typ.</summary>
     public static VerlaufKategorie Von(AktivitaetsStufe stufe, AktivitaetsTyp typ) => stufe switch

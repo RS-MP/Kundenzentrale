@@ -38,10 +38,15 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
     public async Task<ActionResult<List<MitarbeiterEintrag>>> Liste(CancellationToken ct)
     {
         var eigeneId = await EigeneId(ct);
-        return Ok((await db.Mitarbeiter.AsNoTracking()
+        return Ok((await db.Mitarbeiter.AsNoTracking().Include(m => m.Bereich)
                 .OrderByDescending(m => m.Aktiv).ThenBy(m => m.Anzeigename).ToListAsync(ct))
             .Select(m => NachEintrag(m, eigeneId)).ToList());
     }
+
+    /// <summary>Bekannte Bereiche als Vorschlagsliste für die Benutzerverwaltung.</summary>
+    [HttpGet("bereiche")]
+    public async Task<ActionResult<List<string>>> Bereiche(CancellationToken ct) =>
+        Ok(await db.Bereiche.AsNoTracking().Where(b => b.Aktiv).OrderBy(b => b.Name).Select(b => b.Name).ToListAsync(ct));
 
     [HttpPost]
     public async Task<ActionResult<MitarbeiterEintrag>> Anlegen(MitarbeiterAnlegen anlage, CancellationToken ct)
@@ -90,6 +95,21 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
         // Wiki-Themen nur bekannte Schlüssel; ohne Rolle Wiki-Redaktion bleibt die Liste wirkungslos
         var themen = (aenderung.WikiThemen ?? []).Where(WikiThema.IstBekannt).Distinct().ToList();
         mitarbeiter.WikiThemen = themen.Count == 0 ? null : string.Join(",", themen);
+
+        // Bereich per Name: vorhandenen nehmen, neuen anlegen, leer = keiner
+        var bereichName = aenderung.Bereich?.Trim();
+        if (string.IsNullOrEmpty(bereichName))
+            mitarbeiter.BereichId = null;
+        else
+        {
+            if (bereichName.Length > 100)
+                return BadRequest("Der Bereich darf höchstens 100 Zeichen lang sein.");
+            var bereich = await db.Bereiche.FirstOrDefaultAsync(b => b.Name == bereichName, ct);
+            if (bereich is null)
+                db.Bereiche.Add(bereich = new Bereich { Name = bereichName });
+            bereich.Aktiv = true;
+            mitarbeiter.Bereich = bereich;
+        }
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -128,7 +148,8 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
         m.Id, m.WindowsKonto, m.Anzeigename, m.Email,
         AlleRollen.Where(r => m.Rollen.HasFlag(r.Rolle)).Select(r => r.Name).ToList(),
         m.Aktiv, m.Id == eigeneId,
-        Dienste.WikiBerechtigung.Themen(m.WikiThemen).ToList());
+        Dienste.WikiBerechtigung.Themen(m.WikiThemen).ToList(),
+        m.Bereich?.Name);
 
     internal static MitarbeiterRolle NachRollen(List<string> namen) =>
         AlleRollen.Where(r => namen.Contains(r.Name, StringComparer.OrdinalIgnoreCase))

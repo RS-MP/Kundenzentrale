@@ -163,7 +163,15 @@ public record VerlaufEintrag(
     /// <summary>Schlüssel des Odoo-Vorgangs „modell:id" für Marke und Filter, z. B. „sale.order:1198".</summary>
     string? Vorgang,
     /// <summary>Direktlink auf die Nachricht in Odoo (nach Odoo-Login), null bei eigenen Einträgen.</summary>
-    string? OdooLink);
+    string? OdooLink,
+    /// <summary>Wer den Eintrag verfasst hat (Mitarbeiter, Ansprechpartner oder Absender als Text).</summary>
+    string? Autor,
+    /// <summary>Bereich des Autors, wenn er rausoft-Mitarbeiter ist (z. B. „Vertrieb", „Technik").</summary>
+    string? AutorBereich,
+    /// <summary>Autor gehört zum Kunden (Ansprechpartner oder externer Absender).</summary>
+    bool AutorIstKunde,
+    /// <summary>Empfänger als Anzeigetext, z. B. „Frau Berger, Herr Kunz".</summary>
+    string? An);
 
 /// <summary>Anhang am Verlauf: <paramref name="Lokal"/> = Datei in der Dokumentablage, sonst nur <paramref name="OdooLink"/>.</summary>
 public record VerlaufAnhang(int Id, string Dateiname, long Groesse, string? MimeType, bool Lokal, string? OdooLink);

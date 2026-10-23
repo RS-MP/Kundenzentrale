@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verlauf Varianten</title>
+<style>
+  :root{
+    --bg:#F3F4F6; --surface:#FFFFFF; --surface2:#ECEEF1; --border:#DDE1E6; --border-strong:#C3CBD4;
+    --ink:#18222C; --ink2:#42566A; --muted:#5F7080;
+    --accent:#0B6875; --accent-soft:#DCEEF1;
+    --good:#1B7A44; --good-bg:#E0F1E7; --warn:#8A6100; --warn-bg:#F8EFD6; --crit:#B23730;
+    --mail:#1D5FB8; --mail-bg:#E3ECF8;
+    --shadow:0 1px 2px rgba(20,30,40,.05),0 8px 24px rgba(20,30,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F141A; --surface:#161D25; --surface2:#1C242E; --border:#2B3543; --border-strong:#404E5F;
+      --ink:#E9EEF3; --ink2:#B4C1CD; --muted:#7E8D9B;
+      --accent:#56BDCB; --accent-soft:#0F3138;
+      --good:#59C78F; --good-bg:#132A1E; --warn:#E3B75E; --warn-bg:#2C2312; --crit:#EB8078;
+      --mail:#7DB2F0; --mail-bg:#14253A;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F141A; --surface:#161D25; --surface2:#1C242E; --border:#2B3543; --border-strong:#404E5F;
+    --ink:#E9EEF3; --ink2:#B4C1CD; --muted:#7E8D9B;
+    --accent:#56BDCB; --accent-soft:#0F3138;
+    --good:#59C78F; --good-bg:#132A1E; --warn:#E3B75E; --warn-bg:#2C2312; --crit:#EB8078;
+    --mail:#7DB2F0; --mail-bg:#14253A;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif}
+  a{color:var(--accent); text-decoration:none} a:hover{text-decoration:underline}
+  button{font:inherit; color:inherit}
+  .seite{max-width:1180px; margin:0 auto; padding:20px 16px 60px}
+  h1{font-size:20px; margin:0 0 4px}
+  .unter{color:var(--muted); margin:0 0 16px}
+  .leiste{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px}
+  .tabs{display:flex; gap:4px; background:var(--surface2); padding:3px; border-radius:9px}
+  .tabs button{border:0; background:transparent; padding:5px 12px; border-radius:7px; cursor:pointer; color:var(--ink2)}
+  .tabs button.an{background:var(--surface); color:var(--ink); box-shadow:var(--shadow); font-weight:600}
+  .thema{margin-left:auto}
+  .hinweis{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:14px; color:var(--ink2); font-size:13px}
+  .hinweis b{color:var(--ink)}
+  .hinweis ul{margin:4px 0 0; padding-left:18px}
+  .akte{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start}
+  @media (max-width:860px){ .akte{grid-template-columns:1fr} .fakten{display:none} }
+  .karte{background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); overflow:hidden}
+  .kopf{display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border)}
+  .kopf h2{font-size:15px; margin:0}
+  .kopf .zahl{color:var(--muted); font-size:13px}
+  .filter{display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 16px; border-bottom:1px solid var(--border)}
+  .kat{border:1px solid var(--border); background:transparent; border-radius:999px; padding:2px 10px; font-size:12.5px; color:var(--muted); cursor:pointer}
+  .kat.an{color:var(--ink); border-color:var(--border-strong); background:var(--surface2)}
+  .kat .anz{opacity:.7; margin-left:3px; font-variant-numeric:tabular-nums}
+  .vfilter{margin-left:auto; font-size:12.5px; color:var(--muted)}
+  .vfilter button{border:0; background:none; color:var(--accent); cursor:pointer; padding:0}
+  .leer{padding:20px 16px; color:var(--muted)}
+
+  /* gemeinsame Bausteine */
+  .art{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; border-radius:5px; padding:1px 7px; white-space:nowrap}
+  .art .ic{font-size:12px}
+  .art-mail{color:var(--mail); background:var(--mail-bg)}
+  .art-notiz{color:var(--warn); background:var(--warn-bg)}
+  .art-meilenstein{color:var(--good); background:var(--good-bg)}
+  .art-ereignis,.art-systemmeldung,.art-feld{color:var(--muted); background:var(--surface2)}
+  .betreff{font-weight:600}
+  .text{color:var(--ink2); white-space:pre-wrap; margin-top:3px}
+  .text.zu{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  .mehr{border:0; background:none; padding:0; color:var(--muted); cursor:pointer; font-size:12.5px; text-decoration:underline}
+  .anh{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
+  .anh a{font-size:12.5px; color:var(--ink2); border:1px solid var(--border); border-radius:6px; padding:1px 8px}
+  .fuss{display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:5px; font-size:12.5px; color:var(--muted)}
+  .vorgang{border:0; background:none; padding:0; color:var(--muted); cursor:pointer; font-size:12.5px}
+  .vorgang:hover{color:var(--accent); text-decoration:underline}
+  .vorgang::before{content:"↳ "}
+  .kunde-tag{font-size:11px; color:var(--muted); border:1px solid var(--border); border-radius:4px; padding:0 4px; margin-left:4px; font-weight:400}
+  .an-wen{color:var(--ink2); font-size:13px}
+  .gering{opacity:.7}
+  .neu{font-size:10.5px; font-weight:700; color:var(--accent); border:1px solid var(--accent); border-radius:4px; padding:0 4px; margin-left:6px; vertical-align:1px}
+
+  /* Variante A: Steckbrief links */
+  .va li{display:grid; grid-template-columns:148px minmax(0,1fr); gap:14px; padding:11px 16px; border-bottom:1px solid var(--border); list-style:none}
+  .va ul{margin:0; padding:0}
+  .va .links{display:flex; flex-direction:column; gap:3px; align-items:flex-start}
+  .va .datum{font-variant-numeric:tabular-nums; color:var(--ink2); font-size:13px}
+  .va .datum .zeit{color:var(--muted); margin-left:6px}
+  .va .wer{font-size:13px; font-weight:600; color:var(--ink)}
+  .va .quelle{font-size:11px; color:var(--muted)}
+  .va li.kompakt{padding:7px 16px}
+  .va li.kompakt .links{flex-direction:row; flex-wrap:wrap; gap:6px; align-items:center}
+
+  /* Variante B: Kopfzeile */
+  .vb li{display:grid; grid-template-columns:86px minmax(0,1fr); gap:12px; padding:11px 16px; border-bottom:1px solid var(--border); list-style:none}
+  .vb ul{margin:0; padding:0}
+  .vb .datum{font-variant-numeric:tabular-nums; color:var(--ink2); font-size:13px}
+  .vb .datum small{display:block; color:var(--muted); font-size:11px}
+  .vb .zeile1{display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:13px}
+  .vb .zeile1 .wer{font-weight:600}
+  .vb .zeile1 .zeit{margin-left:auto; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums}
+  .vb .betreff{margin-top:3px}
+  .vb li.kompakt{padding:7px 16px}
+
+  /* Variante C: nach Vorgang gruppiert */
+  .vc details{border-bottom:1px solid var(--border)}
+  .vc summary{display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer; list-style:none; background:var(--surface2)}
+  .vc summary::-webkit-details-marker{display:none}
+  .vc summary .titel{font-weight:600}
+  .vc summary .info{color:var(--muted); font-size:12.5px}
+  .vc summary .rechts{margin-left:auto; font-size:12.5px}
+  .vc summary::before{content:"▸"; color:var(--muted); transition:transform .15s}
+  .vc details[open] summary::before{transform:rotate(90deg)}
+  .vc ul{margin:0; padding:0}
+  .vc li{display:grid; grid-template-columns:148px minmax(0,1fr); gap:14px; padding:9px 16px 9px 30px; border-top:1px solid var(--border); list-style:none}
+  .vc .links{display:flex; flex-direction:column; gap:3px; align-items:flex-start}
+  .vc .datum{font-variant-numeric:tabular-nums; color:var(--ink2); font-size:13px}
+  .vc .datum .zeit{color:var(--muted); margin-left:6px}
+  .vc .quelle{font-size:11px; color:var(--muted)}
+  .vc .wer{font-size:13px; font-weight:600}
+  .vc li.kompakt{padding:6px 16px 6px 30px}
+  .vc li.kompakt .links{flex-direction:row; gap:6px; align-items:center}
+
+  /* Bereich der Person (aus Mitarbeiter.Bereich) */
+  .bereich{font-size:11px; font-weight:600; border-radius:4px; padding:0 5px; margin-left:5px; vertical-align:1px}
+  .b-vertrieb{color:#7A4FC2; background:color-mix(in srgb,#8b5cf6 13%,transparent)}
+  .b-technik{color:#B4531B; background:color-mix(in srgb,#ea7a2b 14%,transparent)}
+  .b-buchhaltung{color:#47627A; background:color-mix(in srgb,#64748b 15%,transparent)}
+  :root[data-theme="dark"] .b-vertrieb{color:#C4B5FD} :root[data-theme="dark"] .b-technik{color:#F5B07A} :root[data-theme="dark"] .b-buchhaltung{color:#B6C6D6}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .b-vertrieb{color:#C4B5FD}
+    :root:not([data-theme="light"]) .b-technik{color:#F5B07A}
+    :root:not([data-theme="light"]) .b-buchhaltung{color:#B6C6D6}
+  }
+  .art-anruf{color:#B4531B; background:color-mix(in srgb,#ea7a2b 14%,transparent)}
+
+  /* Variante D: Chronologie mit Strängen */
+  .vd ul{margin:0; padding:0}
+  .vd .strang{--rail:var(--border-strong); border-left:3px solid var(--rail)}
+  .vd .strang.s-chance{--rail:color-mix(in srgb,#8b5cf6 55%,transparent)}
+  .vd .strang.s-auftrag{--rail:color-mix(in srgb,#2563eb 55%,transparent)}
+  .vd .strang.s-rechnung{--rail:color-mix(in srgb,#16a34a 55%,transparent)}
+  .vd .strang.s-firma{--rail:color-mix(in srgb,#64748b 55%,transparent)}
+  .vd .strang-kopf{display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; width:100%; text-align:left; border:0; border-bottom:1px solid var(--border);
+    background:var(--surface2); padding:6px 16px 6px 13px; font-size:12.5px; color:var(--muted); cursor:pointer}
+  .vd .strang-kopf .titel{color:var(--ink); font-weight:600}
+  .vd .strang-kopf .pfeil{display:inline-block; transition:transform .15s}
+  .vd .strang.offen .strang-kopf .pfeil{transform:rotate(90deg)}
+  .vd .strang-kopf .leute{color:var(--ink2)}
+  .vd .strang-kopf .spanne{margin-left:auto; font-variant-numeric:tabular-nums}
+  .vd li{display:grid; grid-template-columns:148px minmax(0,1fr); gap:14px; padding:10px 16px; border-bottom:1px solid var(--border); list-style:none}
+  .vd .strang li{padding-left:13px}
+  .vd .links{display:flex; flex-direction:column; gap:3px; align-items:flex-start}
+  .vd .datum{font-variant-numeric:tabular-nums; color:var(--ink2); font-size:13px}
+  .vd .datum .zeit{color:var(--muted); margin-left:6px}
+  .vd .wer{font-size:13px; font-weight:600}
+  .vd .quelle{font-size:11px; color:var(--muted)}
+  .vd li.kompakt{padding-top:7px; padding-bottom:7px}
+  .vd li.kompakt .links{flex-direction:row; flex-wrap:wrap; gap:6px; align-items:center}
+  .vd .global{margin-left:auto; display:flex; gap:8px}
+  .vd .global button,.global-d button{border:0; background:none; color:var(--accent); cursor:pointer; font-size:12.5px; padding:0}
+
+  @media (max-width:600px){
+    .vd li{grid-template-columns:1fr; gap:4px}
+    .vd .links{flex-direction:row; flex-wrap:wrap; gap:6px; align-items:center}
+    .va li,.vc li{grid-template-columns:1fr; gap:4px}
+    .va .links,.vc .links{flex-direction:row; flex-wrap:wrap; gap:6px; align-items:center}
+    .vb li{grid-template-columns:1fr; gap:2px}
+  }
+
+  .fakten .karte{padding:12px 16px; color:var(--muted); font-size:13px}
+  .fakten h3{margin:0 0 6px; font-size:13px; color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="seite">
+  <h1>Verlauf der Kundenakte — drei Varianten</h1>
+  <p class="unter">Mockup mit anonymisierten Daten nach dem Muster eines echten Neukunden (Angebot, Auftrag, Rechnung). Schalter, Klick auf Vorgang und „mehr anzeigen" funktionieren.</p>
+
+  <div class="leiste">
+    <div class="tabs" role="tablist" id="tabs">
+      <button data-v="a" role="tab">A · Steckbrief links</button>
+      <button data-v="b" role="tab">B · Kopfzeile</button>
+      <button data-v="c" role="tab">C · Nach Vorgang</button>
+      <button data-v="d" role="tab">D · Chronologie mit Strängen</button>
+    </div>
+    <div class="tabs thema" id="thema">
+      <button data-t="auto">Auto</button><button data-t="light">Hell</button><button data-t="dark">Dunkel</button>
+    </div>
+  </div>
+
+  <div class="hinweis" id="hinweis"></div>
+
+  <div class="akte">
+    <div class="karte">
+      <div class="kopf"><h2>Verlauf</h2><span class="zahl" id="zahl"></span></div>
+      <div class="filter" id="filter"></div>
+      <div id="liste"></div>
+    </div>
+    <div class="fakten">
+      <div class="karte"><h3>Fakten (rechts, unverändert)</h3>Betrieb &amp; Lizenzen, Verträge, Ansprechpartner, Stammdaten — Layout-Entscheidung bleibt: Verlauf links, Fakten rechts.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Daten (anonymisiert) ---------------------------------------------------
+const V = {
+  chance:  { key: 'chance',  name: 'Verkaufschance Muster Industries' },
+  auftrag: { key: 'auftrag', name: 'Auftrag S01999' },
+  rechnung:{ key: 'rechnung',name: 'Rechnung RE/2026/00999' },
+  firma:   { key: 'firma',   name: 'Firma' },
+};
+// Bereich aus Mitarbeiter.Bereich der Kundenzentrale (Zuordnung im Mockup nur beispielhaft)
+const BEREICH = { 'Matthias Pätzold':'Vertrieb', 'Daniel Stauch':'Technik', 'Pamela Glemser':'Buchhaltung', 'Rausoft Buchhaltung':'Buchhaltung' };
+const E = [
+  { d:'2026-10-22', t:'15:20', art:'anruf', ri:'ein', betreff:'Telefonat: Rückfrage zu Einzelprüfungen', text:'Frau Berger fragte, wie Einzelprüfungen der neuen Gruppe zugeordnet werden. Am Bildschirm gezeigt, keine weitere Schulung nötig.', von:'Daniel Stauch', an:'Frau Berger', quelle:'kz' },
+  { d:'2026-10-22', t:'09:55', art:'ereignis', betreff:'Kundennummer 30001 aus Odoo übernommen (vorher 61999)', quelle:'kz' },
+  { d:'2026-10-21', t:'11:15', art:'meilenstein', betreff:'Rechnung bezahlt', detail:'Nicht bezahlt → Bezahlt', von:'Pamela Glemser', v:V.rechnung },
+  { d:'2026-10-20', t:'16:47', art:'notiz', betreff:'Gruppe für Einzelprüfungen angelegt und Frau Berger in KundenAdmin-Gruppe', von:'Matthias Pätzold', v:V.auftrag },
+  { d:'2026-10-05', t:'11:35', art:'mail', ri:'aus', von:'Rausoft Buchhaltung', an:'Muster Industries GmbH', betreff:'Ihre Rechnung RE/2026/00999',
+    text:'Sehr geehrte Damen und Herren,\nanbei erhalten Sie unsere Rechnung mit der Nummer RE/2026/00999.\nDie Rechnung bezieht sich auf die Nutzung der Software ID.prove. Der Rechnungsbetrag enthält die monatlichen Lizenzkosten sowie gegebenenfalls zusätzliche Kosten für optionale Module oder Dienstleistungen.\nBitte begleichen Sie den offenen Betrag bis spätestens zum Fälligkeitsdatum am 20.10.2026.',
+    anh:['RE_2026_00999.pdf','RE_2026_00999_zugferd.xml'], v:V.rechnung },
+  { d:'2026-10-05', t:'11:35', art:'meilenstein', betreff:'Rechnung gestellt', detail:'Entwurf → Gebucht', von:'Pamela Glemser', v:V.rechnung },
+  { d:'2026-10-05', t:'11:34', art:'feld', betreff:'Geändert: Nächste Rechnung', detail:'31.12.2029 → 23.09.2026', von:'Pamela Glemser', v:V.auftrag },
+  { d:'2026-09-23', t:'14:00', art:'systemmeldung', betreff:'Automatische Antwort: Abwesenheitsnotiz', von:'Alex Brandt', kunde:true, v:V.auftrag },
+  { d:'2026-09-23', t:'13:58', art:'mail', ri:'aus', von:'Daniel Stauch', an:'Herr Brandt', betreff:'AW: Ihre Bestellung ID.prove – Auftragsbestätigung S01999',
+    text:'Sehr geehrter Herr Brandt,\nnachfolgend erhalten Sie die Zugangsdaten zu ID.prove:\nLink: https://shared.idprove.cloud\nBenutzername: a.brandt@muster-industries.de\nPasswort-Einmal-Link: •••\nBitte beachten Sie, dass der Passwort-Link nur 90 Tage gültig ist und nur einmal aufgerufen werden kann. Ändern Sie Ihr Passwort daher unmittelbar nach der ersten Anmeldung.', v:V.auftrag },
+  { d:'2026-09-23', t:'13:56', art:'mail', ri:'aus', von:'Daniel Stauch', an:'Herr Kunz', betreff:'AW: Ihre Bestellung ID.prove – Auftragsbestätigung S01999',
+    text:'Sehr geehrter Herr Kunz,\nnachfolgend erhalten Sie die Zugangsdaten zu ID.prove:\nLink: https://shared.idprove.cloud\nBenutzername: k.kunz@muster-industries.de\nPasswort-Einmal-Link: •••\nBitte beachten Sie, dass der Passwort-Link nur 90 Tage gültig ist und nur einmal aufgerufen werden kann.', v:V.auftrag },
+  { d:'2026-09-23', t:'13:47', art:'systemmeldung', betreff:'Kontakt erstellt: Kai Kunz', von:'Daniel Stauch', v:V.firma },
+  { d:'2026-09-22', t:'12:56', art:'mail', ri:'ein', von:'Anja Berger', kunde:true, an:'Daniel Stauch', betreff:'AW: Ihre Bestellung ID.prove – Auftragsbestätigung S01999',
+    text:'Sehr geehrter Herr Stauch,\nim Anhang erhalten Sie den unterschriebenen Vertrag.\nHier die 2 weiteren Benutzer:\nk.kunz@muster-industries.de\na.brandt@muster-industries.de\nMatthias Pätzold hat bereits zu einer Schulung am 29.09.2026, 14:00 Uhr eingeladen. Ich gehe davon aus, dass ich keinen weiteren Schulungstermin buchen muss?',
+    anh:['30001 Muster Industries unterschrieben.pdf','30001 Muster Industries Anlagen.pdf'], v:V.auftrag },
+  { d:'2026-09-21', t:'11:05', art:'mail', ri:'aus', von:'Daniel Stauch', an:'Frau Berger', betreff:'Ihre Bestellung ID.prove – Auftragsbestätigung S01999',
+    text:'Sehr geehrte Frau Berger,\nvielen Dank für Ihre Bestellung zu unserem Angebot S01999. Anbei erhalten Sie die Auftragsbestätigung zu Ihrem Auftrag. Anbei übersenden wir Ihnen außerdem den Vertrag zur Unterschrift.',
+    anh:['30001 - Muster Industries.pdf','Auftrag - S01999.pdf'], v:V.auftrag },
+  { d:'2026-09-21', t:'09:38', art:'notiz', betreff:'Vertrag hochgeladen', von:'Pamela Glemser', anh:['30001.pdf'], v:V.auftrag },
+  { d:'2026-09-21', t:'09:35', art:'notiz', betreff:'Bestellt für 24 Monate', von:'Pamela Glemser', v:V.auftrag },
+  { d:'2026-09-16', t:'09:55', art:'meilenstein', betreff:'Auftrag bestätigt', detail:'Angebot gesendet → Verkaufsauftrag', von:'Pamela Glemser', v:V.auftrag },
+  { d:'2026-09-16', t:'09:55', art:'feld', betreff:'Geändert: KundenNr, Vertriebsmitarbeiter', detail:'KundenNr: — → 30001 · Vertriebsmitarbeiter: — → Matthias Pätzold', von:'Pamela Glemser', v:V.firma },
+  { d:'2026-09-16', t:'09:47', art:'meilenstein', betreff:'Wartung aktiviert', detail:'Wartung: Nein → Ja', von:'Pamela Glemser', v:V.firma },
+  { d:'2026-09-16', t:'09:31', art:'meilenstein', betreff:'Verkaufschance gewonnen', detail:'Präsentation → Gewonnen', von:'Pamela Glemser', v:V.chance },
+  { d:'2026-09-04', t:'10:07', art:'notiz', betreff:'Wollen heute noch bestellen', text:'Bitte am Montag Zugangsdaten anlegen, damit der Kunde am Dienstag geschult werden kann.', von:'Matthias Pätzold', v:V.chance },
+  { d:'2026-08-31', t:'11:58', art:'mail', ri:'aus', von:'Matthias Pätzold', an:'Frau Berger, Herr Kahl', betreff:'Rausoft GmbH Angebot (Ref S01999)',
+    text:'Sehr geehrte Frau Berger, sehr geehrter Herr Kahl,\nwie besprochen erhalten Sie in der Anlage unser Angebot mit der Nummer S01999.', anh:['Angebot - S01999.pdf'], v:V.auftrag },
+  { d:'2026-08-31', t:'11:57', art:'notiz', betreff:'Herr Kahl ist als Follower eingetragen', von:'Matthias Pätzold', v:V.auftrag },
+  { d:'2026-08-31', t:'11:55', art:'notiz', betreff:'Lief bisher über die Fa. Beispielpartner', von:'Matthias Pätzold', v:V.chance },
+  { d:'2026-08-31', t:'11:55', art:'meilenstein', betreff:'Verkaufschance angelegt', von:'Matthias Pätzold', v:V.chance },
+  { d:'2026-08-31', t:'11:55', art:'notiz', betreff:'Kunde kommt über Partner Consys, Herr Kahl ist bei der Fa. Beispielpartner', von:'Matthias Pätzold', v:V.firma },
+  { d:'2026-08-31', t:'11:52', art:'systemmeldung', betreff:'Kontakt erstellt', von:'Matthias Pätzold', v:V.firma },
+];
+
+const ART = {
+  mail:          { label: e => e.ri === 'ein' ? 'E-Mail erhalten' : 'E-Mail gesendet', ic: e => e.ri === 'ein' ? '✉←' : '✉→', kat:'EMails' },
+  notiz:         { label: () => 'Notiz',         ic: () => '✎', kat:'Notizen' },
+  anruf:         { label: e => e.ri === 'ein' ? 'Anruf erhalten' : 'Anruf geführt', ic: () => '☎', kat:'Notizen' },
+  meilenstein:   { label: () => 'Meilenstein',   ic: () => '◆', kat:'Meilensteine' },
+  ereignis:      { label: () => 'Ereignis',      ic: () => '•', kat:'Meilensteine' },
+  systemmeldung: { label: () => 'Systemmeldung', ic: () => '·', kat:'Systemmeldungen' },
+  feld:          { label: () => 'Feldänderung',  ic: () => 'Δ', kat:'Feldaenderungen' },
+};
+const KATS = [['Notizen','Notizen'],['EMails','E-Mails'],['Meilensteine','Meilensteine'],['Systemmeldungen','Systemmeldungen'],['Feldaenderungen','Feldänderungen']];
+const HINWEIS = {
+  a: '<b>A · Steckbrief links:</b> Unter dem Datum stehen Art und Person — man überfliegt die linke Spalte und sieht sofort, wer wann was gemacht hat. Rechts nur noch Inhalt. Meilensteine einzeilig.',
+  b: '<b>B · Kopfzeile:</b> Links nur das Datum. Jede Zeile beginnt mit Art, Person und Empfänger — wie ein Posteingang. Platzsparender, aber die Art springt weniger ins Auge.',
+  c: '<b>C · Nach Vorgang:</b> Statt an jedem Eintrag „Auftrag S01999" zu wiederholen, bündeln aufklappbare Abschnitte alles je Vorgang, sortiert nach letzter Aktivität. Gut für „Wie lief der Verkauf?", schlechter für „Was war zuletzt los?".',
+  d: '<b>D · Chronologie mit Strängen:</b> Streng zeitlich wie A. Folgen mehrere Einträge zum selben Vorgang aufeinander, bilden sie einen <b>Strang</b> mit farbiger Leiste und Kopfzeile. Eingeklappt zeigt der Strang Zeitraum, Arten und beteiligte Personen mit Bereich — die Reihenfolge bleibt erhalten. Ein Vorgang kann mehrfach auftauchen, wenn zwischendurch etwas anderes passiert ist.',
+};
+const ALLE = '<ul><li>Neben der Person steht ihr <b>Bereich</b> (Vertrieb, Technik, Buchhaltung) aus der Mitarbeiterverwaltung — so sieht man, wer auf rausoft-Seite dran war.</li><li>Vorgang nicht mehr als bunte Marke, sondern grau „↳ Auftrag S01999" — Klick filtert weiterhin.</li><li>Mails zweizeilig eingeklappt, Klick auf „mehr anzeigen" klappt auf. Signatur und Zitat würden abgeschnitten.</li><li><span class="neu">NEU</span> Empfänger („an Herrn Brandt") — dafür müssten wir beim Import zusätzlich die Empfänger aus Odoo übernehmen.</li></ul>';
+
+// --- Zustand -----------------------------------------------------------------
+let variante = 'a';
+const kats = new Set(['Notizen','EMails','Meilensteine']);
+let vorgang = null;
+const offen = new Set();
+const straengeOffen = new Set();   // Index des ersten Eintrags eines Strangs
+let straengeStandardOffen = true;
+try { variante = localStorage.getItem('verlauf-variante') || 'a'; } catch (e) {}
+
+// --- Hilfen ------------------------------------------------------------------
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const datum = d => d.split('-').reverse().join('.');
+const kompakt = e => !['mail','notiz','anruf'].includes(e.art) && !e.text;
+const gering = e => ['systemmeldung','feld'].includes(e.art);
+const sichtbar = () => E.filter(e => kats.has(ART[e.art].kat) && (!vorgang || e.v?.key === vorgang.key));
+
+function artBadge(e){ const a = ART[e.art]; return `<span class="art art-${e.art}"><span class="ic">${a.ic(e)}</span>${a.label(e)}</span>`; }
+function bereich(name){ const b = BEREICH[name]; return b ? `<span class="bereich b-${b.toLowerCase()}">${b}</span>` : ''; }
+function wer(e){ return e.von ? `<span class="wer">${esc(e.von)}${e.kunde ? '<span class="kunde-tag">Kunde</span>' : bereich(e.von)}</span>` : ''; }
+function text(e, i){
+  if (!e.text) return '';
+  const auf = offen.has(i);
+  return `<div class="text ${auf ? '' : 'zu'}">${esc(e.text)}</div>` +
+    (e.text.length > 140 ? `<button class="mehr" data-auf="${i}">${auf ? 'weniger' : 'mehr anzeigen'}</button>` : '');
+}
+function anh(e){ return e.anh ? `<div class="anh">${e.anh.map(a => `<a href="#" title="Original in Odoo öffnen">📎 ${esc(a)} ↗</a>`).join('')}</div>` : ''; }
+function fuss(e, mitVorgang = true){
+  const teile = [];
+  if (mitVorgang && e.v) teile.push(`<button class="vorgang" data-v="${e.v.key}">${esc(e.v.name)}</button>`);
+  if (e.quelle !== 'kz') teile.push('<a href="#" title="Nachricht im Odoo-Chatter öffnen">in Odoo ↗</a>');
+  return teile.length ? `<div class="fuss">${teile.join('<span>·</span>')}</div>` : '';
+}
+function anWen(e){ return e.an ? `<div class="an-wen">${e.ri === 'ein' ? 'an' : 'an'} ${esc(e.an)}<span class="neu">NEU</span></div>` : ''; }
+
+// --- Varianten ---------------------------------------------------------------
+function zeileA(e, i, mitVorgang = true){
+  if (kompakt(e)) return `<li class="kompakt ${gering(e) ? 'gering' : ''}">
+      <div class="links"><span class="datum">${datum(e.d)}</span>${artBadge(e)}</div>
+      <div><span class="betreff" style="font-weight:500">${esc(e.betreff)}</span>${e.detail ? ` <span style="color:var(--muted)">· ${esc(e.detail)}</span>` : ''}
+        <div class="fuss">${e.von ? esc(e.von) + bereich(e.von) + '<span>·</span>' : ''}${fuss(e, mitVorgang).replace('<div class="fuss">','').replace(/<\/div>$/,'')}</div></div></li>`;
+  return `<li class="${gering(e) ? 'gering' : ''}">
+      <div class="links">
+        <span class="datum">${datum(e.d)}<span class="zeit">${e.t}</span></span>
+        ${artBadge(e)}
+        ${wer(e)}
+        ${e.quelle !== 'kz' ? '<span class="quelle">aus Odoo</span>' : ''}
+      </div>
+      <div><div class="betreff">${esc(e.betreff)}</div>${anWen(e)}${text(e, i)}${anh(e)}${fuss(e, mitVorgang)}</div></li>`;
+}
+function zeileB(e, i){
+  const kopf = `<div class="zeile1">${artBadge(e)}${e.von ? `<span class="wer">${esc(e.von)}</span>${e.kunde ? '<span class="kunde-tag">Kunde</span>' : ''}` : ''}${e.an ? `<span style="color:var(--muted)">→ ${esc(e.an)}</span><span class="neu">NEU</span>` : ''}<span class="zeit">${e.t}</span></div>`;
+  if (kompakt(e)) return `<li class="kompakt ${gering(e) ? 'gering' : ''}"><div class="datum">${datum(e.d)}</div>
+      <div>${kopf}<div>${esc(e.betreff)}${e.detail ? ` <span style="color:var(--muted)">· ${esc(e.detail)}</span>` : ''}</div>${fuss(e)}</div></li>`;
+  return `<li class="${gering(e) ? 'gering' : ''}"><div class="datum">${datum(e.d)}${e.quelle !== 'kz' ? '<small>Odoo</small>' : ''}</div>
+      <div>${kopf}<div class="betreff">${esc(e.betreff)}</div>${text(e, i)}${anh(e)}${fuss(e)}</div></li>`;
+}
+function variantC(liste){
+  const gruppen = new Map();
+  liste.forEach(e => { const k = e.v?.key ?? 'allgemein'; if (!gruppen.has(k)) gruppen.set(k, []); gruppen.get(k).push(e); });
+  const namen = { allgemein: 'Allgemein (Kundenzentrale)' };
+  return [...gruppen.entries()].map(([k, es], gi) => {
+    const name = es[0].v?.name ?? namen[k];
+    const letzte = datum(es[0].d);
+    return `<details ${gi < 2 ? 'open' : ''}><summary><span class="titel">${esc(name)}</span>
+        <span class="info">${es.length} Einträge · zuletzt ${letzte}</span>
+        ${k !== 'allgemein' ? '<a class="rechts" href="#" onclick="event.stopPropagation()">in Odoo ↗</a>' : ''}</summary>
+      <ul>${es.map(e => zeileA(e, E.indexOf(e), false)).join('')}</ul></details>`;
+  }).join('');
+}
+
+/**
+ * Variante D: chronologisch; aufeinanderfolgende Einträge desselben Vorgangs
+ * bilden einen Strang (ab 2 Einträgen). Einzelne Einträge bleiben normale Zeilen.
+ */
+function variantD(liste){
+  const laeufe = [];
+  for (const e of liste) {
+    const k = e.v?.key ?? null;
+    const letzter = laeufe[laeufe.length - 1];
+    if (k && letzter && letzter.key === k) letzter.es.push(e);
+    else laeufe.push({ key: k, es: [e] });
+  }
+  return laeufe.map(l => {
+    if (!l.key || l.es.length < 2) return `<ul>${l.es.map(e => zeileA(e, E.indexOf(e))).join('')}</ul>`;
+    const id = E.indexOf(l.es[0]);
+    const auf = straengeStandardOffen ? !straengeOffen.has(id) : straengeOffen.has(id);
+    const arten = {};
+    l.es.forEach(e => { const n = ART[e.art].label(e).replace(/ (gesendet|erhalten|geführt)$/,''); arten[n] = (arten[n] || 0) + 1; });
+    const leute = [...new Set(l.es.filter(e => e.von).map(e => e.von))]
+      .map(n => `${esc(n)}${l.es.find(e => e.von === n)?.kunde ? ' <span class="kunde-tag">Kunde</span>' : bereich(n)}`).join(', ');
+    const spanne = l.es.length > 1 && l.es[0].d !== l.es[l.es.length - 1].d
+      ? `${datum(l.es[l.es.length - 1].d)} – ${datum(l.es[0].d)}` : datum(l.es[0].d);
+    return `<div class="strang s-${l.key} ${auf ? 'offen' : ''}">
+        <button class="strang-kopf" data-strang="${id}">
+          <span class="pfeil">▸</span><span class="titel">${esc(l.es[0].v.name)}</span>
+          <span>${l.es.length} Einträge · ${Object.entries(arten).map(([n, c]) => c > 1 ? `${c}× ${n}` : n).join(', ')}</span>
+          <span class="leute">${leute}</span>
+          <span class="spanne">${spanne}</span>
+        </button>
+        ${auf ? `<ul>${l.es.map(e => zeileA(e, E.indexOf(e), false)).join('')}</ul>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// --- Rendern -----------------------------------------------------------------
+function rendern(){
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('an', b.dataset.v === variante));
+  document.getElementById('hinweis').innerHTML = HINWEIS[variante] + ALLE;
+  const basis = E.filter(e => !vorgang || e.v?.key === vorgang.key);
+  document.getElementById('filter').innerHTML =
+    KATS.map(([k, n]) => `<button class="kat ${kats.has(k) ? 'an' : ''}" data-k="${k}">${n}<span class="anz">${basis.filter(e => ART[e.art].kat === k).length}</span></button>`).join('') +
+    (vorgang ? `<span class="vfilter">nur ${esc(vorgang.name)} · <button id="alle">alle Vorgänge</button></span>` : '') +
+    (variante === 'd' ? `<span class="vfilter global-d">Stränge: <button id="straenge-auf">alle auf</button> · <button id="straenge-zu">alle zu</button></span>` : '');
+  const liste = sichtbar();
+  document.getElementById('zahl').textContent = `${liste.length} Einträge`;
+  const ziel = document.getElementById('liste');
+  ziel.className = 'v' + variante;
+  if (!liste.length) { ziel.innerHTML = '<div class="leer">Keine Einträge für diese Auswahl.</div>'; return; }
+  ziel.innerHTML = variante === 'c' ? variantC(liste)
+    : variante === 'd' ? variantD(liste)
+    : `<ul>${liste.map(e => (variante === 'a' ? zeileA : zeileB)(e, E.indexOf(e))).join('')}</ul>`;
+}
+
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('button,a');
+  if (!t) return;
+  if (t.tagName === 'A' && t.getAttribute('href') === '#') { ev.preventDefault(); return; }
+  if (t.dataset.v && t.closest('#tabs')) { variante = t.dataset.v; try { localStorage.setItem('verlauf-variante', variante); } catch (e) {} }
+  else if (t.dataset.k) { kats.has(t.dataset.k) ? kats.delete(t.dataset.k) : kats.add(t.dataset.k); }
+  else if (t.classList.contains('vorgang')) { vorgang = Object.values(V).find(v => v.key === t.dataset.v); }
+  else if (t.id === 'alle') { vorgang = null; }
+  else if (t.dataset.strang) { const i = +t.dataset.strang; straengeOffen.has(i) ? straengeOffen.delete(i) : straengeOffen.add(i); }
+  else if (t.id === 'straenge-auf') { straengeStandardOffen = true; straengeOffen.clear(); }
+  else if (t.id === 'straenge-zu') { straengeStandardOffen = false; straengeOffen.clear(); }
+  else if (t.dataset.auf) { const i = +t.dataset.auf; offen.has(i) ? offen.delete(i) : offen.add(i); }
+  else if (t.dataset.t) {
+    if (t.dataset.t === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', t.dataset.t);
+    document.querySelectorAll('#thema button').forEach(b => b.classList.toggle('an', b === t));
+    return;
+  }
+  else return;
+  rendern();
+});
+document.querySelector('#thema button[data-t="auto"]').classList.add('an');
+rendern();
+</script>
+</body>
+</html>

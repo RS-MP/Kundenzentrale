@@ -427,14 +427,42 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             {
                 a.Id, a.Typ, a.Zeitpunkt, a.Betreff, a.Inhalt, a.VerweisTyp, a.VerweisId,
                 a.Quelle, a.Richtung, a.AutorName, a.Bezug, a.Stufe, a.FilterGrund, a.OdooId, a.OdooModell, a.OdooResId,
+                a.Empfaenger,
                 Mitarbeiter = a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : null,
-                Ansprechpartner = a.Ansprechpartner != null ? a.Ansprechpartner.Nachname : null,
+                Bereich = a.Mitarbeiter != null && a.Mitarbeiter.Bereich != null ? a.Mitarbeiter.Bereich.Name : null,
+                ApAnrede = a.Ansprechpartner != null ? a.Ansprechpartner.Anrede : (Anrede?)null,
+                ApVorname = a.Ansprechpartner != null ? a.Ansprechpartner.Vorname : null,
+                ApNachname = a.Ansprechpartner != null ? a.Ansprechpartner.Nachname : null,
                 Anhaenge = a.Anhaenge.OrderBy(x => x.Dateiname)
                     .Select(x => new { x.Id, x.Dateiname, x.Groesse, x.MimeType, x.RelativerPfad, x.OdooId }).ToList(),
             })
             .ToListAsync(ct);
-        return Ok(roh.Select(a => new VerlaufEintrag(
-            a.Id, a.Typ.ToString(), a.Zeitpunkt, a.Mitarbeiter, a.Ansprechpartner,
+        return Ok(roh.Select(a =>
+        {
+            // Ansprechpartner mit Anrede („Frau Berger"), ohne Anrede mit Vorname
+            var ansprechpartner = a.ApNachname is null ? null
+                : a.ApAnrede is Anrede.Herr or Anrede.Frau ? $"{a.ApAnrede} {a.ApNachname}"
+                : string.Join(' ', new[] { a.ApVorname, a.ApNachname }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            var autorName = Domain.Shared.Absender.Anzeigename(a.AutorName);
+            // Autor = Absender: bei eingehenden Nachrichten die Kundenseite, sonst rausoft
+            string? autor, bereich = null, an;
+            bool kunde;
+            if (a.Richtung == Domain.Shared.AktivitaetsRichtung.Eingehend)
+            {
+                autor = ansprechpartner ?? autorName ?? a.Mitarbeiter;
+                kunde = autor is not null && autor != a.Mitarbeiter;
+                if (!kunde) bereich = a.Bereich;
+                an = a.Empfaenger ?? (kunde ? a.Mitarbeiter : null);
+            }
+            else
+            {
+                autor = a.Mitarbeiter ?? autorName ?? ansprechpartner;
+                bereich = a.Mitarbeiter is not null ? a.Bereich : null;
+                kunde = a.Mitarbeiter is null && autorName is null && ansprechpartner is not null;
+                an = a.Empfaenger ?? (a.Mitarbeiter is not null ? ansprechpartner : null);
+            }
+            return new VerlaufEintrag(
+            a.Id, a.Typ.ToString(), a.Zeitpunkt, a.Mitarbeiter, ansprechpartner,
             a.Betreff, a.Inhalt, a.VerweisTyp?.ToString(), a.VerweisId,
             a.Quelle.ToString(), a.Richtung?.ToString(), a.AutorName, a.Bezug,
             a.Anhaenge.Select(x => new VerlaufAnhang(x.Id, x.Dateiname, x.Groesse, x.MimeType,
@@ -444,7 +472,9 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             a.FilterGrund,
             a.OdooModell is not null && a.OdooResId is not null ? $"{a.OdooModell}:{a.OdooResId}" : null,
             // /mail/message/<id> springt nach dem Odoo-Login direkt zur Nachricht im Chatter des Vorgangs
-            odooUrl is not null && a.OdooId is not null ? $"{odooUrl}/mail/message/{a.OdooId}" : null)).ToList());
+            odooUrl is not null && a.OdooId is not null ? $"{odooUrl}/mail/message/{a.OdooId}" : null,
+            autor, bereich, kunde, an);
+        }).ToList());
     }
 
     /// <summary>Anzahl Einträge je Kategorie — für die Zahlen an den Schaltern der Akte.</summary>

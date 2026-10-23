@@ -18,6 +18,15 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (23.10.2026 nachmittags, Verlauf Variante D):**
+  Migration `VerlaufEmpfaenger` läuft automatisch (Aktivitaet.Empfaenger).
+  Akte: chronologischer Verlauf mit Art und Person (inkl. **Bereich**) links,
+  Empfänger „an …", aufeinanderfolgende Einträge eines Odoo-Vorgangs als
+  einklappbarer Strang; beim Öffnen nur Notizen und E-Mails aktiv.
+  Nach dem Update: 1) Administration → Benutzer & Rollen: **Bereich** bei den
+  Mitarbeitern pflegen (Vertrieb, Technik, Buchhaltung …), sonst steht nur
+  der Name. 2) Chatter-Import für 25757 erneut ausführen — er ergänzt die
+  Empfänger an den bestehenden Einträgen.
 - [ ] **Publish aktualisieren (23.10.2026, Chatter: alles importieren, umschaltbar):**
   Migration `ChatterAllesImportieren` läuft automatisch (Aktivitaet.Stufe/
   FilterGrund/OdooModell/OdooResId, Anhang ohne lokale Datei möglich).

@@ -110,13 +110,17 @@ else
                             @name <span class="anz">@(_zaehler?.GetValueOrDefault(schluessel) ?? 0)</span>
                         </button>
                     }
-                    @if (_vorgang is { } v)
-                    {
-                        <span class="vorgang-filter">
-                            nur <span class="marke @MarkenKlasse(v.Schluessel)">@v.Name</span>
-                            <button type="button" class="mehr" title="Vorgangsfilter aufheben" @onclick="VorgangAufhebenAsync">✕ alle Vorgänge</button>
-                        </span>
-                    }
+                    <span class="filter-rechts">
+                        @if (_vorgang is { } v)
+                        {
+                            <span>nur <b>@v.Name</b> · <button type="button" class="link" title="Vorgangsfilter aufheben" @onclick="VorgangAufhebenAsync">alle Vorgänge</button></span>
+                        }
+                        @if (_straenge.Any(s => s.Eintraege.Count > 1))
+                        {
+                            <span>Stränge: <button type="button" class="link" @onclick="() => AlleStraenge(true)">alle auf</button>
+                                · <button type="button" class="link" @onclick="() => AlleStraenge(false)">alle zu</button></span>
+                        }
+                    </span>
                 </div>
                 <div class="karte-koerper eng">
                     @if (_verlaufFehler is not null)
@@ -132,74 +136,41 @@ else
                     }
                     else
                     {
-                        <ul class="verlauf2">
-                            @foreach (var eintrag in _verlauf)
+                        @* Variante D (23.10.2026): streng chronologisch; aufeinanderfolgende Einträge
+                           desselben Vorgangs bilden einen einklappbaren Strang *@
+                        @foreach (var strang in _straenge)
+                        {
+                            if (strang.Eintraege.Count < 2)
                             {
-                                <li class="@(eintrag.Quelle == "OdooImport" ? "odoo" : "") @(eintrag.Kategorie is "Systemmeldungen" or "Feldaenderungen" ? "gering" : "")">
-                                    <span class="datum" title="@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")">@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy")</span>
-                                    <div>
-                                        @if (RichtungZeichen(eintrag) is { Length: > 0 } richtung)
-                                        {
-                                            <span class="richtung" title="@eintrag.Richtung">@richtung</span>
-                                        }
-                                        @if (eintrag.VerweisTyp == "Vertrag" && eintrag.VerweisId is not null)
-                                        {
-                                            <a href="vertraege/@eintrag.VerweisId">@eintrag.Betreff</a>
-                                        }
-                                        else
-                                        {
-                                            <span>@eintrag.Betreff</span>
-                                        }
-                                        @if (eintrag.Bezug is not null && eintrag.Vorgang is not null)
-                                        {
-                                            <button type="button" class="marke @MarkenKlasse(eintrag.Vorgang)" title="Nur Einträge zu „@eintrag.Bezug“ zeigen"
-                                                    @onclick="() => VorgangWaehlenAsync(eintrag.Vorgang, eintrag.Bezug)">@eintrag.Bezug</button>
-                                        }
-                                        else if (eintrag.Bezug is not null)
-                                        {
-                                            <span class="bezug">@eintrag.Bezug</span>
-                                        }
-                                        @if (eintrag.Inhalt is not null)
-                                        {
-                                            <div class="textzeile">@InhaltText(eintrag)@if (eintrag.Inhalt.Length > InhaltKurz && !_aufgeklappt.Contains(eintrag.Id))
-                                                {
-                                                    <text> </text><button type="button" class="mehr" @onclick="() => _aufgeklappt.Add(eintrag.Id)">mehr anzeigen</button>
-                                                }</div>
-                                        }
-                                        @if (eintrag.Anhaenge.Count > 0)
-                                        {
-                                            <div class="anhaenge">
-                                                @foreach (var anhang in eintrag.Anhaenge)
-                                                {
-                                                    @if (anhang.Lokal)
-                                                    {
-                                                        <button type="button" class="anhang" title="@GroesseText(anhang.Groesse) · aus der Dokumentablage"
-                                                                @onclick="() => AnhangHerunterladenAsync(anhang)">📎 @anhang.Dateiname</button>
-                                                    }
-                                                    else if (anhang.OdooLink is not null)
-                                                    {
-                                                        <a class="anhang" href="@anhang.OdooLink" target="_blank" rel="noopener noreferrer"
-                                                           title="@GroesseText(anhang.Groesse) · Original in Odoo (Odoo-Anmeldung nötig)">📎 @anhang.Dateiname ↗</a>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="anhang" title="@GroesseText(anhang.Groesse)">📎 @anhang.Dateiname</span>
-                                                    }
-                                                }
-                                            </div>
-                                        }
-                                        <div class="paar">
-                                            @VerlaufMeta(eintrag)
-                                            @if (eintrag.OdooLink is not null)
-                                            {
-                                                <text> · </text><a href="@eintrag.OdooLink" target="_blank" rel="noopener noreferrer"
-                                                                  title="Nachricht im Odoo-Chatter öffnen (Odoo-Anmeldung nötig)">in Odoo öffnen ↗</a>
-                                            }
-                                        </div>
-                                    </div>
-                                </li>
+                                <ul class="verlauf3">@Zeile(strang.Eintraege[0], mitVorgang: true)</ul>
+                                continue;
                             }
-                        </ul>
+                            var offen = StrangOffen(strang.Id);
+                            <div class="strang @MarkenKlasse(strang.Vorgang) @(offen ? "offen" : "")">
+                                <button type="button" class="strang-kopf" aria-expanded="@(offen ? "true" : "false")"
+                                        @onclick="() => StrangUmschalten(strang.Id)">
+                                    <span class="pfeil">▸</span>
+                                    <span class="titel">@strang.Name</span>
+                                    <span>@strang.Eintraege.Count Einträge · @ArtenText(strang.Eintraege)</span>
+                                    <span class="leute">
+                                        @foreach (var (person, idx) in Beteiligte(strang.Eintraege).Select((p, i) => (p, i)))
+                                        {
+                                            @(idx > 0 ? ", " : "")@person.Name@PersonTag(person.Bereich, person.Kunde)
+                                        }
+                                    </span>
+                                    <span class="spanne">@Spanne(strang.Eintraege)</span>
+                                </button>
+                                @if (offen)
+                                {
+                                    <ul class="verlauf3">
+                                        @foreach (var eintrag in strang.Eintraege)
+                                        {
+                                            @Zeile(eintrag, mitVorgang: false)
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        }
                     }
                 </div>
             </div>
@@ -392,10 +363,14 @@ else
     private List<VerlaufEintrag>? _verlauf;
     private bool _mitOdoo = true;
     private Dictionary<string, int>? _zaehler;
-    /// <summary>Sichtbare Kategorien — Standard: das Wesentliche (Notizen, E-Mails, Meilensteine).</summary>
-    private readonly HashSet<string> _kategorien = ["Notizen", "EMails", "Meilensteine"];
-    /// <summary>Vorgangsfilter (Klick auf eine Marke): Schlüssel „modell:id" und Anzeigename.</summary>
+    /// <summary>Sichtbare Kategorien — beim Öffnen nur die Kommunikation (Entscheidung 23.10.2026).</summary>
+    private readonly HashSet<string> _kategorien = ["Notizen", "EMails"];
+    /// <summary>Vorgangsfilter (Klick auf „↳ Vorgang"): Schlüssel „modell:id" und Anzeigename.</summary>
     private (string Schluessel, string Name)? _vorgang;
+    private List<Strang> _straenge = [];
+    private bool _straengeStandardOffen = true;
+    /// <summary>Stränge, die vom Standard (offen/zu) abweichen — Id des ersten Eintrags.</summary>
+    private readonly HashSet<int> _straengeUmgeschaltet = [];
 
     private static readonly (string Schluessel, string Name)[] Kategorien =
     [
@@ -404,7 +379,6 @@ else
     ];
     private string? _verlaufFehler;
     private readonly HashSet<int> _aufgeklappt = [];
-    private const int InhaltKurz = 400;
     private List<VertragListenEintrag>? _vertraege;
     private List<AboEintrag>? _abos;
     private List<AboEintrag> _laufendeAbos = [];
@@ -480,22 +454,6 @@ else
             : $"{_weitere.Count} weitere anzeigen";
     }
 
-    private static string? VerlaufMeta(VerlaufEintrag eintrag)
-    {
-        var teile = new List<string> { eintrag.Typ };
-        if (eintrag.Mitarbeiter is not null && eintrag.Ansprechpartner is not null)
-            teile.Add($"{eintrag.Mitarbeiter} ↔ {eintrag.Ansprechpartner}");
-        else if (eintrag.Mitarbeiter is not null)
-            teile.Add(eintrag.Mitarbeiter);
-        else if (eintrag.Ansprechpartner is not null)
-            teile.Add(eintrag.Ansprechpartner);
-        else if (eintrag.AutorName is not null)
-            teile.Add(eintrag.AutorName);
-        if (eintrag.Quelle == "OdooImport")
-            teile.Add("aus Odoo");
-        return string.Join(" · ", teile);
-    }
-
     private async Task VerlaufLadenAsync()
     {
         _verlaufFehler = null;
@@ -508,6 +466,7 @@ else
             _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>(
                 $"api/kunden/{Id}/verlauf?{basis}&kategorien={kategorien}");
             _zaehler = (await Http.GetFromJsonAsync<VerlaufUebersicht>($"api/kunden/{Id}/verlauf/uebersicht?{basis}"))?.Kategorien;
+            _straenge = StraengeBilden(_verlauf ?? []);
         }
         catch (Exception ex)
         {
@@ -544,22 +503,199 @@ else
     private static string MarkenKlasse(string? vorgang) =>
         vorgang?.Split(':')[0] is { Length: > 0 } modell ? "m-" + modell.Replace('.', '-') : "";
 
-    private static string RichtungZeichen(VerlaufEintrag eintrag) => eintrag.Richtung switch
-    {
-        "Eingehend" => "←",
-        "Ausgehend" => "→",
-        _ => "",
-    };
-
     private static string GroesseText(long bytes) => bytes >= 1024 * 1024
         ? $"{bytes / 1024.0 / 1024.0:0.0} MB"
         : $"{Math.Max(1, bytes / 1024)} KB";
 
-    private string InhaltText(VerlaufEintrag eintrag) => eintrag.Inhalt is null
-        ? ""
-        : _aufgeklappt.Contains(eintrag.Id) || eintrag.Inhalt.Length <= InhaltKurz
-            ? eintrag.Inhalt
-            : eintrag.Inhalt[..InhaltKurz] + " …";
+    // --- Verlauf Variante D: Zeile, Art, Stränge ----------------------------------
+
+    private record Strang(int Id, string? Vorgang, string? Name, List<VerlaufEintrag> Eintraege);
+    private record Beteiligter(string Name, string? Bereich, bool Kunde);
+
+    /// <summary>Aufeinanderfolgende Einträge desselben Odoo-Vorgangs zu Strängen bündeln; Reihenfolge bleibt.</summary>
+    private static List<Strang> StraengeBilden(List<VerlaufEintrag> eintraege)
+    {
+        var ergebnis = new List<Strang>();
+        foreach (var e in eintraege)
+        {
+            var letzter = ergebnis.LastOrDefault();
+            if (e.Vorgang is not null && letzter?.Vorgang == e.Vorgang)
+                letzter.Eintraege.Add(e);
+            else
+                ergebnis.Add(new Strang(e.Id, e.Vorgang, e.Bezug, [e]));
+        }
+        return ergebnis;
+    }
+
+    private bool StrangOffen(int id) => _straengeStandardOffen ? !_straengeUmgeschaltet.Contains(id) : _straengeUmgeschaltet.Contains(id);
+
+    private void StrangUmschalten(int id)
+    {
+        if (!_straengeUmgeschaltet.Remove(id))
+            _straengeUmgeschaltet.Add(id);
+    }
+
+    private void AlleStraenge(bool offen)
+    {
+        _straengeStandardOffen = offen;
+        _straengeUmgeschaltet.Clear();
+    }
+
+    /// <summary>Anzeige der Art: Text, Symbol, CSS-Klasse.</summary>
+    private static (string Text, string Symbol, string Klasse) Art(VerlaufEintrag e) => e.Kategorie switch
+    {
+        "EMails" => e.Richtung == "Eingehend" ? ("E-Mail erhalten", "✉←", "mail") : ("E-Mail gesendet", "✉→", "mail"),
+        "Notizen" when e.Typ == "Anruf" => (e.Richtung == "Eingehend" ? "Anruf erhalten" : "Anruf geführt", "☎", "anruf"),
+        "Notizen" => ("Notiz", "✎", "notiz"),
+        "Meilensteine" => e.Typ switch
+        {
+            "Vertrag" => ("Vertrag", "◆", "meilenstein"),
+            "Rechnung" => ("Rechnung", "◆", "meilenstein"),
+            "Angebot" => ("Verkauf", "◆", "meilenstein"),
+            _ when e.Quelle == "Kundenzentrale" => ("Ereignis", "•", "ereignis"),
+            _ => ("Meilenstein", "◆", "meilenstein"),
+        },
+        "Systemmeldungen" => ("Systemmeldung", "·", "ereignis"),
+        _ => ("Feldänderung", "Δ", "ereignis"),
+    };
+
+    /// <summary>Kompakte Zeile für Ereignisse ohne Gesprächsinhalt (Meilensteine, Systemmeldungen, Feldänderungen).</summary>
+    private static bool IstKompakt(VerlaufEintrag e) => e.Kategorie is "Meilensteine" or "Systemmeldungen" or "Feldaenderungen";
+
+    private static bool IstLang(string text) => text.Length > 180 || text.Count(c => c == '\n') >= 2;
+
+    private static string ArtenText(List<VerlaufEintrag> eintraege) =>
+        string.Join(", ", eintraege
+            .GroupBy(e => Art(e).Text.Replace(" gesendet", "").Replace(" erhalten", "").Replace(" geführt", ""))
+            .Select(g => g.Count() > 1 ? $"{g.Count()}× {g.Key}" : g.Key));
+
+    private static IEnumerable<Beteiligter> Beteiligte(List<VerlaufEintrag> eintraege) =>
+        eintraege.Where(e => e.Autor is not null)
+            .GroupBy(e => e.Autor!)
+            .Select(g => new Beteiligter(g.Key, g.First().AutorBereich, g.First().AutorIstKunde));
+
+    private static string Spanne(List<VerlaufEintrag> eintraege)
+    {
+        var bis = eintraege[0].Zeitpunkt.ToLocalTime().Date;
+        var von = eintraege[^1].Zeitpunkt.ToLocalTime().Date;
+        return von == bis ? $"{bis:dd.MM.yyyy}" : $"{von:dd.MM.yyyy} – {bis:dd.MM.yyyy}";
+    }
+
+    /// <summary>Feste Farbe je Bereichsname — jeder Bereich behält seine Farbe, auch neue.</summary>
+    private static string BereichKlasse(string bereich)
+    {
+        var summe = 0;
+        foreach (var c in bereich.ToLowerInvariant())
+            summe = (summe * 31 + c) & 0xFFFF;
+        return "b" + (summe % 6);
+    }
+
+    private RenderFragment PersonTag(string? bereich, bool kunde) => @<text>@if (kunde)
+        {
+            <span class="ptag kunde">Kunde</span>
+        }
+        else if (bereich is not null)
+        {
+            <span class="ptag @BereichKlasse(bereich)">@bereich</span>
+        }</text>;
+
+    private RenderFragment Zeile(VerlaufEintrag e, bool mitVorgang)
+    {
+        var art = Art(e);
+        var zeit = e.Zeitpunkt.ToLocalTime();
+        var kompakt = IstKompakt(e);
+        var lang = e.Inhalt is not null && IstLang(e.Inhalt);
+        var auf = _aufgeklappt.Contains(e.Id);
+        return @<li class="@(kompakt ? "kompakt" : "") @(e.Kategorie is "Systemmeldungen" or "Feldaenderungen" ? "gering" : "")">
+            <div class="links">
+                <span class="datum" title="@zeit.ToString("dd.MM.yyyy HH:mm")">@zeit.ToString("dd.MM.yyyy")@if (!kompakt)
+                    {<span class="zeit">@zeit.ToString("HH:mm")</span>}</span>
+                <span class="art art-@art.Klasse"><span class="ic">@art.Symbol</span>@art.Text</span>
+                @if (!kompakt && e.Autor is not null)
+                {
+                    <span class="wer">@e.Autor@PersonTag(e.AutorBereich, e.AutorIstKunde)</span>
+                }
+                @if (!kompakt && e.Quelle == "OdooImport")
+                {
+                    <span class="quelle">aus Odoo</span>
+                }
+            </div>
+            <div class="rechts">
+                @if (kompakt)
+                {
+                    <span class="betreff kompakt-betreff">@if (e.VerweisTyp == "Vertrag" && e.VerweisId is not null)
+                        {<a href="vertraege/@e.VerweisId">@e.Betreff</a>}
+                        else {@e.Betreff}</span>
+                    @if (e.Inhalt is not null)
+                    {
+                        <span class="detail"> · @e.Inhalt.Split('\n')[0]</span>
+                    }
+                }
+                else
+                {
+                    <div class="betreff">@if (e.VerweisTyp == "Vertrag" && e.VerweisId is not null)
+                        {<a href="vertraege/@e.VerweisId">@e.Betreff</a>}
+                        else {@e.Betreff}</div>
+                    @if (e.An is not null)
+                    {
+                        <div class="an-wen">an @e.An</div>
+                    }
+                    @if (e.Inhalt is not null)
+                    {
+                        <div class="text @(lang && !auf ? "zu" : "")">@e.Inhalt</div>
+                        @if (lang)
+                        {
+                            <button type="button" class="link klein" @onclick="() => AufklappenUmschalten(e.Id)">@(auf ? "weniger" : "mehr anzeigen")</button>
+                        }
+                    }
+                }
+                @if (e.Anhaenge.Count > 0)
+                {
+                    <div class="anhaenge">
+                        @foreach (var anhang in e.Anhaenge)
+                        {
+                            @if (anhang.Lokal)
+                            {
+                                <button type="button" class="anhang" title="@GroesseText(anhang.Groesse) · aus der Dokumentablage"
+                                        @onclick="() => AnhangHerunterladenAsync(anhang)">📎 @anhang.Dateiname</button>
+                            }
+                            else if (anhang.OdooLink is not null)
+                            {
+                                <a class="anhang" href="@anhang.OdooLink" target="_blank" rel="noopener noreferrer"
+                                   title="@GroesseText(anhang.Groesse) · Original in Odoo (Odoo-Anmeldung nötig)">📎 @anhang.Dateiname ↗</a>
+                            }
+                            else
+                            {
+                                <span class="anhang" title="@GroesseText(anhang.Groesse)">📎 @anhang.Dateiname</span>
+                            }
+                        }
+                    </div>
+                }
+                <div class="fuss">
+                    @if (kompakt && e.Autor is not null)
+                    {
+                        <span>@e.Autor@PersonTag(e.AutorBereich, e.AutorIstKunde)</span>
+                    }
+                    @if (mitVorgang && e.Vorgang is not null && e.Bezug is not null)
+                    {
+                        <button type="button" class="vorgang" title="Nur Einträge zu „@e.Bezug“ zeigen"
+                                @onclick="() => VorgangWaehlenAsync(e.Vorgang, e.Bezug)">↳ @e.Bezug</button>
+                    }
+                    @if (e.OdooLink is not null)
+                    {
+                        <a href="@e.OdooLink" target="_blank" rel="noopener noreferrer"
+                           title="Nachricht im Odoo-Chatter öffnen (Odoo-Anmeldung nötig)">in Odoo ↗</a>
+                    }
+                </div>
+            </div>
+        </li>;
+    }
+
+    private void AufklappenUmschalten(int id)
+    {
+        if (!_aufgeklappt.Remove(id))
+            _aufgeklappt.Add(id);
+    }
 
     /// <summary>Lädt den Anhang über die API (funktioniert in beiden Anmeldemodi) und stößt den Browser-Download an.</summary>
     private async Task AnhangHerunterladenAsync(VerlaufAnhang anhang)

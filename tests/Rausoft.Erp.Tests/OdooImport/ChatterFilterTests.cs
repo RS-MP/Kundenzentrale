@@ -241,6 +241,19 @@ public class ChatterFilterTests
     public void Kategorie_AusStufeUndTyp(AktivitaetsStufe stufe, AktivitaetsTyp typ, VerlaufKategorie erwartet) =>
         Assert.Equal(erwartet, VerlaufKategorien.Von(stufe, typ));
 
+    [Theory]
+    [InlineData("\"Daniel Stauch\" <stauch.daniel@example.de>", "Daniel Stauch")]
+    [InlineData("Anja Berger <a.berger@example.de>", "Anja Berger")]
+    [InlineData("<info@example.de>", "info@example.de")]
+    [InlineData("info@example.de", "info@example.de")]
+    [InlineData("  ", null)]
+    public void Absender_ZeigtNurDenNamen(string eingabe, string? erwartet) =>
+        Assert.Equal(erwartet, Absender.Anzeigename(eingabe));
+
+    [Fact]
+    public void Standard_SindNurNotizenUndEMails() =>
+        Assert.Equal([VerlaufKategorie.Notizen, VerlaufKategorie.EMails], VerlaufKategorien.Standard);
+
     [Fact]
     public void KategorienFilter_StimmtMitVonUeberein()
     {

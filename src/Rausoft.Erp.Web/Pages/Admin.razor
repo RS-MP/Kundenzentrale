@@ -152,7 +152,7 @@
                         <span style="color:var(--muted); font-weight:400"> (ich)</span>
                     }
                     <span style="float:right; color:var(--muted); font-weight:400; font-size:12.5px">
-                        @(person.Rollen.Count > 0 ? string.Join(" · ", person.Rollen) : "keine Rollen")@(person.Aktiv ? "" : " · deaktiviert")
+                        @(person.Bereich is not null ? person.Bereich + " · " : "")@(person.Rollen.Count > 0 ? string.Join(" · ", person.Rollen) : "keine Rollen")@(person.Aktiv ? "" : " · deaktiviert")
                     </span>
                 </div>
                 <div class="details">@person.WindowsKonto @(person.Email.EndsWith("@ad.lokal") ? "" : $"· {person.Email}")</div>
@@ -174,6 +174,15 @@
                     @if (_mitarbBearb is not null)
                     {
                         <label>E-Mail<input type="text" @bind="_mitarbEmail" /></label>
+                        <label title="Erscheint im Kundenverlauf neben dem Namen, z. B. Vertrieb, Technik, Buchhaltung">
+                            Bereich<input type="text" list="bereich-vorschlaege" @bind="_mitarbBereich" placeholder="z. B. Vertrieb, Technik" />
+                        </label>
+                        <datalist id="bereich-vorschlaege">
+                            @foreach (var b in _bereiche)
+                            {
+                                <option value="@b"></option>
+                            }
+                        </datalist>
                     }
                 </div>
                 @if (_mitarbBearb is not null)
@@ -491,6 +500,8 @@
     private string _mitarbKonto = "";
     private string _mitarbName = "";
     private string _mitarbEmail = "";
+    private string _mitarbBereich = "";
+    private List<string> _bereiche = [];
     private bool _mitarbAktiv = true;
     private HashSet<string> _mitarbRollen = [];
 
@@ -589,6 +600,7 @@
                 _werte[einstellung.Schluessel] = einstellung.Wert;
             await ServerLadenAsync();
             _mitarbeiter = await Http.GetFromJsonAsync<List<MitarbeiterEintrag>>("api/mitarbeiter") ?? [];
+            _bereiche = await Http.GetFromJsonAsync<List<string>>("api/mitarbeiter/bereiche") ?? [];
             _wikiThemen = await Http.GetFromJsonAsync<List<WikiThemaEintrag>>("api/mitarbeiter/wiki-themen") ?? [];
             var geheimnisse = await Http.GetFromJsonAsync<List<GeheimnisStatus>>("api/server/geheimnisse") ?? [];
             _tokenGesetztAm = geheimnisse.FirstOrDefault(g => g.Schluessel == "ServicePortal.PushToken")?.GesetztAm;
@@ -903,6 +915,7 @@
         _mitarbFormOffen = true;
         _mitarbName = person.Anzeigename;
         _mitarbEmail = person.Email;
+        _mitarbBereich = person.Bereich ?? "";
         _mitarbAktiv = person.Aktiv;
         _mitarbRollen = person.Rollen.ToHashSet(StringComparer.OrdinalIgnoreCase);
         _mitarbWikiThemen = person.WikiThemen.ToHashSet();
@@ -942,7 +955,8 @@
             var antwort = _mitarbBearb is null
                 ? await Http.PostAsJsonAsync("api/mitarbeiter", new MitarbeiterAnlegen(_mitarbKonto, _mitarbName))
                 : await Http.PutAsJsonAsync($"api/mitarbeiter/{_mitarbBearb.Id}",
-                    new MitarbeiterAendern(_mitarbName, _mitarbEmail, _mitarbRollen.ToList(), _mitarbAktiv, _mitarbWikiThemen.ToList()));
+                    new MitarbeiterAendern(_mitarbName, _mitarbEmail, _mitarbRollen.ToList(), _mitarbAktiv, _mitarbWikiThemen.ToList(),
+                        string.IsNullOrWhiteSpace(_mitarbBereich) ? null : _mitarbBereich.Trim()));
             if (!antwort.IsSuccessStatusCode)
             {
                 _fehler = await antwort.Content.ReadAsStringAsync();
@@ -950,6 +964,7 @@
             }
             MitarbeiterFormSchliessen();
             _mitarbeiter = await Http.GetFromJsonAsync<List<MitarbeiterEintrag>>("api/mitarbeiter") ?? [];
+            _bereiche = await Http.GetFromJsonAsync<List<string>>("api/mitarbeiter/bereiche") ?? [];
         }
         catch (Exception ex)
         {

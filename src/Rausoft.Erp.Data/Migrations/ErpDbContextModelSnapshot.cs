@@ -824,6 +824,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("Empfaenger")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<string>("FilterGrund")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");

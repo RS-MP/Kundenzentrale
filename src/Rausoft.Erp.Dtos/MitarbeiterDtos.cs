@@ -10,9 +10,13 @@ public record MitarbeiterEintrag(
     bool Aktiv,
     bool IstIch,
     // Wiki-Themen, die dieser Redakteur pflegen darf (Schlüssel) — nur mit Rolle Wiki-Redaktion wirksam
-    List<string> WikiThemen);
+    List<string> WikiThemen,
+    // Bereich (z. B. Vertrieb, Technik) — erscheint im Kundenverlauf neben dem Namen
+    string? Bereich = null);
 
-public record MitarbeiterAendern(string Anzeigename, string Email, List<string> Rollen, bool Aktiv, List<string>? WikiThemen = null);
+/// <summary><paramref name="Bereich"/>: Name; unbekannte Namen werden als neuer Bereich angelegt, leer = kein Bereich.</summary>
+public record MitarbeiterAendern(string Anzeigename, string Email, List<string> Rollen, bool Aktiv, List<string>? WikiThemen = null,
+    string? Bereich = null);
 
 /// <summary>Wiki-Thema zur Auswahl in der Benutzerverwaltung.</summary>
 public record WikiThemaEintrag(string Schluessel, string Name, string Bereich);

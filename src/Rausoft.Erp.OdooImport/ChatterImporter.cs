@@ -42,6 +42,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
     private Dictionary<int, (string Name, string? XmlId, bool Intern)> _subtypes = [];
     /// <summary>Partner-Id des Odoo-Benutzers → (Name, Login/E-Mail).</summary>
     private Dictionary<int, (string Name, string? Login)> _benutzerNachPartner = [];
+    /// <summary>Name aller Odoo-Partner (für die Empfänger-Anzeige).</summary>
+    private readonly Dictionary<int, string> _partnerNamen = [];
     private int? _odooBot;
 
     private record Quelle(int FirmaOdooId, string? Bezug, int? PersonOdooId, bool Archiviert = false);
@@ -132,7 +134,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
                 roh.AddRange(await LadeAlleAsync("mail.message",
                     [new object[] { "model", "=", gruppe.Key }, new object[] { "res_id", "in", block }],
                     ["id", "model", "res_id", "message_type", "subtype_id", "author_id", "email_from",
-                     "date", "subject", "body", "is_internal", "tracking_value_ids", "attachment_ids"]));
+                     "date", "subject", "body", "is_internal", "tracking_value_ids", "attachment_ids", "partner_ids"]));
             }
         }
         _stat.Gelesen = roh.Count;
@@ -159,6 +161,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             var stufe = ChatterFilter.StufeVon(b);
             var kunde = kundeNachOdooId[quelle.FirmaOdooId];
             var soll = Eintrag(n, b, stufe, quelle, kunde, mitarbeiter, ansprechpartnerNachOdooId);
+            soll.Empfaenger = Empfaenger(Ids(m, "partner_ids"), n.AutorPartnerId, ansprechpartnerNachOdooId);
             _stat.Zaehlen(stufe, b.Grund);
 
             var anhangIds = Ids(m, "attachment_ids").Where(id => !vorhandeneAnhaenge.Contains(id)).ToList();
@@ -268,10 +271,10 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             else if (ansprechpartnerNachOdooId.TryGetValue(autorId, out var ap) && ap.KundeId == kunde.Id)
                 eintrag.AnsprechpartnerId = ap.Id;
             else
-                eintrag.AutorName = Kuerzen(n.AutorName ?? n.EmailFrom, 200);
+                eintrag.AutorName = Kuerzen(n.AutorName ?? Absender.Anzeigename(n.EmailFrom), 200);
         }
         else if (n.EmailFrom is not null)
-            eintrag.AutorName = Kuerzen(n.EmailFrom, 200);
+            eintrag.AutorName = Kuerzen(Absender.Anzeigename(n.EmailFrom), 200);
 
         // Nachricht hing an einer Person des Kunden → sie ist die Kundenseite des Gesprächs
         if (eintrag.AnsprechpartnerId is null && quelle.PersonOdooId is { } personId
@@ -306,7 +309,31 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         Setze(ist.MitarbeiterId, soll.MitarbeiterId, v => ist.MitarbeiterId = v);
         Setze(ist.AnsprechpartnerId, soll.AnsprechpartnerId, v => ist.AnsprechpartnerId = v);
         Setze(ist.AutorName, soll.AutorName, v => ist.AutorName = v);
+        Setze(ist.Empfaenger, soll.Empfaenger, v => ist.Empfaenger = v);
         return geaendert;
+    }
+
+    /// <summary>
+    /// Empfänger als Anzeigetext: Ansprechpartner der Kundenzentrale mit Anrede
+    /// („Frau Berger"), rausoft-Benutzer mit Namen, sonst der Odoo-Name. Der Autor
+    /// selbst und OdooBot fallen weg; mehr als drei werden als „+n" zusammengefasst.
+    /// </summary>
+    private string? Empfaenger(List<int> partnerIds, int? autorId, Dictionary<int, Ansprechpartner> ansprechpartnerNachOdooId)
+    {
+        var namen = partnerIds
+            .Where(id => id != autorId && id != _odooBot)
+            .Select(id =>
+                ansprechpartnerNachOdooId.TryGetValue(id, out var ap)
+                    ? (ap.Anrede == Anrede.Keine ? ap.Anzeigename() : $"{ap.Anrede} {ap.Nachname}")
+                    : _benutzerNachPartner.TryGetValue(id, out var b) ? b.Name
+                    : _partnerNamen.GetValueOrDefault(id))
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct()
+            .ToList();
+        if (namen.Count == 0)
+            return null;
+        var text = string.Join(", ", namen.Take(3)) + (namen.Count > 3 ? $" +{namen.Count - 3}" : "");
+        return Kuerzen(text, 300);
     }
 
     private static (string Betreff, string? Inhalt) BetreffUndInhalt(ChatterNachricht n)
@@ -543,6 +570,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         foreach (var p in partner)
         {
             var id = p.GetProperty("id").GetInt32();
+            if (Text(p, "name") is { } partnerName)
+                _partnerNamen[id] = partnerName;
             var firma = Wahr(p, "is_company") ? id : Many2OneId(p, "commercial_partner_id") ?? id;
             if (!firmaIds.Contains(firma))
                 continue;
