@@ -139,6 +139,22 @@ Layout-Entscheidung nach Ansicht beider Varianten.
 
 ### Erfassung aus Outlook (BCC-Postfach)
 
+> **Entscheidung 23.10.2026 (MP):** Die Übernahme startet **direkt mit einem
+> eigenen Outlook-Knopf** (Outlook-Add-in „In Kundenakte übernehmen") statt mit
+> Schnellschritt/Weiterleitung. **Voraussetzung: Umstellung der Kundenzentrale
+> auf HTTPS** (Add-ins laufen nur über HTTPS; ohnehin geplant). Anlass: Kunden
+> schreiben oft direkt an den Ansprechpartner statt auf die Odoo-Nachricht zu
+> antworten — diese Mails sollen mit einem Klick in die Akte.
+> Zuordnung wie unten, ergänzt um: (0) **Gesprächsfaden** über
+> In-Reply-To/References gegen gespeicherte Message-IDs (auch der aus Odoo
+> übernommenen Mails → landet im richtigen Verkaufsstrang), Nummern im
+> Betreff/Text (Kundennr., V…, S…, RE/…), Freemail-Domains zählen nicht für
+> die Domain-Zuordnung. Darstellung in der Akte wie die Odoo-Mails (Quelle
+> „Outlook"), Anhänge in die Dokumentablage, Zugangsdaten maskiert.
+> Das BCC-/Weiterleitungs-Postfach bleibt als möglicher Zusatzweg beschrieben.
+> Offen: Postfächer bei IONOS oder Microsoft 365 (bestimmt Add-in-Verteilung
+> und ggf. Postfachzugriff). Zeitpunkt: später, nach dem Odoo-Chatter-Import.
+
 Mitarbeiter schreiben weiter in Outlook — wichtige Mails sollen trotzdem für
 Kollegen in der Kundenakte lesbar sein:
 
