@@ -18,5 +18,9 @@ public record ChatterImportStatus(
     string? Fehler,
     string Bericht);
 
-/// <summary>Modus „analyse", „dryrun" oder „import"; Kunde = KundenNr oder Odoo-ID, leer = alle.</summary>
-public record ChatterImportStart(string Modus, string? Kunde);
+/// <summary>
+/// Modus „analyse", „dryrun" oder „import"; Kunde = KundenNr oder Odoo-ID, leer = alle.
+/// <paramref name="AnhaengeLaden"/> = Dateien zusätzlich in die Dokumentablage kopieren
+/// (Archiv vor der Odoo-Abschaltung); sonst nur Verweise auf Odoo.
+/// </summary>
+public record ChatterImportStart(string Modus, string? Kunde, bool AnhaengeLaden = false);

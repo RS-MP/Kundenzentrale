@@ -101,6 +101,23 @@ else
                         <input type="checkbox" checked="@_mitOdoo" @onchange="OdooUmschaltenAsync" /> Odoo-Verlauf
                     </label>
                 </div>
+                <div class="verlauf-filter">
+                    @foreach (var (schluessel, name) in Kategorien)
+                    {
+                        var aktiv = _kategorien.Contains(schluessel);
+                        <button type="button" class="kat @(aktiv ? "an" : "")" aria-pressed="@(aktiv ? "true" : "false")"
+                                @onclick="() => KategorieUmschaltenAsync(schluessel)">
+                            @name <span class="anz">@(_zaehler?.GetValueOrDefault(schluessel) ?? 0)</span>
+                        </button>
+                    }
+                    @if (_vorgang is { } v)
+                    {
+                        <span class="vorgang-filter">
+                            nur <span class="marke @MarkenKlasse(v.Schluessel)">@v.Name</span>
+                            <button type="button" class="mehr" title="Vorgangsfilter aufheben" @onclick="VorgangAufhebenAsync">✕ alle Vorgänge</button>
+                        </span>
+                    }
+                </div>
                 <div class="karte-koerper eng">
                     @if (_verlaufFehler is not null)
                     {
@@ -118,7 +135,7 @@ else
                         <ul class="verlauf2">
                             @foreach (var eintrag in _verlauf)
                             {
-                                <li class="@(eintrag.Quelle == "OdooImport" ? "odoo" : "")">
+                                <li class="@(eintrag.Quelle == "OdooImport" ? "odoo" : "") @(eintrag.Kategorie is "Systemmeldungen" or "Feldaenderungen" ? "gering" : "")">
                                     <span class="datum" title="@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")">@eintrag.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy")</span>
                                     <div>
                                         @if (RichtungZeichen(eintrag) is { Length: > 0 } richtung)
@@ -133,7 +150,12 @@ else
                                         {
                                             <span>@eintrag.Betreff</span>
                                         }
-                                        @if (eintrag.Bezug is not null)
+                                        @if (eintrag.Bezug is not null && eintrag.Vorgang is not null)
+                                        {
+                                            <button type="button" class="marke @MarkenKlasse(eintrag.Vorgang)" title="Nur Einträge zu „@eintrag.Bezug“ zeigen"
+                                                    @onclick="() => VorgangWaehlenAsync(eintrag.Vorgang, eintrag.Bezug)">@eintrag.Bezug</button>
+                                        }
+                                        else if (eintrag.Bezug is not null)
                                         {
                                             <span class="bezug">@eintrag.Bezug</span>
                                         }
@@ -149,15 +171,31 @@ else
                                             <div class="anhaenge">
                                                 @foreach (var anhang in eintrag.Anhaenge)
                                                 {
-                                                    <button type="button" class="anhang" title="@GroesseText(anhang.Groesse)"
-                                                            @onclick="() => AnhangHerunterladenAsync(anhang)">📎 @anhang.Dateiname</button>
+                                                    @if (anhang.Lokal)
+                                                    {
+                                                        <button type="button" class="anhang" title="@GroesseText(anhang.Groesse) · aus der Dokumentablage"
+                                                                @onclick="() => AnhangHerunterladenAsync(anhang)">📎 @anhang.Dateiname</button>
+                                                    }
+                                                    else if (anhang.OdooLink is not null)
+                                                    {
+                                                        <a class="anhang" href="@anhang.OdooLink" target="_blank" rel="noopener noreferrer"
+                                                           title="@GroesseText(anhang.Groesse) · Original in Odoo (Odoo-Anmeldung nötig)">📎 @anhang.Dateiname ↗</a>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="anhang" title="@GroesseText(anhang.Groesse)">📎 @anhang.Dateiname</span>
+                                                    }
                                                 }
                                             </div>
                                         }
-                                        @if (VerlaufMeta(eintrag) is { } meta)
-                                        {
-                                            <div class="paar">@meta</div>
-                                        }
+                                        <div class="paar">
+                                            @VerlaufMeta(eintrag)
+                                            @if (eintrag.OdooLink is not null)
+                                            {
+                                                <text> · </text><a href="@eintrag.OdooLink" target="_blank" rel="noopener noreferrer"
+                                                                  title="Nachricht im Odoo-Chatter öffnen (Odoo-Anmeldung nötig)">in Odoo öffnen ↗</a>
+                                            }
+                                        </div>
                                     </div>
                                 </li>
                             }
@@ -353,6 +391,17 @@ else
     private KundeDetail? _kunde;
     private List<VerlaufEintrag>? _verlauf;
     private bool _mitOdoo = true;
+    private Dictionary<string, int>? _zaehler;
+    /// <summary>Sichtbare Kategorien — Standard: das Wesentliche (Notizen, E-Mails, Meilensteine).</summary>
+    private readonly HashSet<string> _kategorien = ["Notizen", "EMails", "Meilensteine"];
+    /// <summary>Vorgangsfilter (Klick auf eine Marke): Schlüssel „modell:id" und Anzeigename.</summary>
+    private (string Schluessel, string Name)? _vorgang;
+
+    private static readonly (string Schluessel, string Name)[] Kategorien =
+    [
+        ("Notizen", "Notizen"), ("EMails", "E-Mails"), ("Meilensteine", "Meilensteine"),
+        ("Systemmeldungen", "Systemmeldungen"), ("Feldaenderungen", "Feldänderungen"),
+    ];
     private string? _verlaufFehler;
     private readonly HashSet<int> _aufgeklappt = [];
     private const int InhaltKurz = 400;
@@ -450,10 +499,15 @@ else
     private async Task VerlaufLadenAsync()
     {
         _verlaufFehler = null;
+        var basis = $"mitOdoo={(_mitOdoo ? "true" : "false")}" +
+                    (_vorgang is { } v ? $"&vorgang={Uri.EscapeDataString(v.Schluessel)}" : "");
+        // Keine Kategorie gewählt → bewusst leere Liste (nicht der Standard des Servers)
+        var kategorien = _kategorien.Count == 0 ? "keine" : string.Join(',', _kategorien);
         try
         {
             _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>(
-                $"api/kunden/{Id}/verlauf?mitOdoo={(_mitOdoo ? "true" : "false")}");
+                $"api/kunden/{Id}/verlauf?{basis}&kategorien={kategorien}");
+            _zaehler = (await Http.GetFromJsonAsync<VerlaufUebersicht>($"api/kunden/{Id}/verlauf/uebersicht?{basis}"))?.Kategorien;
         }
         catch (Exception ex)
         {
@@ -466,6 +520,29 @@ else
         _mitOdoo = e.Value is true;
         await VerlaufLadenAsync();
     }
+
+    private async Task KategorieUmschaltenAsync(string kategorie)
+    {
+        if (!_kategorien.Remove(kategorie))
+            _kategorien.Add(kategorie);
+        await VerlaufLadenAsync();
+    }
+
+    private async Task VorgangWaehlenAsync(string schluessel, string name)
+    {
+        _vorgang = (schluessel, name);
+        await VerlaufLadenAsync();
+    }
+
+    private async Task VorgangAufhebenAsync()
+    {
+        _vorgang = null;
+        await VerlaufLadenAsync();
+    }
+
+    /// <summary>Farbe der Vorgangsmarke nach Odoo-Modell: „sale.order:1198" → „m-sale-order".</summary>
+    private static string MarkenKlasse(string? vorgang) =>
+        vorgang?.Split(':')[0] is { Length: > 0 } modell ? "m-" + modell.Replace('.', '-') : "";
 
     private static string RichtungZeichen(VerlaufEintrag eintrag) => eintrag.Richtung switch
     {

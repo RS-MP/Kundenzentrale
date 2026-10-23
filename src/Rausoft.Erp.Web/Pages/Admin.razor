@@ -283,9 +283,11 @@
                 <span style="color:var(--muted); font-weight:400; font-size:12.5px; margin-left:6px">Testbetrieb: manuell</span>
             </div>
             <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
-                Notizen, E-Mails und Meilensteine aus dem Odoo-Chatter in die Akten übernehmen.
+                Den kompletten Odoo-Chatter in die Akten übernehmen. Jede Nachricht bekommt eine Stufe
+                (wesentlich, Meilenstein, Systemmeldung, Feldänderung); die Akte blendet nach Kategorie ein und aus.
                 <b>Analyse</b> zeigt die Chronologie eines Kunden mit Filterentscheidung,
-                <b>Dry-Run</b> zählt nur, <b>Import</b> schreibt die Einträge und legt Anhänge in der Dokumentablage ab.
+                <b>Dry-Run</b> zählt nur, <b>Import</b> legt neue Einträge an und bewertet bereits übernommene neu.
+                Anhänge werden mit Link auf das Original in Odoo verknüpft.
                 Ohne Kunde gelten Dry-Run und Import für alle Kunden mit Odoo-ID.
             </div>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
@@ -298,6 +300,11 @@
                 </button>
                 <span style="color:var(--muted); font-size:13px">@ChatterText()</span>
             </div>
+            <label style="display:flex; gap:6px; align-items:center; margin-top:6px; font-size:12.5px; color:var(--muted)"
+                   title="Kopiert die Anhang-Dateien zusätzlich in die Dokumentablage — vor der Odoo-Abschaltung nötig, im Testbetrieb nicht">
+                <input type="checkbox" @bind="_chatterAnhaengeLaden" disabled="@(_chatter?.Laeuft == true)" />
+                Anhänge zusätzlich herunterladen (Archiv vor der Odoo-Abschaltung)
+            </label>
             @if (_chatter?.Fehler is not null)
             {
                 <div class="krittext" style="margin-top:6px; font-size:13px">@_chatter.Fehler</div>
@@ -781,6 +788,7 @@
 
     private ChatterImportStatus? _chatter;
     private string _chatterKunde = "";
+    private bool _chatterAnhaengeLaden;
 
     private string ChatterText()
     {
@@ -805,7 +813,8 @@
     {
         _fehler = null;
         var antwort = await Http.PostAsJsonAsync("api/odoo-import/chatter/start",
-            new ChatterImportStart(modus, string.IsNullOrWhiteSpace(_chatterKunde) ? null : _chatterKunde.Trim()));
+            new ChatterImportStart(modus, string.IsNullOrWhiteSpace(_chatterKunde) ? null : _chatterKunde.Trim(),
+                _chatterAnhaengeLaden));
         if (!antwort.IsSuccessStatusCode)
         {
             _fehler = await antwort.Content.ReadAsStringAsync();

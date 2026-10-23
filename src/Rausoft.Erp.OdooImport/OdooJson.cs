@@ -51,6 +51,30 @@ internal static class OdooJson
             : null;
     }
 
+    /// <summary>
+    /// Alter oder neuer Wert einer Feldänderung (mail.tracking.value). Odoo füllt je
+    /// nach Feldtyp eine andere Spalte und lässt die übrigen auf 0/false — Text und
+    /// Datum haben Vorrang, Zahlen 0 nur, wenn sonst nichts gesetzt ist.
+    /// </summary>
+    public static string TrackingWert(JsonElement w, string seite)
+    {
+        foreach (var f in new[] { "char", "text", "datetime" })
+            if (Text(w, $"{seite}_value_{f}") is { } s)
+                return s;
+        if (w.TryGetProperty($"{seite}_value_float", out var fl) && fl.ValueKind == JsonValueKind.Number && fl.GetDouble() != 0)
+            return fl.GetDouble().ToString(CultureInfo.GetCultureInfo("de-DE"));
+        if (w.TryGetProperty($"{seite}_value_integer", out var i) && i.ValueKind == JsonValueKind.Number && i.GetInt64() != 0)
+            return i.GetInt64().ToString(CultureInfo.InvariantCulture);
+        return "—";
+    }
+
+    /// <summary>Feldbezeichnung ohne angehängten Modellnamen: „KundenNr (Contact)" → „KundenNr".</summary>
+    public static string FeldName(string label)
+    {
+        var klammer = label.LastIndexOf(" (", StringComparison.Ordinal);
+        return klammer > 0 && label.EndsWith(')') ? label[..klammer] : label;
+    }
+
     /// <summary>Gruppenwert aus formatted_read_group lesbar machen (many2one = [id, name]).</summary>
     public static string GruppenWert(JsonElement gruppe, string feld)
     {

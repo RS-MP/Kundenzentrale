@@ -34,7 +34,7 @@ public class ChatterImportDienst(
     public string Bericht => _bericht.ToString();
 
     /// <summary>Startet einen Lauf im Hintergrund; false, wenn bereits einer läuft.</summary>
-    public bool Starten(string modus, string? kunde)
+    public bool Starten(string modus, string? kunde, bool anhaengeLaden = false)
     {
         lock (_sperre)
         {
@@ -48,11 +48,11 @@ public class ChatterImportDienst(
             Fehler = null;
             _bericht = new Puffer();
         }
-        _ = Task.Run(() => AusfuehrenAsync(modus, Kunde));
+        _ = Task.Run(() => AusfuehrenAsync(modus, Kunde, anhaengeLaden));
         return true;
     }
 
-    private async Task AusfuehrenAsync(string modus, string? kunde)
+    private async Task AusfuehrenAsync(string modus, string? kunde, bool anhaengeLaden)
     {
         var aus = _bericht;
         try
@@ -66,12 +66,12 @@ public class ChatterImportDienst(
                     await new ChatterAnalyse(odoo, kunde, ausgabeDatei: null, ausgabe: aus).AusfuehrenAsync();
                     break;
                 case ModusDryRun:
-                    await new ChatterImporter(odoo, dryRun: true, nurKunde: kunde, verbindung: verbindung, ausgabe: aus)
-                        .AusfuehrenAsync();
+                    await new ChatterImporter(odoo, dryRun: true, nurKunde: kunde, anhaengeLaden: anhaengeLaden,
+                        verbindung: verbindung, ausgabe: aus).AusfuehrenAsync();
                     break;
                 case ModusImport:
-                    await new ChatterImporter(odoo, dryRun: false, nurKunde: kunde, verbindung: verbindung, ausgabe: aus)
-                        .AusfuehrenAsync();
+                    await new ChatterImporter(odoo, dryRun: false, nurKunde: kunde, anhaengeLaden: anhaengeLaden,
+                        verbindung: verbindung, ausgabe: aus).AusfuehrenAsync();
                     break;
                 default:
                     throw new InvalidOperationException($"Unbekannter Modus '{modus}'.");

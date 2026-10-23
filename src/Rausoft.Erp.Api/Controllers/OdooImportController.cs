@@ -31,7 +31,7 @@ public class OdooImportController(OdooImportDienst dienst, ChatterImportDienst c
         if (start.Modus == ChatterImportDienst.ModusAnalyse && string.IsNullOrWhiteSpace(start.Kunde))
             return BadRequest("Für die Analyse bitte einen Kunden angeben (KundenNr oder Odoo-ID); " +
                               "der Gesamtüberblick läuft über das Konsolen-Tool.");
-        if (!chatter.Starten(start.Modus, start.Kunde))
+        if (!chatter.Starten(start.Modus, start.Kunde, start.AnhaengeLaden))
             return BadRequest("Es läuft bereits ein Chatter-Lauf.");
         return Ok(ChatterStatusErmitteln());
     }

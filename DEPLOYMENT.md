@@ -18,6 +18,19 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (23.10.2026, Chatter: alles importieren, umschaltbar):**
+  Migration `ChatterAllesImportieren` läuft automatisch (Aktivitaet.Stufe/
+  FilterGrund/OdooModell/OdooResId, Anhang ohne lokale Datei möglich).
+  Der Chatter-Import übernimmt jetzt **alle** Nachrichten mit Stufe
+  (wesentlich, Meilenstein, Systemmeldung, Feldänderung) und bewertet bereits
+  übernommene bei jedem Lauf neu; Anhänge nur noch als Link auf Odoo (Häkchen
+  „Anhänge zusätzlich herunterladen" = Archiv-Modus, erst vor der Abschaltung).
+  Nach dem Update: Administration → Odoo-Anbindung → Kunde `25757` →
+  **Import ausführen** (aktualisiert die 19 Einträge, legt den Rest an), dann
+  in der Akte die Schalter Notizen / E-Mails / Meilensteine / Systemmeldungen /
+  Feldänderungen, eine Vorgangsmarke (z. B. „Auftrag S01194") und „in Odoo
+  öffnen" ausprobieren. Die bereits heruntergeladenen 8 Dateien bleiben lokal
+  und werden weiter aus der Dokumentablage ausgeliefert.
 - [ ] **Publish aktualisieren (22.10.2026, Odoo-Chatter → Kunden-Timeline):**
   Migration `ChatterImport` läuft beim Start automatisch (Aktivitaet.Quelle/
   OdooId/AutorName/Bezug, Tabelle Aktivitaetsanhaenge). Kundenakte: Schalter

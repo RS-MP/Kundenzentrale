@@ -155,9 +155,21 @@ public record VerlaufEintrag(
     string? AutorName,
     /// <summary>Vorgang, an dem der Eintrag hing — z. B. „Auftrag S01194".</summary>
     string? Bezug,
-    List<VerlaufAnhang> Anhaenge);
+    List<VerlaufAnhang> Anhaenge,
+    /// <summary>„Notizen", „EMails", „Meilensteine", „Systemmeldungen" oder „Feldaenderungen".</summary>
+    string Kategorie,
+    /// <summary>Begründung des Import-Filters, z. B. „Feldänderung" (nur Odoo-Einträge).</summary>
+    string? FilterGrund,
+    /// <summary>Schlüssel des Odoo-Vorgangs „modell:id" für Marke und Filter, z. B. „sale.order:1198".</summary>
+    string? Vorgang,
+    /// <summary>Direktlink auf die Nachricht in Odoo (nach Odoo-Login), null bei eigenen Einträgen.</summary>
+    string? OdooLink);
 
-public record VerlaufAnhang(int Id, string Dateiname, long Groesse, string? MimeType);
+/// <summary>Anhang am Verlauf: <paramref name="Lokal"/> = Datei in der Dokumentablage, sonst nur <paramref name="OdooLink"/>.</summary>
+public record VerlaufAnhang(int Id, string Dateiname, long Groesse, string? MimeType, bool Lokal, string? OdooLink);
+
+/// <summary>Anzahl Einträge je Verlaufskategorie (für die Schalter in der Akte).</summary>
+public record VerlaufUebersicht(Dictionary<string, int> Kategorien);
 
 public record AboEintrag(
     int Id,

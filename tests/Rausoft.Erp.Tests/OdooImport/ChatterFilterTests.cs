@@ -201,6 +201,63 @@ public class ChatterFilterTests
     }
 
     [Fact]
+    public void Klartext_MaskiertEinmalLink_AuchInFolgezeile()
+    {
+        var html = "<p>Benutzername: alexander.braun@rhb-industries.de<br>Passwort-Einmal-Link:<br>" +
+                   "https://keepersecurity.eu/vault/share/#RgOwxDKW0aPotoThetm/lang/de_DE<br>" +
+                   "Bitte beachten Sie, dass der Passwort-Link nur 90 Tage gültig ist.</p>";
+        var text = ChatterFilter.Klartext(html);
+        Assert.DoesNotContain("keepersecurity", text);
+        Assert.DoesNotContain("RgOwxDKW0a", text);
+        Assert.Contains("Passwort-Einmal-Link:", text);
+        Assert.Contains("Benutzername: alexander.braun@rhb-industries.de", text);
+        Assert.Contains("nur 90 Tage gültig", text);
+    }
+
+    [Fact]
+    public void Klartext_MaskiertBekannteEinmalLinksUeberall()
+    {
+        var text = ChatterFilter.ZugangsdatenMaskieren("Hier der Link: https://onetimesecret.com/secret/abc123 bitte öffnen");
+        Assert.DoesNotContain("abc123", text);
+        Assert.Contains("Einmal-Link entfernt", text);
+    }
+
+    [Theory]
+    [InlineData(ChatterEntscheidung.Behalten, "Notiz", AktivitaetsStufe.Wesentlich)]
+    [InlineData(ChatterEntscheidung.Verdichten, "Rechnungs-Ereignis (Paid)", AktivitaetsStufe.Meilenstein)]
+    [InlineData(ChatterEntscheidung.Verwerfen, "Feldänderung", AktivitaetsStufe.Feldaenderung)]
+    [InlineData(ChatterEntscheidung.Verwerfen, "Benachrichtigung", AktivitaetsStufe.Systemmeldung)]
+    [InlineData(ChatterEntscheidung.Verwerfen, "OdooBot", AktivitaetsStufe.Systemmeldung)]
+    public void StufeVon_OrdnetEntscheidungZu(ChatterEntscheidung entscheidung, string grund, AktivitaetsStufe erwartet) =>
+        Assert.Equal(erwartet, ChatterFilter.StufeVon(new ChatterBewertung(entscheidung, grund)));
+
+    [Theory]
+    [InlineData(AktivitaetsStufe.Wesentlich, AktivitaetsTyp.EMail, VerlaufKategorie.EMails)]
+    [InlineData(AktivitaetsStufe.Wesentlich, AktivitaetsTyp.Notiz, VerlaufKategorie.Notizen)]
+    [InlineData(AktivitaetsStufe.Wesentlich, AktivitaetsTyp.Vertrag, VerlaufKategorie.Meilensteine)]
+    [InlineData(AktivitaetsStufe.Meilenstein, AktivitaetsTyp.Rechnung, VerlaufKategorie.Meilensteine)]
+    [InlineData(AktivitaetsStufe.Systemmeldung, AktivitaetsTyp.EMail, VerlaufKategorie.Systemmeldungen)]
+    [InlineData(AktivitaetsStufe.Feldaenderung, AktivitaetsTyp.System, VerlaufKategorie.Feldaenderungen)]
+    public void Kategorie_AusStufeUndTyp(AktivitaetsStufe stufe, AktivitaetsTyp typ, VerlaufKategorie erwartet) =>
+        Assert.Equal(erwartet, VerlaufKategorien.Von(stufe, typ));
+
+    [Fact]
+    public void KategorienFilter_StimmtMitVonUeberein()
+    {
+        // Der EF-Ausdruck muss dieselbe Zuordnung treffen wie Von() — alle Kombinationen prüfen
+        foreach (var gewaehlt in Enum.GetValues<VerlaufKategorie>())
+        {
+            var filter = VerlaufKategorien.Filter([gewaehlt]).Compile();
+            foreach (var stufe in Enum.GetValues<AktivitaetsStufe>())
+            foreach (var typ in Enum.GetValues<AktivitaetsTyp>())
+            {
+                var eintrag = new Aktivitaet { Betreff = "x", Stufe = stufe, Typ = typ };
+                Assert.Equal(VerlaufKategorien.Von(stufe, typ) == gewaehlt, filter(eintrag));
+            }
+        }
+    }
+
+    [Fact]
     public void Klartext_MaskiertAuchKennwortUndEnglisch()
     {
         var text = ChatterFilter.Klartext("Kennwort = abc\nPassword: xyz\nPW: 123\nHinweis: nichts");

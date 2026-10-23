@@ -46,9 +46,9 @@ var odoo = new OdooClient(zugang.Url, zugang.Db, benutzer, zugang.ApiKey);
 //   mit --kunde <KundenNr|Odoo-ID|Name> Chronologie eines Beispielkunden mit
 //   Filterentscheidung; --ausgabe <Datei> schreibt den Bericht zusätzlich als Datei.
 // Ohne Argumente läuft die Analyse (Verbindungstest + Datenprofil).
-// Modus "chatter-import": Chatter in die Kunden-Timeline übernehmen (Regeln aus
-//   ChatterFilter, Anhänge in die Dokumentablage). --dry-run = nur Bericht,
-//   --kunde <KundenNr|Odoo-ID> = nur ein Kunde, --ohne-anhaenge = Dateien weglassen.
+// Modus "chatter-import": Chatter in die Kunden-Timeline übernehmen — alle Nachrichten mit
+//   Stufe aus ChatterFilter, Anhänge als Verweis auf Odoo. --dry-run = nur Bericht,
+//   --kunde <KundenNr|Odoo-ID> = nur ein Kunde, --anhaenge-laden = Dateien zusätzlich in die Dokumentablage (Archiv).
 // Modus "anhangtest <ir.attachment-Id>": Diagnose, ob ein Odoo-Anhang per RPC lesbar ist
 // (Metadaten + Inhalt); schreibt keine Datei.
 if (args.Contains("anhangtest"))
@@ -77,7 +77,7 @@ if (args.Contains("anhangtest"))
 if (args.Contains("chatter-import"))
 {
     await new ChatterImporter(odoo, dryRun: args.Contains("--dry-run"), nurKunde: Option("--kunde"),
-        ohneAnhaenge: args.Contains("--ohne-anhaenge")).AusfuehrenAsync();
+        anhaengeLaden: args.Contains("--anhaenge-laden")).AusfuehrenAsync();
     return 0;
 }
 if (args.Contains("chatter"))

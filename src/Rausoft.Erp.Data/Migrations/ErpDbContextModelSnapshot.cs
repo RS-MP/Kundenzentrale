@@ -824,6 +824,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("FilterGrund")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Inhalt")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(max)");
@@ -837,10 +841,20 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int?>("OdooId")
                         .HasColumnType("int");
 
+                    b.Property<string>("OdooModell")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("OdooResId")
+                        .HasColumnType("int");
+
                     b.Property<int>("Quelle")
                         .HasColumnType("int");
 
                     b.Property<int?>("Richtung")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Stufe")
                         .HasColumnType("int");
 
                     b.Property<int>("Typ")
@@ -869,6 +883,8 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.HasIndex("KundeId", "Zeitpunkt")
                         .IsDescending(false, true);
+
+                    b.HasIndex("KundeId", "OdooModell", "OdooResId");
 
                     b.ToTable("Aktivitaeten");
                 });
@@ -900,7 +916,6 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("RelativerPfad")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 

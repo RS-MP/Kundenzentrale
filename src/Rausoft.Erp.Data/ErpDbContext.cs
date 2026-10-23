@@ -108,6 +108,9 @@ public class ErpDbContext(
             e.HasOne(a => a.Ansprechpartner).WithMany().OnDelete(DeleteBehavior.Restrict);
             e.Property(a => a.AutorName).HasMaxLength(200);
             e.Property(a => a.Bezug).HasMaxLength(300);
+            e.Property(a => a.FilterGrund).HasMaxLength(100);
+            e.Property(a => a.OdooModell).HasMaxLength(50);
+            e.HasIndex(a => new { a.KundeId, a.OdooModell, a.OdooResId });
             // Odoo-Nachricht nur einmal übernehmen (gefilterter Unique-Index: NULL mehrfach erlaubt)
             e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
             e.HasIndex(a => new { a.KundeId, a.Quelle });

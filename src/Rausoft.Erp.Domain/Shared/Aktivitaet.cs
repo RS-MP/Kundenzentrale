@@ -45,6 +45,22 @@ public class Aktivitaet
     public int? OdooId { get; set; }
 
     /// <summary>
+    /// Gewicht des Eintrags für die Anzeige. Eigene Einträge der Kundenzentrale sind
+    /// immer <see cref="AktivitaetsStufe.Wesentlich"/>; beim Odoo-Import setzt der
+    /// Chatter-Filter die Stufe, die Akte blendet nach Kategorie ein und aus.
+    /// </summary>
+    public AktivitaetsStufe Stufe { get; set; } = AktivitaetsStufe.Wesentlich;
+
+    /// <summary>Begründung des Filters beim Import (z. B. „Feldänderung", „Abwesenheitsnotiz").</summary>
+    public string? FilterGrund { get; set; }
+
+    /// <summary>Odoo-Vorgang, an dem die Nachricht hing (z. B. „sale.order") — Schlüssel für Marke und Filter.</summary>
+    public string? OdooModell { get; set; }
+
+    /// <summary>Datensatz-Id des Odoo-Vorgangs (zusammen mit <see cref="OdooModell"/>).</summary>
+    public int? OdooResId { get; set; }
+
+    /// <summary>
     /// Anzeigename des Urhebers, wenn weder Mitarbeiter noch Ansprechpartner
     /// zugeordnet werden konnten (externer Absender, unbekannter Odoo-Benutzer).
     /// </summary>
@@ -58,6 +74,72 @@ public class Aktivitaet
     public string? Bezug { get; set; }
 
     public List<AktivitaetAnhang> Anhaenge { get; set; } = [];
+}
+
+public enum AktivitaetsStufe
+{
+    /// <summary>Eigener Eintrag mit Inhalt: Notiz, E-Mail, Gespräch, Ereignis der Kundenzentrale.</summary>
+    Wesentlich = 0,
+    /// <summary>Verdichtetes Ereignis: Verkaufschance gewonnen, Rechnung bezahlt, Wartung aktiviert …</summary>
+    Meilenstein = 1,
+    /// <summary>Systemmeldung ohne Mehrwert: „Kontakt erstellt", Zuweisungen, OdooBot, Abwesenheitsnotizen.</summary>
+    Systemmeldung = 2,
+    /// <summary>Reine Feldänderung (Odoo-Tracking): Telefonnummer, Adresse, Beträge …</summary>
+    Feldaenderung = 3,
+}
+
+/// <summary>Umschaltbare Kategorien der Verlaufsanzeige (Schalter in der Kundenakte).</summary>
+public enum VerlaufKategorie
+{
+    Notizen = 0,
+    EMails = 1,
+    Meilensteine = 2,
+    Systemmeldungen = 3,
+    Feldaenderungen = 4,
+}
+
+public static class VerlaufKategorien
+{
+    /// <summary>Standardmäßig eingeblendet — das Wesentliche.</summary>
+    public static readonly VerlaufKategorie[] Standard =
+        [VerlaufKategorie.Notizen, VerlaufKategorie.EMails, VerlaufKategorie.Meilensteine];
+
+    /// <summary>Kategorie eines Eintrags aus Stufe und Typ.</summary>
+    public static VerlaufKategorie Von(AktivitaetsStufe stufe, AktivitaetsTyp typ) => stufe switch
+    {
+        AktivitaetsStufe.Feldaenderung => VerlaufKategorie.Feldaenderungen,
+        AktivitaetsStufe.Systemmeldung => VerlaufKategorie.Systemmeldungen,
+        AktivitaetsStufe.Meilenstein => VerlaufKategorie.Meilensteine,
+        _ => typ switch
+        {
+            AktivitaetsTyp.EMail => VerlaufKategorie.EMails,
+            AktivitaetsTyp.Notiz or AktivitaetsTyp.Anruf => VerlaufKategorie.Notizen,
+            // Vertrags-, Angebots-, Rechnungs- und Systemereignisse der Kundenzentrale
+            _ => VerlaufKategorie.Meilensteine,
+        },
+    };
+
+    /// <summary>
+    /// Datenbankfilter „Eintrag gehört zu einer der gewählten Kategorien" — dieselbe
+    /// Zuordnung wie <see cref="Von"/>, als Ausdruck für EF Core.
+    /// </summary>
+    public static System.Linq.Expressions.Expression<Func<Aktivitaet, bool>> Filter(IReadOnlyCollection<VerlaufKategorie> gewaehlt)
+    {
+        var notizen = gewaehlt.Contains(VerlaufKategorie.Notizen);
+        var mails = gewaehlt.Contains(VerlaufKategorie.EMails);
+        var meilensteine = gewaehlt.Contains(VerlaufKategorie.Meilensteine);
+        var system = gewaehlt.Contains(VerlaufKategorie.Systemmeldungen);
+        var felder = gewaehlt.Contains(VerlaufKategorie.Feldaenderungen);
+        return a =>
+            (felder && a.Stufe == AktivitaetsStufe.Feldaenderung)
+            || (system && a.Stufe == AktivitaetsStufe.Systemmeldung)
+            || (meilensteine && (a.Stufe == AktivitaetsStufe.Meilenstein
+                || (a.Stufe == AktivitaetsStufe.Wesentlich && a.Typ != AktivitaetsTyp.EMail
+                    && a.Typ != AktivitaetsTyp.Notiz && a.Typ != AktivitaetsTyp.Anruf)))
+            || (mails && a.Stufe == AktivitaetsStufe.Wesentlich && a.Typ == AktivitaetsTyp.EMail)
+            || (notizen && a.Stufe == AktivitaetsStufe.Wesentlich
+                && (a.Typ == AktivitaetsTyp.Notiz || a.Typ == AktivitaetsTyp.Anruf));
+    }
 }
 
 public enum AktivitaetsQuelle

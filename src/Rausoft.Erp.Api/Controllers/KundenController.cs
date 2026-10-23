@@ -406,16 +406,19 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
     }
 
     /// <summary>
-    /// Timeline der Kundenakte — neueste Einträge zuerst. <paramref name="mitOdoo"/> = false
-    /// blendet die aus dem Odoo-Chatter übernommenen Einträge aus (Umschalter in der Akte).
+    /// Timeline der Kundenakte — neueste Einträge zuerst.
+    /// <paramref name="mitOdoo"/> = false blendet alle aus Odoo übernommenen Einträge aus;
+    /// <paramref name="kategorien"/> (kommagetrennt, z. B. „Notizen,EMails,Meilensteine")
+    /// wählt die sichtbaren Kategorien, leer = Standard (das Wesentliche);
+    /// <paramref name="vorgang"/> („sale.order:1198") zeigt nur die Einträge eines Odoo-Vorgangs.
     /// </summary>
     [HttpGet("{id:int}/verlauf")]
     public async Task<ActionResult<List<VerlaufEintrag>>> Verlauf(int id, [FromQuery] bool mitOdoo = true,
-        CancellationToken ct = default)
+        [FromQuery] string? kategorien = null, [FromQuery] string? vorgang = null, CancellationToken ct = default)
     {
-        var abfrage = db.Aktivitaeten.AsNoTracking().Where(a => a.KundeId == id);
-        if (!mitOdoo)
-            abfrage = abfrage.Where(a => a.Quelle != Domain.Shared.AktivitaetsQuelle.OdooImport);
+        var abfrage = VerlaufAbfrage(id, mitOdoo, vorgang)
+            .Where(Domain.Shared.VerlaufKategorien.Filter(KategorienLesen(kategorien)));
+        var odooUrl = await OdooUrlAsync(ct);
 
         var roh = await abfrage
             .OrderByDescending(a => a.Zeitpunkt)
@@ -423,17 +426,69 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             .Select(a => new
             {
                 a.Id, a.Typ, a.Zeitpunkt, a.Betreff, a.Inhalt, a.VerweisTyp, a.VerweisId,
-                a.Quelle, a.Richtung, a.AutorName, a.Bezug,
+                a.Quelle, a.Richtung, a.AutorName, a.Bezug, a.Stufe, a.FilterGrund, a.OdooId, a.OdooModell, a.OdooResId,
                 Mitarbeiter = a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : null,
                 Ansprechpartner = a.Ansprechpartner != null ? a.Ansprechpartner.Nachname : null,
                 Anhaenge = a.Anhaenge.OrderBy(x => x.Dateiname)
-                    .Select(x => new VerlaufAnhang(x.Id, x.Dateiname, x.Groesse, x.MimeType)).ToList(),
+                    .Select(x => new { x.Id, x.Dateiname, x.Groesse, x.MimeType, x.RelativerPfad, x.OdooId }).ToList(),
             })
             .ToListAsync(ct);
         return Ok(roh.Select(a => new VerlaufEintrag(
             a.Id, a.Typ.ToString(), a.Zeitpunkt, a.Mitarbeiter, a.Ansprechpartner,
             a.Betreff, a.Inhalt, a.VerweisTyp?.ToString(), a.VerweisId,
-            a.Quelle.ToString(), a.Richtung?.ToString(), a.AutorName, a.Bezug, a.Anhaenge)).ToList());
+            a.Quelle.ToString(), a.Richtung?.ToString(), a.AutorName, a.Bezug,
+            a.Anhaenge.Select(x => new VerlaufAnhang(x.Id, x.Dateiname, x.Groesse, x.MimeType,
+                Lokal: x.RelativerPfad != null,
+                OdooLink: odooUrl is not null && x.OdooId is not null ? $"{odooUrl}/web/content/{x.OdooId}?download=true" : null)).ToList(),
+            Domain.Shared.VerlaufKategorien.Von(a.Stufe, a.Typ).ToString(),
+            a.FilterGrund,
+            a.OdooModell is not null && a.OdooResId is not null ? $"{a.OdooModell}:{a.OdooResId}" : null,
+            // /mail/message/<id> springt nach dem Odoo-Login direkt zur Nachricht im Chatter des Vorgangs
+            odooUrl is not null && a.OdooId is not null ? $"{odooUrl}/mail/message/{a.OdooId}" : null)).ToList());
+    }
+
+    /// <summary>Anzahl Einträge je Kategorie — für die Zahlen an den Schaltern der Akte.</summary>
+    [HttpGet("{id:int}/verlauf/uebersicht")]
+    public async Task<ActionResult<VerlaufUebersicht>> VerlaufZaehlen(int id, [FromQuery] bool mitOdoo = true,
+        [FromQuery] string? vorgang = null, CancellationToken ct = default)
+    {
+        var gruppen = await VerlaufAbfrage(id, mitOdoo, vorgang)
+            .GroupBy(a => new { a.Stufe, a.Typ })
+            .Select(g => new { g.Key.Stufe, g.Key.Typ, Anzahl = g.Count() })
+            .ToListAsync(ct);
+        var zaehler = Enum.GetValues<Domain.Shared.VerlaufKategorie>().ToDictionary(k => k.ToString(), _ => 0);
+        foreach (var g in gruppen)
+            zaehler[Domain.Shared.VerlaufKategorien.Von(g.Stufe, g.Typ).ToString()] += g.Anzahl;
+        return Ok(new VerlaufUebersicht(zaehler));
+    }
+
+    private IQueryable<Domain.Shared.Aktivitaet> VerlaufAbfrage(int kundeId, bool mitOdoo, string? vorgang)
+    {
+        var abfrage = db.Aktivitaeten.AsNoTracking().Where(a => a.KundeId == kundeId);
+        if (!mitOdoo)
+            abfrage = abfrage.Where(a => a.Quelle != Domain.Shared.AktivitaetsQuelle.OdooImport);
+        if (vorgang?.Split(':') is [var modell, var resIdText] && int.TryParse(resIdText, out var resId))
+            abfrage = abfrage.Where(a => a.OdooModell == modell && a.OdooResId == resId);
+        return abfrage;
+    }
+
+    private static List<Domain.Shared.VerlaufKategorie> KategorienLesen(string? kategorien)
+    {
+        if (string.IsNullOrWhiteSpace(kategorien))
+            return [.. Domain.Shared.VerlaufKategorien.Standard];
+        return kategorien.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(k => Enum.TryParse<Domain.Shared.VerlaufKategorie>(k, ignoreCase: true, out var kat) ? kat : (Domain.Shared.VerlaufKategorie?)null)
+            .OfType<Domain.Shared.VerlaufKategorie>()
+            .ToList();
+    }
+
+    /// <summary>Basis-URL der Odoo-Instanz für Direktlinks, ohne abschließenden Schrägstrich; null wenn nicht gepflegt.</summary>
+    private async Task<string?> OdooUrlAsync(CancellationToken ct)
+    {
+        var url = (await db.Einstellungen.AsNoTracking()
+            .Where(e => e.Schluessel == Domain.Shared.EinstellungsSchluessel.OdooUrl)
+            .Select(e => e.Wert).FirstOrDefaultAsync(ct))?.Trim().TrimEnd('/');
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http" ? url : null;
     }
 
     /// <summary>
@@ -446,6 +501,8 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
         var anhang = await db.Aktivitaetsanhaenge.AsNoTracking().FirstOrDefaultAsync(a => a.Id == anhangId, ct);
         if (anhang is null)
             return NotFound();
+        if (anhang.RelativerPfad is null)
+            return NotFound("Dieser Anhang liegt nur in Odoo — bitte über den Odoo-Link öffnen.");
 
         var basis = (await db.Einstellungen.AsNoTracking()
             .Where(e => e.Schluessel == Domain.Shared.EinstellungsSchluessel.DokumentablageVerzeichnis)

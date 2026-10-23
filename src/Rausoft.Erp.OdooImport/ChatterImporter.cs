@@ -13,24 +13,31 @@ namespace Rausoft.Erp.OdooImport;
 ///
 /// Quellen je Kunde (Entscheidung 22.10.2026): Firma + Personen/Adressen
 /// (res.partner), CRM-Leads (crm.lead), Angebote/Aufträge (sale.order) und
-/// Ausgangsrechnungen (account.move). Welche Nachricht übernommen, verdichtet
-/// oder verworfen wird, entscheidet ausschließlich <see cref="ChatterFilter"/> —
-/// dieselben Regeln wie in der Analyse (Modus <c>chatter</c>).
+/// Ausgangsrechnungen (account.move).
 ///
-/// Idempotent über die Odoo-Nachrichten-Id (Aktivitaet.OdooId) und die
-/// Anhang-Id (AktivitaetAnhang.OdooId): bereits übernommene Nachrichten werden
-/// übersprungen, fehlende Anhänge nachgeladen. Anhänge landen als Dateien in der
-/// Dokumentablage unter &lt;Kundennummer&gt;\Odoo-Chatter\.
+/// Seit 23.10.2026 wird <b>alles</b> übernommen: <see cref="ChatterFilter"/> legt nur
+/// noch die <see cref="AktivitaetsStufe"/> fest (wesentlich, Meilenstein,
+/// Systemmeldung, Feldänderung), die Kundenakte blendet nach Kategorie ein und aus.
+/// Jeder Eintrag merkt sich seinen Odoo-Vorgang (Modell + Id) für Marke, Filter und
+/// Direktlink.
+///
+/// Wiederholbar über die Odoo-Nachrichten-Id (Aktivitaet.OdooId): bereits
+/// übernommene Nachrichten werden bei jedem Lauf neu bewertet und aktualisiert —
+/// Regeländerungen und verbesserte Maskierung wirken so rückwirkend.
+///
+/// Anhänge: standardmäßig nur Metadaten mit Verweis auf das Original in Odoo.
+/// Mit <c>anhaengeLaden</c> werden die Dateien zusätzlich in die Dokumentablage
+/// unter &lt;Kundennummer&gt;\Odoo-Chatter\ kopiert (Archiv vor der Odoo-Abschaltung).
 /// </summary>
-public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = null, bool ohneAnhaenge = false,
+public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = null, bool anhaengeLaden = false,
     string? verbindung = null, TextWriter? ausgabe = null)
 {
     private const int BatchGroesse = 2000;
-    /// <summary>Berichtsausgabe — Konsole im Tool, Puffer beim Aufruf aus der Administration.</summary>
-    private readonly TextWriter _aus = ausgabe ?? Console.Out;
     private const int IdChunk = 500;
     private const long MaxAnhangBytes = 50L * 1024 * 1024;
 
+    /// <summary>Berichtsausgabe — Konsole im Tool, Puffer beim Aufruf aus der Administration.</summary>
+    private readonly TextWriter _aus = ausgabe ?? Console.Out;
     private readonly Statistik _stat = new();
     private Dictionary<int, (string Name, string? XmlId, bool Intern)> _subtypes = [];
     /// <summary>Partner-Id des Odoo-Benutzers → (Name, Login/E-Mail).</summary>
@@ -54,34 +61,24 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         await odoo.AnmeldenAsync();
         await LadeStammdatenAsync();
 
-        // Ablage für Anhänge — Pflicht, sobald wirklich geschrieben wird
+        // Ablage nur für den Archiv-Modus (Dateien kopieren)
         string? ablage = null;
-        if (!ohneAnhaenge)
+        if (anhaengeLaden)
         {
             ablage = (await db.Einstellungen.AsNoTracking()
                 .Where(e => e.Schluessel == EinstellungsSchluessel.DokumentablageVerzeichnis)
                 .Select(e => e.Wert).FirstOrDefaultAsync())?.Trim();
-            if (string.IsNullOrWhiteSpace(ablage))
+            if (string.IsNullOrWhiteSpace(ablage) || (!dryRun && !Directory.Exists(ablage)))
             {
-                if (dryRun)
-                {
-                    _aus.WriteLine("Hinweis: Dokumentablage.Verzeichnis ist nicht konfiguriert — " +
-                                      "Anhänge würden beim echten Import fehlen (Administration → Verzeichnisse).");
-                    ablage = null;
-                }
-                else
-                {
-                    _aus.WriteLine("Abbruch: Dokumentablage.Verzeichnis ist nicht konfiguriert " +
-                                            "(Administration → Verzeichnisse). Alternativ --ohne-anhaenge.");
-                    return;
-                }
-            }
-            else if (!dryRun && !Directory.Exists(ablage))
-            {
-                _aus.WriteLine($"Abbruch: Dokumentablage nicht erreichbar: {ablage}");
+                _aus.WriteLine(string.IsNullOrWhiteSpace(ablage)
+                    ? "Abbruch: „Anhänge herunterladen“ braucht die Dokumentablage (Administration → Verzeichnisse)."
+                    : $"Abbruch: Dokumentablage nicht erreichbar: {ablage}");
                 return;
             }
         }
+        _aus.WriteLine(anhaengeLaden
+            ? "Anhänge: Verweis auf Odoo + Kopie in die Dokumentablage (Archiv)"
+            : "Anhänge: nur Verweis auf das Original in Odoo");
 
         // --- Kundenzentrale: Kunden, Ansprechpartner, Mitarbeiter, bereits Übernommenes ---
         var kundenAbfrage = db.Kunden.Include(k => k.Ansprechpartner).Where(k => k.OdooId != null);
@@ -103,26 +100,28 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             return;
         }
         var kundeNachOdooId = kunden.ToDictionary(k => k.OdooId!.Value);
+        var kundenIds = kunden.Select(k => k.Id).ToList();
         var ansprechpartnerNachOdooId = kunden.SelectMany(k => k.Ansprechpartner)
             .Where(a => a.OdooId != null)
             .GroupBy(a => a.OdooId!.Value)
             .ToDictionary(g => g.Key, g => g.First());
         var mitarbeiter = await db.Mitarbeiter.AsNoTracking().ToListAsync();
-        var vorhandeneNachrichten = (await db.Aktivitaeten
-                .Where(a => a.OdooId != null)
-                .Select(a => new { OdooId = a.OdooId!.Value, a.Id })
-                .ToListAsync())
-            .ToDictionary(x => x.OdooId, x => x.Id);
+
+        // Bereits übernommene Nachrichten: global (Unique-Index), die der gewählten Kunden zum Aktualisieren
+        var alleOdooIds = (await db.Aktivitaeten.Where(a => a.OdooId != null)
+            .Select(a => a.OdooId!.Value).ToListAsync()).ToHashSet();
+        var vorhandene = await db.Aktivitaeten
+            .Where(a => a.OdooId != null && kundenIds.Contains(a.KundeId))
+            .ToDictionaryAsync(a => a.OdooId!.Value);
         var vorhandeneAnhaenge = (await db.Aktivitaetsanhaenge
                 .Where(a => a.OdooId != null).Select(a => a.OdooId!.Value).ToListAsync())
             .ToHashSet();
-        _aus.WriteLine($"Kunden mit Odoo-Id: {kunden.Count} · bereits übernommene Nachrichten: {vorhandeneNachrichten.Count}");
+        _aus.WriteLine($"Kunden mit Odoo-Id: {kunden.Count} · bereits übernommene Nachrichten: {vorhandene.Count}");
 
         // --- Odoo: Datensätze, an denen Nachrichten hängen, je Kunde zuordnen ---
-        var firmaIds = kundeNachOdooId.Keys.ToHashSet();
-        var quellen = await QuellenErmittelnAsync(firmaIds);
+        var quellen = await QuellenErmittelnAsync(kundeNachOdooId.Keys.ToHashSet(), kundeNachOdooId);
         _aus.WriteLine($"Odoo-Datensätze der Kunden: {quellen.Count} " +
-                          $"({string.Join(", ", quellen.Keys.GroupBy(k => k.Modell).Select(g => $"{g.Key} {g.Count()}"))})");
+                       $"({string.Join(", ", quellen.Keys.GroupBy(k => k.Modell).Select(g => $"{g.Key} {g.Count()}"))})");
 
         // --- Nachrichten laden (je Modell in Id-Blöcken) ---
         var roh = new List<JsonElement>();
@@ -139,129 +138,114 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         _stat.Gelesen = roh.Count;
         _aus.WriteLine($"Nachrichten gelesen: {roh.Count}");
 
-        // Feldänderungen nur dort, wo Regeln darauf schauen (Wartung am Kontakt, Status am Auftrag)
-        var trackingIds = roh
-            .Where(m => AnzahlIds(m, "tracking_value_ids") > 0
-                        && Text(m, "model") is "res.partner" or "sale.order"
-                        && !vorhandeneNachrichten.ContainsKey(m.GetProperty("id").GetInt32()))
-            .Select(m => m.GetProperty("id").GetInt32());
-        var tracking = await TrackingLadenAsync(trackingIds);
+        // Feldänderungen aller Nachrichten — für die Regeln (Wartung, Auftragsstatus) und die Anzeige
+        var tracking = await TrackingLadenAsync(roh
+            .Where(m => AnzahlIds(m, "tracking_value_ids") > 0)
+            .Select(m => m.GetProperty("id").GetInt32()));
 
-        // --- Bewerten und übernehmen ---
+        // --- Bewerten, anlegen oder aktualisieren ---
         var filter = new ChatterFilter(_benutzerNachPartner.Keys.ToHashSet(), _odooBot);
-        var neueEintraege = new List<(Aktivitaet Eintrag, List<int> AnhangIds)>();
-        var nachzuladendeAnhaenge = new List<(int AktivitaetId, List<int> AnhangIds)>();
+        var neue = new List<(Aktivitaet Eintrag, List<int> AnhangIds)>();
+        var bestehendeMitAnhaengen = new List<(Aktivitaet Eintrag, List<int> AnhangIds)>();
 
         foreach (var m in roh.OrderBy(m => Text(m, "date")).ThenBy(m => m.GetProperty("id").GetInt32()))
         {
-            if (!quellen.TryGetValue((Text(m, "model") ?? "", Zahl(m, "res_id") ?? 0), out var quelle))
+            var modell = Text(m, "model") ?? "";
+            var resId = Zahl(m, "res_id") ?? 0;
+            if (!quellen.TryGetValue((modell, resId), out var quelle))
                 continue;
             var n = Umwandeln(m, tracking, quelle.Archiviert);
-            var anhangIds = Ids(m, "attachment_ids");
-
-            if (vorhandeneNachrichten.TryGetValue(n.Id, out var vorhandeneId))
-            {
-                _stat.Uebersprungen++;
-                var fehlende = anhangIds.Where(id => !vorhandeneAnhaenge.Contains(id)).ToList();
-                if (fehlende.Count > 0 && !ohneAnhaenge)
-                    nachzuladendeAnhaenge.Add((vorhandeneId, fehlende));
-                continue;
-            }
-
             var b = filter.Bewerten(n);
-            if (b.Entscheidung == ChatterEntscheidung.Verwerfen)
-            {
-                _stat.Verworfen++;
-                _stat.Grund(b.Grund);
-                continue;
-            }
-
+            var stufe = ChatterFilter.StufeVon(b);
             var kunde = kundeNachOdooId[quelle.FirmaOdooId];
-            var eintrag = Eintrag(n, b, quelle, kunde, mitarbeiter, ansprechpartnerNachOdooId);
-            if (b.Entscheidung == ChatterEntscheidung.Behalten) _stat.Behalten++; else _stat.Verdichtet++;
-            _stat.Grund(b.Grund);
-            _stat.JeKunde[kunde.Kundennummer] = _stat.JeKunde.GetValueOrDefault(kunde.Kundennummer) + 1;
+            var soll = Eintrag(n, b, stufe, quelle, kunde, mitarbeiter, ansprechpartnerNachOdooId);
+            _stat.Zaehlen(stufe, b.Grund);
 
-            // Anhänge nur an echten Einträgen (Notizen, E-Mails) — Meilensteine haben keine
-            var mitAnhaengen = b.Entscheidung == ChatterEntscheidung.Behalten && !ohneAnhaenge
-                ? anhangIds.Where(id => !vorhandeneAnhaenge.Contains(id)).ToList()
-                : [];
-            neueEintraege.Add((eintrag, mitAnhaengen));
+            var anhangIds = Ids(m, "attachment_ids").Where(id => !vorhandeneAnhaenge.Contains(id)).ToList();
+            if (vorhandene.TryGetValue(n.Id, out var ist))
+            {
+                if (Abgleichen(ist, soll)) _stat.Aktualisiert++; else _stat.Unveraendert++;
+                if (anhangIds.Count > 0)
+                    bestehendeMitAnhaengen.Add((ist, anhangIds));
+            }
+            else if (alleOdooIds.Contains(n.Id))
+            {
+                // Hängt bereits an einem anderen Kunden (außerhalb der Auswahl) — nicht doppelt anlegen
+                _stat.AndererKunde++;
+            }
+            else
+            {
+                _stat.Neu++;
+                _stat.JeKunde[kunde.Kundennummer] = _stat.JeKunde.GetValueOrDefault(kunde.Kundennummer) + 1;
+                neue.Add((soll, anhangIds));
+                alleOdooIds.Add(n.Id);
+            }
         }
 
-        _aus.WriteLine($"Zu übernehmen: {neueEintraege.Count} ({_stat.Behalten} Einträge, {_stat.Verdichtet} verdichtet) · " +
-                          $"verworfen: {_stat.Verworfen} · bereits vorhanden: {_stat.Uebersprungen}");
+        _aus.WriteLine($"Neu: {_stat.Neu} · aktualisiert: {_stat.Aktualisiert} · unverändert: {_stat.Unveraendert}" +
+                       (_stat.AndererKunde > 0 ? $" · an anderem Kunden: {_stat.AndererKunde}" : ""));
 
-        // --- Speichern (in Blöcken), Anhänge laden ---
-        if (!dryRun)
+        // --- Anhang-Metadaten (ein Aufruf je Block statt je Datei) ---
+        var alleAnhangIds = neue.SelectMany(e => e.AnhangIds)
+            .Concat(bestehendeMitAnhaengen.SelectMany(e => e.AnhangIds)).Distinct().ToArray();
+        var anhangMeta = await AnhangMetadatenAsync(alleAnhangIds);
+
+        if (dryRun)
         {
-            var kundeNachId = kunden.ToDictionary(k => k.Id);
-            foreach (var block in neueEintraege.Chunk(500))
-            {
-                db.Aktivitaeten.AddRange(block.Select(e => e.Eintrag));
-                await db.SaveChangesAsync();   // vergibt die Ids, die die Anhänge brauchen
-                if (ablage is not null)
-                    foreach (var (eintrag, anhangIds) in block)
-                        await AnhaengeUebernehmenAsync(db, eintrag, anhangIds, kundeNachId[eintrag.KundeId], ablage, vorhandeneAnhaenge);
-                await db.SaveChangesAsync();
-            }
-            if (ablage is not null)
-            {
-                foreach (var (aktivitaetId, anhangIds) in nachzuladendeAnhaenge)
-                {
-                    var eintrag = await db.Aktivitaeten.FirstAsync(a => a.Id == aktivitaetId);
-                    if (kundeNachId.TryGetValue(eintrag.KundeId, out var kunde))
-                        await AnhaengeUebernehmenAsync(db, eintrag, anhangIds, kunde, ablage, vorhandeneAnhaenge);
-                }
-                await db.SaveChangesAsync();
-            }
+            foreach (var meta in anhangMeta.Values)
+                _stat.AnhangZaehlen(meta);
         }
         else
         {
-            // Nur zählen und Größe ermitteln
-            var alleAnhangIds = neueEintraege.SelectMany(e => e.AnhangIds)
-                .Concat(nachzuladendeAnhaenge.SelectMany(e => e.AnhangIds)).Distinct().ToArray();
-            foreach (var block in alleAnhangIds.Chunk(IdChunk))
+            var kundeNachId = kunden.ToDictionary(k => k.Id);
+            await db.SaveChangesAsync();   // Aktualisierungen der bestehenden Einträge
+            foreach (var block in neue.Chunk(500))
             {
-                var meta = await LadeAlleAsync("ir.attachment", [new object[] { "id", "in", block }],
-                    ["id", "name", "mimetype", "file_size"]);
-                foreach (var a in meta)
-                {
-                    var groesse = Zahl(a, "file_size") ?? 0;
-                    if (ChatterFilter.IstSignaturbild(Text(a, "name") ?? "", Text(a, "mimetype"), groesse))
-                    {
-                        _stat.AnhaengeUebersprungen++;
-                        continue;
-                    }
-                    _stat.Anhaenge++;
-                    _stat.AnhangBytes += groesse;
-                }
+                db.Aktivitaeten.AddRange(block.Select(e => e.Eintrag));
+                await db.SaveChangesAsync();   // vergibt die Ids, die die Anhänge brauchen
+                foreach (var (eintrag, ids) in block)
+                    AnhaengeAnlegen(db, eintrag, ids, anhangMeta, vorhandeneAnhaenge);
+                await db.SaveChangesAsync();
             }
+            foreach (var (eintrag, ids) in bestehendeMitAnhaengen)
+                AnhaengeAnlegen(db, eintrag, ids, anhangMeta, vorhandeneAnhaenge);
+            await db.SaveChangesAsync();
+
+            if (ablage is not null)
+                await AnhaengeArchivierenAsync(db, kundenIds, kundeNachId, ablage);
         }
 
         AusgabeStatistik();
     }
 
-    // --- Eintrag bauen -------------------------------------------------------------
+    // --- Eintrag bauen und abgleichen -------------------------------------------------
 
-    private Aktivitaet Eintrag(ChatterNachricht n, ChatterBewertung b, Quelle quelle, Kunde kunde,
-        List<Mitarbeiter> mitarbeiter, Dictionary<int, Ansprechpartner> ansprechpartnerNachOdooId)
+    private Aktivitaet Eintrag(ChatterNachricht n, ChatterBewertung b, AktivitaetsStufe stufe, Quelle quelle,
+        Kunde kunde, List<Mitarbeiter> mitarbeiter, Dictionary<int, Ansprechpartner> ansprechpartnerNachOdooId)
     {
-        var (betreff, inhalt) = b.Entscheidung == ChatterEntscheidung.Behalten
-            ? BetreffUndInhalt(n)
-            : Verdichtet(n, b);
+        var (betreff, inhalt) = stufe switch
+        {
+            AktivitaetsStufe.Wesentlich => BetreffUndInhalt(n),
+            AktivitaetsStufe.Meilenstein => Verdichtet(n, b),
+            AktivitaetsStufe.Feldaenderung => Feldaenderung(n),
+            _ => Systemmeldung(n, b),
+        };
 
         var eintrag = new Aktivitaet
         {
             KundeId = kunde.Id,
-            Typ = b.Typ ?? AktivitaetsTyp.Notiz,
-            Richtung = b.Richtung,
+            Typ = b.Typ ?? (n.MessageType is "email" or "email_outgoing" ? AktivitaetsTyp.EMail : AktivitaetsTyp.System),
+            Richtung = b.Richtung ?? AktivitaetsRichtung.Intern,
             Zeitpunkt = n.Datum?.ToUniversalTime() ?? DateTime.UtcNow,
             Betreff = Kuerzen(betreff, 300)!,
             Inhalt = inhalt,
             Quelle = AktivitaetsQuelle.OdooImport,
             OdooId = n.Id,
             Bezug = Kuerzen(quelle.Bezug, 300),
+            Stufe = stufe,
+            FilterGrund = Kuerzen(b.Grund, 100),
+            OdooModell = n.Modell,
+            OdooResId = n.ResId,
         };
 
         // Gesprächspaar: Autor → Mitarbeiter oder Ansprechpartner; sonst Name als Text
@@ -277,7 +261,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
                 else
                 {
                     eintrag.AutorName = Kuerzen(benutzer.Name, 200);
-                    _stat.UnbekannteBenutzer.Add(benutzer.Name);
+                    if (stufe <= AktivitaetsStufe.Meilenstein)
+                        _stat.UnbekannteBenutzer.Add(benutzer.Name);
                 }
             }
             else if (ansprechpartnerNachOdooId.TryGetValue(autorId, out var ap) && ap.KundeId == kunde.Id)
@@ -296,6 +281,34 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         return eintrag;
     }
 
+    /// <summary>Bestehenden Eintrag auf den neu bewerteten Stand bringen; true = etwas geändert.</summary>
+    private static bool Abgleichen(Aktivitaet ist, Aktivitaet soll)
+    {
+        var geaendert = false;
+        void Setze<T>(T alt, T neu, Action<T> setzen)
+        {
+            if (EqualityComparer<T>.Default.Equals(alt, neu))
+                return;
+            setzen(neu);
+            geaendert = true;
+        }
+
+        Setze(ist.KundeId, soll.KundeId, v => ist.KundeId = v);
+        Setze(ist.Typ, soll.Typ, v => ist.Typ = v);
+        Setze(ist.Richtung, soll.Richtung, v => ist.Richtung = v);
+        Setze(ist.Betreff, soll.Betreff, v => ist.Betreff = v);
+        Setze(ist.Inhalt, soll.Inhalt, v => ist.Inhalt = v);
+        Setze(ist.Bezug, soll.Bezug, v => ist.Bezug = v);
+        Setze(ist.Stufe, soll.Stufe, v => ist.Stufe = v);
+        Setze(ist.FilterGrund, soll.FilterGrund, v => ist.FilterGrund = v);
+        Setze(ist.OdooModell, soll.OdooModell, v => ist.OdooModell = v);
+        Setze(ist.OdooResId, soll.OdooResId, v => ist.OdooResId = v);
+        Setze(ist.MitarbeiterId, soll.MitarbeiterId, v => ist.MitarbeiterId = v);
+        Setze(ist.AnsprechpartnerId, soll.AnsprechpartnerId, v => ist.AnsprechpartnerId = v);
+        Setze(ist.AutorName, soll.AutorName, v => ist.AutorName = v);
+        return geaendert;
+    }
+
     private static (string Betreff, string? Inhalt) BetreffUndInhalt(ChatterNachricht n)
     {
         var text = n.Klartext;
@@ -307,11 +320,11 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         return (betreff, inhalt);
     }
 
-    /// <summary>Verdichtete Meilensteine: kurzer deutscher Betreff, Feldänderungen als Inhalt.</summary>
+    /// <summary>Verdichtete Meilensteine: kurzer deutscher Betreff, nur die entscheidenden Feldänderungen als Inhalt.</summary>
     private static (string Betreff, string? Inhalt) Verdichtet(ChatterNachricht n, ChatterBewertung b)
     {
         string? Aenderung(string feldAnfang) =>
-            n.Aenderungen.FirstOrDefault(a => a.Feld.StartsWith(feldAnfang, StringComparison.OrdinalIgnoreCase)) is { } a
+            n.Aenderungen.FirstOrDefault(a => a.Feld.StartsWith(feldAnfang, StringComparison.OrdinalIgnoreCase)) is { Feld: not null } a
                 ? $"{a.Alt} → {a.Neu}"
                 : null;
 
@@ -341,9 +354,28 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         var zeilen = n.Aenderungen
             .Where(a => relevant.Any(r => a.Feld.StartsWith(r, StringComparison.OrdinalIgnoreCase)))
             .Where(a => !(a.Alt == "—" && a.Neu == "—"))
-            .Select(a => $"{a.Feld}: {a.Alt} → {a.Neu}")
+            .Select(a => $"{FeldName(a.Feld)}: {a.Alt} → {a.Neu}")
             .ToList();
-        var inhalt = zeilen.Count > 0 ? string.Join("\n", zeilen) : null;
+        return (betreff, zeilen.Count > 0 ? string.Join("\n", zeilen) : null);
+    }
+
+    /// <summary>Reine Feldänderung: Betreff nennt die Felder, Inhalt die Änderungen.</summary>
+    private static (string Betreff, string? Inhalt) Feldaenderung(ChatterNachricht n)
+    {
+        if (n.Aenderungen.Count == 0)
+            return (ErsteZeile(n.Klartext) is { Length: > 0 } z ? z : "Feldänderung", null);
+        var felder = n.Aenderungen.Select(a => FeldName(a.Feld)).Distinct().ToList();
+        var betreff = "Geändert: " + string.Join(", ", felder.Take(4)) + (felder.Count > 4 ? $" (+{felder.Count - 4})" : "");
+        var inhalt = string.Join("\n", n.Aenderungen.Select(a => $"{FeldName(a.Feld)}: {a.Alt} → {a.Neu}"));
+        return (betreff, inhalt);
+    }
+
+    private static (string Betreff, string? Inhalt) Systemmeldung(ChatterNachricht n, ChatterBewertung b)
+    {
+        var betreff = n.Betreff ?? (ErsteZeile(n.Klartext) is { Length: > 0 } z ? z : b.Grund);
+        var inhalt = string.IsNullOrWhiteSpace(n.Klartext) || n.Klartext.Equals(betreff, StringComparison.Ordinal)
+            ? null
+            : n.Klartext;
         return (betreff, inhalt);
     }
 
@@ -361,84 +393,95 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
 
     // --- Anhänge ---------------------------------------------------------------------
 
-    private async Task AnhaengeUebernehmenAsync(ErpDbContext db, Aktivitaet eintrag, List<int> anhangIds,
-        Kunde kunde, string ablage, HashSet<int> vorhandeneAnhaenge)
-    {
-        if (anhangIds.Count == 0)
-            return;
-        var relativerOrdner = Path.Combine(SichererName(kunde.Kundennummer), "Odoo-Chatter");
-        Directory.CreateDirectory(Path.Combine(ablage, relativerOrdner));
+    private record AnhangMeta(int Id, string Name, string? MimeType, long Groesse);
 
-        foreach (var anhangId in anhangIds)
+    private async Task<Dictionary<int, AnhangMeta>> AnhangMetadatenAsync(int[] ids)
+    {
+        var ergebnis = new Dictionary<int, AnhangMeta>();
+        foreach (var block in ids.Chunk(IdChunk))
         {
-            if (vorhandeneAnhaenge.Contains(anhangId))
-                continue;
-            // Metadaten zuerst (klein), dann erst den Inhalt — so kostet ein Signaturbild
-            // oder eine zu große Datei keinen Download
-            JsonElement meta;
             try
             {
-                var liste = await odoo.AusfuehrenAsync("ir.attachment", "read",
-                    [new[] { anhangId }],
-                    new Dictionary<string, object> { ["fields"] = new[] { "name", "mimetype", "file_size" } });
-                if (liste.ValueKind != JsonValueKind.Array || liste.GetArrayLength() == 0)
-                    continue;
-                meta = liste[0];
+                foreach (var d in await LadeAlleAsync("ir.attachment", [new object[] { "id", "in", block }],
+                             ["id", "name", "mimetype", "file_size"]))
+                {
+                    var id = d.GetProperty("id").GetInt32();
+                    ergebnis[id] = new AnhangMeta(id, Text(d, "name") ?? $"anhang-{id}", Text(d, "mimetype"),
+                        Zahl(d, "file_size") ?? 0);
+                }
             }
             catch (InvalidOperationException ex)
             {
-                _stat.AnhangFehler.Add($"#{anhangId}: {Kuerzen(ex.Message, 400)}");
-                continue;
+                _stat.AnhangFehler.Add($"Metadaten nicht lesbar: {Kuerzen(ex.Message, 300)}");
             }
+        }
+        return ergebnis;
+    }
 
-            var name = Text(meta, "name") ?? $"anhang-{anhangId}";
-            var mimeType = Text(meta, "mimetype");
-            var groesse = Zahl(meta, "file_size") ?? 0;
-            if (ChatterFilter.IstSignaturbild(name, mimeType, groesse))
-            {
-                _stat.AnhaengeUebersprungen++;
+    /// <summary>Anhang-Verweise anlegen (ohne Datei); Signaturbilder werden ausgelassen.</summary>
+    private void AnhaengeAnlegen(ErpDbContext db, Aktivitaet eintrag, List<int> ids,
+        Dictionary<int, AnhangMeta> meta, HashSet<int> vorhandeneAnhaenge)
+    {
+        foreach (var id in ids)
+        {
+            if (vorhandeneAnhaenge.Contains(id) || !meta.TryGetValue(id, out var a))
                 continue;
-            }
-            if (groesse > MaxAnhangBytes)
-            {
-                _stat.AnhangFehler.Add($"{name}: {groesse / 1024 / 1024} MB — übersprungen (Grenze {MaxAnhangBytes / 1024 / 1024} MB)");
+            if (!_stat.AnhangZaehlen(a))
                 continue;
-            }
+            db.Aktivitaetsanhaenge.Add(new AktivitaetAnhang
+            {
+                AktivitaetId = eintrag.Id,
+                Dateiname = Kuerzen(a.Name, 300)!,
+                MimeType = Kuerzen(a.MimeType, 100),
+                Groesse = a.Groesse,
+                RelativerPfad = null,
+                OdooId = id,
+            });
+            vorhandeneAnhaenge.Add(id);
+        }
+    }
 
+    /// <summary>Archiv-Modus: alle Anhänge der gewählten Kunden ohne lokale Datei herunterladen.</summary>
+    private async Task AnhaengeArchivierenAsync(ErpDbContext db, List<int> kundenIds, Dictionary<int, Kunde> kundeNachId,
+        string ablage)
+    {
+        var offen = await db.Aktivitaetsanhaenge
+            .Include(a => a.Aktivitaet)
+            .Where(a => a.OdooId != null && a.RelativerPfad == null && kundenIds.Contains(a.Aktivitaet!.KundeId))
+            .ToListAsync();
+        foreach (var anhang in offen)
+        {
+            if (anhang.Groesse > MaxAnhangBytes)
+            {
+                _stat.AnhangFehler.Add($"{anhang.Dateiname}: {anhang.Groesse / 1024 / 1024} MB — nicht archiviert (Grenze {MaxAnhangBytes / 1024 / 1024} MB)");
+                continue;
+            }
             byte[] bytes;
             try
             {
-                bytes = await AnhangInhaltLadenAsync(odoo, anhangId);
+                bytes = await AnhangInhaltLadenAsync(odoo, anhang.OdooId!.Value);
             }
             catch (InvalidOperationException ex)
             {
-                _stat.AnhangFehler.Add($"{name} (#{anhangId}): {Kuerzen(ex.Message, 400)}");
+                _stat.AnhangFehler.Add($"{anhang.Dateiname} (#{anhang.OdooId}): {Kuerzen(ex.Message, 400)}");
                 continue;
             }
             if (bytes.Length == 0)
             {
-                _stat.AnhangFehler.Add($"{name} (#{anhangId}): Odoo lieferte keinen Inhalt (leer).");
+                _stat.AnhangFehler.Add($"{anhang.Dateiname} (#{anhang.OdooId}): Odoo lieferte keinen Inhalt.");
                 continue;
             }
 
-            var dateiname = $"{eintrag.OdooId}_{SichererName(name)}";
-            var relativerPfad = Path.Combine(relativerOrdner, dateiname);
-            var voll = Path.Combine(ablage, relativerPfad);
-            await File.WriteAllBytesAsync(voll, bytes);
-
-            db.Aktivitaetsanhaenge.Add(new AktivitaetAnhang
-            {
-                AktivitaetId = eintrag.Id,
-                Dateiname = Kuerzen(name, 300)!,
-                MimeType = Kuerzen(mimeType, 100),
-                Groesse = bytes.LongLength,
-                RelativerPfad = relativerPfad,
-                OdooId = anhangId,
-            });
-            vorhandeneAnhaenge.Add(anhangId);
-            _stat.Anhaenge++;
-            _stat.AnhangBytes += bytes.LongLength;
+            var kunde = kundeNachId[anhang.Aktivitaet!.KundeId];
+            var relativerOrdner = Path.Combine(SichererName(kunde.Kundennummer), "Odoo-Chatter");
+            Directory.CreateDirectory(Path.Combine(ablage, relativerOrdner));
+            var relativerPfad = Path.Combine(relativerOrdner, $"{anhang.Aktivitaet.OdooId}_{SichererName(anhang.Dateiname)}");
+            await File.WriteAllBytesAsync(Path.Combine(ablage, relativerPfad), bytes);
+            anhang.RelativerPfad = relativerPfad;
+            anhang.Groesse = bytes.LongLength;
+            _stat.Archiviert++;
         }
+        await db.SaveChangesAsync();
     }
 
     /// <summary>
@@ -488,8 +531,9 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
 
     // --- Odoo-Zuordnung ------------------------------------------------------------
 
-    /// <summary>Alle Odoo-Datensätze, deren Nachrichten einem unserer Kunden gehören.</summary>
-    private async Task<Dictionary<(string Modell, int Id), Quelle>> QuellenErmittelnAsync(HashSet<int> firmaIds)
+    /// <summary>Alle Odoo-Datensätze, deren Nachrichten einem unserer Kunden gehören, mit Anzeigename des Vorgangs.</summary>
+    private async Task<Dictionary<(string Modell, int Id), Quelle>> QuellenErmittelnAsync(HashSet<int> firmaIds,
+        Dictionary<int, Kunde> kundeNachOdooId)
     {
         var quellen = new Dictionary<(string, int), Quelle>();
 
@@ -503,10 +547,12 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             if (!firmaIds.Contains(firma))
                 continue;
             firmaVonPartner[id] = firma;
+            var typ = Text(p, "type");
             quellen[("res.partner", id)] = id == firma
-                ? new Quelle(firma, null, null)
-                : new Quelle(firma, Text(p, "type") is { } t && t != "contact" ? $"Adresse: {Text(p, "name")}" : Text(p, "name"),
-                    Text(p, "type") is null or "contact" ? id : null);
+                ? new Quelle(firma, "Firma", null)
+                : typ is null or "contact"
+                    ? new Quelle(firma, $"Kontakt {Text(p, "name")}", id)
+                    : new Quelle(firma, $"Adresse {Text(p, "name")}", null);
         }
 
         int? FirmaZu(JsonElement e, string feld) =>
@@ -517,7 +563,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         foreach (var l in leads)
             if (FirmaZu(l, "partner_id") is { } firma)
                 quellen[("crm.lead", l.GetProperty("id").GetInt32())] =
-                    new Quelle(firma, $"{(Text(l, "type") == "lead" ? "Lead" : "Verkaufschance")}: {Text(l, "name")}", null,
+                    new Quelle(firma, $"{(Text(l, "type") == "lead" ? "Lead" : "Verkaufschance")} {Text(l, "name")}", null,
                         Archiviert: !Wahr(l, "active"));
 
         var auftraege = await LadeAlleAsync("sale.order", [], ["id", "name", "state", "partner_id"]);
@@ -589,28 +635,11 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             foreach (var w in werte)
             {
                 var messageId = Many2OneId(w, "mail_message_id") ?? 0;
-                var feld = Many2OneLabel(w, "field_id") ?? "Feld";
-                var alt = ErsterWert(w, "old_value_char", "old_value_text", "old_value_integer", "old_value_float", "old_value_datetime");
-                var neu = ErsterWert(w, "new_value_char", "new_value_text", "new_value_integer", "new_value_float", "new_value_datetime");
                 ergebnis.TryAdd(messageId, []);
-                ergebnis[messageId].Add((feld, alt ?? "—", neu ?? "—"));
+                ergebnis[messageId].Add((Many2OneLabel(w, "field_id") ?? "Feld", TrackingWert(w, "old"), TrackingWert(w, "new")));
             }
         }
         return ergebnis;
-    }
-
-    private static string? ErsterWert(JsonElement e, params string[] felder)
-    {
-        foreach (var f in felder)
-        {
-            if (!e.TryGetProperty(f, out var w))
-                continue;
-            if (w.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(w.GetString()))
-                return w.GetString();
-            if (w.ValueKind == JsonValueKind.Number)
-                return w.ToString();
-        }
-        return null;
     }
 
     private async Task LadeStammdatenAsync()
@@ -681,19 +710,25 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         _aus.WriteLine();
         _aus.WriteLine("--- Ergebnis ---");
         _aus.WriteLine($"Nachrichten gelesen:        {_stat.Gelesen}");
-        _aus.WriteLine($"Übernommen als Eintrag:     {_stat.Behalten}");
-        _aus.WriteLine($"Verdichtet (Meilenstein):   {_stat.Verdichtet}");
-        _aus.WriteLine($"Verworfen:                  {_stat.Verworfen}");
-        _aus.WriteLine($"Bereits vorhanden:          {_stat.Uebersprungen}");
-        _aus.WriteLine($"Anhänge{(dryRun ? " (würden geladen)" : "")}: {_stat.Anhaenge} ({_stat.AnhangBytes / 1024.0 / 1024.0:0.0} MB)" +
-                       (_stat.AnhaengeUebersprungen > 0 ? $" · Signaturbilder übersprungen: {_stat.AnhaengeUebersprungen}" : ""));
+        _aus.WriteLine($"Neu angelegt:               {_stat.Neu}");
+        _aus.WriteLine($"Aktualisiert (neu bewertet):{_stat.Aktualisiert,5}");
+        _aus.WriteLine($"Unverändert:                {_stat.Unveraendert}");
+        _aus.WriteLine();
+        _aus.WriteLine("Nach Stufe (alle Nachrichten, in der Akte umschaltbar):");
+        foreach (var stufe in Enum.GetValues<AktivitaetsStufe>())
+            _aus.WriteLine($"  {StufeText(stufe),-36} {_stat.JeStufe.GetValueOrDefault(stufe),7}");
         _aus.WriteLine();
         _aus.WriteLine("Nach Grund:");
         foreach (var (grund, anzahl) in _stat.Gruende.OrderByDescending(g => g.Value))
             _aus.WriteLine($"  {grund,-36} {anzahl,7}");
+        _aus.WriteLine();
+        _aus.WriteLine($"Anhänge{(dryRun ? " (würden verknüpft)" : " neu verknüpft")}: {_stat.Anhaenge} " +
+                       $"({_stat.AnhangBytes / 1024.0 / 1024.0:0.0} MB in Odoo)" +
+                       (_stat.AnhaengeUebersprungen > 0 ? $" · Signaturbilder übersprungen: {_stat.AnhaengeUebersprungen}" : "") +
+                       (anhaengeLaden && !dryRun ? $" · in die Dokumentablage kopiert: {_stat.Archiviert}" : ""));
         if (_stat.UnbekannteBenutzer.Count > 0)
             _aus.WriteLine($"Odoo-Benutzer ohne Mitarbeiter-Zuordnung (Name als Text gespeichert): " +
-                              string.Join(", ", _stat.UnbekannteBenutzer.Order()));
+                           string.Join(", ", _stat.UnbekannteBenutzer.Order()));
         if (_stat.AnhangFehler.Count > 0)
         {
             _aus.WriteLine($"Anhänge mit Problemen: {_stat.AnhangFehler.Count}");
@@ -705,17 +740,44 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             _aus.WriteLine("DRY-RUN: nichts gespeichert.");
     }
 
+    private static string StufeText(AktivitaetsStufe stufe) => stufe switch
+    {
+        AktivitaetsStufe.Wesentlich => "Wesentlich (Notizen, E-Mails)",
+        AktivitaetsStufe.Meilenstein => "Meilensteine",
+        AktivitaetsStufe.Systemmeldung => "Systemmeldungen (ausgeblendet)",
+        _ => "Feldänderungen (ausgeblendet)",
+    };
+
     private static string? Kuerzen(string? text, int max) =>
         text is null ? null : (text.Length <= max ? text : text[..(max - 1)] + "…");
 
     private class Statistik
     {
-        public int Gelesen, Behalten, Verdichtet, Verworfen, Uebersprungen, Anhaenge, AnhaengeUebersprungen;
+        public int Gelesen, Neu, Aktualisiert, Unveraendert, AndererKunde, Anhaenge, AnhaengeUebersprungen, Archiviert;
         public long AnhangBytes;
+        public readonly Dictionary<AktivitaetsStufe, int> JeStufe = [];
         public readonly Dictionary<string, int> Gruende = [];
         public readonly Dictionary<string, int> JeKunde = [];
         public readonly HashSet<string> UnbekannteBenutzer = [];
         public readonly List<string> AnhangFehler = [];
-        public void Grund(string grund) => Gruende[grund] = Gruende.GetValueOrDefault(grund) + 1;
+
+        public void Zaehlen(AktivitaetsStufe stufe, string grund)
+        {
+            JeStufe[stufe] = JeStufe.GetValueOrDefault(stufe) + 1;
+            Gruende[grund] = Gruende.GetValueOrDefault(grund) + 1;
+        }
+
+        /// <summary>Zählt einen Anhang; false = Signaturbild, wird nicht verknüpft.</summary>
+        public bool AnhangZaehlen(AnhangMeta a)
+        {
+            if (ChatterFilter.IstSignaturbild(a.Name, a.MimeType, a.Groesse))
+            {
+                AnhaengeUebersprungen++;
+                return false;
+            }
+            Anhaenge++;
+            AnhangBytes += a.Groesse;
+            return true;
+        }
     }
 }

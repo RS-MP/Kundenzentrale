@@ -217,17 +217,45 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
     private static readonly Regex MehrfachUmbrueche = new(@"(\r?\n\s*){2,}", RegexOptions.Compiled);
 
     /// <summary>
-    /// Zeilen wie „Passwort: geheim123" → „Passwort: •••". Zugangsdaten aus
-    /// alten Odoo-Mails dürfen nicht im Klartext in die Kundenzentrale wandern
-    /// (Verschlüsselungs-Konvention); der Rest der Mail bleibt lesbar.
+    /// Kennzeile für Zugangsdaten: „Passwort: …", „Kennwort = …", „PW: …",
+    /// auch zusammengesetzt wie „Passwort-Einmal-Link:" oder „Initialpasswort:".
+    /// Der Wert steht dahinter oder — bei leerem Rest — in der nächsten Zeile.
     /// </summary>
-    private static readonly Regex PasswortZeile = new(
-        @"(?im)^(.*\b(?:passwor[dt]|kennwort|pwd?|initial-?passwor[dt])\b\s*[:=]\s*)\S.*$",
-        RegexOptions.Compiled);
+    private static readonly Regex PasswortKennzeile = new(
+        @"^(?<k>.*?(?:passw(?:or)?[dt]|kennwort|\bpwd?\b)[\w-]*\s*[:=])\s*(?<v>.*)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Links von Diensten zum einmaligen Teilen von Geheimnissen — sie sind bis zum Abruf ein Zugangsschlüssel.</summary>
+    private static readonly Regex EinmalLink = new(
+        @"https?://\S*(?:keepersecurity\.(?:com|eu)/vault/share|onetimesecret\.com/secret|pwpush\.com/p/|share\.1password\.com|password\.link/|send\.bitwarden\.com|vault\.bitwarden\.com/#/send|privnote\.com/|1ty\.me/)\S*",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public const string Maske = "•••";
+
+    /// <summary>
+    /// Zugangsdaten aus alten Odoo-Mails dürfen nicht im Klartext in die
+    /// Kundenzentrale wandern (Verschlüsselungs-Konvention): Passwortzeilen und
+    /// Einmal-Links werden maskiert, der Rest der Mail bleibt lesbar.
+    /// </summary>
+    public static string ZugangsdatenMaskieren(string text)
+    {
+        var zeilen = text.Split('\n');
+        for (var i = 0; i < zeilen.Length; i++)
+        {
+            var treffer = PasswortKennzeile.Match(zeilen[i].TrimEnd('\r'));
+            if (!treffer.Success)
+                continue;
+            if (treffer.Groups["v"].Value.Trim().Length > 0)
+                zeilen[i] = treffer.Groups["k"].Value + " " + Maske;
+            else if (i + 1 < zeilen.Length && zeilen[i + 1].Trim().Length > 0)
+                zeilen[++i] = Maske;
+        }
+        return EinmalLink.Replace(string.Join('\n', zeilen), Maske + " (Einmal-Link entfernt)");
+    }
 
     /// <summary>
     /// HTML-Body aus Odoo → lesbarer Klartext (Absätze bleiben als Zeilen
-    /// erhalten), Passwort-Zeilen maskiert.
+    /// erhalten), Zugangsdaten maskiert.
     /// </summary>
     public static string Klartext(string? html)
     {
@@ -238,7 +266,18 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
         text = WebUtility.HtmlDecode(text);
         text = MehrfachLeerzeichen.Replace(text, " ");
         text = MehrfachUmbrueche.Replace(text, "\n");
-        text = PasswortZeile.Replace(text, "$1•••");
-        return text.Trim();
+        return ZugangsdatenMaskieren(text.Trim());
     }
+
+    /// <summary>
+    /// Anzeigestufe für die Filterentscheidung: Behalten = wesentlich, Verdichten =
+    /// Meilenstein; Verworfenes wird trotzdem importiert, aber als Feldänderung bzw.
+    /// Systemmeldung standardmäßig ausgeblendet (Entscheidung 23.10.2026).
+    /// </summary>
+    public static AktivitaetsStufe StufeVon(ChatterBewertung b) => b.Entscheidung switch
+    {
+        ChatterEntscheidung.Behalten => AktivitaetsStufe.Wesentlich,
+        ChatterEntscheidung.Verdichten => AktivitaetsStufe.Meilenstein,
+        _ => b.Grund == "Feldänderung" ? AktivitaetsStufe.Feldaenderung : AktivitaetsStufe.Systemmeldung,
+    };
 }
