@@ -1,0 +1,816 @@
+@* Linke Spalte der Kundenakte (Entscheidung 23.10.2026, Mockup mockup/akte-ueberblick.html):
+   „Was lief zuletzt?" mit Wer-mit-wem, offene Aufgaben, Vereinbarungen und der Verlauf —
+   einzeilig, Details per Klick. Notizen, Telefonate, Termine, Vereinbarungen und Aufgaben
+   lassen sich direkt hier erfassen. *@
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+@if (_fehler is not null)
+{
+    <div class="fehlerbox" style="margin-bottom:10px">@_fehler</div>
+}
+
+@* ---------- Was lief zuletzt? ---------- *@
+<div class="karte akte-block">
+    <div class="karte-kopf">
+        <h2>Was lief zuletzt?</h2>
+        <div class="seg">
+            @foreach (var (tage, text) in Zeitraeume)
+            {
+                <button type="button" class="@(_tage == tage ? "an" : "")" @onclick="() => ZeitraumAsync(tage)">@text</button>
+            }
+        </div>
+    </div>
+    @if (_ueberblick is { } u)
+    {
+        <div class="kurzfassung">
+            @if (u.Letzter is { } l)
+            {
+                <span class="gross">@u.Kontakte Kontakt@(u.Kontakte == 1 ? "" : "e")</span>
+                <span class="klein">@u.Rausoft.Count bei rausoft · @u.Kunde.Count beim Kunden</span>
+                <span class="klein">
+                    Zuletzt @Wann(l.Zeitpunkt): @PersonenText(l.Rausoft, true) ↔ @PersonenText(l.Kunde, false) · @l.Art
+                </span>
+            }
+            else
+            {
+                <span class="klein">Keine Gespräche in diesem Zeitraum.</span>
+            }
+            <span class="klein">
+                @u.AufgabenOffen offene Aufgabe@(u.AufgabenOffen == 1 ? "" : "n")@if (u.AufgabenUeberfaellig > 0)
+                {<b class="krit"> · @u.AufgabenUeberfaellig überfällig</b>}
+                · @u.VereinbarungenOffen offene Vereinbarung@(u.VereinbarungenOffen == 1 ? "" : "en")
+            </span>
+        </div>
+        @if (u.Rausoft.Count > 0 && u.Kunde.Count > 0)
+        {
+            <div class="wmw-wrap">
+                <table class="wer-mit-wem">
+                    <thead>
+                        <tr>
+                            <th>rausoft ↓ · Kunde →</th>
+                            @foreach (var k in u.Kunde)
+                            {
+                                <th>@k.Name<small>@k.Zusatz</small></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in u.Rausoft)
+                        {
+                            <tr>
+                                <th>@r.Name<small>@r.Zusatz</small></th>
+                                @foreach (var k in u.Kunde)
+                                {
+                                    var zelle = Zelle(r.Schluessel, k.Schluessel);
+                                    if (zelle is null)
+                                    {
+                                        <td class="leer">–</td>
+                                    }
+                                    else
+                                    {
+                                        var an = _paar is { } gewaehlt && gewaehlt.R == r.Schluessel && gewaehlt.K == k.Schluessel;
+                                        <td class="@(TageHer(zelle.Zuletzt) <= 7 ? "heiss" : "") @(an ? "an" : "")"
+                                            title="@zelle.Anzahl Kontakte, zuletzt @Wann(zelle.Zuletzt) — Klick zeigt nur diese Gespräche"
+                                            @onclick="() => PaarAsync(r, k)">
+                                            <span class="anz">@zelle.Anzahl×</span><span class="wann">@Wann(zelle.Zuletzt)</span>
+                                        </td>
+                                    }
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@* ---------- Offene Aufgaben ---------- *@
+<div class="karte akte-block">
+    <div class="karte-kopf">
+        <h2>Offene Aufgaben</h2>
+        <span class="zahl">@(_aufgaben?.Count(a => !a.Erledigt) ?? 0) offen</span>
+        <button type="button" class="knopf sekundaer klein rechts" @onclick='() => FormularAsync("aufgabe")'>+ Aufgabe</button>
+    </div>
+    @if (_formular == "aufgabe" && _auswahl is { } aw)
+    {
+        <div class="erfassen">
+            <label>Aufgabe<input type="text" @bind="_aTitel" placeholder="z. B. Testzugang einrichten" maxlength="300" /></label>
+            <div class="reihe">
+                <label>Art<select @bind="_aArt"><option>To-do</option><option>Anruf</option><option>E-Mail</option><option>Termin</option></select></label>
+                <label>Fällig<input type="date" @bind="_aFaellig" /></label>
+                <label>Zuständig
+                    <select @bind="_aZustaendig">
+                        <option value="">— bitte wählen —</option>
+                        @foreach (var m in aw.Mitarbeiter)
+                        {
+                            <option value="m:@m.Id">@m.Name@(m.Zusatz is not null ? $" ({m.Zusatz})" : "")</option>
+                        }
+                        @foreach (var b in aw.Bereiche)
+                        {
+                            <option value="b:@b.Id">Pool @b.Name</option>
+                        }
+                    </select>
+                </label>
+                @VorgangAuswahlFeld(aw, v => _aVorgang = v, _aVorgang)
+            </div>
+            <div class="reihe knoepfe">
+                <button type="button" class="knopf sekundaer" @onclick="() => _formular = null">Abbrechen</button>
+                <button type="button" class="knopf" disabled="@_speichert" @onclick="AufgabeSpeichernAsync">Speichern</button>
+            </div>
+        </div>
+    }
+    <div class="liste-eng">
+        @if (_aufgaben is { Count: > 0 })
+        {
+            @foreach (var a in _aufgaben)
+            {
+                var ueber = !a.Erledigt && a.Faellig is { } f && f < Heute;
+                <div class="auf-zeile @(a.Erledigt ? "erledigt" : "")">
+                    <input type="checkbox" checked="@a.Erledigt" title="erledigt" @onchange="e => AufgabeErledigtAsync(a, e.Value is true)" />
+                    <span class="faellig @(ueber ? "ueber" : "")">@(ueber ? "überfällig " : "")@(a.Faellig?.ToString("dd.MM.") ?? "ohne Datum")</span>
+                    <div>
+                        <div class="titel">@a.Titel</div>
+                        <div class="woher">
+                            @a.Art · @if (a.IstPool)
+                            {<span class="pool" title="Bereichs-Pool: ein freier Mitarbeiter übernimmt">@a.Zustaendig</span>}
+                            else if (a.Zustaendig is not null)
+                            {<span class="nm">@a.Zustaendig</span>@BereichTag(a.ZustaendigBereich)}
+                            else {<span>niemand zugeordnet</span>}
+                            @if (a.Bezug is not null) {<text> · @a.Bezug</text>}
+                            · aus @a.Quelle
+                        </div>
+                        @if (a.Beschreibung is not null)
+                        {
+                            <div class="beschreibung">@a.Beschreibung</div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="leer-hinweis">Keine offenen Aufgaben.</div>
+        }
+    </div>
+</div>
+
+@* ---------- Vereinbart & offen ---------- *@
+<div class="karte akte-block" id="akte-vereinbarungen">
+    <div class="karte-kopf">
+        <h2>Vereinbart &amp; offen</h2>
+        <span class="zahl">@(_vereinbarungen?.Count(v => !v.Erledigt) ?? 0) offen</span>
+        <button type="button" class="knopf sekundaer klein rechts" @onclick='() => VereinbarungFormularAsync(null)'>+ Vereinbarung</button>
+    </div>
+    @if (_formular == "vereinbarung")
+    {
+        <div class="erfassen">
+            @if (_vbQuelle is { } q)
+            {
+                <div class="hinweis-klein">aus: @Art(q).Text @q.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy") · @q.Betreff</div>
+            }
+            <label>Was wurde vereinbart?<input type="text" @bind="_vText" placeholder="z. B. Start der Einrichtung in KW 46" maxlength="500" /></label>
+            <div class="reihe knoepfe">
+                <button type="button" class="knopf sekundaer" @onclick="() => { _formular = null; _vbQuelle = null; }">Abbrechen</button>
+                <button type="button" class="knopf" disabled="@_speichert" @onclick="VereinbarungSpeichernAsync">Speichern</button>
+            </div>
+        </div>
+    }
+    <div class="liste-eng">
+        @if (_vereinbarungen is { Count: > 0 })
+        {
+            @foreach (var v in _vereinbarungen)
+            {
+                <div class="vb-zeile @(v.Erledigt ? "erledigt" : "")">
+                    <span class="fl">⚑</span>
+                    <div>
+                        <div class="txt">@v.Text</div>
+                        <div class="woher">
+                            @if (v.QuelleArt is not null)
+                            {
+                                @($"{v.QuelleArt} {v.QuelleZeitpunkt?.ToLocalTime():dd.MM.}")
+                                @if (v.QuelleRausoft.Count > 0 || v.QuelleKunde.Count > 0)
+                                {
+                                    <text> · @string.Join(", ", v.QuelleRausoft.Select(p => p.Name))@(v.QuelleKunde.Count > 0 ? " ↔ " + string.Join(", ", v.QuelleKunde.Select(p => p.Name)) : "")</text>
+                                }
+                                <text> · </text><button type="button" class="link" @onclick="() => ImVerlaufZeigenAsync(v.AktivitaetId!.Value)">im Verlauf zeigen</button>
+                            }
+                            else
+                            {
+                                <text>festgehalten @v.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")@(v.ErstelltVon is not null ? " · " + v.ErstelltVon : "")</text>
+                            }
+                        </div>
+                    </div>
+                    <button type="button" class="vb-status @(v.Erledigt ? "erl" : "offen")" title="Status umschalten"
+                            @onclick="() => VereinbarungErledigtAsync(v)">@(v.Erledigt ? "erledigt" : "offen")</button>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="leer-hinweis">Noch keine Vereinbarungen. Zusagen aus Gesprächen hier festhalten — oder im Verlauf an einem Eintrag „⚑ Vereinbarung festhalten".</div>
+        }
+    </div>
+</div>
+
+@* ---------- Verlauf ---------- *@
+<div class="karte akte-block" id="akte-verlauf">
+    <div class="karte-kopf">
+        <h2>Verlauf</h2>
+        <span class="zahl">@(_verlauf?.Count ?? 0) Einträge</span>
+        <span class="rechts kopf-aktionen">
+            <label class="umschalter" title="Aus Odoo übernommene Einträge ein- oder ausblenden">
+                <input type="checkbox" checked="@_mitOdoo" @onchange="OdooUmschaltenAsync" /> Odoo
+            </label>
+            <button type="button" class="link" @onclick="AlleAufklappen">@(_alleAuf ? "alle zuklappen" : "alle aufklappen")</button>
+            <button type="button" class="knopf sekundaer klein" @onclick='() => FormularAsync("eintrag")'>+ Eintrag</button>
+        </span>
+    </div>
+    @if (_formular == "eintrag" && _auswahl is { } ew)
+    {
+        <div class="erfassen">
+            <div class="reihe">
+                <label>Art<select @bind="_fTyp"><option value="Notiz">Notiz</option><option value="Anruf">Telefonat</option><option value="Termin">Termin / Besprechung</option></select></label>
+                @if (_fTyp == "Anruf")
+                {
+                    <label>Richtung<select @bind="_fRichtung"><option value="Ausgehend">wir haben angerufen</option><option value="Eingehend">Kunde hat angerufen</option></select></label>
+                }
+                <label>Datum<input type="date" @bind="_fDatum" /></label>
+                <label>Uhrzeit<input type="time" @bind="_fZeit" /></label>
+                @VorgangAuswahlFeld(ew, v => _fVorgang = v, _fVorgang)
+            </div>
+            <div class="feld">Wer von rausoft?
+                <span class="wahl">
+                    @foreach (var m in ew.Mitarbeiter)
+                    {
+                        <button type="button" class="@(_fMitarbeiter.Contains(m.Id) ? "an" : "")" @onclick="() => Umschalten(_fMitarbeiter, m.Id)">@m.Name@(m.Zusatz is not null ? $" · {m.Zusatz}" : "")</button>
+                    }
+                </span>
+            </div>
+            <div class="feld">Wer beim Kunden?
+                <span class="wahl">
+                    @foreach (var a in ew.Ansprechpartner)
+                    {
+                        <button type="button" class="@(_fAnsprechpartner.Contains(a.Id) ? "an" : "")" @onclick="() => Umschalten(_fAnsprechpartner, a.Id)">@a.Name@(a.Zusatz is not null ? $" · {a.Zusatz}" : "")</button>
+                    }
+                    @if (ew.Ansprechpartner.Count == 0)
+                    {
+                        <span class="hinweis-klein">Keine aktiven Ansprechpartner hinterlegt.</span>
+                    }
+                </span>
+            </div>
+            <label>Betreff<input type="text" @bind="_fBetreff" placeholder="z. B. Abstimmung Schnittstelle mit der IT" maxlength="300" /></label>
+            <label>Inhalt<textarea @bind="_fInhalt" rows="4" placeholder="Was wurde besprochen?"></textarea></label>
+            <div class="feld">Vereinbart <span class="hinweis-klein">(optional — erscheint unter „Vereinbart &amp; offen")</span>
+                @for (var i = 0; i < _fVereinbarungen.Count; i++)
+                {
+                    var index = i;
+                    <span class="vb-feld"><span>⚑</span><input type="text" value="@_fVereinbarungen[index]" maxlength="500"
+                        @onchange="e => VereinbarungFeld(index, e.Value)" placeholder="z. B. Testzugang bis Freitag einrichten" /></span>
+                }
+            </div>
+            <div class="reihe knoepfe">
+                <button type="button" class="link" @onclick='() => _fVereinbarungen.Add("")'>+ weitere Vereinbarung</button>
+                <span class="rechts">
+                    <button type="button" class="knopf sekundaer" @onclick="() => _formular = null">Abbrechen</button>
+                    <button type="button" class="knopf" disabled="@_speichert" @onclick="EintragSpeichernAsync">Speichern</button>
+                </span>
+            </div>
+        </div>
+    }
+    <div class="verlauf-filter">
+        @foreach (var (schluessel, name) in Kategorien)
+        {
+            var aktiv = _kategorien.Contains(schluessel);
+            <button type="button" class="kat @(aktiv ? "an" : "")" aria-pressed="@(aktiv ? "true" : "false")"
+                    @onclick="() => KategorieUmschaltenAsync(schluessel)">
+                @name <span class="anz">@(_zaehler?.GetValueOrDefault(schluessel) ?? 0)</span>
+            </button>
+        }
+        <span class="filter-rechts">
+            @if (_paar is { } p)
+            {
+                <span>nur <b>@p.Text</b> · <button type="button" class="link" @onclick="PaarAufhebenAsync">alle Personen</button></span>
+            }
+            @if (_vorgang is { } vg)
+            {
+                <span>nur <b>@vg.Name</b> · <button type="button" class="link" @onclick="VorgangAufhebenAsync">alle Vorgänge</button></span>
+            }
+        </span>
+    </div>
+    @if (_verlauf is null)
+    {
+        <div class="leer-hinweis">Lade Verlauf …</div>
+    }
+    else if (_verlauf.Count == 0)
+    {
+        <div class="leer-hinweis">
+            Keine Einträge für diese Auswahl.
+            @if (_tage < AlleTage)
+            {
+                <button type="button" class="link" @onclick="() => ZeitraumAsync(AlleTage)">Zeitraum auf „Alles" stellen</button>
+            }
+        </div>
+    }
+    else
+    {
+        string? letztePeriode = null;
+        @foreach (var e in _verlauf)
+        {
+            var periode = Periode(e.Zeitpunkt);
+            if (periode != letztePeriode)
+            {
+                letztePeriode = periode;
+                <div class="periode">@periode</div>
+            }
+            var auf = _alleAuf || _aufgeklappt.Contains(e.Id);
+            var art = Art(e);
+            <div class="z @(auf ? "offen" : "") @(e.Kategorie is "Systemmeldungen" or "Feldaenderungen" ? "gering" : "")" id="eintrag-@e.Id">
+                <button type="button" class="z-kopf" @onclick="() => AufklappenUmschalten(e.Id)" aria-expanded="@(auf ? "true" : "false")">
+                    <span class="dat">@e.Zeitpunkt.ToLocalTime().ToString("dd.MM.")<br /><small>@e.Zeitpunkt.ToLocalTime().ToString("HH:mm")</small></span>
+                    <span class="ic art-@art.Klasse" title="@art.Text">@art.Symbol</span>
+                    <span class="mitte">
+                        <span class="bt">@e.Betreff</span>
+                        <span class="wer">@WerZeile(e)</span>
+                    </span>
+                    <span class="hinten">
+                        @if (e.Vereinbarungen is { Count: > 0 })
+                        {
+                            <span class="flag" title="enthält eine Vereinbarung">⚑</span>
+                        }
+                        @if (e.Anhaenge.Count > 0)
+                        {
+                            <span title="@e.Anhaenge.Count Anhang/Anhänge">📎</span>
+                        }
+                        <span class="pfeil">▸</span>
+                    </span>
+                </button>
+                @if (auf)
+                {
+                    <div class="z-detail">
+                        <div class="teiln">
+                            @art.Text
+                            @if ((e.RausoftTeilnehmer?.Count ?? 0) + (e.KundenTeilnehmer?.Count ?? 0) > 2 || e.Typ == "Termin")
+                            {
+                                <text> · Teilnehmer: </text>@PersonenText(e.RausoftTeilnehmer ?? [], true)<text> · </text>@PersonenText(e.KundenTeilnehmer ?? [], false)
+                            }
+                            else if (e.An is not null)
+                            {
+                                <text> · an @e.An</text>
+                            }
+                            @if (e.Quelle == "OdooImport") {<text> · aus Odoo</text>}
+                        </div>
+                        @if (e.Inhalt is not null)
+                        {
+                            <div class="text">@e.Inhalt</div>
+                        }
+                        @if (e.Anhaenge.Count > 0)
+                        {
+                            <div class="anhaenge">
+                                @foreach (var anhang in e.Anhaenge)
+                                {
+                                    @if (anhang.Lokal)
+                                    {
+                                        <button type="button" class="anhang" title="@GroesseText(anhang.Groesse) · aus der Dokumentablage"
+                                                @onclick="() => AnhangHerunterladenAsync(anhang)">📎 @anhang.Dateiname</button>
+                                    }
+                                    else if (anhang.OdooLink is not null)
+                                    {
+                                        <a class="anhang" href="@anhang.OdooLink" target="_blank" rel="noopener noreferrer"
+                                           title="@GroesseText(anhang.Groesse) · Original in Odoo (Odoo-Anmeldung nötig)">📎 @anhang.Dateiname ↗</a>
+                                    }
+                                }
+                            </div>
+                        }
+                        @foreach (var v in e.Vereinbarungen ?? [])
+                        {
+                            <div class="verein">⚑ Vereinbart: @v</div>
+                        }
+                        <div class="akt">
+                            <button type="button" class="link" @onclick="() => VereinbarungFormularAsync(e)">⚑ Vereinbarung festhalten</button>
+                            @if (e.Vorgang is not null && (e.StrangName ?? e.Bezug) is { } vorgangName)
+                            {
+                                <button type="button" class="link" title="Nur Einträge zu „@vorgangName“ zeigen"
+                                        @onclick="() => VorgangWaehlenAsync(e.Vorgang, vorgangName)">↳ @vorgangName</button>
+                            }
+                            @if (e.VerweisTyp == "Vertrag" && e.VerweisId is not null)
+                            {
+                                <a href="vertraege/@e.VerweisId">zum Vertrag</a>
+                            }
+                            @if (e.OdooLink is not null)
+                            {
+                                <a href="@e.OdooLink" target="_blank" rel="noopener noreferrer"
+                                   title="Nachricht im Odoo-Chatter öffnen (Odoo-Anmeldung nötig)">in Odoo ↗</a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        @if (_tage < AlleTage)
+        {
+            <div class="leer-hinweis">Ältere Einträge: <button type="button" class="link" @onclick="() => ZeitraumAsync(AlleTage)">Zeitraum auf „Alles" stellen</button></div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public int KundeId { get; set; }
+    /// <summary>Wird von der Akte erhöht, wenn sich etwas geändert hat (z. B. neuer Vertrag) — dann neu laden.</summary>
+    [Parameter] public int Aktualisierung { get; set; }
+
+    private const int AlleTage = 9999;
+    private static readonly (int Tage, string Text)[] Zeitraeume = [(14, "14 Tage"), (30, "30 Tage"), (90, "90 Tage"), (AlleTage, "Alles")];
+    private static readonly (string Schluessel, string Name)[] Kategorien =
+    [
+        ("Notizen", "Gespräche & Notizen"), ("EMails", "E-Mails"), ("Meilensteine", "Meilensteine"),
+        ("Systemmeldungen", "Systemmeldungen"), ("Feldaenderungen", "Feldänderungen"),
+    ];
+
+    private int _geladenFuer = -1, _geladeneVersion = -1;
+    private int _tage = 30;
+    private AkteUeberblick? _ueberblick;
+    private List<AufgabeEintrag>? _aufgaben;
+    private List<VereinbarungEintrag>? _vereinbarungen;
+    private List<VerlaufEintrag>? _verlauf;
+    private Dictionary<string, int>? _zaehler;
+    private bool _mitOdoo = true;
+    /// <summary>Beim Öffnen nur die Kommunikation (Entscheidung 23.10.2026).</summary>
+    private readonly HashSet<string> _kategorien = ["Notizen", "EMails"];
+    private (string R, string K, string Text)? _paar;
+    private (string Schluessel, string Name)? _vorgang;
+    private readonly HashSet<int> _aufgeklappt = [];
+    private bool _alleAuf;
+    private string? _fehler;
+
+    // Erfassen
+    private string? _formular;
+    private ErfassungsAuswahl? _auswahl;
+    private bool _speichert;
+    private VerlaufEintrag? _vbQuelle;
+    private string _vText = "";
+    private string _aTitel = "", _aArt = "To-do", _aZustaendig = "";
+    private DateOnly? _aFaellig;
+    private string? _aVorgang;
+    private string _fTyp = "Notiz", _fRichtung = "Ausgehend", _fBetreff = "", _fInhalt = "";
+    private DateOnly _fDatum = DateOnly.FromDateTime(DateTime.Now);
+    private TimeOnly _fZeit = TimeOnly.FromDateTime(DateTime.Now);
+    private string? _fVorgang;
+    private readonly HashSet<int> _fMitarbeiter = [];
+    private readonly HashSet<int> _fAnsprechpartner = [];
+    private List<string> _fVereinbarungen = [""];
+
+    private static DateOnly Heute => DateOnly.FromDateTime(DateTime.Now);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (KundeId == _geladenFuer && Aktualisierung == _geladeneVersion)
+            return;
+        var neuerKunde = KundeId != _geladenFuer;
+        _geladenFuer = KundeId;
+        _geladeneVersion = Aktualisierung;
+        if (neuerKunde)
+        {
+            _tage = 30; _paar = null; _vorgang = null; _formular = null; _auswahl = null;
+            _aufgeklappt.Clear(); _alleAuf = false;
+        }
+        await AllesLadenAsync();
+        // Kein Gespräch in 30 Tagen: gleich alles zeigen, statt eine leere Akte
+        if (neuerKunde && _ueberblick is { Kontakte: 0 } && _tage != AlleTage)
+        {
+            _tage = AlleTage;
+            await AllesLadenAsync();
+        }
+    }
+
+    private async Task AllesLadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _ueberblick = await Http.GetFromJsonAsync<AkteUeberblick>($"api/kunden/{KundeId}/ueberblick?tage={_tage}");
+            _aufgaben = await Http.GetFromJsonAsync<List<AufgabeEintrag>>($"api/kunden/{KundeId}/aufgaben");
+            _vereinbarungen = await Http.GetFromJsonAsync<List<VereinbarungEintrag>>($"api/kunden/{KundeId}/vereinbarungen");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Überblick konnte nicht geladen werden: {ex.Message}";
+        }
+        await VerlaufLadenAsync();
+    }
+
+    private async Task VerlaufLadenAsync()
+    {
+        var basis = $"mitOdoo={(_mitOdoo ? "true" : "false")}"
+                    + (_tage < AlleTage ? $"&tage={_tage}" : "")
+                    + (_vorgang is { } v ? $"&vorgang={Uri.EscapeDataString(v.Schluessel)}" : "")
+                    + (_paar is { } p ? $"&paar={Uri.EscapeDataString(p.R + "|" + p.K)}" : "");
+        var kategorien = _kategorien.Count == 0 ? "keine" : string.Join(',', _kategorien);
+        try
+        {
+            _verlauf = await Http.GetFromJsonAsync<List<VerlaufEintrag>>($"api/kunden/{KundeId}/verlauf?{basis}&kategorien={kategorien}");
+            _zaehler = (await Http.GetFromJsonAsync<VerlaufUebersicht>($"api/kunden/{KundeId}/verlauf/uebersicht?{basis}"))?.Kategorien;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Verlauf konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    // --- Filter ------------------------------------------------------------------------
+
+    private async Task ZeitraumAsync(int tage)
+    {
+        _tage = tage;
+        _paar = null;
+        await AllesLadenAsync();
+    }
+
+    private async Task PaarAsync(AktePerson r, AktePerson k)
+    {
+        _paar = _paar is { } p && p.R == r.Schluessel && p.K == k.Schluessel ? null : (r.Schluessel, k.Schluessel, $"{r.Name} ↔ {k.Name}");
+        await VerlaufLadenAsync();
+        await JS.InvokeVoidAsync("akte.zeige", "akte-verlauf", "start");
+    }
+
+    private async Task PaarAufhebenAsync() { _paar = null; await VerlaufLadenAsync(); }
+    private async Task VorgangWaehlenAsync(string schluessel, string name) { _vorgang = (schluessel, name); await VerlaufLadenAsync(); }
+    private async Task VorgangAufhebenAsync() { _vorgang = null; await VerlaufLadenAsync(); }
+
+    private async Task OdooUmschaltenAsync(ChangeEventArgs e)
+    {
+        _mitOdoo = e.Value is true;
+        await VerlaufLadenAsync();
+    }
+
+    private async Task KategorieUmschaltenAsync(string kategorie)
+    {
+        if (!_kategorien.Remove(kategorie))
+            _kategorien.Add(kategorie);
+        await VerlaufLadenAsync();
+    }
+
+    private void AufklappenUmschalten(int id)
+    {
+        if (_alleAuf)
+        {
+            // „Alle auf" verlassen, nur diesen zuklappen
+            _alleAuf = false;
+            foreach (var e in _verlauf ?? []) _aufgeklappt.Add(e.Id);
+        }
+        if (!_aufgeklappt.Remove(id))
+            _aufgeklappt.Add(id);
+    }
+
+    private void AlleAufklappen()
+    {
+        _alleAuf = !_alleAuf;
+        _aufgeklappt.Clear();
+    }
+
+    private async Task ImVerlaufZeigenAsync(int aktivitaetId)
+    {
+        _paar = null; _vorgang = null;
+        _kategorien.UnionWith(Kategorien.Select(k => k.Schluessel));
+        if (_tage != AlleTage)
+        {
+            _tage = AlleTage;
+            await AllesLadenAsync();
+        }
+        else
+            await VerlaufLadenAsync();
+        _aufgeklappt.Add(aktivitaetId);
+        StateHasChanged();
+        await Task.Yield();
+        await JS.InvokeVoidAsync("akte.zeige", $"eintrag-{aktivitaetId}", "center");
+    }
+
+    // --- Erfassen ------------------------------------------------------------------------
+
+    private async Task FormularAsync(string art)
+    {
+        if (_formular == art) { _formular = null; return; }
+        _fehler = null;
+        try
+        {
+            _auswahl ??= await Http.GetFromJsonAsync<ErfassungsAuswahl>($"api/kunden/{KundeId}/erfassung");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Auswahllisten konnten nicht geladen werden: {ex.Message}";
+            return;
+        }
+        _formular = art;
+        if (art == "eintrag")
+        {
+            _fTyp = "Notiz"; _fRichtung = "Ausgehend"; _fBetreff = ""; _fInhalt = ""; _fVorgang = null;
+            _fDatum = DateOnly.FromDateTime(DateTime.Now); _fZeit = TimeOnly.FromDateTime(DateTime.Now);
+            _fMitarbeiter.Clear(); _fAnsprechpartner.Clear(); _fVereinbarungen = [""];
+            if (_auswahl?.IchId is { } ich) _fMitarbeiter.Add(ich);
+        }
+        else if (art == "aufgabe")
+        {
+            _aTitel = ""; _aArt = "To-do"; _aFaellig = Heute.AddDays(7); _aVorgang = null;
+            _aZustaendig = _auswahl?.IchId is { } ich ? $"m:{ich}" : "";
+        }
+    }
+
+    private async Task VereinbarungFormularAsync(VerlaufEintrag? quelle)
+    {
+        _vbQuelle = quelle;
+        _vText = "";
+        _formular = "vereinbarung";
+        if (quelle is not null)
+            await JS.InvokeVoidAsync("akte.zeige", "akte-vereinbarungen", "center");
+    }
+
+    private void VereinbarungFeld(int index, object? wert) => _fVereinbarungen[index] = wert?.ToString() ?? "";
+
+    private static void Umschalten(HashSet<int> menge, int id)
+    {
+        if (!menge.Remove(id))
+            menge.Add(id);
+    }
+
+    private async Task EintragSpeichernAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_fBetreff)) { _fehler = "Bitte einen Betreff angeben."; return; }
+        await SpeichernAsync($"api/kunden/{KundeId}/eintraege", new EintragAnlegen(
+            _fTyp, _fDatum.ToDateTime(_fZeit), _fTyp == "Anruf" ? _fRichtung : null, _fBetreff.Trim(), _fInhalt,
+            _fMitarbeiter.ToList(), _fAnsprechpartner.ToList(),
+            _fVereinbarungen.Where(v => !string.IsNullOrWhiteSpace(v)).ToList(), _fVorgang), neueId => _aufgeklappt.Add(neueId));
+    }
+
+    private async Task VereinbarungSpeichernAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_vText)) { _fehler = "Bitte die Vereinbarung beschreiben."; return; }
+        await SpeichernAsync($"api/kunden/{KundeId}/vereinbarungen", new VereinbarungAnlegen(_vText.Trim(), _vbQuelle?.Id), _ => { });
+        _vbQuelle = null;
+    }
+
+    private async Task AufgabeSpeichernAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_aTitel)) { _fehler = "Bitte einen Titel angeben."; return; }
+        if (_aZustaendig.Length < 3) { _fehler = "Bitte eine zuständige Person oder einen Pool wählen."; return; }
+        var id = int.Parse(_aZustaendig[2..]);
+        await SpeichernAsync($"api/kunden/{KundeId}/aufgaben", new AufgabeAnlegen(_aTitel.Trim(), _aArt, _aFaellig,
+            _aZustaendig.StartsWith("m:") ? id : null, _aZustaendig.StartsWith("b:") ? id : null, _aVorgang), _ => { });
+    }
+
+    private async Task SpeichernAsync<T>(string url, T daten, Action<int> danach)
+    {
+        _fehler = null;
+        _speichert = true;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync(url, daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            danach(await antwort.Content.ReadFromJsonAsync<int>());
+            _formular = null;
+            await AllesLadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichert = false;
+        }
+    }
+
+    private async Task AufgabeErledigtAsync(AufgabeEintrag aufgabe, bool erledigt)
+    {
+        var antwort = await Http.PutAsJsonAsync($"api/kunden/aufgaben/{aufgabe.Id}/erledigt", new ErledigtSetzen(erledigt));
+        if (!antwort.IsSuccessStatusCode)
+            _fehler = await antwort.Content.ReadAsStringAsync();
+        await AllesLadenAsync();
+    }
+
+    private async Task VereinbarungErledigtAsync(VereinbarungEintrag v)
+    {
+        var antwort = await Http.PutAsJsonAsync($"api/kunden/vereinbarungen/{v.Id}/erledigt", new ErledigtSetzen(!v.Erledigt));
+        if (!antwort.IsSuccessStatusCode)
+            _fehler = await antwort.Content.ReadAsStringAsync();
+        await AllesLadenAsync();
+    }
+
+    /// <summary>Lädt den Anhang über die API und stößt den Browser-Download an.</summary>
+    private async Task AnhangHerunterladenAsync(VerlaufAnhang anhang)
+    {
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.GetAsync($"api/kunden/verlauf/anhaenge/{anhang.Id}/datei");
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var bytes = await antwort.Content.ReadAsByteArrayAsync();
+            var typ = antwort.Content.Headers.ContentType?.MediaType ?? anhang.MimeType ?? "application/octet-stream";
+            await JS.InvokeVoidAsync("dateiVorschau.herunterladen", Convert.ToBase64String(bytes), typ, anhang.Dateiname);
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Anhang konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    // --- Darstellung --------------------------------------------------------------------
+
+    private GespraechsZelle? Zelle(string r, string k) =>
+        _ueberblick?.Zellen.FirstOrDefault(z => z.Rausoft == r && z.Kunde == k);
+
+    private static int TageHer(DateTime zeitpunkt) => Heute.DayNumber - DateOnly.FromDateTime(zeitpunkt.ToLocalTime()).DayNumber;
+
+    private static string Wann(DateTime zeitpunkt) => TageHer(zeitpunkt) switch
+    {
+        <= 0 => "heute",
+        1 => "gestern",
+        var t when t < 60 => $"vor {t} Tagen",
+        _ => zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy"),
+    };
+
+    private static string Periode(DateTime zeitpunkt) => TageHer(zeitpunkt) switch
+    {
+        <= 7 => "Letzte 7 Tage",
+        <= 14 => "Vorwoche",
+        _ => zeitpunkt.ToLocalTime().ToString("MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("de-DE")),
+    };
+
+    private static string GroesseText(long bytes) => bytes >= 1024 * 1024
+        ? $"{bytes / 1024.0 / 1024.0:0.0} MB"
+        : $"{Math.Max(1, bytes / 1024)} KB";
+
+    /// <summary>Anzeige der Art: Text, Symbol, CSS-Klasse.</summary>
+    private static (string Text, string Symbol, string Klasse) Art(VerlaufEintrag e) => e.Kategorie switch
+    {
+        "EMails" => e.Richtung == "Eingehend" ? ("E-Mail erhalten", "✉", "mail") : ("E-Mail gesendet", "✉", "mail"),
+        "Notizen" => e.Typ switch
+        {
+            "Anruf" => (e.Richtung == "Eingehend" ? "Anruf erhalten" : "Anruf geführt", "☎", "anruf"),
+            "Termin" => ("Termin", "◷", "termin"),
+            "Aufgabe" => ("Aufgabe erledigt", "✓", "aufgabe"),
+            _ => ("Notiz", "✎", "notiz"),
+        },
+        "Meilensteine" => e.Typ switch
+        {
+            "Vertrag" => ("Vertrag", "◆", "meilenstein"),
+            "Rechnung" => ("Rechnung", "◆", "meilenstein"),
+            "Angebot" => ("Verkauf", "◆", "meilenstein"),
+            _ when e.Quelle == "Kundenzentrale" => ("Ereignis", "•", "ereignis"),
+            _ => ("Meilenstein", "◆", "meilenstein"),
+        },
+        "Systemmeldungen" => ("Systemmeldung", "·", "ereignis"),
+        _ => ("Feldänderung", "Δ", "ereignis"),
+    };
+
+    /// <summary>„Daniel Stauch [Technik] → Frau Kraus [Einkauf], Herr Yilmaz [IT]" — Pfeil nach Richtung.</summary>
+    private RenderFragment WerZeile(VerlaufEintrag e)
+    {
+        var rausoft = e.RausoftTeilnehmer ?? [];
+        var kunde = e.KundenTeilnehmer ?? [];
+        var pfeil = e.Richtung switch { "Eingehend" => "←", "Ausgehend" => "→", _ => "↔" };
+        if (rausoft.Count == 0 && kunde.Count == 0)
+            return @<text>@(e.Autor ?? "")@BereichTag(e.AutorIstKunde ? null : e.AutorBereich)</text>;
+        return @<text>@PersonenText(rausoft, true)@if (kunde.Count > 0)
+            {<text> @pfeil </text>@PersonenText(kunde, false)}</text>;
+    }
+
+    private RenderFragment PersonenText(List<AktePerson> personen, bool rausoft) => @<text>@for (var i = 0; i < personen.Count; i++)
+        {
+            var p = personen[i];
+            @(i > 0 ? ", " : "")<b class="nm">@p.Name</b>@(rausoft ? BereichTag(p.Zusatz) : FunktionTag(p.Zusatz))
+        }</text>;
+
+    /// <summary>Feste Farbe je Bereichsname (gleiche Regel wie bisher: Hash → b0…b5).</summary>
+    private static string BereichKlasse(string bereich)
+    {
+        var summe = 0;
+        foreach (var c in bereich.ToLowerInvariant())
+            summe = (summe * 31 + c) & 0xFFFF;
+        return "b" + (summe % 6);
+    }
+
+    private RenderFragment BereichTag(string? bereich) => @<text>@if (bereich is not null)
+        {<span class="ptag @BereichKlasse(bereich)">@bereich</span>}</text>;
+
+    private RenderFragment FunktionTag(string? funktion) => @<text>@if (funktion is not null)
+        {<span class="ptag kunde">@funktion</span>}</text>;
+
+    private RenderFragment VorgangAuswahlFeld(ErfassungsAuswahl auswahl, Action<string?> setzen, string? wert) => @<label>Vorgang
+        <select value="@(wert ?? "")" @onchange="e => setzen(string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value!.ToString())">
+            <option value="">allgemein</option>
+            @foreach (var v in auswahl.Vorgaenge)
+            {
+                <option value="@v.Schluessel">@v.Name</option>
+            }
+        </select>
+    </label>;
+}

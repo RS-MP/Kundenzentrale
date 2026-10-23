@@ -91,6 +91,9 @@ public class Aktivitaet
     public string? Bezug { get; set; }
 
     public List<AktivitaetAnhang> Anhaenge { get; set; } = [];
+
+    /// <summary>Alle Beteiligten auf beiden Seiten (Termin mit mehreren Personen, Mail an mehrere Empfänger).</summary>
+    public List<AktivitaetTeilnehmer> Teilnehmer { get; set; } = [];
 }
 
 public enum AktivitaetsStufe
@@ -129,7 +132,8 @@ public static class VerlaufKategorien
         _ => typ switch
         {
             AktivitaetsTyp.EMail => VerlaufKategorie.EMails,
-            AktivitaetsTyp.Notiz or AktivitaetsTyp.Anruf => VerlaufKategorie.Notizen,
+            // Gespräche und Aufgaben gehören zur Kommunikation
+            AktivitaetsTyp.Notiz or AktivitaetsTyp.Anruf or AktivitaetsTyp.Termin or AktivitaetsTyp.Aufgabe => VerlaufKategorie.Notizen,
             // Vertrags-, Angebots-, Rechnungs- und Systemereignisse der Kundenzentrale
             _ => VerlaufKategorie.Meilensteine,
         },
@@ -151,10 +155,12 @@ public static class VerlaufKategorien
             || (system && a.Stufe == AktivitaetsStufe.Systemmeldung)
             || (meilensteine && (a.Stufe == AktivitaetsStufe.Meilenstein
                 || (a.Stufe == AktivitaetsStufe.Wesentlich && a.Typ != AktivitaetsTyp.EMail
-                    && a.Typ != AktivitaetsTyp.Notiz && a.Typ != AktivitaetsTyp.Anruf)))
+                    && a.Typ != AktivitaetsTyp.Notiz && a.Typ != AktivitaetsTyp.Anruf
+                    && a.Typ != AktivitaetsTyp.Termin && a.Typ != AktivitaetsTyp.Aufgabe)))
             || (mails && a.Stufe == AktivitaetsStufe.Wesentlich && a.Typ == AktivitaetsTyp.EMail)
             || (notizen && a.Stufe == AktivitaetsStufe.Wesentlich
-                && (a.Typ == AktivitaetsTyp.Notiz || a.Typ == AktivitaetsTyp.Anruf));
+                && (a.Typ == AktivitaetsTyp.Notiz || a.Typ == AktivitaetsTyp.Anruf
+                    || a.Typ == AktivitaetsTyp.Termin || a.Typ == AktivitaetsTyp.Aufgabe));
     }
 }
 
@@ -176,6 +182,8 @@ public enum AktivitaetsTyp
     Ticket = 6,
     Aufgabe = 7,
     System = 8,
+    /// <summary>Termin oder Besprechung, meist mit mehreren Teilnehmern.</summary>
+    Termin = 9,
 }
 
 public enum AktivitaetsRichtung

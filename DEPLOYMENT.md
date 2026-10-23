@@ -18,6 +18,22 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (23.10.2026 spät, Akte „Was lief zuletzt?"):**
+  Migration `AkteUeberblick` läuft automatisch (Tabellen AktivitaetTeilnehmer,
+  Vereinbarungen, Aufgaben). Die linke Spalte der Kundenakte ist neu
+  (Komponente `AkteVerlauf`): Kurzfassung und **Wer mit wem** (rausoft-Person ×
+  Ansprechpartner, Klick filtert den Verlauf), **Offene Aufgaben** (aus den
+  geplanten Aktivitäten in Odoo und manuell, Person oder Bereichs-Pool),
+  **Vereinbart & offen**, Verlauf einzeilig mit Zeitabschnitten. Manuell
+  erfassen: Notiz, Telefonat, Termin mit mehreren Teilnehmern (+ Vereinbarungen),
+  Vereinbarung, Aufgabe. Nach dem Update:
+  1) Chatter-Import für 25757 erneut ausführen — setzt die Teilnehmer der
+     vorhandenen Einträge (Grundlage für „Wer mit wem") und übernimmt offene
+     geplante Aktivitäten als Aufgaben.
+  2) Bei den Ansprechpartnern die **Position/Funktion** pflegen (Einkauf, IT …) —
+     sie steht im Verlauf und in „Wer mit wem" neben dem Namen.
+  3) Hinweis fürs Team: In der Kundenzentrale erledigte Odoo-Aufgaben bleiben in
+     Odoo offen (Import liest nur); im Parallelbetrieb dort mit abhaken.
 - [ ] **Publish aktualisieren (23.10.2026 abends, Stränge je Verkauf):**
   Migration `VerlaufStraenge` läuft automatisch (Aktivitaet.StrangSchluessel/
   StrangName). Ein Strang umfasst jetzt den ganzen Verkauf: Verkaufschance,

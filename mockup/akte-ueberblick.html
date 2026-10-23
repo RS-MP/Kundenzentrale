@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Akte Überblick</title>
+<style>
+  :root{
+    --bg:#F3F4F6; --surface:#FFFFFF; --surface2:#ECEEF1; --border:#DDE1E6; --border-strong:#C3CBD4;
+    --ink:#18222C; --ink2:#42566A; --muted:#5F7080;
+    --accent:#0B6875; --accent-soft:#DCEEF1;
+    --good:#1B7A44; --good-bg:#E0F1E7; --warn:#8A6100; --warn-bg:#F8EFD6; --crit:#B23730; --crit-bg:#FAE6E4;
+    --mail:#1D5FB8; --mail-bg:#E3ECF8; --termin:#7A4FC2; --termin-bg:#EFE8FB;
+    --shadow:0 1px 2px rgba(20,30,40,.05),0 8px 24px rgba(20,30,40,.06);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#0F141A; --surface:#161D25; --surface2:#1C242E; --border:#2B3543; --border-strong:#404E5F;
+    --ink:#E9EEF3; --ink2:#B4C1CD; --muted:#7E8D9B; --accent:#56BDCB; --accent-soft:#0F3138;
+    --good:#59C78F; --good-bg:#132A1E; --warn:#E3B75E; --warn-bg:#2C2312; --crit:#EB8078; --crit-bg:#341B18;
+    --mail:#7DB2F0; --mail-bg:#14253A; --termin:#C4B5FD; --termin-bg:#241B3A;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3); } }
+  :root[data-theme="dark"]{
+    --bg:#0F141A; --surface:#161D25; --surface2:#1C242E; --border:#2B3543; --border-strong:#404E5F;
+    --ink:#E9EEF3; --ink2:#B4C1CD; --muted:#7E8D9B; --accent:#56BDCB; --accent-soft:#0F3138;
+    --good:#59C78F; --good-bg:#132A1E; --warn:#E3B75E; --warn-bg:#2C2312; --crit:#EB8078; --crit-bg:#341B18;
+    --mail:#7DB2F0; --mail-bg:#14253A; --termin:#C4B5FD; --termin-bg:#241B3A;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3); }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif}
+  button{font:inherit; color:inherit}
+  a{color:var(--accent); text-decoration:none}
+  .seite{max-width:1180px; margin:0 auto; padding:18px 16px 60px}
+  .leiste{display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap}
+  .seg{display:flex; gap:3px; background:var(--surface2); padding:3px; border-radius:9px}
+  .seg button{border:0; background:transparent; padding:4px 11px; border-radius:7px; cursor:pointer; color:var(--ink2); font-size:13px}
+  .seg button.an{background:var(--surface); color:var(--ink); box-shadow:var(--shadow); font-weight:600}
+  .rechts{margin-left:auto}
+  .kopf{background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:14px 18px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:6px 16px; align-items:baseline}
+  .kopf h1{font-size:19px; margin:0}
+  .status{font-size:12.5px; font-weight:600; color:var(--warn); background:var(--warn-bg); border-radius:5px; padding:1px 8px}
+  .kopf .meta{color:var(--muted); font-size:13px}
+  .akte{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start}
+  @media (max-width:900px){ .akte{grid-template-columns:1fr} .fakten{display:none} }
+  .karte{background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px}
+  .karte-kopf{display:flex; align-items:center; gap:10px; padding:11px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap}
+  .karte-kopf h2{font-size:15px; margin:0}
+  .karte-kopf .zahl{color:var(--muted); font-size:13px}
+  .hinweis{font-size:12.5px; color:var(--ink2); background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:14px}
+  .hinweis ul{margin:4px 0 0; padding-left:18px}
+
+  /* Kurzfassung */
+  .kurz{padding:12px 16px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:6px 22px; align-items:baseline}
+  .kurz .gross{font-size:15px; font-weight:600}
+  .kurz .klein{color:var(--muted); font-size:13px}
+
+  /* Wer mit wem */
+  .matrix-wrap{overflow-x:auto; padding:6px 16px 14px}
+  table.matrix{border-collapse:separate; border-spacing:0; min-width:520px; width:100%; font-size:13px}
+  .matrix th,.matrix td{padding:6px 8px; text-align:left; border-bottom:1px solid var(--border)}
+  .matrix thead th{font-weight:600; color:var(--ink); vertical-align:bottom}
+  .matrix thead th small,.matrix tbody th small{display:block; font-weight:400; color:var(--muted); font-size:11.5px}
+  .matrix tbody th{font-weight:600; white-space:nowrap}
+  .matrix td{text-align:center; cursor:pointer; font-variant-numeric:tabular-nums}
+  .matrix td.leer{color:var(--border-strong); cursor:default}
+  .matrix td .anz{font-weight:600}
+  .matrix td .wann{display:block; color:var(--muted); font-size:11.5px}
+  .matrix td.heiss{background:color-mix(in srgb, var(--accent) 10%, transparent)}
+  .matrix td.an{outline:2px solid var(--accent); outline-offset:-2px; border-radius:6px}
+  .matrix td:not(.leer):hover{background:var(--surface2)}
+  .tag{font-size:11px; font-weight:600; border-radius:4px; padding:0 5px; margin-left:4px; white-space:nowrap}
+  .b-vertrieb{color:#7A4FC2; background:color-mix(in srgb,#8b5cf6 13%,transparent)}
+  .b-technik{color:#B4531B; background:color-mix(in srgb,#ea7a2b 14%,transparent)}
+  .b-buchhaltung{color:#47627A; background:color-mix(in srgb,#64748b 15%,transparent)}
+  .k-tag{color:var(--muted); border:1px solid var(--border); font-weight:400}
+
+  /* Vereinbarungen */
+  .vb{padding:4px 16px 12px}
+  .vb-zeile{display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:8px; padding:8px 0; border-bottom:1px dashed var(--border); align-items:start}
+  .vb-zeile:last-child{border-bottom:0}
+  .vb-zeile .fl{color:var(--warn); font-size:15px; line-height:1.2}
+  .vb-zeile.erledigt .fl{color:var(--good)}
+  .vb-zeile.erledigt .txt{color:var(--muted); text-decoration:line-through}
+  .vb-zeile .txt{font-weight:600}
+  .vb-zeile .woher{font-size:12.5px; color:var(--muted)}
+  .vb-zeile .st{font-size:12px; border-radius:5px; padding:1px 7px; font-weight:600; white-space:nowrap}
+  .st.offen{color:var(--warn); background:var(--warn-bg)} .st.erl{color:var(--good); background:var(--good-bg)}
+  .link{border:0; background:none; padding:0; color:var(--accent); cursor:pointer; font-size:12.5px}
+
+  /* Verlauf einzeilig */
+  .vfilter{display:flex; flex-wrap:wrap; gap:6px; padding:8px 16px; border-bottom:1px solid var(--border); align-items:center; font-size:12.5px; color:var(--muted)}
+  .chip{border:1px solid var(--border); background:transparent; border-radius:999px; padding:1px 10px; cursor:pointer; color:var(--muted); font-size:12.5px}
+  .chip.an{color:var(--ink); border-color:var(--border-strong); background:var(--surface2)}
+  .periode{padding:6px 16px; background:var(--surface2); color:var(--ink2); font-size:12px; font-weight:600; letter-spacing:.2px; border-bottom:1px solid var(--border)}
+  .z{border-bottom:1px solid var(--border)}
+  .z-kopf{display:grid; grid-template-columns:74px 26px minmax(0,1fr) auto; gap:10px; align-items:center; width:100%; text-align:left; border:0; background:none; padding:8px 16px; cursor:pointer}
+  .z-kopf:hover{background:color-mix(in srgb, var(--surface2) 60%, transparent)}
+  .z .dat{color:var(--ink2); font-size:12.5px; font-variant-numeric:tabular-nums}
+  .z .ic{display:inline-flex; justify-content:center; align-items:center; width:24px; height:22px; border-radius:6px; font-size:12px; font-weight:700}
+  .ic.mail{color:var(--mail); background:var(--mail-bg)} .ic.notiz{color:var(--warn); background:var(--warn-bg)}
+  .ic.anruf{color:#B4531B; background:color-mix(in srgb,#ea7a2b 14%,transparent)} .ic.termin{color:var(--termin); background:var(--termin-bg)}
+  .ic.meilenstein{color:var(--good); background:var(--good-bg)}
+  .z .mitte{min-width:0}
+  .z .wer{font-size:13px; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .z .wer b{color:var(--ink); font-weight:600}
+  .z .bt{font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .z .flag{color:var(--warn); font-size:13px}
+  .z .pfeil{color:var(--muted); font-size:12px; transition:transform .15s}
+  .z.offen .pfeil{transform:rotate(90deg)}
+  .z-detail{padding:2px 16px 12px 126px; color:var(--ink2)}
+  .z-detail .text{white-space:pre-wrap}
+  .z-detail .teiln{font-size:12.5px; color:var(--muted); margin-bottom:6px}
+  .z-detail .akt{display:flex; gap:14px; margin-top:8px; font-size:12.5px}
+  .z-detail .verein{margin-top:8px; padding:6px 10px; border-left:3px solid var(--warn); background:var(--warn-bg); color:var(--ink); font-size:13px; border-radius:0 6px 6px 0}
+  @media (max-width:640px){ .z-kopf{grid-template-columns:62px 24px minmax(0,1fr) auto} .z-detail{padding-left:16px} }
+  /* Aufgaben */
+  .auf{padding:4px 16px 12px}
+  .auf-zeile{display:grid; grid-template-columns:22px 82px minmax(0,1fr) auto; gap:10px; padding:8px 0; border-bottom:1px dashed var(--border); align-items:start}
+  .auf-zeile:last-child{border-bottom:0}
+  .auf-zeile input{margin-top:3px}
+  .auf-zeile .faellig{font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--ink2)}
+  .auf-zeile .faellig.ueber{color:var(--crit); font-weight:600}
+  .auf-zeile .titel{font-weight:600}
+  .auf-zeile.erledigt .titel{color:var(--muted); text-decoration:line-through}
+  .auf-zeile .woher{font-size:12.5px; color:var(--muted)}
+  .pool{font-size:11px; border:1px dashed var(--border-strong); border-radius:4px; padding:0 5px; color:var(--ink2); margin-left:4px}
+  .ic.aufgabe{color:var(--accent); background:var(--accent-soft)}
+
+  /* Formulare (manuell erfassen) */
+  .knopf{border:1px solid var(--border-strong); background:var(--surface); border-radius:7px; padding:3px 10px; cursor:pointer; font-size:12.5px}
+  .knopf.prim{background:var(--accent); border-color:var(--accent); color:#fff}
+  :root[data-theme="dark"] .knopf.prim{color:#08252B}
+  .form{padding:12px 16px; border-bottom:1px solid var(--border); background:color-mix(in srgb, var(--accent-soft) 45%, transparent); display:grid; gap:8px}
+  .form .reihe{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+  .form label{font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:2px}
+  .form input[type=text],.form input[type=date],.form input[type=time],.form select,.form textarea{font:inherit; font-size:13px; padding:4px 7px; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--ink)}
+  .form textarea{min-height:56px; resize:vertical}
+  .form .wahl{display:flex; flex-wrap:wrap; gap:5px}
+  .form .wahl button{border:1px solid var(--border); background:var(--surface); border-radius:999px; padding:1px 9px; font-size:12.5px; cursor:pointer; color:var(--ink2)}
+  .form .wahl button.an{border-color:var(--accent); color:var(--accent); background:var(--accent-soft); font-weight:600}
+  .form .vb-feld{display:flex; gap:6px; align-items:center}
+  .form .vb-feld input{flex:1}
+  .neu{font-size:10.5px; font-weight:700; color:var(--accent); border:1px solid var(--accent); border-radius:4px; padding:0 4px; margin-left:6px; vertical-align:1px}
+  .fakten .karte{padding:12px 16px; color:var(--muted); font-size:13px}
+  .fakten h3{margin:0 0 6px; font-size:13px; color:var(--ink)}
+  .leer{padding:16px; color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="seite">
+  <div class="leiste">
+    <strong>Mockup: Kundenakte „Was lief zuletzt?"</strong>
+    <div class="seg rechts" id="thema"><button data-t="auto" class="an">Auto</button><button data-t="light">Hell</button><button data-t="dark">Dunkel</button></div>
+  </div>
+
+  <div class="hinweis">
+    <b>Idee:</b> Oben eine Zusammenfassung, die beim Öffnen sofort beantwortet, <b>was zuletzt lief</b> und <b>wer mit wem</b> gesprochen hat.
+    Darunter <b>Vereinbarungen</b>, damit die Technik nicht alle Beteiligten abfragen muss. Ganz unten der Verlauf, einzeilig, Details per Klick.
+    <ul>
+      <li>Zeitraum oben rechts umschalten. Klick auf eine Zelle in „Wer mit wem" filtert den Verlauf auf dieses Gesprächspaar.</li>
+      <li><span class="neu">NEU</span> markiert, was das Datenmodell noch nicht kann: Termine mit mehreren Teilnehmern und Vereinbarungen.</li>
+      <li><b>Aufgaben</b> kommen aus den geplanten Aktivitäten in Odoo (Anruf, E-Mail, To-do mit Fälligkeit und Zuständigem); erledigte erscheinen im Verlauf. Zuweisung an eine Person oder an einen Bereichs-Pool.</li>
+      <li><b>Manuell erfassen:</b> „+ Eintrag" (Notiz, Telefonat, Termin mit mehreren Teilnehmern, Vereinbarungen gleich mit), „+ Vereinbarung", „+ Aufgabe" — im Mockup speicherbar, bis die Seite neu lädt.</li>
+    </ul>
+  </div>
+
+  <div class="kopf">
+    <h1>Nordwind Logistik GmbH</h1><span class="status">Interessent</span>
+    <span class="meta">Hamburg · Vertrieb: Matthias Pätzold</span>
+  </div>
+
+  <div class="akte">
+    <div>
+      <div class="karte">
+        <div class="karte-kopf">
+          <h2>Was lief zuletzt?</h2>
+          <div class="seg rechts" id="zeitraum">
+            <button data-z="14">14 Tage</button><button data-z="30" class="an">30 Tage</button><button data-z="90">90 Tage</button><button data-z="9999">Alles</button>
+          </div>
+        </div>
+        <div class="kurz" id="kurz"></div>
+        <div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+      </div>
+
+      <div class="karte">
+        <div class="karte-kopf"><h2>Offene Aufgaben</h2><span class="zahl" id="auf-zahl"></span>
+          <span class="rechts"><button class="knopf" data-form="aufgabe">+ Aufgabe</button></span></div>
+        <div id="form-aufgabe"></div>
+        <div class="auf" id="auf"></div>
+      </div>
+
+      <div class="karte">
+        <div class="karte-kopf"><h2>Vereinbart &amp; offen <span class="neu">NEU</span></h2><span class="zahl" id="vb-zahl"></span>
+          <span class="rechts"><button class="knopf" data-form="vereinbarung">+ Vereinbarung</button></span></div>
+        <div id="form-vereinbarung"></div>
+        <div class="vb" id="vb"></div>
+      </div>
+
+      <div class="karte">
+        <div class="karte-kopf"><h2>Verlauf</h2><span class="zahl" id="v-zahl"></span>
+          <span class="rechts" style="display:flex; gap:12px; align-items:center"><button class="link" id="alle-auf">alle aufklappen</button>
+            <button class="knopf prim" data-form="eintrag">+ Eintrag</button></span></div>
+        <div id="form-eintrag"></div>
+        <div class="vfilter" id="vfilter"></div>
+        <div id="verlauf"></div>
+      </div>
+    </div>
+    <div class="fakten">
+      <div class="karte"><h3>Fakten (rechts, unverändert)</h3>Ansprechpartner mit Funktion, Verträge, Betrieb &amp; Lizenzen, Stammdaten.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const HEUTE = new Date('2026-10-23T12:00:00');
+// rausoft-Seite (Bereich aus der Mitarbeiterverwaltung)
+const R = {
+  mp: { n:'Matthias Pätzold', b:'Vertrieb' },
+  ds: { n:'Daniel Stauch',    b:'Technik' },
+  dk: { n:'Daniel Kristic',   b:'Technik' },
+  pg: { n:'Pamela Glemser',   b:'Buchhaltung' },
+};
+// Kundenseite (Funktion aus dem Ansprechpartner)
+const K = {
+  kr: { n:'Frau Kraus',  f:'Einkauf' },
+  yi: { n:'Herr Yilmaz', f:'IT-Leitung' },
+  so: { n:'Frau Sommer', f:'Qualitätsmanagement' },
+  gf: { n:'Herr Brandt', f:'Geschäftsführung' },
+};
+const E = [
+  { d:'2026-10-22 15:20', art:'anruf', r:['ds'], k:['yi'], bt:'Rückfrage SSO: Entra-Gruppen statt Einzelbenutzer',
+    text:'Herr Yilmaz möchte die Berechtigungen über Entra-Gruppen steuern, nicht pro Benutzer. Geht mit unserer SSO-Anbindung; Gruppennamen schickt er bis Freitag.',
+    ver:'SSO über Entra ID mit Gruppenzuordnung — Gruppennamen liefert Herr Yilmaz' },
+  { d:'2026-10-21 10:05', art:'mail', ri:'ein', r:['mp'], k:['kr'], bt:'AW: Angebot S02044 — Frage zur Laufzeit',
+    text:'Frau Kraus fragt, ob statt 36 auch 24 Monate möglich sind und ob der Preis dann gleich bleibt.' },
+  { d:'2026-10-20 16:40', art:'mail', ri:'aus', r:['mp'], k:['kr','gf'], bt:'Angebot S02044', text:'Angebot wie in der Präsentation besprochen, inkl. Modul Sanktionslisten und SSO.', anh:['Angebot - S02044.pdf'] },
+  { d:'2026-10-16 09:30', art:'mail', ri:'ein', r:['dk'], k:['so'], bt:'Prüfberichte als PDF nach SharePoint?',
+    text:'Frau Sommer (QM) möchte die Prüfberichte automatisch in ihrem SharePoint ablegen. Kam direkt an Herrn Kristic, nicht über Odoo.', quelle:'Outlook' },
+  { d:'2026-10-16 11:10', art:'mail', ri:'aus', r:['dk'], k:['so'], bt:'AW: Prüfberichte als PDF nach SharePoint?',
+    text:'Export als PDF ist Standard; automatische Ablage im SharePoint wäre Individualentwicklung — kläre ich mit dem Vertrieb.', quelle:'Outlook',
+    ver:'Export Prüfberichte → SharePoint: Individualentwicklung, Aufwand klären' },
+  { d:'2026-10-08 10:00', art:'termin', r:['mp','ds'], k:['kr','yi','gf'], bt:'Präsentation ID.prove vor Ort (2 Std.)',
+    text:'Demo Sanktionslistenprüfung und Einzelprüfungen. Herr Yilmaz: SSO Pflicht, keine lokalen Passwörter. Herr Brandt: Start möglichst im November. Frau Kraus: Angebot mit 3 Jahren Laufzeit.',
+    ver:'Start der Einrichtung im November (KW 46) in Aussicht gestellt', ver2:'SSO ist Pflicht — keine lokalen Passwörter' },
+  { d:'2026-10-01 14:15', art:'anruf', ri:'aus', r:['mp'], k:['kr'], bt:'Termin für Präsentation vereinbart', text:'08.10., 10 Uhr, vor Ort in Hamburg. Teilnehmer: Einkauf, IT, Geschäftsführung.' },
+  { d:'2026-10-07 17:05', art:'aufgabe', r:['ds'], k:[], bt:'Präsentation vorbereiten: Demo-Mandant mit Lieferantenliste',
+    text:'Demo-Mandant mit 400 Testlieferanten eingerichtet, Zugang für Herrn Yilmaz vorbereitet.' },
+  { d:'2026-09-24 11:00', art:'meilenstein', r:['mp'], k:[], bt:'Verkaufschance angelegt', text:'' },
+  { d:'2026-09-24 10:40', art:'mail', ri:'ein', r:['mp'], k:['kr'], bt:'Anfrage Sanktionslistenprüfung', text:'Frau Kraus fragt nach einer Lösung für die Sanktionslistenprüfung ihrer Lieferanten (ca. 400).' },
+];
+const ART = { mail:{ic:'✉', t:'E-Mail'}, notiz:{ic:'✎', t:'Notiz'}, anruf:{ic:'☎', t:'Telefonat'}, termin:{ic:'◷', t:'Termin'},
+  aufgabe:{ic:'✓', t:'Aufgabe erledigt'}, meilenstein:{ic:'◆', t:'Meilenstein'} };
+
+// Offene Aufgaben: aus den geplanten Aktivitäten in Odoo bzw. in der Kundenzentrale angelegt
+const A = [
+  { titel:'Angebot nachfassen: Entscheidung zur Laufzeit', art:'Anruf', faellig:'2026-10-21', zu:'mp', bezug:'Verkauf S02044', quelle:'Odoo' },
+  { titel:'Gruppennamen für SSO bei Herrn Yilmaz nachfragen', art:'E-Mail', faellig:'2026-10-27', zu:'ds', bezug:'Verkauf S02044', quelle:'Odoo' },
+  { titel:'Aufwand für SharePoint-Export schätzen', art:'To-do', faellig:'2026-10-28', zu:'pool:Technik', bezug:'Verkauf S02044', quelle:'Kundenzentrale' },
+];
+
+let zeitraum = 30, paar = null;
+const offen = new Set();
+const arten = new Set(Object.keys(ART));
+let formular = null;          // 'eintrag' | 'vereinbarung' | 'aufgabe'
+let vbQuelle = null;          // Eintrag, aus dem eine Vereinbarung markiert wird
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dat = s => new Date(s.replace(' ', 'T'));
+const tag0 = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const tageHer = s => Math.round((tag0(HEUTE) - tag0(dat(s))) / 864e5);
+E.sort((a, b) => dat(b.d) - dat(a.d));
+// Vereinbarungen als eigene Liste: aus Einträgen markiert oder manuell erfasst
+const V = [];
+E.forEach(e => [e.ver, e.ver2].filter(Boolean).forEach(v => V.push({ text: v, e, erledigt: false })));
+const zuText = zu => zu.startsWith('pool:') ? `Pool ${zu.slice(5)}` : R[zu].n;
+const fmt = s => { const d = dat(s); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.`; };
+const wann = s => { const t = tageHer(s); return t <= 0 ? 'heute' : t === 1 ? 'gestern' : `vor ${t} Tagen`; };
+const rTag = id => `<span class="tag b-${R[id].b.toLowerCase()}">${R[id].b}</span>`;
+const kTag = id => `<span class="tag k-tag">${K[id].f}</span>`;
+const imZeitraum = () => E.filter(e => tageHer(e.d) <= zeitraum);
+
+function kurzfassung(){
+  const es = imZeitraum().filter(e => e.art !== 'meilenstein');
+  const rs = new Set(es.flatMap(e => e.r)), ks = new Set(es.flatMap(e => e.k));
+  const letzt = es.find(e => e.k.length);
+  const aufOffen = A.filter(a => !a.erledigt), ueber = aufOffen.filter(a => a.faellig < HEUTE.toISOString().slice(0, 10));
+  document.getElementById('kurz').innerHTML = letzt
+    ? `<span class="gross">${es.filter(e => e.k.length).length} Kontakte</span>
+       <span class="klein">${rs.size} Personen bei rausoft · ${ks.size} beim Kunden</span>
+       <span class="klein">${aufOffen.length} offene Aufgaben${ueber.length ? ` · <b style="color:var(--crit)">${ueber.length} überfällig</b>` : ''} ·
+         ${V.filter(v => !v.erledigt).length} offene Vereinbarungen</span>
+       <span class="klein">Zuletzt ${wann(letzt.d)}: ${letzt.r.map(id => `<b style="color:var(--ink)">${R[id].n}</b>${rTag(id)}`).join(', ')}
+         ↔ ${letzt.k.map(id => `<b style="color:var(--ink)">${K[id].n}</b>`).join(', ')} · ${ART[letzt.art].t}</span>`
+    : '<span class="klein">Keine Kontakte in diesem Zeitraum.</span>';
+}
+
+function matrix(){
+  const es = imZeitraum();
+  const rIds = Object.keys(R).filter(id => es.some(e => e.r.includes(id)));
+  const kIds = Object.keys(K).filter(id => es.some(e => e.k.includes(id)));
+  if (!rIds.length || !kIds.length) { document.getElementById('matrix').innerHTML = '<tr><td class="leer" style="text-align:left">—</td></tr>'; return; }
+  const zelle = (r, k) => es.filter(e => e.r.includes(r) && e.k.includes(k));
+  document.getElementById('matrix').innerHTML =
+    `<thead><tr><th>rausoft ↓ · Kunde →</th>${kIds.map(k => `<th>${K[k].n}<small>${K[k].f}</small></th>`).join('')}</tr></thead>
+     <tbody>${rIds.map(r => `<tr><th>${R[r].n}<small>${R[r].b}</small></th>${kIds.map(k => {
+        const z = zelle(r, k);
+        if (!z.length) return '<td class="leer">–</td>';
+        const an = paar && paar[0] === r && paar[1] === k;
+        return `<td class="${tageHer(z[0].d) <= 7 ? 'heiss' : ''} ${an ? 'an' : ''}" data-r="${r}" data-k="${k}" title="${z.length} Kontakte, zuletzt ${wann(z[0].d)} — Klick filtert den Verlauf">
+          <span class="anz">${z.length}×</span><span class="wann">${wann(z[0].d)}</span></td>`;
+      }).join('')}</tr>`).join('')}</tbody>`;
+}
+
+function vereinbarungen(){
+  document.getElementById('vb-zahl').textContent = `${V.filter(v => !v.erledigt).length} offen`;
+  document.getElementById('vb').innerHTML = V.map((x, i) => `
+    <div class="vb-zeile ${x.erledigt ? 'erledigt' : ''}">
+      <span class="fl">⚑</span>
+      <div><div class="txt">${esc(x.text)}</div>
+        <div class="woher">${x.e
+          ? `${ART[x.e.art].t} ${fmt(x.e.d)} · ${x.e.r.map(id => R[id].n).join(', ')}${x.e.k.length ? ' ↔ ' + x.e.k.map(id => K[id].n).join(', ') : ''} ·
+             <button class="link" data-zeige="${E.indexOf(x.e)}">im Verlauf zeigen</button>`
+          : `manuell erfasst ${x.datum ? fmt(x.datum) : ''} · ${R[x.von].n}`}</div></div>
+      <button class="st ${x.erledigt ? 'erl' : 'offen'}" data-verl="${i}" style="border:0; cursor:pointer" title="Status umschalten">${x.erledigt ? 'erledigt' : 'offen'}</button>
+    </div>`).join('') || '<div class="leer" style="padding:8px 0">Noch keine Vereinbarungen.</div>';
+}
+
+function aufgaben(){
+  const sortiert = [...A].sort((a, b) => (Number(!!a.erledigt) - Number(!!b.erledigt)) || a.faellig.localeCompare(b.faellig));
+  const heute = HEUTE.toISOString().slice(0, 10);
+  document.getElementById('auf-zahl').textContent = `${A.filter(a => !a.erledigt).length} offen`;
+  document.getElementById('auf').innerHTML = sortiert.map(a => {
+    const i = A.indexOf(a), ueber = !a.erledigt && a.faellig < heute;
+    const wer = a.zu.startsWith('pool:')
+      ? `<span class="pool" title="Bereichs-Pool: ein freier Mitarbeiter übernimmt">Pool ${a.zu.slice(5)}</span>`
+      : `${R[a.zu].n}<span class="tag b-${R[a.zu].b.toLowerCase()}">${R[a.zu].b}</span>`;
+    return `<div class="auf-zeile ${a.erledigt ? 'erledigt' : ''}">
+      <input type="checkbox" ${a.erledigt ? 'checked' : ''} data-auferl="${i}" title="erledigt">
+      <span class="faellig ${ueber ? 'ueber' : ''}">${ueber ? 'überfällig ' : ''}${fmt(a.faellig)}</span>
+      <div><div class="titel">${esc(a.titel)}</div>
+        <div class="woher">${a.art} · ${wer} · ${esc(a.bezug)} · aus ${a.quelle}</div></div>
+      <span></span></div>`;
+  }).join('');
+}
+
+// --- Formulare: manuell erfassen ---------------------------------------------
+const wahl = (obj, attr, vor = []) => Object.entries(obj).map(([id, p]) =>
+  `<button type="button" data-${attr}="${id}" class="${vor.includes(id) ? 'an' : ''}">${p.n} · ${p.b ?? p.f}</button>`).join('');
+
+function formulare(){
+  const heute = HEUTE.toISOString().slice(0, 10);
+  document.getElementById('form-eintrag').innerHTML = formular !== 'eintrag' ? '' : `
+    <div class="form">
+      <div class="reihe">
+        <label>Art<select id="f-art"><option value="notiz">Notiz</option><option value="anruf">Telefonat</option><option value="termin">Termin / Besprechung</option></select></label>
+        <label>Datum<input type="date" id="f-datum" value="${heute}"></label>
+        <label>Uhrzeit<input type="time" id="f-zeit" value="${HEUTE.toTimeString().slice(0, 5)}"></label>
+        <label>Vorgang<select id="f-vorgang"><option>Verkauf S02044</option><option>allgemein</option></select></label>
+      </div>
+      <label>Wer von rausoft? <span class="wahl">${wahl(R, 'wr', ['mp'])}</span></label>
+      <label>Wer beim Kunden? <span class="wahl">${wahl(K, 'wk')}</span></label>
+      <label>Betreff<input type="text" id="f-bt" placeholder="z. B. Abstimmung Schnittstelle mit der IT"></label>
+      <label>Inhalt<textarea id="f-text" placeholder="Was wurde besprochen?"></textarea></label>
+      <label>Vereinbart <span style="font-weight:400">(optional, erscheint unter „Vereinbart &amp; offen")</span>
+        <span id="f-vbs" style="display:grid; gap:5px"><span class="vb-feld"><span>⚑</span><input type="text" class="f-vb" placeholder="z. B. Testzugang bis Freitag einrichten"></span></span></label>
+      <div class="reihe"><button type="button" class="link" id="f-vb-mehr">+ weitere Vereinbarung</button>
+        <span style="margin-left:auto; display:flex; gap:8px"><button class="knopf" data-form="">Abbrechen</button><button class="knopf prim" id="f-speichern-eintrag">Speichern</button></span></div>
+    </div>`;
+  document.getElementById('form-vereinbarung').innerHTML = formular !== 'vereinbarung' ? '' : `
+    <div class="form">
+      ${vbQuelle ? `<div style="font-size:12.5px; color:var(--muted)">aus: ${ART[vbQuelle.art].t} ${fmt(vbQuelle.d)} · ${esc(vbQuelle.bt)}</div>` : ''}
+      <label>Was wurde vereinbart?<input type="text" id="v-text" placeholder="z. B. Start der Einrichtung in KW 46"></label>
+      <div class="reihe"><span style="margin-left:auto; display:flex; gap:8px"><button class="knopf" data-form="">Abbrechen</button><button class="knopf prim" id="f-speichern-vb">Speichern</button></span></div>
+    </div>`;
+  document.getElementById('form-aufgabe').innerHTML = formular !== 'aufgabe' ? '' : `
+    <div class="form">
+      <label>Aufgabe<input type="text" id="a-titel" placeholder="z. B. Testzugang einrichten"></label>
+      <div class="reihe">
+        <label>Art<select id="a-art"><option>To-do</option><option>Anruf</option><option>E-Mail</option></select></label>
+        <label>Fällig<input type="date" id="a-faellig" value="${heute}"></label>
+        <label>Zuständig<select id="a-zu">
+          ${Object.entries(R).map(([id, p]) => `<option value="${id}">${p.n} (${p.b})</option>`).join('')}
+          ${[...new Set(Object.values(R).map(p => p.b))].map(b => `<option value="pool:${b}">Pool ${b}</option>`).join('')}
+        </select></label>
+        <label>Vorgang<select id="a-bezug"><option>Verkauf S02044</option><option>allgemein</option></select></label>
+      </div>
+      <div class="reihe"><span style="margin-left:auto; display:flex; gap:8px"><button class="knopf" data-form="">Abbrechen</button><button class="knopf prim" id="f-speichern-aufgabe">Speichern</button></span></div>
+    </div>`;
+}
+
+function speichern(art){
+  const wert = id => document.getElementById(id)?.value?.trim() ?? '';
+  if (art === 'eintrag') {
+    const bt = wert('f-bt');
+    if (!bt) { document.getElementById('f-bt').focus(); return false; }
+    const r = [...document.querySelectorAll('[data-wr].an')].map(b => b.dataset.wr);
+    const k = [...document.querySelectorAll('[data-wk].an')].map(b => b.dataset.wk);
+    const e = { d: `${wert('f-datum')} ${wert('f-zeit') || '12:00'}`, art: wert('f-art'), r: r.length ? r : ['mp'], k, bt, text: wert('f-text'), quelle: 'Kundenzentrale' };
+    E.push(e); E.sort((a, b) => dat(b.d) - dat(a.d));
+    document.querySelectorAll('.f-vb').forEach(i => { if (i.value.trim()) V.push({ text: i.value.trim(), e, erledigt: false }); });
+    offen.add(E.indexOf(e));
+  } else if (art === 'vereinbarung') {
+    const text = wert('v-text');
+    if (!text) { document.getElementById('v-text').focus(); return false; }
+    V.push(vbQuelle ? { text, e: vbQuelle, erledigt: false } : { text, e: null, von: 'mp', datum: HEUTE.toISOString().slice(0, 10), erledigt: false });
+  } else if (art === 'aufgabe') {
+    const titel = wert('a-titel');
+    if (!titel) { document.getElementById('a-titel').focus(); return false; }
+    A.push({ titel, art: wert('a-art'), faellig: wert('a-faellig'), zu: wert('a-zu'), bezug: wert('a-bezug'), quelle: 'Kundenzentrale' });
+  }
+  return true;
+}
+
+function periode(s){ const t = tageHer(s); return t <= 7 ? 'Diese Woche' : t <= 14 ? 'Letzte Woche' : t <= 31 ? 'Diesen Monat' : 'Älter'; }
+
+function verlauf(){
+  const es = imZeitraum().filter(e => arten.has(e.art) && (!paar || (e.r.includes(paar[0]) && e.k.includes(paar[1]))));
+  document.getElementById('v-zahl').textContent = `${es.length} Einträge`;
+  document.getElementById('vfilter').innerHTML =
+    Object.entries(ART).map(([k, a]) => `<button class="chip ${arten.has(k) ? 'an' : ''}" data-art="${k}">${a.ic} ${a.t}</button>`).join('') +
+    (paar ? `<span style="margin-left:auto">nur ${R[paar[0]].n} ↔ ${K[paar[1]].n} · <button class="link" id="paar-weg">alle</button></span>` : '');
+  let letztePeriode = null, html = '';
+  for (const e of es) {
+    const i = E.indexOf(e), p = periode(e.d);
+    if (p !== letztePeriode) { html += `<div class="periode">${p}</div>`; letztePeriode = p; }
+    const auf = offen.has(i), a = ART[e.art];
+    const rText = e.r.map(id => `<b>${R[id].n}</b>${rTag(id)}`).join(', ');
+    const kText = e.k.map(id => `<b>${K[id].n}</b>${kTag(id)}`).join(', ');
+    const richtung = e.ri === 'ein' ? '←' : e.ri === 'aus' ? '→' : '↔';
+    html += `<div class="z ${auf ? 'offen' : ''}" id="z${i}">
+      <button class="z-kopf" data-z="${i}">
+        <span class="dat">${fmt(e.d)} ${e.d.slice(11)}</span>
+        <span class="ic ${e.art}" title="${a.t}">${a.ic}</span>
+        <span class="mitte"><span class="bt">${esc(e.bt)}</span>
+          <div class="wer">${e.k.length ? `${rText} ${richtung} ${kText}` : rText}${e.quelle === 'Outlook' ? ' · aus Outlook' : ''}</div></span>
+        <span>${V.some(v => v.e === e) ? '<span class="flag" title="enthält eine Vereinbarung">⚑</span> ' : ''}<span class="pfeil">▸</span></span>
+      </button>
+      ${auf ? `<div class="z-detail">
+        ${e.art === 'termin' ? `<div class="teiln">Teilnehmer <span class="neu">NEU</span>: ${e.r.map(id => R[id].n + ' (' + R[id].b + ')').join(', ')} · ${e.k.map(id => K[id].n + ' (' + K[id].f + ')').join(', ')}</div>` : ''}
+        ${e.text ? `<div class="text">${esc(e.text)}</div>` : ''}
+        ${e.anh ? `<div style="margin-top:6px; font-size:12.5px">📎 ${e.anh.join(', ')}</div>` : ''}
+        ${V.filter(v => v.e === e).map(v => `<div class="verein">⚑ Vereinbart: ${esc(v.text)}</div>`).join('')}
+        <div class="akt"><button class="link" data-vbaus="${i}">⚑ Vereinbarung festhalten <span class="neu">NEU</span></button>${!e.quelle || e.quelle === 'Odoo' ? '<a href="#">in Odoo ↗</a>' : ''}</div>
+      </div>` : ''}
+    </div>`;
+  }
+  document.getElementById('verlauf').innerHTML = html || '<div class="leer">Keine Einträge für diese Auswahl.</div>';
+}
+
+function alles(){ kurzfassung(); matrix(); aufgaben(); vereinbarungen(); formulare(); verlauf(); }
+
+document.addEventListener('change', ev => {
+  if (ev.target.dataset.auferl) { A[+ev.target.dataset.auferl].erledigt = ev.target.checked; alles(); }
+});
+
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('button,td,a');
+  if (!t) return;
+  // Formular: Auswahl-Chips und weitere Felder direkt im DOM umschalten (Eingaben bleiben erhalten)
+  if (t.dataset.wr || t.dataset.wk) { t.classList.toggle('an'); return; }
+  if (t.id === 'f-vb-mehr') {
+    const s = document.createElement('span'); s.className = 'vb-feld';
+    s.innerHTML = '<span>⚑</span><input type="text" class="f-vb" placeholder="weitere Vereinbarung">';
+    document.getElementById('f-vbs').append(s); s.querySelector('input').focus(); return;
+  }
+  if (t.dataset.form !== undefined) { formular = t.dataset.form || null; if (formular !== 'vereinbarung') vbQuelle = null; alles();
+    document.querySelector('#form-' + formular + ' input[type=text]')?.focus(); return; }
+  if (t.id?.startsWith('f-speichern-')) { if (speichern(t.id.slice(12))) { formular = null; vbQuelle = null; alles(); } return; }
+  if (t.dataset.vbaus) { vbQuelle = E[+t.dataset.vbaus]; formular = 'vereinbarung'; alles();
+    document.getElementById('form-vereinbarung').scrollIntoView({ behavior:'smooth', block:'center' }); document.getElementById('v-text')?.focus(); return; }
+  if (t.dataset.verl) { const v = V[+t.dataset.verl]; v.erledigt = !v.erledigt; alles(); return; }
+  if (t.tagName === 'A' && t.getAttribute('href') === '#') { ev.preventDefault(); return; }
+  if (t.dataset.t) {
+    t.dataset.t === 'auto' ? document.documentElement.removeAttribute('data-theme') : document.documentElement.setAttribute('data-theme', t.dataset.t);
+    document.querySelectorAll('#thema button').forEach(b => b.classList.toggle('an', b === t)); return;
+  }
+  if (t.closest('#zeitraum') && t.dataset.z) { zeitraum = +t.dataset.z; document.querySelectorAll('#zeitraum button').forEach(b => b.classList.toggle('an', b === t)); paar = null; }
+  else if (t.tagName === 'TD' && t.dataset.r) { paar = paar && paar[0] === t.dataset.r && paar[1] === t.dataset.k ? null : [t.dataset.r, t.dataset.k]; }
+  else if (t.id === 'paar-weg') { paar = null; }
+  else if (t.dataset.art) { arten.has(t.dataset.art) ? arten.delete(t.dataset.art) : arten.add(t.dataset.art); }
+  else if (t.dataset.z && t.classList.contains('z-kopf')) { const i = +t.dataset.z; offen.has(i) ? offen.delete(i) : offen.add(i); }
+  else if (t.id === 'alle-auf') { const alleOffen = imZeitraum().every(e => offen.has(E.indexOf(e))); imZeitraum().forEach(e => alleOffen ? offen.delete(E.indexOf(e)) : offen.add(E.indexOf(e))); }
+  else if (t.dataset.zeige) { const i = +t.dataset.zeige; zeitraum = 9999; paar = null; offen.add(i);
+    document.querySelectorAll('#zeitraum button').forEach(b => b.classList.toggle('an', b.dataset.z === '9999')); alles();
+    document.getElementById('z' + i)?.scrollIntoView({ behavior:'smooth', block:'center' }); return; }
+  else return;
+  alles();
+});
+alles();
+</script>
+</body>
+</html>

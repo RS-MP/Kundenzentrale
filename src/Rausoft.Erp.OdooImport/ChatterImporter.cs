@@ -42,6 +42,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
     private Dictionary<int, (string Name, string? XmlId, bool Intern)> _subtypes = [];
     /// <summary>Partner-Id des Odoo-Benutzers → (Name, Login/E-Mail).</summary>
     private Dictionary<int, (string Name, string? Login)> _benutzerNachPartner = [];
+    /// <summary>Odoo-Benutzer-Id → (Name, Login) — Zuständige der geplanten Aktivitäten.</summary>
+    private Dictionary<int, (string Name, string? Login)> _benutzerNachUserId = [];
     /// <summary>Name aller Odoo-Partner (für die Empfänger-Anzeige).</summary>
     private readonly Dictionary<int, string> _partnerNamen = [];
     private int? _odooBot;
@@ -113,7 +115,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         // Bereits übernommene Nachrichten: global (Unique-Index), die der gewählten Kunden zum Aktualisieren
         var alleOdooIds = (await db.Aktivitaeten.Where(a => a.OdooId != null)
             .Select(a => a.OdooId!.Value).ToListAsync()).ToHashSet();
-        var vorhandene = await db.Aktivitaeten
+        var vorhandene = await db.Aktivitaeten.Include(a => a.Teilnehmer)
             .Where(a => a.OdooId != null && kundenIds.Contains(a.KundeId))
             .ToDictionaryAsync(a => a.OdooId!.Value);
         var vorhandeneAnhaenge = (await db.Aktivitaetsanhaenge
@@ -163,6 +165,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             var kunde = kundeNachOdooId[quelle.FirmaOdooId];
             var soll = Eintrag(n, b, stufe, quelle, kunde, mitarbeiter, ansprechpartnerNachOdooId);
             soll.Empfaenger = Empfaenger(Ids(m, "partner_ids"), n.AutorPartnerId, ansprechpartnerNachOdooId);
+            soll.Teilnehmer = TeilnehmerBilden(n, Ids(m, "partner_ids"), soll, kunde, mitarbeiter, ansprechpartnerNachOdooId);
             _stat.Zaehlen(stufe, b.Grund);
 
             var anhangIds = Ids(m, "attachment_ids").Where(id => !vorhandeneAnhaenge.Contains(id)).ToList();
@@ -219,7 +222,143 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
                 await AnhaengeArchivierenAsync(db, kundenIds, kundeNachId, ablage);
         }
 
+        // --- Geplante Aktivitäten aus Odoo → offene Aufgaben ---
+        await AufgabenUebernehmenAsync(db, quellen, kundeNachOdooId, kundenIds, mitarbeiter);
+
         AusgabeStatistik();
+    }
+
+    // --- Teilnehmer und Aufgaben -----------------------------------------------------
+
+    private static Mitarbeiter? MitarbeiterZu((string Name, string? Login) benutzer, List<Mitarbeiter> mitarbeiter) =>
+        mitarbeiter.FirstOrDefault(x =>
+            (benutzer.Login is not null && x.Email.Equals(benutzer.Login, StringComparison.OrdinalIgnoreCase))
+            || x.Anzeigename.Equals(benutzer.Name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Beteiligte einer Nachricht für „Wer mit wem": Autor und Empfänger, rausoft-Benutzer als
+    /// Mitarbeiter, Kontakte des Kunden als Ansprechpartner; ein externer Absender erscheint mit Namen.
+    /// </summary>
+    private List<AktivitaetTeilnehmer> TeilnehmerBilden(ChatterNachricht n, List<int> partnerIds, Aktivitaet soll, Kunde kunde,
+        List<Mitarbeiter> mitarbeiter, Dictionary<int, Ansprechpartner> ansprechpartnerNachOdooId)
+    {
+        var liste = new List<AktivitaetTeilnehmer>();
+        void Rausoft(int? mitarbeiterId, string? name)
+        {
+            if (mitarbeiterId is not null ? liste.Any(t => t.MitarbeiterId == mitarbeiterId) : liste.Any(t => t.Name == name))
+                return;
+            liste.Add(new AktivitaetTeilnehmer { Seite = TeilnehmerSeite.Rausoft, MitarbeiterId = mitarbeiterId,
+                Name = mitarbeiterId is null ? Kuerzen(name, 200) : null });
+        }
+        void KundeSeite(int? ansprechpartnerId, string? name)
+        {
+            if (ansprechpartnerId is not null ? liste.Any(t => t.AnsprechpartnerId == ansprechpartnerId) : liste.Any(t => t.Name == name))
+                return;
+            liste.Add(new AktivitaetTeilnehmer { Seite = TeilnehmerSeite.Kunde, AnsprechpartnerId = ansprechpartnerId,
+                Name = ansprechpartnerId is null ? Kuerzen(name, 200) : null });
+        }
+        void Partner(int partnerId, string? externerName)
+        {
+            if (partnerId == _odooBot)
+                return;
+            if (_benutzerNachPartner.TryGetValue(partnerId, out var benutzer))
+                Rausoft(MitarbeiterZu(benutzer, mitarbeiter)?.Id, benutzer.Name);
+            else if (ansprechpartnerNachOdooId.TryGetValue(partnerId, out var ap) && ap.KundeId == kunde.Id)
+                KundeSeite(ap.Id, null);
+            else if (externerName is not null)
+                KundeSeite(null, externerName);
+        }
+
+        if (n.AutorPartnerId is { } autorId)
+            Partner(autorId, Absender.Anzeigename(n.AutorName ?? n.EmailFrom));
+        else if (Absender.Anzeigename(n.EmailFrom) is { } absender)
+            KundeSeite(null, absender);
+        foreach (var partnerId in partnerIds)
+            Partner(partnerId, null);
+        // Notiz am Kontakt eines Ansprechpartners: er ist die Kundenseite
+        if (soll.AnsprechpartnerId is { } apId)
+            KundeSeite(apId, null);
+        return liste;
+    }
+
+    private static string TeilnehmerSignatur(IEnumerable<AktivitaetTeilnehmer> teilnehmer) =>
+        string.Join("|", teilnehmer.Select(t => $"{(int)t.Seite}:{t.MitarbeiterId}:{t.AnsprechpartnerId}:{t.Name}").Order());
+
+    /// <summary>
+    /// Geplante Aktivitäten (mail.activity) der Kunden als offene Aufgaben übernehmen. Wiederholbar über
+    /// Aufgabe.OdooId; eine in der Kundenzentrale erledigte Aufgabe wird nicht wieder geöffnet. Was in Odoo
+    /// nicht mehr offen ist (erledigt oder gelöscht), wird hier erledigt — der Erledigt-Vermerk mit
+    /// Rückmeldung kommt über den Chatter in den Verlauf.
+    /// </summary>
+    private async Task AufgabenUebernehmenAsync(ErpDbContext db, Dictionary<(string Modell, int Id), Quelle> quellen,
+        Dictionary<int, Kunde> kundeNachOdooId, List<int> kundenIds, List<Mitarbeiter> mitarbeiter)
+    {
+        var aktivitaeten = new List<JsonElement>();
+        try
+        {
+            foreach (var gruppe in quellen.Keys.GroupBy(k => k.Modell))
+                foreach (var block in gruppe.Select(k => k.Id).Chunk(IdChunk))
+                    aktivitaeten.AddRange(await LadeAlleAsync("mail.activity",
+                        [new object[] { "res_model", "=", gruppe.Key }, new object[] { "res_id", "in", block }],
+                        ["id", "res_model", "res_id", "activity_type_id", "summary", "note", "date_deadline", "user_id"]));
+        }
+        catch (InvalidOperationException ex)
+        {
+            _aus.WriteLine($"Hinweis: Geplante Aktivitäten nicht lesbar ({Kuerzen(ex.Message, 150)}) — Aufgaben übersprungen.");
+            return;
+        }
+
+        var vorhanden = await db.Aufgaben
+            .Where(a => a.OdooId != null && a.KundeId != null && kundenIds.Contains(a.KundeId.Value))
+            .ToDictionaryAsync(a => a.OdooId!.Value);
+        var gesehen = new HashSet<int>();
+        foreach (var akt in aktivitaeten)
+        {
+            var id = akt.GetProperty("id").GetInt32();
+            if (!quellen.TryGetValue((Text(akt, "res_model") ?? "", Zahl(akt, "res_id") ?? 0), out var quelle))
+                continue;
+            gesehen.Add(id);
+            var art = Many2OneLabel(akt, "activity_type_id");
+            var userId = Many2OneId(akt, "user_id");
+            var zustaendig = userId is { } u && _benutzerNachUserId.TryGetValue(u, out var benutzer)
+                ? MitarbeiterZu(benutzer, mitarbeiter) : null;
+
+            if (!vorhanden.TryGetValue(id, out var aufgabe))
+            {
+                _stat.AufgabenNeu++;
+                if (dryRun)
+                    continue;
+                aufgabe = new Aufgabe { Titel = "", OdooId = id, Quelle = AktivitaetsQuelle.OdooImport, ErstelltAm = DateTime.UtcNow };
+                db.Aufgaben.Add(aufgabe);
+            }
+            else
+                _stat.AufgabenAktualisiert++;
+
+            aufgabe.KundeId = kundeNachOdooId[quelle.FirmaOdooId].Id;
+            aufgabe.Titel = Kuerzen(Text(akt, "summary") ?? art ?? "Aufgabe", 300)!;
+            aufgabe.Art = Kuerzen(art, 50);
+            var notiz = ChatterFilter.Klartext(Text(akt, "note"));
+            aufgabe.Beschreibung = notiz.Length == 0 ? null : notiz;
+            aufgabe.Faellig = DateOnly.TryParseExact(Text(akt, "date_deadline"), "yyyy-MM-dd", out var faellig) ? faellig : null;
+            aufgabe.ZustaendigId = zustaendig?.Id;
+            aufgabe.ZustaendigName = zustaendig is null ? Kuerzen(Many2OneLabel(akt, "user_id"), 200) : null;
+            aufgabe.Bezug = Kuerzen(quelle.StrangName ?? quelle.Bezug, 300);
+            aufgabe.StrangSchluessel = Kuerzen(quelle.StrangSchluessel, 60);
+        }
+
+        foreach (var (odooId, aufgabe) in vorhanden)
+        {
+            if (gesehen.Contains(odooId) || aufgabe.Status == AufgabenStatus.Erledigt)
+                continue;
+            _stat.AufgabenErledigt++;
+            if (!dryRun)
+            {
+                aufgabe.Status = AufgabenStatus.Erledigt;
+                aufgabe.ErledigtAm = DateTime.UtcNow;
+            }
+        }
+        if (!dryRun)
+            await db.SaveChangesAsync();
     }
 
     // --- Eintrag bauen und abgleichen -------------------------------------------------
@@ -315,6 +454,12 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         Setze(ist.Empfaenger, soll.Empfaenger, v => ist.Empfaenger = v);
         Setze(ist.StrangSchluessel, soll.StrangSchluessel, v => ist.StrangSchluessel = v);
         Setze(ist.StrangName, soll.StrangName, v => ist.StrangName = v);
+        if (TeilnehmerSignatur(ist.Teilnehmer) != TeilnehmerSignatur(soll.Teilnehmer))
+        {
+            ist.Teilnehmer.Clear();
+            ist.Teilnehmer.AddRange(soll.Teilnehmer);
+            geaendert = true;
+        }
         return geaendert;
     }
 
@@ -754,6 +899,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             s => (Text(s, "name") ?? "?", xmlIds.GetValueOrDefault(s.GetProperty("id").GetInt32()), Wahr(s, "internal")));
 
         var benutzer = await LadeAlleAsync("res.users", [], ["id", "name", "login", "partner_id", "share"]);
+        _benutzerNachUserId = benutzer.Where(b => !Wahr(b, "share"))
+            .ToDictionary(b => b.GetProperty("id").GetInt32(), b => (Text(b, "name") ?? "?", Text(b, "login")));
         _benutzerNachPartner = benutzer.Where(b => !Wahr(b, "share") && Many2OneId(b, "partner_id") is not null)
             .GroupBy(b => Many2OneId(b, "partner_id")!.Value)
             .ToDictionary(g => g.Key, g => (Text(g.First(), "name") ?? "?", Text(g.First(), "login")));
@@ -828,6 +975,8 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             foreach (var f in _stat.AnhangFehler.Take(20))
                 _aus.WriteLine($"  {f}");
         }
+        _aus.WriteLine($"Aufgaben aus Odoo{(dryRun ? " (würden)" : "")}: {_stat.AufgabenNeu} neu, {_stat.AufgabenAktualisiert} aktualisiert, " +
+                       $"{_stat.AufgabenErledigt} in Odoo erledigt/entfernt");
         _aus.WriteLine($"Kunden mit neuen Einträgen: {_stat.JeKunde.Count}");
         if (dryRun)
             _aus.WriteLine("DRY-RUN: nichts gespeichert.");
@@ -847,6 +996,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
     private class Statistik
     {
         public int Gelesen, Neu, Aktualisiert, Unveraendert, AndererKunde, Anhaenge, AnhaengeUebersprungen, Archiviert;
+        public int AufgabenNeu, AufgabenAktualisiert, AufgabenErledigt;
         public long AnhangBytes;
         public readonly Dictionary<AktivitaetsStufe, int> JeStufe = [];
         public readonly Dictionary<string, int> Gruende = [];

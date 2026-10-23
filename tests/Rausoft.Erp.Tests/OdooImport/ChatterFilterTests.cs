@@ -263,6 +263,23 @@ public class ChatterFilterTests
         Assert.Equal(["S01194", "S01195"], VorgangsName.Herkunft("S01194, S01195").ToArray());
 
     [Fact]
+    public void ErledigteOdooAktivitaet_IstAufgabeImVerlauf()
+    {
+        var b = Filter.Bewerten(Nachricht(messageType: "notification", subtypeXmlId: "mail.mt_activities",
+            klartext: "Anruf erledigt\nRückmeldung: Kunde will 24 Monate"));
+        Assert.Equal(ChatterEntscheidung.Behalten, b.Entscheidung);
+        Assert.Equal(AktivitaetsTyp.Aufgabe, b.Typ);
+        Assert.Equal(VerlaufKategorie.Notizen, VerlaufKategorien.Von(ChatterFilter.StufeVon(b), b.Typ!.Value));
+    }
+
+    [Theory]
+    [InlineData(AktivitaetsTyp.Termin)]
+    [InlineData(AktivitaetsTyp.Aufgabe)]
+    [InlineData(AktivitaetsTyp.Anruf)]
+    public void GespraecheUndAufgaben_ZaehlenZurKommunikation(AktivitaetsTyp typ) =>
+        Assert.Equal(VerlaufKategorie.Notizen, VerlaufKategorien.Von(AktivitaetsStufe.Wesentlich, typ));
+
+    [Fact]
     public void Standard_SindNurNotizenUndEMails() =>
         Assert.Equal([VerlaufKategorie.Notizen, VerlaufKategorie.EMails], VerlaufKategorien.Standard);
 

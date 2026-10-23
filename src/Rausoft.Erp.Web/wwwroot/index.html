@@ -59,6 +59,10 @@
                 window.prompt('Kopieren blockiert — Pfad markieren und Strg+C drücken:', text);
             }
         };
+        // Kundenakte: Element sanft in den Blick holen (Verlauf, Eintrag, Vereinbarungen)
+        window.akte = {
+            zeige: (id, block) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: block || 'start' })
+        };
         window.dateiVorschau = {
             erzeugeUrl: (base64, typ) => {
                 const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));

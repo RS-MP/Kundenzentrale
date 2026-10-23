@@ -414,9 +414,10 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
     /// </summary>
     [HttpGet("{id:int}/verlauf")]
     public async Task<ActionResult<List<VerlaufEintrag>>> Verlauf(int id, [FromQuery] bool mitOdoo = true,
-        [FromQuery] string? kategorien = null, [FromQuery] string? vorgang = null, CancellationToken ct = default)
+        [FromQuery] string? kategorien = null, [FromQuery] string? vorgang = null,
+        [FromQuery] int? tage = null, [FromQuery] string? paar = null, CancellationToken ct = default)
     {
-        var abfrage = VerlaufAbfrage(id, mitOdoo, vorgang)
+        var abfrage = VerlaufAbfrage(id, mitOdoo, vorgang, tage, paar)
             .Where(Domain.Shared.VerlaufKategorien.Filter(KategorienLesen(kategorien)));
         var odooUrl = await OdooUrlAsync(ct);
 
@@ -435,6 +436,22 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 ApNachname = a.Ansprechpartner != null ? a.Ansprechpartner.Nachname : null,
                 Anhaenge = a.Anhaenge.OrderBy(x => x.Dateiname)
                     .Select(x => new { x.Id, x.Dateiname, x.Groesse, x.MimeType, x.RelativerPfad, x.OdooId }).ToList(),
+                AutorRoh = a.Mitarbeiter == null ? null : new Dienste.TeilnehmerRoh(Domain.Shared.TeilnehmerSeite.Rausoft,
+                    a.MitarbeiterId, a.Mitarbeiter.Anzeigename, a.Mitarbeiter.Bereich != null ? a.Mitarbeiter.Bereich.Name : null,
+                    null, null, null, null, null, null),
+                ApRoh = a.Ansprechpartner == null ? null : new Dienste.TeilnehmerRoh(Domain.Shared.TeilnehmerSeite.Kunde,
+                    null, null, null, a.AnsprechpartnerId, a.Ansprechpartner.Anrede, a.Ansprechpartner.Vorname,
+                    a.Ansprechpartner.Nachname, a.Ansprechpartner.Position, null),
+                Teilnehmer = a.Teilnehmer.Select(t => new Dienste.TeilnehmerRoh(t.Seite, t.MitarbeiterId,
+                    t.Mitarbeiter != null ? t.Mitarbeiter.Anzeigename : null,
+                    t.Mitarbeiter != null && t.Mitarbeiter.Bereich != null ? t.Mitarbeiter.Bereich.Name : null,
+                    t.AnsprechpartnerId,
+                    t.Ansprechpartner != null ? t.Ansprechpartner.Anrede : null,
+                    t.Ansprechpartner != null ? t.Ansprechpartner.Vorname : null,
+                    t.Ansprechpartner != null ? t.Ansprechpartner.Nachname : null,
+                    t.Ansprechpartner != null ? t.Ansprechpartner.Position : null,
+                    t.Name)).ToList(),
+                Vereinbarungen = db.Vereinbarungen.Where(v => v.AktivitaetId == a.Id).OrderBy(v => v.Id).Select(v => v.Text).ToList(),
             })
             .ToListAsync(ct);
         return Ok(roh.Select(a =>
@@ -444,6 +461,7 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
                 : a.ApAnrede is Anrede.Herr or Anrede.Frau ? $"{a.ApAnrede} {a.ApNachname}"
                 : string.Join(' ', new[] { a.ApVorname, a.ApNachname }.Where(s => !string.IsNullOrWhiteSpace(s)));
             var autorName = Domain.Shared.Absender.Anzeigename(a.AutorName);
+            var seiten = Dienste.AkteTeilnehmer.Seiten(a.AutorRoh, a.ApRoh, a.AutorName, a.Richtung, a.Teilnehmer);
             // Autor = Absender: bei eingehenden Nachrichten die Kundenseite, sonst rausoft
             string? autor, bereich = null, an;
             bool kunde;
@@ -473,16 +491,18 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
             a.StrangSchluessel ?? (a.OdooModell is not null && a.OdooResId is not null ? $"{a.OdooModell}:{a.OdooResId}" : null),
             // /mail/message/<id> springt nach dem Odoo-Login direkt zur Nachricht im Chatter des Vorgangs
             odooUrl is not null && a.OdooId is not null ? $"{odooUrl}/mail/message/{a.OdooId}" : null,
-            autor, bereich, kunde, an, a.StrangName ?? a.Bezug);
+            autor, bereich, kunde, an, a.StrangName ?? a.Bezug,
+            seiten.Rausoft, seiten.Kunde, a.Vereinbarungen.Count > 0 ? a.Vereinbarungen : null);
         }).ToList());
     }
 
     /// <summary>Anzahl Einträge je Kategorie — für die Zahlen an den Schaltern der Akte.</summary>
     [HttpGet("{id:int}/verlauf/uebersicht")]
     public async Task<ActionResult<VerlaufUebersicht>> VerlaufZaehlen(int id, [FromQuery] bool mitOdoo = true,
-        [FromQuery] string? vorgang = null, CancellationToken ct = default)
+        [FromQuery] string? vorgang = null, [FromQuery] int? tage = null, [FromQuery] string? paar = null,
+        CancellationToken ct = default)
     {
-        var gruppen = await VerlaufAbfrage(id, mitOdoo, vorgang)
+        var gruppen = await VerlaufAbfrage(id, mitOdoo, vorgang, tage, paar)
             .GroupBy(a => new { a.Stufe, a.Typ })
             .Select(g => new { g.Key.Stufe, g.Key.Typ, Anzahl = g.Count() })
             .ToListAsync(ct);
@@ -492,11 +512,33 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
         return Ok(new VerlaufUebersicht(zaehler));
     }
 
-    private IQueryable<Domain.Shared.Aktivitaet> VerlaufAbfrage(int kundeId, bool mitOdoo, string? vorgang)
+    /// <summary>
+    /// Gemeinsame Einschränkung für Verlauf und Zähler: Odoo ein/aus, Vorgang, Zeitraum in Tagen und
+    /// Gesprächspaar „m:5|a:7" (Klick in „Wer mit wem" — beide Personen beteiligt).
+    /// </summary>
+    private IQueryable<Domain.Shared.Aktivitaet> VerlaufAbfrage(int kundeId, bool mitOdoo, string? vorgang,
+        int? tage = null, string? paar = null)
     {
         var abfrage = db.Aktivitaeten.AsNoTracking().Where(a => a.KundeId == kundeId);
         if (!mitOdoo)
             abfrage = abfrage.Where(a => a.Quelle != Domain.Shared.AktivitaetsQuelle.OdooImport);
+        if (tage is > 0 and < 3650)
+        {
+            var seit = DateTime.UtcNow.Date.AddDays(-tage.Value);
+            abfrage = abfrage.Where(a => a.Zeitpunkt >= seit);
+        }
+        foreach (var person in (paar ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (person.StartsWith("m:") && int.TryParse(person[2..], out var mid))
+                abfrage = abfrage.Where(a => a.MitarbeiterId == mid || a.Teilnehmer.Any(t => t.MitarbeiterId == mid));
+            else if (person.StartsWith("a:") && int.TryParse(person[2..], out var aid))
+                abfrage = abfrage.Where(a => a.AnsprechpartnerId == aid || a.Teilnehmer.Any(t => t.AnsprechpartnerId == aid));
+            else if (person.StartsWith("n:") && person.Length > 2)
+            {
+                var name = person[2..];
+                abfrage = abfrage.Where(a => (a.AutorName != null && a.AutorName.Contains(name)) || a.Teilnehmer.Any(t => t.Name == name));
+            }
+        }
         if (string.IsNullOrWhiteSpace(vorgang))
             return abfrage;
         // Altbestand vor dem Neuimport: „sale.order:1198" (Modell mit Punkt) — sonst Strang-Schlüssel

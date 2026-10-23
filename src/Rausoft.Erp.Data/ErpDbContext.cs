@@ -23,6 +23,9 @@ public class ErpDbContext(
     public DbSet<Nummernkreis> Nummernkreise => Set<Nummernkreis>();
     public DbSet<Aktivitaet> Aktivitaeten => Set<Aktivitaet>();
     public DbSet<AktivitaetAnhang> Aktivitaetsanhaenge => Set<AktivitaetAnhang>();
+    public DbSet<AktivitaetTeilnehmer> AktivitaetTeilnehmer => Set<AktivitaetTeilnehmer>();
+    public DbSet<Vereinbarung> Vereinbarungen => Set<Vereinbarung>();
+    public DbSet<Aufgabe> Aufgaben => Set<Aufgabe>();
     public DbSet<AuditLogEintrag> AuditLog => Set<AuditLogEintrag>();
     public DbSet<Einstellung> Einstellungen => Set<Einstellung>();
 
@@ -118,6 +121,42 @@ public class ErpDbContext(
             // Odoo-Nachricht nur einmal übernehmen (gefilterter Unique-Index: NULL mehrfach erlaubt)
             e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
             e.HasIndex(a => new { a.KundeId, a.Quelle });
+        });
+
+        modelBuilder.Entity<AktivitaetTeilnehmer>(e =>
+        {
+            e.Property(t => t.Name).HasMaxLength(200);
+            e.HasOne(t => t.Aktivitaet).WithMany(a => a.Teilnehmer)
+                .HasForeignKey(t => t.AktivitaetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(t => t.Mitarbeiter).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(t => t.Ansprechpartner).WithMany().OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Vereinbarung>(e =>
+        {
+            e.Property(v => v.Text).HasMaxLength(500);
+            e.HasIndex(v => new { v.KundeId, v.Erledigt });
+            e.HasOne(v => v.Kunde).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(v => v.Aktivitaet).WithMany().OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(v => v.ErstelltVon).WithMany().HasForeignKey(v => v.ErstelltVonId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(v => v.ErledigtVon).WithMany().HasForeignKey(v => v.ErledigtVonId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Aufgabe>(e =>
+        {
+            e.Property(a => a.Titel).HasMaxLength(300);
+            e.Property(a => a.Art).HasMaxLength(50);
+            e.Property(a => a.Beschreibung).HasColumnType("nvarchar(max)");
+            e.Property(a => a.ZustaendigName).HasMaxLength(200);
+            e.Property(a => a.Bezug).HasMaxLength(300);
+            e.Property(a => a.StrangSchluessel).HasMaxLength(60);
+            e.HasIndex(a => new { a.KundeId, a.Status });
+            e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+            e.HasOne(a => a.Kunde).WithMany().OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.Zustaendig).WithMany().HasForeignKey(a => a.ZustaendigId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.ZustaendigBereich).WithMany().HasForeignKey(a => a.ZustaendigBereichId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.ErstelltVon).WithMany().HasForeignKey(a => a.ErstelltVonId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.ErledigtVon).WithMany().HasForeignKey(a => a.ErledigtVonId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AktivitaetAnhang>(e =>
@@ -508,7 +547,7 @@ public class ErpDbContext(
     // GeheimeEinstellung: NIE auditieren — sonst landet der (verschlüsselte)
     // Wert im Audit-JSON. Server: der Healthcheck-Takt würde das Log fluten.
     private static readonly HashSet<Type> NichtAuditieren =
-        [typeof(AuditLogEintrag), typeof(Aktivitaet), typeof(AktivitaetAnhang), typeof(Nummernkreis),
+        [typeof(AuditLogEintrag), typeof(Aktivitaet), typeof(AktivitaetAnhang), typeof(AktivitaetTeilnehmer), typeof(Nummernkreis),
          typeof(GeheimeEinstellung), typeof(Domain.Servers.Server)];
 
     private List<(EntityEntry Entry, AuditLogEintrag Eintrag)> SammleAuditEintraege()

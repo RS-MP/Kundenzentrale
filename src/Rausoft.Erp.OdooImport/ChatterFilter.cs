@@ -138,6 +138,10 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
         if (n.AutorName is not null && n.AutorName.Contains("OdooBot", StringComparison.OrdinalIgnoreCase))
             return new(ChatterEntscheidung.Verwerfen, "OdooBot");
 
+        // Erledigte geplante Aktivität (Anruf, To-do …) mit Rückmeldung — gehört zur Kommunikation
+        if (n.SubtypeXmlId == "mail.mt_activities")
+            return new(ChatterEntscheidung.Behalten, "Aufgabe erledigt", AktivitaetsTyp.Aufgabe, AktivitaetsRichtung.Intern);
+
         if (n.SubtypeXmlId is not null && VerdichtenSubtypes.TryGetValue(n.SubtypeXmlId, out var meilensteinTyp))
         {
             var bereich = meilensteinTyp switch

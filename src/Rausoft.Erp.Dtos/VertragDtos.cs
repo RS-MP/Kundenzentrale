@@ -176,7 +176,13 @@ public record VerlaufEintrag(
     /// <summary>Empfänger als Anzeigetext, z. B. „Frau Berger, Herr Kunz".</summary>
     string? An,
     /// <summary>Name des Strangs, z. B. „Verkauf S01194" — Kopfzeile der Bündelung.</summary>
-    string? StrangName = null);
+    string? StrangName = null,
+    /// <summary>Beteiligte auf rausoft-Seite (mit Bereich) — Autor und weitere Teilnehmer.</summary>
+    List<AktePerson>? RausoftTeilnehmer = null,
+    /// <summary>Beteiligte auf Kundenseite (mit Funktion).</summary>
+    List<AktePerson>? KundenTeilnehmer = null,
+    /// <summary>In diesem Eintrag festgehaltene Vereinbarungen.</summary>
+    List<string>? Vereinbarungen = null);
 
 /// <summary>Anhang am Verlauf: <paramref name="Lokal"/> = Datei in der Dokumentablage, sonst nur <paramref name="OdooLink"/>.</summary>
 public record VerlaufAnhang(int Id, string Dateiname, long Groesse, string? MimeType, bool Lokal, string? OdooLink);
