@@ -323,16 +323,25 @@ Ziel: `https://rs-w2019-01/Kundenzentrale` mit einem Zertifikat, dem alle
 Domänenrechner vertrauen — keine Warnung im Browser, Kerberos/NTLM und
 Kundendaten laufen nicht mehr im Klartext. Reihenfolge, ca. 30–45 Minuten:
 
+0. **Vorab (ergänzt 27.10.2026 für den Outlook-Knopf):**
+   - Gibt es eine AD-Zertifizierungsstelle? Auf dem Server `certutil -ADCA`
+     ausführen — listet sie auf, sonst Fehlermeldung → Variante „Ohne AD CS".
+   - **Endgültigen Namen jetzt festlegen**, z. B. `kundenzentrale.<domäne>`:
+     Das Manifest des Outlook-Add-ins enthält die Adresse fest; ein späterer
+     Namenswechsel hieße neu verteilen. DNS-Manager → Forward-Lookupzone der
+     Domäne → neuer **CNAME** `kundenzentrale` → `rs-w2019-01.<domäne>`.
+     Den Namen gleich mit ins Zertifikat aufnehmen (Schritt 1).
+
 1. **Zertifikat beschaffen** (eine der beiden Varianten):
    - *Mit AD-Zertifizierungsstelle (AD CS) im Haus:* Auf dem Server
      `certlm.msc` → Eigene Zertifikate → Alle Aufgaben → **Neues Zertifikat
      anfordern** → Vorlage „Webserver" → Antragstellername: Allgemeiner Name
      `rs-w2019-01`, zusätzlich DNS-Namen `rs-w2019-01` und
-     `rs-w2019-01.<domäne>` (später auch den Wunschnamen, z. B.
-     `kundenzentrale.<domäne>`) → Registrieren. Domänenrechner vertrauen der
+     `rs-w2019-01.<domäne>` und den festen Namen
+     `kundenzentrale.<domäne>` → Registrieren. Domänenrechner vertrauen der
      AD CS automatisch (Stammzertifikat kommt per GPO).
    - *Ohne AD CS:* Selbstsigniertes Zertifikat auf dem Server erzeugen
-     (`New-SelfSignedCertificate -DnsName rs-w2019-01,rs-w2019-01.<domäne>
+     (`New-SelfSignedCertificate -DnsName kundenzentrale.<domäne>,rs-w2019-01,rs-w2019-01.<domäne>
      -CertStoreLocation cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(3)`),
      es als `.cer` exportieren und per GPO (Computerkonfiguration → Richtlinien
      → Windows-Einstellungen → Sicherheitseinstellungen → Richtlinien für
@@ -341,20 +350,33 @@ Kundendaten laufen nicht mehr im Klartext. Reihenfolge, ca. 30–45 Minuten:
 2. **IIS-Binding:** IIS-Manager → Default Web Site → Bindungen → Hinzufügen →
    Typ `https`, Port 443, SSL-Zertifikat = das neue Zertifikat → OK. Die
    Unteranwendung `/Kundenzentrale` erbt das Binding.
-3. **Test im Browser:** `https://rs-w2019-01/Kundenzentrale` muss ohne
-   Warnung laden und die Windows-Anmeldung unsichtbar durchlaufen. Falls ein
-   Anmeldedialog erscheint: die https-URL in der GPO „Kundenzentrale
-   Intranetzone" ergänzen (`https://rs-w2019-01` = 1).
+3. **Test im Browser:** `https://rs-w2019-01/Kundenzentrale` und
+   `https://kundenzentrale.<domäne>/Kundenzentrale` müssen ohne Warnung laden
+   und die Windows-Anmeldung unsichtbar durchlaufen. Falls ein Anmeldedialog
+   erscheint: beide https-Adressen in der GPO „Kundenzentrale Intranetzone"
+   ergänzen (`https://rs-w2019-01` = 1, `https://kundenzentrale.<domäne>` = 1).
+   **Auch den Urlaubsplaner über https aufrufen** — er hängt an derselben
+   Default Web Site und muss dort ebenfalls funktionieren (siehe Schritt 4).
+   Kerberos unter dem neuen Namen (sonst fällt die Anmeldung still auf NTLM
+   zurück, funktioniert aber): einmalig als Domänen-Admin
+   `setspn -S HTTP/kundenzentrale.<domäne> RS-W2019-01` — bei
+   ApplicationPoolIdentity gilt das Computerkonto; läuft der App-Pool unter
+   einem Dienstkonto, dieses statt `RS-W2019-01` angeben.
 4. **Umleitung einschalten:** in `appsettings.Production.json` ergänzen
    ```json
    "Hosting": { "HttpsErzwingen": true }
    ```
    → App-Pool neu starten. Ab jetzt leitet die App http auf https um und
    sendet HSTS; alle Links/Lesezeichen auf http funktionieren weiter.
+   **Achtung HSTS gilt für den ganzen Rechnernamen:** Browser rufen danach
+   auch `http://rs-w2019-01/Urlaubsplaner` nur noch per https auf — deshalb
+   in Schritt 3 den Urlaubsplaner über https testen.
 5. **Import-Task:** nichts zu tun (spricht nur mit SQL Server und Odoo).
-6. Später, wenn ein DNS-Name wie `kundenzentrale.<domäne>` gewünscht ist:
-   DNS-CNAME anlegen, Namen ins Zertifikat aufnehmen (neu anfordern), ins
-   Binding (Hostname) und in die Intranetzone-GPO eintragen.
+6. **Ablauf überwachen:** das neue Zertifikat in der Kundenzentrale unter
+   Server → SSL-Zertifikate eintragen (Erinnerung vor Ablauf). AD-CS-
+   Webserverzertifikate laufen meist nach 1–2 Jahren ab.
+7. **Lesezeichen/Verknüpfungen** im Team auf
+   `https://kundenzentrale.<domäne>/Kundenzentrale` umstellen.
 
 Bis Schritt 4 läuft alles wie bisher über http — der Schalter macht die
 Umstellung jederzeit rückgängig (`false` + App-Pool-Neustart).
