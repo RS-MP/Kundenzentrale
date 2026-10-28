@@ -1,0 +1,108 @@
+@inject HttpClient Http
+
+@* Odoo-Auftrag zum Kunden wählen statt die Nummer herauszusuchen: bestätigte Aufträge
+   live aus Odoo (sonst aus dem importierten Bestand), darunter freie Eingabe. *@
+<div class="vg-auftragswahl">
+    @if (_laedt)
+    {
+        <div class="hilfe">Suche Aufträge des Kunden in Odoo …</div>
+    }
+    else if (_ladeFehler is not null)
+    {
+        <div class="hilfe">@_ladeFehler</div>
+    }
+    else if (_auswahl is { } a)
+    {
+        @if (a.Hinweis is not null)
+        {
+            <div class="hilfe">@a.Hinweis</div>
+        }
+        @if (a.Auftraege.Count == 0)
+        {
+            <div class="hilfe">Keine bestätigten Aufträge zum Kunden gefunden — Nummer bitte unten eintragen.</div>
+        }
+        else
+        {
+            var liste = _alle ? a.Auftraege : a.Auftraege.Take(Anfangs).ToList();
+            <div class="vg-auftraege">
+                @foreach (var x in liste)
+                {
+                    var belegt = x.VorgangLaeuft && x.VorgangId != VorgangId;
+                    <label class="vg-auftrag @(Gewaehlt(x.Nummer) ? "an" : "") @(belegt ? "belegt" : "")"
+                           title="@(belegt ? $"Zu diesem Auftrag läuft schon der Vorgang „{x.VorgangTitel}“" : null)">
+                        <input type="radio" name="@_name" checked="@Gewaehlt(x.Nummer)" disabled="@belegt"
+                               @onchange="() => WaehlenAsync(x.Nummer)" />
+                        <span class="kopf">
+                            <span class="nr">@x.Nummer</span>
+                            @if (x.Abo) { <span class="status akzent">Abo</span> }
+                            <span class="neben">@(x.Datum is { } d ? d.ToString("dd.MM.yyyy") : "")</span>
+                        </span>
+                        @if ((x.Inhalt ?? x.Referenz) is { } text)
+                        {
+                            <span class="inhalt">@text</span>
+                        }
+                        @if (x.VorgangId is { } vid && vid != VorgangId)
+                        {
+                            <a class="vorgang" href="vorgaenge/@vid">@(x.VorgangLaeuft ? "Vorgang läuft" : "hatte schon einen Vorgang") ↗</a>
+                        }
+                    </label>
+                }
+            </div>
+            @if (a.Auftraege.Count > Anfangs)
+            {
+                <button type="button" class="textknopf" @onclick="() => _alle = !_alle">
+                    @(_alle ? "Weniger zeigen" : $"Alle {a.Auftraege.Count} zeigen")
+                </button>
+            }
+        }
+    }
+    <label class="vg-feld">@(_auswahl is { Auftraege.Count: > 0 } ? "Oder Nummer eintragen" : "Odoo-Auftragsnummer")
+        <input type="text" maxlength="30" value="@Wert" @oninput="EingabeAsync" placeholder="z. B. S01241" autocomplete="off" />
+    </label>
+</div>
+
+@code {
+    private const int Anfangs = 6;
+
+    [Parameter, EditorRequired] public int KundeId { get; set; }
+    [Parameter] public string Wert { get; set; } = "";
+    [Parameter] public EventCallback<string> WertChanged { get; set; }
+    /// <summary>Bearbeiteter Vorgang — seine eigene Nummer gilt nicht als belegt.</summary>
+    [Parameter] public int? VorgangId { get; set; }
+
+    private readonly string _name = $"odoo-{Guid.NewGuid():N}";
+    private AuftragsAuswahl? _auswahl;
+    private int? _geladenFuer;
+    private bool _laedt;
+    private bool _alle;
+    private string? _ladeFehler;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_geladenFuer == KundeId)
+            return;
+        _geladenFuer = KundeId;
+        _laedt = true;
+        _ladeFehler = null;
+        _auswahl = null;
+        _alle = false;
+        try
+        {
+            _auswahl = await Http.GetFromJsonAsync<AuftragsAuswahl>($"api/vorgaenge/auftraege?kundeId={KundeId}");
+        }
+        catch (Exception ex)
+        {
+            _ladeFehler = $"Aufträge konnten nicht geladen werden ({ex.Message}) — Nummer bitte unten eintragen.";
+        }
+        finally
+        {
+            _laedt = false;
+        }
+    }
+
+    private bool Gewaehlt(string nummer) => string.Equals(nummer, Wert.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private Task WaehlenAsync(string nummer) => WertChanged.InvokeAsync(nummer);
+
+    private Task EingabeAsync(ChangeEventArgs e) => WertChanged.InvokeAsync(e.Value?.ToString() ?? "");
+}

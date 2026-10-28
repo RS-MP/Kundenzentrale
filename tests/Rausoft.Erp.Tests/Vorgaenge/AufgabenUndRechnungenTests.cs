@@ -62,6 +62,25 @@ public class AufgabenUndRechnungenTests
     }
 
     [Fact]
+    public void AuftragsauswahlSuchtBestaetigteAuftraegeDesPartnersUndSeinerKontakte()
+    {
+        var filter = KundenAuftraege.Filter(4711);
+
+        Assert.Equal(new object[] { "partner_id", "child_of", 4711 }, (object[])filter[0]);
+        var status = (object[])filter[1];
+        Assert.Equal("state", status[0]);
+        Assert.Equal(new[] { "sale", "done" }, (string[])status[2]);
+    }
+
+    [Fact]
+    public void AuftragsinhaltZeigtDreiProdukteUndDenRestAlsZahl()
+    {
+        Assert.Null(KundenAuftraege.Inhalt([]));
+        Assert.Equal("Shared Cloud", KundenAuftraege.Inhalt(["Shared Cloud", "shared cloud ", " "]));
+        Assert.Equal("A, B, C +2", KundenAuftraege.Inhalt(["A", "B", "C", "D", "E"]));
+    }
+
+    [Fact]
     public void AutomatischesAbhakenGehtAuchBeiGesperrtemSchritt()
     {
         var vorlage = new List<VorgangstypSchritt>

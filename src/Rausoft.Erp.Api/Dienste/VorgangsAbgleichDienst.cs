@@ -39,22 +39,7 @@ public class VorgangsAbgleichDienst(
         {
             if (await VorgangsHilfen.OdooStrangAsync(db, v.KundeId, v.OdooAuftrag, ct) is not { } strang)
                 continue;
-            v.StrangSchluessel = strang.Schluessel;
-            v.StrangName = VorgangsHilfen.Kuerzen(strang.Name, 300);
-            foreach (var s in v.Schritte)
-            {
-                s.StrangSchluessel = v.StrangSchluessel;
-                s.Bezug = v.StrangName;
-            }
-            var eintraege = await db.Aktivitaeten
-                .Where(a => a.VerweisTyp == AktivitaetsVerweisTyp.Vorgang && a.VerweisId == v.Id)
-                .ToListAsync(ct);
-            foreach (var a in eintraege)
-            {
-                a.StrangSchluessel = v.StrangSchluessel;
-                a.StrangName = v.StrangName;
-                a.Bezug = v.StrangName;
-            }
+            await VorgangsProtokoll.StrangSetzenAsync(db, v, strang.Schluessel, strang.Name, ct);
             VorgangsProtokoll.Verlauf(db, v, null, $"Mit dem Odoo-Verlauf verknüpft: {v.StrangName}");
             anzahl++;
         }

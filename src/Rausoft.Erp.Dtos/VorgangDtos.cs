@@ -118,6 +118,27 @@ public record SchrittZuweisen(int? ZustaendigId);
 
 public record HinweisSetzen(string? Text);
 
+/// <summary>Odoo-Auftrag nachträglich eintragen, ändern oder entfernen (null).</summary>
+public record OdooAuftragSetzen(string? Nummer);
+
+/// <summary>
+/// Auswahl der Odoo-Aufträge eines Kunden. Quelle "odoo" = live abgefragt; "bestand" =
+/// Odoo nicht erreichbar, Auswahl aus importierten Abos und dem Odoo-Verlauf der Akte.
+/// </summary>
+public record AuftragsAuswahl(List<AuftragsVorschlag> Auftraege, string Quelle, string? Hinweis);
+
+public record AuftragsVorschlag(
+    string Nummer,
+    DateOnly? Datum,
+    bool Abo,
+    /// <summary>Gebuchte Produkte zum Wiedererkennen, gekürzt.</summary>
+    string? Inhalt,
+    string? Referenz,
+    /// <summary>Vorgang zu dieser Nummer, falls es schon einen gibt (laufender bevorzugt).</summary>
+    int? VorgangId,
+    string? VorgangTitel,
+    bool VorgangLaeuft);
+
 // --- Vorgangstypen (Vorlagen) ------------------------------------------------
 
 public record VorgangstypenUebersicht(

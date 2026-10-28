@@ -18,6 +18,7 @@
             <div class="meta">
                 @v.Typ
                 @if (v.OdooAuftrag is not null) { <span class="trenn">·</span><span>Odoo @v.OdooAuftrag</span> }
+                else if (v.AbgeschlossenAm is null) { <span class="trenn">·</span><button class="textknopf" @onclick="OdooOeffnen">Odoo-Auftrag eintragen</button> }
                 <span class="trenn">·</span>gestartet @VorgangAnzeige.Datum(v.Start)
                 <span class="trenn">·</span><a href="kunden/@v.KundeId">Kundenakte</a>
             </div>
@@ -228,7 +229,26 @@
                 <div class="karte-koerper">
                     <div class="vg-fakt"><span class="l">Kunde</span><span class="r"><a href="kunden/@v.KundeId">@v.Kunde</a> · @v.Kundennummer</span></div>
                     <div class="vg-fakt"><span class="l">Vorgangstyp</span><span class="r">@v.Typ (Stand @v.TypStand)</span></div>
-                    <div class="vg-fakt"><span class="l">Odoo-Auftrag</span><span class="r">@(v.OdooAuftrag ?? "—")</span></div>
+                    <div class="vg-fakt">
+                        <span class="l">Odoo-Auftrag</span>
+                        <span class="r">
+                            @(v.OdooAuftrag ?? "—")
+                            @if (!_odooBearbeiten)
+                            {
+                                <button class="textknopf" @onclick="OdooOeffnen">@(v.OdooAuftrag is null ? "eintragen" : "ändern")</button>
+                            }
+                        </span>
+                    </div>
+                    @if (_odooBearbeiten)
+                    {
+                        <div class="vg-odoo-bearbeiten">
+                            <OdooAuftragAuswahl KundeId="v.KundeId" VorgangId="v.Id" @bind-Wert="_odooWert" />
+                            <div style="display:flex; gap:8px; margin-top:8px">
+                                <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="OdooSpeichernAsync">Speichern</button>
+                                <button class="knopf sekundaer klein" @onclick="() => _odooBearbeiten = false">Abbrechen</button>
+                            </div>
+                        </div>
+                    }
                     <div class="vg-fakt"><span class="l">Gestartet</span><span class="r">@VorgangAnzeige.Datum(v.Start)</span></div>
                     <div class="vg-fakt"><span class="l">Angelegt</span><span class="r">@v.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm")@(v.ErstelltVon is not null ? $" von {v.ErstelltVon}" : "")</span></div>
                     @if (v.AbgeschlossenAm is { } ab)
@@ -278,6 +298,9 @@ else if (_fehler is null)
 
     private bool _hinweisBearbeiten;
     private string _hinweisText = "";
+
+    private bool _odooBearbeiten;
+    private string _odooWert = "";
 
     private (int Id, string Art)? _form;
     private string _formText = "";
@@ -350,6 +373,16 @@ else if (_fehler is null)
         _neuFrist = 3;
         _neuWartet = 0;
     }
+
+    private void OdooOeffnen()
+    {
+        _odooWert = _v?.OdooAuftrag ?? "";
+        _odooBearbeiten = true;
+    }
+
+    private Task OdooSpeichernAsync() => SendenAsync(
+        () => Http.PutAsJsonAsync($"api/vorgaenge/{Id}/odoo", new OdooAuftragSetzen(string.IsNullOrWhiteSpace(_odooWert) ? null : _odooWert)),
+        () => _odooBearbeiten = false);
 
     private Task HinweisSpeichernAsync() => SendenAsync(
         () => Http.PutAsJsonAsync($"api/vorgaenge/{Id}/hinweis", new HinweisSetzen(_hinweisText)),

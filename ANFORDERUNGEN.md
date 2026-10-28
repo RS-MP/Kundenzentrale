@@ -305,6 +305,13 @@ Erste Ausbaustufe in der App (Navigation „Vorgänge"):
   sobald Odoo eine gebuchte Ausgangsrechnung mit der Auftragsnummer in der Herkunft
   (invoice_origin) hat — exakt über die Nummer, nicht über den Strang, damit
   Abo-Rechnungen derselben Verkaufschance nicht fälschlich abhaken.
+- **Auftragsauswahl (28.10.2026, Wunsch aus dem ersten Test):** Beim Anlegen und im
+  Vorgang („eintragen"/„ändern") werden die bestätigten Odoo-Aufträge des Kunden
+  zur Auswahl angezeigt (live aus Odoo über den Firmenpartner und seine Kontakte,
+  neueste 20, mit Datum, Abo-Kennzeichen und gebuchten Produkten, ohne Preise);
+  ist Odoo nicht erreichbar, aus importierten Abos und dem Odoo-Verlauf der Akte.
+  Nummern mit laufendem Vorgang sind gesperrt und verlinkt; freie Eingabe bleibt.
+  Nachträglich eingetragene Nummern ziehen Titel und Verlaufsstrang mit.
 - **Noch offen:** Benachrichtigung bei Weitergabe (Einstellung wird gespeichert,
   Versand fehlt); Abhaken bei „Vertrag unterschrieben" (das Vertragsmodul kennt
   diesen Status noch nicht); Ausbaustufe „Bestätigte Odoo-Aufträge ohne Vorgang".

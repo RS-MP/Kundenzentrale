@@ -38,7 +38,7 @@ else
                 {
                     <div style="margin-bottom:16px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap">
                         <b>@k.Name</b><span class="neben">@k.Nummer</span>
-                        <button class="textknopf" @onclick="() => _kunde = null">ändern</button>
+                        <button class="textknopf" @onclick="KundeAendern">ändern</button>
                     </div>
                 }
                 else
@@ -61,6 +61,14 @@ else
                         {
                             <span class="hilfe">Kein Kunde gefunden.</span>
                         }
+                    </div>
+                }
+
+                @if (_kunde is { } kw)
+                {
+                    <div class="vg-abschnitt">Odoo-Auftrag</div>
+                    <div style="margin-bottom:16px">
+                        <OdooAuftragAuswahl KundeId="kw.Id" @bind-Wert="_odoo" />
                     </div>
                 }
 
@@ -90,10 +98,6 @@ else
                 }
 
                 <div class="vg-feldgruppe">
-                    <label class="vg-feld">Odoo-Auftragsnummer
-                        <input type="text" maxlength="30" @bind="_odoo" placeholder="z. B. S01241" />
-                        <span class="hilfe">Verbindet den Vorgang mit dem Odoo-Verlauf in der Akte.</span>
-                    </label>
                     <label class="vg-feld">Start
                         <input type="date" @bind="_start" />
                         <span class="hilfe">Ab hier laufen die Fristen.</span>
@@ -272,6 +276,12 @@ else
         _kunde = new KundeWahl(id, name, nummer);
         _suche = "";
         _treffer = null;
+    }
+
+    private void KundeAendern()
+    {
+        _kunde = null;
+        _odoo = "";
     }
 
     private async Task TypWaehlenAsync(int id)

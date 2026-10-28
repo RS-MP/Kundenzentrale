@@ -7,6 +7,7 @@ using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Domain.Vorgaenge;
 using Rausoft.Erp.Dtos;
 using Rausoft.Erp.Api.Dienste;
+using Rausoft.Erp.OdooImport;
 using static Rausoft.Erp.Api.Dienste.VorgangsHilfen;
 
 namespace Rausoft.Erp.Api.Controllers;
@@ -239,6 +240,134 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             text.AppendLine($"Schritt von Hand hinzugefügt: {s.Titel}");
         text.Append($"Vorlage „{typ.Name}“, Stand {typ.Stand}");
         return text.ToString();
+    }
+
+    // --- Odoo-Auftrag ----------------------------------------------------------------
+
+    /// <summary>
+    /// Bestätigte Odoo-Aufträge des Kunden zur Auswahl — live aus Odoo; ist Odoo nicht
+    /// eingerichtet oder nicht erreichbar, aus den importierten Abos und dem Odoo-Verlauf der Akte.
+    /// </summary>
+    [HttpGet("auftraege")]
+    public async Task<ActionResult<AuftragsAuswahl>> Auftraege(
+        [FromQuery] int kundeId,
+        [FromServices] IServiceScopeFactory scopeFactory, [FromServices] IConfiguration konfiguration,
+        [FromServices] ILogger<VorgaengeController> log, CancellationToken ct)
+    {
+        var kunde = await db.Kunden.AsNoTracking().Where(k => k.Id == kundeId)
+            .Select(k => new { k.Id, k.OdooId }).FirstOrDefaultAsync(ct);
+        if (kunde is null)
+            return NotFound();
+
+        List<AuftragsVorschlag> vorschlaege;
+        string quelle = "odoo";
+        string? hinweis = null;
+        try
+        {
+            if (kunde.OdooId is not { } partner)
+                throw new KeinOdooPartnerException();
+            var (odoo, _) = await OdooImportDienst.VerbindenAsync(scopeFactory, konfiguration);
+            var auftraege = await KundenAuftraege.LadenAsync(odoo, partner).WaitAsync(TimeSpan.FromSeconds(15), ct);
+            vorschlaege = auftraege
+                .Select(a => Vorschlag(a.Nummer, a.Datum, a.Abo, KundenAuftraege.Inhalt(a.Produkte), a.Referenz))
+                .ToList();
+        }
+        catch (Exception ex) when (ex is KeinOdooPartnerException or HttpRequestException or InvalidOperationException or TimeoutException)
+        {
+            if (ex is not KeinOdooPartnerException)
+                log.LogWarning(ex, "Auftragsauswahl: Odoo nicht erreichbar");
+            quelle = "bestand";
+            hinweis = ex switch
+            {
+                KeinOdooPartnerException => "Der Kunde ist nicht mit Odoo verknüpft — Auswahl aus dem importierten Bestand.",
+                InvalidOperationException e when e.Message.StartsWith("Odoo-Zugangsdaten unvollständig") =>
+                    "Odoo ist nicht eingerichtet — Auswahl aus dem importierten Bestand.",
+                _ => "Odoo ist gerade nicht erreichbar — Auswahl aus dem importierten Bestand, ganz neue Aufträge fehlen evtl.",
+            };
+            vorschlaege = await BestandsAuftraegeAsync(kunde.Id, ct);
+        }
+
+        // Schon vergebene Nummern kennzeichnen (laufender Vorgang vor abgeschlossenem)
+        var nummern = vorschlaege.Select(v => v.Nummer).ToList();
+        var vergeben = (await db.Vorgaenge.AsNoTracking()
+                .Where(v => v.OdooAuftrag != null && nummern.Contains(v.OdooAuftrag))
+                .Select(v => new { v.Id, v.Titel, v.OdooAuftrag, Laeuft = v.AbgeschlossenAm == null })
+                .ToListAsync(ct))
+            .GroupBy(v => v.OdooAuftrag!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(v => v.Laeuft).ThenByDescending(v => v.Id).First(),
+                StringComparer.OrdinalIgnoreCase);
+        vorschlaege = vorschlaege
+            .Select(v => vergeben.TryGetValue(v.Nummer, out var x) ? v with { VorgangId = x.Id, VorgangTitel = x.Titel, VorgangLaeuft = x.Laeuft } : v)
+            .ToList();
+        return new AuftragsAuswahl(vorschlaege, quelle, hinweis);
+    }
+
+    private sealed class KeinOdooPartnerException : Exception;
+
+    private static AuftragsVorschlag Vorschlag(string nummer, DateOnly? datum, bool abo, string? inhalt, string? referenz) =>
+        new(nummer.ToUpperInvariant(), datum, abo, inhalt is null ? null : Kuerzen(inhalt, 160), referenz is null ? null : Kuerzen(referenz, 80),
+            null, null, false);
+
+    /// <summary>Ohne Odoo: importierte Abos und bestätigte Aufträge aus dem Odoo-Verlauf der Akte.</summary>
+    private async Task<List<AuftragsVorschlag>> BestandsAuftraegeAsync(int kundeId, CancellationToken ct)
+    {
+        var abos = await db.Abos.AsNoTracking().Where(a => a.KundeId == kundeId)
+            .Select(a => new { a.Nummer, a.Beginn, Produkte = a.Positionen.Select(p => p.Produkt).ToList() })
+            .ToListAsync(ct);
+        const string praefix = "Auftrag ";
+        var ausVerlauf = await db.Aktivitaeten.AsNoTracking()
+            .Where(a => a.KundeId == kundeId && a.OdooModell == "sale.order" && a.Bezug != null && a.Bezug.StartsWith(praefix))
+            .GroupBy(a => a.Bezug!)
+            .Select(g => new { Bezug = g.Key, Datum = g.Min(a => a.Zeitpunkt) })
+            .ToListAsync(ct);
+
+        var liste = abos.Select(a => Vorschlag(a.Nummer, a.Beginn, true, KundenAuftraege.Inhalt(a.Produkte), null)).ToList();
+        foreach (var a in ausVerlauf)
+        {
+            var nummer = a.Bezug[praefix.Length..].Trim();
+            if (OdooNummerPruefen(nummer, out var n) && n is not null && !liste.Any(x => x.Nummer == n))
+                liste.Add(Vorschlag(n, DateOnly.FromDateTime(a.Datum.ToLocalTime()), false, null, null));
+        }
+        return liste.OrderByDescending(v => v.Datum ?? DateOnly.MinValue).Take(KundenAuftraege.MaxAuftraege).ToList();
+    }
+
+    /// <summary>Odoo-Auftrag nachträglich eintragen oder korrigieren; Titel und Verlaufsstrang ziehen mit.</summary>
+    [HttpPut("{id:int}/odoo")]
+    public async Task<IActionResult> OdooAuftragSetzen(int id, OdooAuftragSetzen setzen, CancellationToken ct)
+    {
+        var v = await db.Vorgaenge.Include(x => x.Vorgangstyp).Include(x => x.Schritte).FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (v is null)
+            return NotFound();
+        if (!OdooNummerPruefen(setzen.Nummer, out var neu))
+            return BadRequest("Die Odoo-Auftragsnummer darf nur Buchstaben, Ziffern, „/“ und „-“ enthalten (höchstens 30 Zeichen), z. B. S01241.");
+        var alt = v.OdooAuftrag;
+        if (neu == alt)
+            return NoContent();
+        if (neu is not null)
+        {
+            var laufend = await db.Vorgaenge.AsNoTracking()
+                .Where(x => x.Id != id && x.OdooAuftrag == neu && x.AbgeschlossenAm == null)
+                .Select(x => new { x.Titel }).FirstOrDefaultAsync(ct);
+            if (laufend is not null)
+                return BadRequest($"Zum Auftrag {neu} läuft schon der Vorgang „{laufend.Titel}“.");
+        }
+
+        var ich = await IchAsync(db, benutzer, ct);
+        v.OdooAuftrag = neu;
+        // Automatisch vergebenen Titel nachziehen, von Hand geänderte Titel bleiben
+        var typName = v.Vorgangstyp!.Name;
+        if (v.Titel == Kuerzen(alt is null ? typName : $"{typName} {alt}", 200))
+            v.Titel = Kuerzen(neu is null ? typName : $"{typName} {neu}", 200);
+        // Strang: Odoo-Verlauf des Auftrags, sonst eigener Strang des Vorgangs
+        var (schluessel, name) = await OdooStrangAsync(v.KundeId, neu, ct) ?? ($"vorgang:{v.Id}", v.Titel);
+        if (schluessel != v.StrangSchluessel || (schluessel.StartsWith("vorgang:") && name != v.StrangName))
+            await VorgangsProtokoll.StrangSetzenAsync(db, v, schluessel, name, ct);
+
+        Verlauf(v, ich,
+            neu is null ? "Odoo-Auftrag entfernt" : alt is null ? $"Odoo-Auftrag eingetragen: {neu}" : $"Odoo-Auftrag geändert: {neu}",
+            alt is null ? null : $"Bisher: {alt}", AktivitaetsStufe.Wesentlich);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     // --- Hinweis und Schritte am laufenden Vorgang ---------------------------------

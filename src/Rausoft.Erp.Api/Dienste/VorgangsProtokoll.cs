@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Rausoft.Erp.Data;
 using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Domain.Vorgaenge;
@@ -42,6 +43,30 @@ public static class VorgangsProtokoll
     {
         foreach (var f in freigegeben)
             Verlauf(db, v, ich, $"Jetzt dran ({f.ZustaendigBereich?.Name ?? "Pool"}): {f.Titel}");
+    }
+
+    /// <summary>
+    /// Vorgang in einen anderen Verlaufsstrang hängen: Schritte und alle bisherigen
+    /// Einträge des Vorgangs ziehen mit (Odoo-Verlauf des Auftrags oder eigener Strang).
+    /// </summary>
+    public static async Task StrangSetzenAsync(ErpDbContext db, Vorgang v, string schluessel, string name, CancellationToken ct)
+    {
+        v.StrangSchluessel = schluessel;
+        v.StrangName = VorgangsHilfen.Kuerzen(name, 300);
+        foreach (var s in v.Schritte)
+        {
+            s.StrangSchluessel = v.StrangSchluessel;
+            s.Bezug = v.StrangName;
+        }
+        var eintraege = await db.Aktivitaeten
+            .Where(a => a.VerweisTyp == AktivitaetsVerweisTyp.Vorgang && a.VerweisId == v.Id)
+            .ToListAsync(ct);
+        foreach (var a in eintraege)
+        {
+            a.StrangSchluessel = v.StrangSchluessel;
+            a.StrangName = v.StrangName;
+            a.Bezug = v.StrangName;
+        }
     }
 
     public static void Abschluss(ErpDbContext db, Vorgang v, int? ich)
