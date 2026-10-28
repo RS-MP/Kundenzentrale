@@ -72,6 +72,14 @@ public class ChatterImportDienst(
                 case ModusImport:
                     await new ChatterImporter(odoo, dryRun: false, nurKunde: kunde, anhaengeLaden: anhaengeLaden,
                         verbindung: verbindung, ausgabe: aus).AusfuehrenAsync();
+                    // Neu importierter Odoo-Verlauf: Vorgänge mit Auftragsnummer an ihren Strang hängen
+                    using (var scope = scopeFactory.CreateScope())
+                    {
+                        var abgleich = await scope.ServiceProvider.GetRequiredService<VorgangsAbgleichDienst>()
+                            .AbgleichenAsync(CancellationToken.None);
+                        aus.WriteLine($"Vorgänge: {abgleich.StraengeVerknuepft} mit dem Odoo-Verlauf verknüpft, " +
+                                      $"{abgleich.SchritteAbgehakt} Rechnungsschritt(e) abgehakt.{(abgleich.Hinweis is { } h ? " " + h : "")}");
+                    }
                     break;
                 default:
                     throw new InvalidOperationException($"Unbekannter Modus '{modus}'.");

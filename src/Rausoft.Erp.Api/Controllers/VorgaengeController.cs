@@ -6,6 +6,7 @@ using Rausoft.Erp.Data;
 using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Domain.Vorgaenge;
 using Rausoft.Erp.Dtos;
+using Rausoft.Erp.Api.Dienste;
 using static Rausoft.Erp.Api.Dienste.VorgangsHilfen;
 
 namespace Rausoft.Erp.Api.Controllers;
@@ -82,6 +83,12 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             await DarfTypenPflegenAsync(db, ich, ct)));
     }
 
+    /// <summary>Abgleich mit Odoo auf Knopfdruck (läuft sonst stündlich): Strang nachziehen, Rechnungen abhaken.</summary>
+    [HttpPost("abgleich")]
+    public async Task<ActionResult<VorgangsAbgleichErgebnis>> Abgleichen(
+        [FromServices] VorgangsAbgleichDienst abgleich, CancellationToken ct) =>
+        Ok(await abgleich.AbgleichenAsync(ct));
+
     // --- Einzelansicht -------------------------------------------------------------
 
     [HttpGet("{id:int}")]
@@ -105,7 +112,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             .Where(a => a.VerweisTyp == AktivitaetsVerweisTyp.Vorgang && a.VerweisId == id)
             .OrderByDescending(a => a.Zeitpunkt).ThenByDescending(a => a.Id)
             .Take(200)
-            .Select(a => new VorgangVerlaufEintrag(a.Zeitpunkt, a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : null, a.Betreff, a.Inhalt))
+            .Select(a => new VorgangVerlaufEintrag(a.Zeitpunkt, a.Mitarbeiter != null ? a.Mitarbeiter.Anzeigename : a.AutorName, a.Betreff, a.Inhalt))
             .ToListAsync(ct);
         var mitarbeiter = await db.Mitarbeiter.AsNoTracking().Where(m => m.Aktiv).OrderBy(m => m.Anzeigename)
             .Select(m => new AuswahlEintrag(m.Id, m.Anzeigename, m.Bereich != null ? m.Bereich.Name : null)).ToListAsync(ct);
@@ -510,59 +517,15 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
     [GeneratedRegex("^[A-Z0-9/-]{1,30}$")]
     private static partial Regex OdooNummerMuster();
 
-    /// <summary>
-    /// Strang des importierten Odoo-Verlaufs zum Auftrag (z. B. „Verkauf S01194") —
-    /// so liegen Mails, Odoo-Aktivitäten und die Schritte in der Akte in einem Strang.
-    /// </summary>
-    private async Task<(string Schluessel, string Name)?> OdooStrangAsync(int kundeId, string? auftrag, CancellationToken ct)
-    {
-        if (auftrag is null)
-            return null;
-        string[] bezuege = [$"Auftrag {auftrag}", $"Angebot {auftrag}"];
-        var treffer = await db.Aktivitaeten.AsNoTracking()
-            .Where(a => a.KundeId == kundeId && a.OdooModell == "sale.order" && a.StrangSchluessel != null
-                        && a.Bezug != null && bezuege.Contains(a.Bezug))
-            .OrderByDescending(a => a.Zeitpunkt)
-            .Select(a => new { a.StrangSchluessel, a.StrangName })
-            .FirstOrDefaultAsync(ct);
-        return treffer is null ? null : (treffer.StrangSchluessel!, treffer.StrangName ?? $"Verkauf {auftrag}");
-    }
+    private Task<(string Schluessel, string Name)?> OdooStrangAsync(int kundeId, string? auftrag, CancellationToken ct) =>
+        VorgangsHilfen.OdooStrangAsync(db, kundeId, auftrag, ct);
 
-    /// <summary>Verlaufseintrag beim Kunden, im Strang des Vorgangs und mit Verweis auf ihn.</summary>
     private void Verlauf(Vorgang v, int? ich, string betreff, string? inhalt = null,
-        AktivitaetsStufe stufe = AktivitaetsStufe.Systemmeldung, AktivitaetsTyp typ = AktivitaetsTyp.Aufgabe)
-    {
-        var eintrag = new Aktivitaet
-        {
-            KundeId = v.KundeId,
-            Typ = typ,
-            Zeitpunkt = DateTime.UtcNow,
-            MitarbeiterId = ich,
-            Richtung = AktivitaetsRichtung.Intern,
-            Betreff = Kuerzen(betreff, 300),
-            Inhalt = inhalt,
-            VerweisTyp = AktivitaetsVerweisTyp.Vorgang,
-            VerweisId = v.Id,
-            StrangSchluessel = v.StrangSchluessel,
-            StrangName = v.StrangName,
-            Bezug = v.StrangName,
-            Stufe = stufe,
-        };
-        if (ich is not null)
-            eintrag.Teilnehmer.Add(new AktivitaetTeilnehmer { Seite = TeilnehmerSeite.Rausoft, MitarbeiterId = ich });
-        db.Aktivitaeten.Add(eintrag);
-    }
+        AktivitaetsStufe stufe = AktivitaetsStufe.Systemmeldung, AktivitaetsTyp typ = AktivitaetsTyp.Aufgabe) =>
+        VorgangsProtokoll.Verlauf(db, v, ich, betreff, inhalt, stufe, typ);
 
-    /// <summary>Weitergabe: Schritte, die jetzt in den Pool ihres Bereichs kommen.</summary>
-    private void Freigabe(Vorgang v, int? ich, List<Aufgabe> freigegeben)
-    {
-        foreach (var f in freigegeben)
-            Verlauf(v, ich, $"Jetzt dran ({f.ZustaendigBereich?.Name ?? "Pool"}): {f.Titel}");
-    }
+    private void Freigabe(Vorgang v, int? ich, List<Aufgabe> freigegeben) =>
+        VorgangsProtokoll.Freigabe(db, v, ich, freigegeben);
 
-    private void Abschluss(Vorgang v, int? ich)
-    {
-        if (VorgangsLogik.AbschlussAktualisieren(v, Heute, DateTime.UtcNow))
-            Verlauf(v, ich, $"Vorgang abgeschlossen: {v.Titel}", null, AktivitaetsStufe.Meilenstein);
-    }
+    private void Abschluss(Vorgang v, int? ich) => VorgangsProtokoll.Abschluss(db, v, ich);
 }

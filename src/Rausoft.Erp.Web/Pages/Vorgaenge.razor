@@ -8,6 +8,10 @@
     <h1>Vorgänge</h1>
     <span class="untertitel">Bestellungen und ihre Schritte je Bereich — hängende zuerst</span>
     <span style="flex:1"></span>
+    <button class="knopf sekundaer" disabled="@_gleichtAb" @onclick="AbgleichenAsync"
+            title="Verknüpft Vorgänge mit dem importierten Odoo-Verlauf und hakt „Rechnung in Odoo stellen“ ab, sobald die Rechnung gebucht ist. Läuft sonst stündlich.">
+        @(_gleichtAb ? "Gleicht ab …" : "Mit Odoo abgleichen")
+    </button>
     <a class="knopf sekundaer" href="vorgaenge/typen">Vorgangstypen</a>
     <a class="knopf" href="vorgaenge/neu">+ Vorgang anlegen</a>
 </div>
@@ -15,6 +19,10 @@
 @if (_fehler is not null)
 {
     <div class="fehler">@_fehler</div>
+}
+@if (_abgleich is not null)
+{
+    <div class="zert-hinweis" style="margin-bottom:14px">@_abgleich</div>
 }
 
 @if (_daten is null)
@@ -149,6 +157,39 @@ else
         catch (Exception ex)
         {
             _fehler = $"Vorgänge konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private bool _gleichtAb;
+    private string? _abgleich;
+
+    private async Task AbgleichenAsync()
+    {
+        _gleichtAb = true;
+        _abgleich = null;
+        try
+        {
+            var antwort = await Http.PostAsync("api/vorgaenge/abgleich", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            var e = await antwort.Content.ReadFromJsonAsync<VorgangsAbgleichErgebnis>();
+            _abgleich = e is null ? null
+                : $"Abgleich fertig: {e.StraengeVerknuepft} {(e.StraengeVerknuepft == 1 ? "Vorgang" : "Vorgänge")} mit dem Odoo-Verlauf verknüpft, " +
+                  $"{e.SchritteAbgehakt} {(e.SchritteAbgehakt == 1 ? "Rechnungsschritt" : "Rechnungsschritte")} abgehakt." +
+                  (e.Hinweis is { } h ? $" {h}" : "");
+            await LadenAsync();
+            AufgabenSignal.Melden();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Abgleich fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _gleichtAb = false;
         }
     }
 

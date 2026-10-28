@@ -175,10 +175,15 @@ public static class VorgangsLogik
         return FristenSetzen(alle, heute);
     }
 
-    /// <summary>Erledigt einen Schritt und liefert die Schritte, die dadurch in ihren Pool kommen.</summary>
-    public static List<Aufgabe> Erledigen(Aufgabe schritt, IReadOnlyCollection<Aufgabe> alle, DateOnly heute, DateTime jetzt, int? von)
+    /// <summary>
+    /// Erledigt einen Schritt und liefert die Schritte, die dadurch in ihren Pool kommen.
+    /// <paramref name="trotzSperre"/>: für das automatische Abhaken — ist die Rechnung in Odoo
+    /// gebucht, ist der Schritt erledigt, auch wenn sein Vorgänger noch offen ist.
+    /// </summary>
+    public static List<Aufgabe> Erledigen(Aufgabe schritt, IReadOnlyCollection<Aufgabe> alle, DateOnly heute, DateTime jetzt, int? von,
+        bool trotzSperre = false)
     {
-        if (Gesperrt(schritt))
+        if (!trotzSperre && Gesperrt(schritt))
             throw new InvalidOperationException("Der Schritt wartet noch auf einen anderen Schritt.");
         schritt.Status = AufgabenStatus.Erledigt;
         schritt.ErledigtAm = jetzt;

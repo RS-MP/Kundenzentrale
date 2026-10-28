@@ -701,6 +701,7 @@
         if (!antwort.IsSuccessStatusCode)
             _fehler = await antwort.Content.ReadAsStringAsync();
         await AllesLadenAsync();
+        AufgabenSignal.Melden();
     }
 
     private async Task VereinbarungErledigtAsync(VereinbarungEintrag v)

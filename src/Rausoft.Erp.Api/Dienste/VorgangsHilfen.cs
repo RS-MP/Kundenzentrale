@@ -60,5 +60,24 @@ public static class VorgangsHilfen
         _ => "offen",
     };
 
+    /// <summary>
+    /// Strang des importierten Odoo-Verlaufs zum Auftrag (z. B. „Verkauf S01194") —
+    /// so liegen Mails, Odoo-Aktivitäten und die Schritte in der Akte in einem Strang.
+    /// </summary>
+    public static async Task<(string Schluessel, string Name)?> OdooStrangAsync(
+        ErpDbContext db, int kundeId, string? auftrag, CancellationToken ct)
+    {
+        if (auftrag is null)
+            return null;
+        string[] bezuege = [$"Auftrag {auftrag}", $"Angebot {auftrag}"];
+        var treffer = await db.Aktivitaeten.AsNoTracking()
+            .Where(a => a.KundeId == kundeId && a.OdooModell == "sale.order" && a.StrangSchluessel != null
+                        && a.Bezug != null && bezuege.Contains(a.Bezug))
+            .OrderByDescending(a => a.Zeitpunkt)
+            .Select(a => new { a.StrangSchluessel, a.StrangName })
+            .FirstOrDefaultAsync(ct);
+        return treffer is null ? null : (treffer.StrangSchluessel!, treffer.StrangName ?? $"Verkauf {auftrag}");
+    }
+
     public static string Kuerzen(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
 }

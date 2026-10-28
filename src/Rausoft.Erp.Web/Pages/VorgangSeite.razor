@@ -93,7 +93,7 @@
                         </div>
                         @if (s.AutoAbhaken != "Nie" && s.Status is not ("erledigt" or "entfallen"))
                         {
-                            <div class="s-auto">Hakt sich ab, sobald @VorgangAnzeige.AutoText(s.AutoAbhaken) — bis dahin von Hand.</div>
+                            <div class="s-auto">@VorgangAnzeige.AutoHinweis(s.AutoAbhaken, v.OdooAuftrag is not null)</div>
                         }
                         @if (s.Pflichtfeld is not null && s.PflichtfeldWert is not null)
                         {
@@ -402,6 +402,7 @@ else if (_fehler is null)
                 _form = null;
                 danach?.Invoke();
                 await LadenAsync();
+                AufgabenSignal.Melden();
             }
             else
             {

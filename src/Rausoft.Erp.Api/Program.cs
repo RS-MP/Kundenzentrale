@@ -102,6 +102,9 @@ builder.Services.AddHostedService<ServerStatusHintergrund>();
 builder.Services.AddScoped<MailDienst>();
 builder.Services.AddScoped<ZertifikatDienst>();
 builder.Services.AddHostedService<ZertifikatHintergrund>();
+// Vorgänge: Odoo-Strang nachziehen, „Rechnung in Odoo stellen" abhaken (stündlich, nur lesend)
+builder.Services.AddScoped<VorgangsAbgleichDienst>();
+builder.Services.AddHostedService<VorgangsAbgleichHintergrund>();
 
 builder.Services.AddControllers().AddJsonOptions(options =>
     // Übergangslösung bis zur DTO-Schicht: Navigations-Zyklen (Kunde ↔ Ansprechpartner) kappen

@@ -7,6 +7,15 @@
     <aside class="seitennav">
         <div class="marke"><span class="firma">rausoft</span> Kundenzentrale</div>
         <nav class="seitennav-links">
+            <NavLink href="aufgaben">
+                <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5.3 8.2l1.9 1.9 3.6-3.9"/></svg>
+                Meine Aufgaben
+                @if (_aufgaben is { FaelligBisHeute: > 0 } az)
+                {
+                    <span class="abzeichen @(az.Ueberfaellig > 0 ? "kritisch" : "")"
+                          title="@(az.FaelligBisHeute) bis heute fällig@(az.Ueberfaellig > 0 ? $", davon {az.Ueberfaellig} überfällig" : "") — bei Ihnen oder im Pool Ihres Bereichs">@az.FaelligBisHeute</span>
+                }
+            </NavLink>
             <NavLink href="kunden">
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c.7-2.6 2.8-4 5.2-4s4.5 1.4 5.2 4"/></svg>
                 Kunden
@@ -72,10 +81,30 @@
     protected override async Task OnInitializedAsync()
     {
         WikiHinweisSignal.Geaendert += WikiHinweiseNachladen;
+        AufgabenSignal.Geaendert += AufgabenNachladen;
         await WikiHinweiseLadenAsync();
+        await AufgabenLadenAsync();
     }
 
-    public void Dispose() => WikiHinweisSignal.Geaendert -= WikiHinweiseNachladen;
+    public void Dispose()
+    {
+        WikiHinweisSignal.Geaendert -= WikiHinweiseNachladen;
+        AufgabenSignal.Geaendert -= AufgabenNachladen;
+    }
+
+    private AufgabenZaehler? _aufgaben;
+
+    private void AufgabenNachladen() => _ = InvokeAsync(async () =>
+    {
+        await AufgabenLadenAsync();
+        StateHasChanged();
+    });
+
+    private async Task AufgabenLadenAsync()
+    {
+        try { _aufgaben = await Http.GetFromJsonAsync<AufgabenZaehler>("api/aufgaben/zaehler"); }
+        catch { _aufgaben = null; /* Navigation bleibt ohne Abzeichen nutzbar */ }
+    }
 
     private void WikiHinweiseNachladen() => _ = InvokeAsync(async () =>
     {

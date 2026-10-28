@@ -1,0 +1,216 @@
+@page "/aufgaben"
+@inject HttpClient Http
+
+<PageTitle>Meine Aufgaben · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Meine Aufgaben</h1>
+    <span class="untertitel">Was bei Ihnen liegt und was im Pool Ihres Bereichs auf jemanden wartet</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (_daten is { } d)
+{
+    <div class="werkzeugleiste">
+        <span class="seg" style="margin-left:0">
+            <button class="@(_sicht == "meine" ? "an" : "")" @onclick='() => SichtAsync("meine")'>Meine &amp; Pool</button>
+            <button class="@(_sicht == "bereich" ? "an" : "")" @onclick='() => SichtAsync("bereich")'>Ganzer Bereich</button>
+        </span>
+        <label class="vg-schalter">Bereich
+            <select value="@(d.BereichId ?? 0)" @onchange="BereichAsync">
+                <option value="0">— keiner —</option>
+                @foreach (var b in d.Bereiche)
+                {
+                    <option value="@b.Id">@b.Name@(b.Id == d.MeinBereichId ? " (mein Bereich)" : "")</option>
+                }
+            </select>
+        </label>
+        <span style="flex:1"></span>
+        <span class="neben">@d.Aufgaben.Count @(d.Aufgaben.Count == 1 ? "Aufgabe" : "Aufgaben")</span>
+    </div>
+
+    @if (d.MeinBereichId is null && _bereichId is null)
+    {
+        <div class="zert-warnung">
+            Ihnen ist noch kein Bereich zugeordnet — deshalb sehen Sie keinen Pool. Ein Admin trägt den Bereich unter
+            Administration → Benutzer &amp; Rollen ein. Bis dahin können Sie oben einen Bereich wählen.
+        </div>
+    }
+
+    @if (d.Aufgaben.Count == 0)
+    {
+        <div class="karte"><div class="leer-hinweis">
+            @(_sicht == "meine" ? "Nichts offen — weder bei Ihnen noch unbesetzt im Pool." : "Im Bereich ist nichts offen.")
+        </div></div>
+    }
+    @foreach (var (gruppe, titel) in Gruppen)
+    {
+        var liste = d.Aufgaben.Where(a => a.Gruppe == gruppe).ToList();
+        if (liste.Count == 0)
+            continue;
+        <div class="karte ma-gruppe">
+            <div class="karte-kopf">
+                <h2 class="@(gruppe == "ueberfaellig" ? "krittext" : "")">@titel</h2>
+                <span class="neben">@liste.Count</span>
+            </div>
+            @foreach (var a in liste)
+            {
+                <div class="ma-zeile">
+                    <div class="ma-datum @(gruppe == "ueberfaellig" ? "krittext" : gruppe == "wartet" ? "warntext" : "")">
+                        @if (a.Faellig is { } f)
+                        {
+                            <div>@f.ToString("dd.MM.")</div>
+                            <div class="neben">@(gruppe == "wartet" ? "Wiedervorlage" : VorgangAnzeige.Relativ(f))</div>
+                        }
+                        else
+                        {
+                            <div class="neben">ohne Datum</div>
+                        }
+                    </div>
+                    <div class="ma-haupt">
+                        <div class="ma-titel">
+                            @a.Titel
+                            @if (a.Status is "inarbeit") { <span class="pill">in Arbeit</span> }
+                            @if (a.Status is "wiedervorlage") { <span class="pill">Wiedervorlage erreicht</span> }
+                            @if (a.Status is "rueckfrage") { <span class="pill">Rückfrage</span> }
+                        </div>
+                        <div class="ma-meta">
+                            @if (a.KundeId is { } k)
+                            {
+                                <a href="kunden/@k">@a.Kunde</a>
+                            }
+                            @if (a.VorgangId is { } v)
+                            {
+                                <span class="trenn">·</span><a href="vorgaenge/@v">@a.Vorgang</a>
+                            }
+                            else if (a.Bezug is not null)
+                            {
+                                <span class="trenn">·</span><span>@a.Bezug</span>
+                            }
+                            <span class="trenn">·</span>
+                            @if (a.IstPool)
+                            {
+                                <span>Pool @a.Bereich, noch niemand</span>
+                            }
+                            else
+                            {
+                                <span>@(a.ZustaendigId == d.IchId ? "bei mir" : a.Zustaendig ?? "niemand zugeordnet")</span>
+                            }
+                            @if (a.Quelle == "Odoo") { <span class="trenn">·</span><span>aus Odoo</span> }
+                        </div>
+                        @if (a.VorgangHinweis is not null)
+                        {
+                            <div class="vg-hinweis-zeile" style="max-width:none" title="@a.VorgangHinweis">⚠ <span>@a.VorgangHinweis</span></div>
+                        }
+                        @if (_offenId == a.Id && _meldung is not null)
+                        {
+                            <div class="fehler" style="margin:6px 0 0; padding:6px 10px">@_meldung</div>
+                        }
+                    </div>
+                    <div class="ma-akt">
+                        @if (a.ZustaendigId != d.IchId)
+                        {
+                            <button class="knopf sekundaer klein" disabled="@_sende" @onclick="() => UebernehmenAsync(a)">Übernehmen</button>
+                        }
+                        @if (a.VorgangId is { } vid && (a.Pflichtfeld is not null || a.Status == "wartet"))
+                        {
+                            <a class="knopf sekundaer klein" href="vorgaenge/@vid">Im Vorgang …</a>
+                        }
+                        else
+                        {
+                            <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="() => ErledigtAsync(a)">Erledigt</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+else if (_fehler is null)
+{
+    <div class="leer-hinweis">Lade Aufgaben …</div>
+}
+
+@code {
+    private static readonly (string Gruppe, string Titel)[] Gruppen =
+    [
+        ("ueberfaellig", "Überfällig"), ("heute", "Heute fällig"), ("woche", "Nächste 7 Tage"),
+        ("spaeter", "Später oder ohne Datum"), ("wartet", "Wartet auf Kunden"),
+    ];
+
+    private AufgabenUebersicht? _daten;
+    private string _sicht = "meine";
+    private int? _bereichId;
+    private string? _fehler;
+    private bool _sende;
+    private int? _offenId;
+    private string? _meldung;
+
+    protected override Task OnInitializedAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        try
+        {
+            var url = $"api/aufgaben?sicht={_sicht}" + (_bereichId is { } b ? $"&bereichId={b}" : "");
+            _daten = await Http.GetFromJsonAsync<AufgabenUebersicht>(url);
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Aufgaben konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task SichtAsync(string sicht)
+    {
+        _sicht = sicht;
+        await LadenAsync();
+    }
+
+    private async Task BereichAsync(ChangeEventArgs e)
+    {
+        _bereichId = int.TryParse(e.Value?.ToString(), out var id) && id > 0 ? id : null;
+        await LadenAsync();
+    }
+
+    private Task UebernehmenAsync(AufgabeZeile a) => SendenAsync(a, a.VorgangId is not null
+        ? Http.PostAsync($"api/vorgaenge/schritte/{a.Id}/uebernehmen", null)
+        : Http.PostAsync($"api/aufgaben/{a.Id}/uebernehmen", null));
+
+    private Task ErledigtAsync(AufgabeZeile a) => SendenAsync(a, a.VorgangId is not null
+        ? Http.PostAsJsonAsync($"api/vorgaenge/schritte/{a.Id}/erledigt", new SchrittErledigen(null, null))
+        : Http.PutAsJsonAsync($"api/kunden/aufgaben/{a.Id}/erledigt", new ErledigtSetzen(true)));
+
+    private async Task SendenAsync(AufgabeZeile a, Task<HttpResponseMessage> aufruf)
+    {
+        _sende = true;
+        _offenId = a.Id;
+        _meldung = null;
+        try
+        {
+            var antwort = await aufruf;
+            if (antwort.IsSuccessStatusCode)
+            {
+                await LadenAsync();
+                AufgabenSignal.Melden();
+            }
+            else
+            {
+                _meldung = await VorgangAnzeige.FehlerAsync(antwort);
+            }
+        }
+        catch (Exception ex)
+        {
+            _meldung = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+}

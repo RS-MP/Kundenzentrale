@@ -49,6 +49,18 @@ public static class VorgangAnzeige
         _ => "",
     };
 
+    /// <summary>Hinweis am Schritt, ob und wann das System ihn selbst abhakt (ehrlich zum Ausbaustand).</summary>
+    public static string AutoHinweis(string wert, bool mitOdooAuftrag) => wert switch
+    {
+        "OdooRechnung" when mitOdooAuftrag =>
+            "Hakt sich ab, sobald in Odoo eine gebuchte Rechnung zum Auftrag existiert (Abgleich stündlich) — oder von Hand.",
+        "OdooRechnung" =>
+            "Ohne Odoo-Auftragsnummer kein automatischer Abgleich — bitte von Hand abhaken.",
+        "VertragUnterschrieben" =>
+            "Soll sich später abhaken, wenn der Vertrag als unterschrieben erfasst ist — diesen Status gibt es im Vertragsmodul noch nicht, bitte von Hand.",
+        _ => "",
+    };
+
     public static string AutoKurz(string wert) => wert switch
     {
         "OdooRechnung" => "Rechnung in Odoo",

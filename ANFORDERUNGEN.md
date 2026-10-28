@@ -294,10 +294,20 @@ Erste Ausbaustufe in der App (Navigation „Vorgänge"):
   Schritte bearbeiten mit Stand, kopieren, deaktivieren, vier Standardtypen per
   Knopf); Bereichsleiter in der Administration; Kundenakte zeigt aktive Schritte
   mit Link zum Vorgang und „+ Vorgang".
+- **Dazu (28.10.2026, vor dem Testbetrieb):** Seite **„Meine Aufgaben"** (bei mir +
+  unbesetzt im Pool meines Bereichs, umschaltbar auf den ganzen Bereich oder einen
+  anderen Bereich; Gruppen überfällig/heute/7 Tage/später/wartet auf Kunden;
+  Vorgangshinweis bei jedem Schritt; Übernehmen und Erledigt direkt in der Liste)
+  mit Abzeichen in der Navigation (bis heute fällig). **Abgleich mit Odoo**
+  (stündlich, nach jedem Chatter-Import und per Knopf in der Übersicht; nur
+  lesend): Vorgänge, die vor dem Import des Odoo-Verlaufs angelegt wurden, werden
+  nachträglich an dessen Strang gehängt; „Rechnung in Odoo stellen" hakt sich ab,
+  sobald Odoo eine gebuchte Ausgangsrechnung mit der Auftragsnummer in der Herkunft
+  (invoice_origin) hat — exakt über die Nummer, nicht über den Strang, damit
+  Abo-Rechnungen derselben Verkaufschance nicht fälschlich abhaken.
 - **Noch offen:** Benachrichtigung bei Weitergabe (Einstellung wird gespeichert,
-  Versand fehlt); automatisches Abhaken (Odoo-Rechnung, Vertrag unterschrieben);
-  Ausbaustufe „Bestätigte Odoo-Aufträge ohne Vorgang"; Seite „Meine Aufgaben /
-  mein Bereich" mit Hinweis je Schritt.
+  Versand fehlt); Abhaken bei „Vertrag unterschrieben" (das Vertragsmodul kennt
+  diesen Status noch nicht); Ausbaustufe „Bestätigte Odoo-Aufträge ohne Vorgang".
 
 ### Entscheidungen 28.10.2026 (MP)
 
