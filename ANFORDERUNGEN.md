@@ -35,8 +35,8 @@ PDF/A-3 erzeugen — das Rechnungs-XML wird separat erzeugt und eingebettet.
 | Phase | Inhalt |
 |---|---|
 | 1 | Vertragsverwaltung + Kontaktverwaltung/Kundenstamm (Odoo-Import, Odoo-ID als Referenz) |
-| 2 | Kunden-Timeline + E-Mail-Anbindung + Aufgabenverwaltung |
-| 3 | Angebote, Produkte, CRM/Leads, Tickets (gleicher Unterbau wie Aufgaben) |
+| 2 | Kunden-Timeline + E-Mail-Anbindung + Aufgabenverwaltung + Vorgänge (Bestellung → Teilaufgaben, manuelle Anlage) |
+| 3 | Angebote, Produkte, CRM/Leads, Tickets (gleicher Unterbau wie Aufgaben); Vorgang automatisch aus gewonnenem Angebot |
 | 4 | Abos, wiederkehrende Rechnungen, ZUGFeRD, Offene Posten, Auswertungen — Parallelbetrieb mit Odoo, dann Abschaltung |
 
 Basisdienst (phasenübergreifend): E-Mail-Warteschlange.
@@ -109,13 +109,158 @@ Layout-Entscheidung nach Ansicht beider Varianten.
 - Zuweisung an **Person oder Bereich** (Vertrieb, Support, Buchhaltung …).
   Bereichs-Aufgaben liegen im Pool; ein freier Mitarbeiter **übernimmt** oder
   weist gezielt zu (Beispiel: Rückrufbitte aus dem Portal → Pool Vertrieb).
-- Status: offen, in Arbeit, Rückfrage, zurückgestellt, erledigt.
+- Status: offen, in Arbeit, Rückfrage, zurückgestellt, **wartet auf Kunden**
+  (ergänzt 28.10.2026, mit Wiedervorlage-Datum), erledigt.
 - **Verlaufseinträge** an der Aufgabe („heute telefonisch nicht erreicht“),
   Kommentare/Rückfragen als Feedback-Schleife; Statuswechsel werden protokolliert.
 - **Wiedervorlage** und **„Zurückstellen bis“**: am Stichtag taucht die Aufgabe
   automatisch wieder als offen auf.
 - Bei Kundenbezug erscheinen Einträge auch in der Kunden-Timeline.
 - Tickets (Phase 3) nutzen denselben Unterbau.
+
+## Vorgänge: Bestellungen und ihre Teilaufgaben (Konzept 28.10.2026)
+
+> **Ausgangslage:** Aus einer Bestellung entstehen Teilaufgaben für mehrere
+> Bereiche — Kunde in der Shared Cloud anlegen, Vertrag zusenden, Rechnung
+> stellen, Schulungstermin vereinbaren. In Odoo wird dafür je Bestellung ein
+> Projekt angelegt (automatisch, sobald der CRM-Eintrag „gewonnen" ist). Das
+> ist unübersichtlich: leerer Container, Aufgaben von Hand getippt, keine
+> feste Reihenfolge, keine Sicht über alle Bestellungen hinweg.
+
+### Kernidee: Vorgang mit Vorlage statt leerem Projekt
+
+- Ein **Vorgang** ist ein typisierter Container am Kunden, der seine
+  Teilaufgaben aus einer **Vorlage** bekommt. Vorgangstypen (Entscheidung
+  28.10.2026): **Neue Bestellung** (Neukunde), **Upgrade/Upsell**,
+  **Stundenauftrag** (Projekt ohne Software), **Verkauf ohne
+  Zwischenschritte** (nur Rechnung stellen); später z. B.
+  „Kündigung/Offboarding". Die Liste ist Vorlagenpflege, kein Code.
+- Eine Vorlage ist eine Liste von **Schritten**: Titel, zuständiger Bereich,
+  Reihenfolge, Frist relativ zum Start oder zum Vorgänger-Schritt.
+- **Schritte werden zu normalen Aufgaben** im Unterbau der Aufgabenverwaltung
+  (Bereichs-Pool, übernehmen, Verlauf, Wiedervorlage). Zusätzliche Felder:
+  Vorgang, Reihenfolge, „wartet auf Schritt X".
+- **Abhängigkeiten sind optional je Schritt:** Ein Schritt kann auf einen
+  Vorgänger warten; bis dahin ist er im Vorgang sichtbar (grau), liegt aber in
+  keinem Pool. Schritte ohne Vorgänger starten sofort parallel. Die
+  Reihenfolge ist Sache der Vorlage, nicht fest verdrahtet — **die Rechnung
+  kann sofort oder parallel zum Vertrag** gestellt werden (Entscheidung
+  28.10.2026), eine Abhängigkeit „erst nach Vertrag" ist nur eine Option.
+- **Bedingte Schritte:** Vorlagen können Schritte an Inhalte knüpfen
+  (Schulungstermin nur, wenn Schulung bestellt). Mit dem Angebotsmodul
+  (Phase 3) steuern das die Angebotspositionen automatisch, vorher Häkchen
+  beim Anlegen.
+- **„Wartet auf Kunden" ist ein eigener Aufgabenstatus** (Entscheidung
+  28.10.2026), den der Bearbeiter bewusst setzt, mit Wiedervorlage-Datum —
+  z. B. Vertrag liegt beim Kunden. Keine rote Ampel, aber am Stichtag wieder
+  offen. Ergänzt die Status-Liste der Aufgabenverwaltung.
+- **Vorgangsstatus wird berechnet, nicht gepflegt:** Neu · Läuft · Wartet auf
+  Kunden (mindestens ein aktiver Schritt wartet, keiner überfällig) · Hängt
+  (mindestens ein Schritt überfällig) · Abgeschlossen (alle Schritte
+  erledigt oder übersprungen).
+
+### Auslöser und Weitergabe
+
+- **Manuell anlegen** ist der Normalweg, solange Odoo läuft (siehe Übergang
+  unten) und bleibt danach für Bestellungen ohne Angebot: Kunde wählen,
+  Vorlage wählen, bedingte Schritte ankreuzen, optional Odoo-Auftragsnummer
+  (S…) eintragen. Schon in Phase 2.
+- **Angebot gewonnen → Vorgang automatisch** (wie heute CRM → Projekt), nur
+  gleich mit allen Schritten gefüllt. Kommt erst mit dem eigenen
+  Angebotsmodul (Phase 3), also nach dem Übergang.
+- **Automatisch abhaken, wo das System es weiß:** Rechnung erzeugt → Schritt
+  „Rechnung stellen" erledigt; Vertragsstatus „unterschrieben" → Schritt
+  erledigt. Externes (Shared Cloud) bleibt ein manueller Haken, optional mit
+  Pflichtfeld (z. B. Mandanten-ID), damit die Information in der Akte landet.
+- **Weitergabe:** Ist ein Vorgänger-Schritt erledigt, erscheint der nächste im
+  Pool des folgenden Bereichs. Ob zusätzlich benachrichtigt wird, ist **je
+  Schritt in der Vorlage auswählbar** (keine / Mail / Teams; Entscheidung
+  28.10.2026 — welcher Weg sich bewährt, ist noch offen). Kein Pingpong über
+  Chatter nötig.
+
+### Übergang: Parallelbetrieb mit Odoo (Entscheidung 28.10.2026)
+
+Der Übergang dauert mindestens noch ein Jahr. In dieser Zeit bleibt Odoo
+führend für **Angebot, Auftragsbestätigung und Rechnungsversand**; die
+Kundenzentrale übernimmt nur die Abwicklung der Teilaufgaben.
+
+- **Vorgang manuell anlegen**, sobald in Odoo der Auftrag bestätigt ist:
+  Kunde, Vorlage, bedingte Schritte, **Odoo-Auftragsnummer (S…)**. Über die
+  Nummer bekommt der Vorgang denselben Strang-Schlüssel wie der importierte
+  Odoo-Verlauf („Verkauf S01194") — Mails, Aktivitäten und Schritte liegen in
+  der Akte in einem Strang.
+- **Kein Odoo-Projekt mehr** für neue Bestellungen ab dem Umstellungstag.
+  Bereits laufende Odoo-Projekte werden dort zu Ende geführt, nicht
+  importiert (bei Bedarf einzeln als Vorgang nachgelegt).
+- **Schritt „Rechnung stellen" heißt im Übergang „Rechnung in Odoo
+  stellen"** und wird vom System abgehakt, wenn der wiederholbare
+  Odoo-Import das Ereignis „Rechnung gestellt" zum Auftrag findet
+  (account.move am sale.order, Importer kennt das bereits). Vertragsschritte
+  hakt das eigene Vertragsmodul ab.
+- **Ausbaustufe (beschlossen 28.10.2026), wenn der Import regelmäßig
+  läuft:** Liste „Bestätigte Odoo-Aufträge ohne Vorgang" auf dem Dashboard,
+  Anlage per Klick mit Vorlagenwahl. Bewusst Vorschlag statt stiller
+  Automatik. **Filter: nur Aufträge, zu denen noch keine Rechnung existiert**
+  — Abo-Verlängerungen schreibt Odoo automatisch die Rechnung, die sollen
+  nicht in der Liste auftauchen. Zusätzlich „ausblenden" je Auftrag für
+  Fälle, die keinen Vorgang brauchen. Der Importer liest sale.order mit
+  Status und die Rechnungen (account.move) zum Auftrag schon heute.
+- Nach der Odoo-Abschaltung ersetzt das eigene Angebotsmodul (Phase 3) den
+  manuellen Weg: Angebot gewonnen → Vorgang automatisch.
+
+### Sichtbarkeit und Dashboard
+
+- **Vorgangsansicht:** eine Zeile pro Schritt mit Bereich, Zuständigem,
+  Status, Frist und letztem Verlaufseintrag — „Wo steht die Bestellung X?"
+  in zwei Sekunden.
+- **Dashboard „Laufende Vorgänge":** Tabelle, keine Kanban-Wand. Spalten:
+  Kunde, Typ, gestartet, Fortschritt (3 von 5), nächster offener Schritt mit
+  Bereich, Ampel (überfällig / wartet auf Kunden). Filter nach Bereich und
+  „nur wo ich dran bin"; hängende Vorgänge zuerst.
+- **Meine Aufgaben / mein Bereich** bleibt die zweite Ansicht; Vorgangsschritte
+  sind dort gewöhnliche Aufgaben mit Link auf den Vorgang.
+- **In der Kundenakte:** Der Vorgang ist ein Strang im Verlauf (wie „Verkauf
+  S01194"). „Was lief zuletzt?" zeigt die offenen Schritte, erledigte Schritte
+  wandern als Einträge in den Verlauf.
+
+### Vorlagenpflege und Abgrenzung
+
+- Vorlagen werden in der Oberfläche gepflegt, nicht im Code — durch **Admin
+  und Bereichsleiter** (je Bereich eine definierte Person; Entscheidung
+  28.10.2026, Ergänzung des Rollenmodells: Bereich bekommt ein Feld
+  „Leiter"). Laufende Vorgänge behalten ihre Schritte, auch wenn die Vorlage
+  später geändert wird (analog zur Regel bei Vertragsvorlagen: kein
+  „veraltet").
+- Tickets = Ungeplantes von außen; Vorgänge = Geplantes nach Vorlage. Beide
+  nutzen dieselbe Aufgabe.
+- Einordnung: Aufgaben Phase 2, Vorgänge mit manueller Anlage ebenfalls
+  Phase 2, Automatik aus gewonnenem Angebot Phase 3.
+
+### Datenmodell-Skizze
+
+- `Vorgang`: Kunde, Vorlage, Titel, berechneter Status, optionale Verweise
+  auf Angebot und Vertrag, **Odoo-Auftragsnummer** (Übergang), Start,
+  Abschluss, Strang-Schlüssel.
+- `VorgangsVorlage` + `VorlagenSchritt`: Titel, Bereich, Reihenfolge, Frist in
+  Tagen, „wartet auf" (Schritt, optional), Bedingung, Benachrichtigung
+  (keine / Mail / Teams).
+- `Aufgabe` zusätzlich: Vorgang, Reihenfolge, „wartet auf Aufgabe"; neuer
+  Status „Wartet auf Kunden".
+- `Bereich` zusätzlich: Leiter (Mitarbeiter) für die Vorlagenpflege.
+
+### Entscheidungen 28.10.2026 (MP)
+
+1. **Vorgangstypen:** Neue Bestellung, Upgrade/Upsell, Stundenauftrag
+   (Projekt ohne Software), Verkauf ohne Zwischenschritte (nur Rechnung).
+2. **Reihenfolge nicht fest:** Rechnung kann sofort oder parallel gestellt
+   werden; Abhängigkeiten sind je Schritt optional.
+3. **„Wartet auf Kunden"** wird eigener Aufgabenstatus.
+4. **Vorlagenpflege:** Admin und Bereichsleiter (definierte Person je Bereich).
+5. **Benachrichtigung bei Weitergabe:** je Schritt auswählbar — welcher Weg
+   gebraucht wird, zeigt die Praxis.
+6. **Übergang (mind. 1 Jahr):** Angebot, Bestätigung und Rechnung bleiben in
+   Odoo; Vorgänge werden in der Kundenzentrale manuell angelegt (mit
+   Odoo-Auftragsnummer), kein Odoo-Projekt mehr für neue Bestellungen.
 
 ## Rechnungen & Offene Posten
 
@@ -217,6 +362,8 @@ WorldCheck nur ab PROFESSIONAL; Full File / Bank & Versicherung → Prüffilter
 - Aktivitäten-Tabelle generisch (Typ, Kunde, rausoft-Mitarbeiter,
   Kunden-Ansprechpartner, Zeitpunkt, Verweis) = Timeline.
 - Zuweisung zweistufig: Bereich immer, Person optional (leer = Pool).
+- Vorgänge (Bestellung → Teilaufgaben) nutzen die Aufgabe als Baustein;
+  Schritte aus Vorlagen, Abhängigkeiten zwischen Schritten, Status berechnet.
 - Nummernkreise zentral; Audit-Log; Rechte/Rollen; DSGVO-Löschkonzept.
 - Dokumente unveränderlich versionieren; Briefanrede nie speichern, immer
   berechnen.
