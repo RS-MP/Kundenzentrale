@@ -27,6 +27,8 @@ rausoft-Benutzer. Authentifizierung läuft komplett über Entra ID — hier lieg
 ### Bereich
 Vertrieb, Support, Buchhaltung … Grundlage der zweistufigen Zuweisung
 (Bereich immer, Person optional) ab Phase 2; Mitarbeiter referenzieren ihn schon jetzt.
+`LeiterId` (FK → Mitarbeiter, optional): Bereichsleiter, pflegt mit den Admins die
+Vorgangstypen.
 
 ### Nummernkreis
 Zentrale Vergabe (Leitplanke). `Schluessel` (unique, z. B. `Kunde`, `Vertrag`,
@@ -154,6 +156,36 @@ Ablageverzeichnis, das System speichert Pfad + Prüfsumme:
 
 Zeilen werden **nie geändert oder gelöscht** — neue Version = neue Zeile
 (im DbContext technisch erzwungen).
+
+## Vorgänge (`Rausoft.Erp.Domain.Vorgaenge`, Migration `Vorgaenge` 28.10.2026)
+
+Bestellung → Teilaufgaben je Bereich (ANFORDERUNGEN.md, „Vorgänge"). Regeln
+zentral in `VorgangsLogik` (Schritte erzeugen, Abhängigkeiten, Fristen, Status).
+
+### Vorgangstyp / VorgangstypSchritt
+Vorlage mit Name (eindeutig), Beschreibung, `Aktiv` (deaktivieren statt löschen)
+und `Stand` (zählt bei jeder Schrittänderung hoch). Schritte: `Nr` (1…n, eindeutig
+je Typ), Titel, Bereich, `FristTage`, `WartetAufNr` (optional, nur auf frühere
+Schritte), `Bedingung` (z. B. „Schulung bestellt"), `Benachrichtigung`
+(Keine/Mail/Teams), `Pflichtfeld` (z. B. „Mandanten-ID"), `AutoAbhaken`
+(Nie/OdooRechnung/VertragUnterschrieben).
+
+### Vorgang
+Kunde, Vorgangstyp + `VorgangstypStand` beim Anlegen, Titel, `OdooAuftrag`
+(S…, Übergang), `Hinweis` (≤ 1000, überall sichtbar), Start, Ersteller,
+`AbgeschlossenAm` (gepflegt, sobald alle Schritte erledigt/entfallen),
+`StrangSchluessel`/`StrangName` (aus dem Odoo-Verlauf zum Auftrag, sonst
+`vorgang:{Id}`). Der Status (Neu/Läuft/Wartet auf Kunden/Hängt/Abgeschlossen)
+wird nicht gespeichert, sondern berechnet.
+
+### Aufgabe (Erweiterung für Vorgangsschritte)
+`VorgangId`, `Reihenfolge`, `WartetAufId` (FK → Aufgabe), `Herkunft`
+(Vorlage/Manuell), `FristTage`, `Wiedervorlage`, `EntfallenGrund`
+(entfernt/bedingung), `Pflichtfeld` + `PflichtfeldWert`, `Benachrichtigung`,
+`AutoAbhaken`. Neue Status: `WartetAufKunden` (5), `Entfallen` (6). Schritte
+werden beim Anlegen aus der Vorlage **kopiert** — Vorlagenänderungen wirken nicht
+auf laufende Vorgänge. Jede Änderung schreibt eine Aktivität mit
+`VerweisTyp = Vorgang` in den Strang des Vorgangs.
 
 ## DSGVO & Löschkonzept (Leitplanke, Umsetzung fortlaufend)
 

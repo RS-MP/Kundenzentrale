@@ -279,6 +279,26 @@ ohne die Vorlage zu ändern:
   neuer Status „Wartet auf Kunden".
 - `Bereich` zusätzlich: Leiter (Mitarbeiter) für die Vorlagenpflege.
 
+### Umsetzungsstand (28.10.2026)
+
+Erste Ausbaustufe in der App (Navigation „Vorgänge"):
+
+- **Fertig:** Übersicht mit Kennzahlen, Bereichsfilter, „Nur wo ich dran bin",
+  Abgeschlossene; Vorgang anlegen mit Kundensuche, Typwahl, Bedingungen,
+  Odoo-Auftragsnummer (gleicher Strang wie der Odoo-Verlauf, doppelte laufende
+  Nummer wird abgewiesen), Hinweis, Schritte entfernen/zurückholen und von Hand
+  ergänzen; Vorgangsansicht mit Übernehmen, Zuweisen/zurück in den Pool,
+  Erledigt (mit Pflichtfeld), Wartet auf Kunden mit Wiedervorlage, Notiz,
+  Entfernen, Wieder öffnen, Schritt hinzufügen, Hinweis bearbeiten; Verlauf je
+  Vorgang (landet auch in der Kundenakte); Vorgangstypen pflegen (anlegen,
+  Schritte bearbeiten mit Stand, kopieren, deaktivieren, vier Standardtypen per
+  Knopf); Bereichsleiter in der Administration; Kundenakte zeigt aktive Schritte
+  mit Link zum Vorgang und „+ Vorgang".
+- **Noch offen:** Benachrichtigung bei Weitergabe (Einstellung wird gespeichert,
+  Versand fehlt); automatisches Abhaken (Odoo-Rechnung, Vertrag unterschrieben);
+  Ausbaustufe „Bestätigte Odoo-Aufträge ohne Vorgang"; Seite „Meine Aufgaben /
+  mein Bereich" mit Hinweis je Schritt.
+
 ### Entscheidungen 28.10.2026 (MP)
 
 1. **Vorgangstypen:** Neue Bestellung, Upgrade/Upsell, Stundenauftrag

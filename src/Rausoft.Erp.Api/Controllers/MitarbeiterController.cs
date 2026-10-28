@@ -48,6 +48,26 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
     public async Task<ActionResult<List<string>>> Bereiche(CancellationToken ct) =>
         Ok(await db.Bereiche.AsNoTracking().Where(b => b.Aktiv).OrderBy(b => b.Name).Select(b => b.Name).ToListAsync(ct));
 
+    /// <summary>Bereiche mit Leiter — der Bereichsleiter pflegt zusammen mit den Admins die Vorgangstypen.</summary>
+    [HttpGet("bereiche/leitung")]
+    public async Task<ActionResult<List<BereichEintrag>>> BereicheMitLeitung(CancellationToken ct) =>
+        Ok(await db.Bereiche.AsNoTracking().OrderByDescending(b => b.Aktiv).ThenBy(b => b.Name)
+            .Select(b => new BereichEintrag(b.Id, b.Name, b.Aktiv, b.LeiterId, b.Leiter != null ? b.Leiter.Anzeigename : null))
+            .ToListAsync(ct));
+
+    [HttpPut("bereiche/{id:int}/leiter")]
+    public async Task<IActionResult> BereichLeiterSetzen(int id, BereichLeiterSetzen setzen, CancellationToken ct)
+    {
+        var bereich = await db.Bereiche.FirstOrDefaultAsync(b => b.Id == id, ct);
+        if (bereich is null)
+            return NotFound();
+        if (setzen.LeiterId is { } m && !await db.Mitarbeiter.AnyAsync(x => x.Id == m && x.Aktiv, ct))
+            return BadRequest("Der gewählte Mitarbeiter existiert nicht oder ist deaktiviert.");
+        bereich.LeiterId = setzen.LeiterId;
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     [HttpPost]
     public async Task<ActionResult<MitarbeiterEintrag>> Anlegen(MitarbeiterAnlegen anlage, CancellationToken ct)
     {
@@ -132,6 +152,10 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
         if (await db.Sanktionslisten.AnyAsync(s => s.VerantwortlichId == id || s.VertreterId == id || s.GeaendertVonId == id, ct)
             || await db.SanktionslistenStandardprozesse.AnyAsync(p => p.GeaendertVonId == id, ct))
             return BadRequest("Dieser Benutzer ist im Wiki als Verantwortlicher/Vertreter einer Sanktionsliste eingetragen — bitte dort zuerst umstellen oder deaktivieren statt löschen.");
+        if (await db.Bereiche.AnyAsync(b => b.LeiterId == id, ct))
+            return BadRequest("Dieser Benutzer leitet einen Bereich — bitte zuerst einen anderen Bereichsleiter eintragen oder deaktivieren statt löschen.");
+        if (await db.Aufgaben.AnyAsync(a => a.ZustaendigId == id || a.ErstelltVonId == id || a.ErledigtVonId == id, ct))
+            return BadRequest("Dieser Benutzer ist an Aufgaben beteiligt — bitte deaktivieren statt löschen.");
 
         db.Mitarbeiter.Remove(mitarbeiter);
         await db.SaveChangesAsync(ct);

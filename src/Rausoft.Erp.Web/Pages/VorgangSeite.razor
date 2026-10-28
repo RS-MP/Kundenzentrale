@@ -1,0 +1,424 @@
+@page "/vorgaenge/{Id:int}"
+@inject HttpClient Http
+
+<PageTitle>@(_v?.Titel ?? "Vorgang") · Kundenzentrale</PageTitle>
+
+<a class="zurueck" href="vorgaenge">← Alle Vorgänge</a>
+
+@if (_fehler is not null)
+{
+    <div class="fehler" style="margin-top:10px">@_fehler</div>
+}
+
+@if (_v is { } v)
+{
+    <div class="vg-kopf" style="margin-top:10px">
+        <div class="titelblock">
+            <h1>@v.Kunde</h1>
+            <div class="meta">
+                @v.Typ
+                @if (v.OdooAuftrag is not null) { <span class="trenn">·</span><span>Odoo @v.OdooAuftrag</span> }
+                <span class="trenn">·</span>gestartet @VorgangAnzeige.Datum(v.Start)
+                <span class="trenn">·</span><a href="kunden/@v.KundeId">Kundenakte</a>
+            </div>
+        </div>
+        <span class="status @VorgangAnzeige.StatusKlasse(v.Status)">@VorgangAnzeige.StatusText(v.Status)</span>
+
+        @if (_hinweisBearbeiten)
+        {
+            <div class="vg-hinweis bearbeiten">
+                <label>Hinweis zum Vorgang — für alle sichtbar, die an einem Schritt arbeiten
+                    <textarea maxlength="1000" @bind="_hinweisText" placeholder="z. B. ACHTUNG: alten Vertragsstand versenden"></textarea>
+                </label>
+                <div style="display:flex; gap:8px; margin-top:6px">
+                    <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="HinweisSpeichernAsync">Speichern</button>
+                    <button class="knopf sekundaer klein" @onclick="() => _hinweisBearbeiten = false">Abbrechen</button>
+                </div>
+            </div>
+        }
+        else if (v.Hinweis is not null)
+        {
+            <div class="vg-hinweis">
+                <span>⚠</span><span class="txt">@v.Hinweis</span>
+                <button class="textknopf" @onclick="HinweisOeffnen">Bearbeiten</button>
+            </div>
+        }
+        else
+        {
+            <div style="flex-basis:100%"><button class="textknopf" @onclick="HinweisOeffnen">+ Hinweis zum Vorgang</button></div>
+        }
+    </div>
+
+    <div class="vg-raster">
+        <div class="karte">
+            <div class="karte-kopf">
+                <h2>Schritte</h2>
+                <span class="neben">@v.Schritte.Count(s => s.Status == "erledigt") von @v.Schritte.Count(s => s.Status != "entfallen") erledigt</span>
+            </div>
+            @foreach (var s in v.Schritte)
+            {
+                <div class="vg-schritt @SchrittKlasse(s)">
+                    <div class="nr">@(s.Status == "erledigt" ? "✓" : s.Nr.ToString())</div>
+                    <div class="s-haupt">
+                        <div class="s-titel">@s.Titel</div>
+                        <div class="s-meta">
+                            <span>@(s.Bereich ?? "ohne Bereich")</span>
+                            <span class="trenn">·</span>
+                            <span>@(s.Zustaendig ?? "Pool, noch niemand")</span>
+                            @if (s.Manuell) { <span class="vg-manuell" title="Von Hand zu diesem Vorgang hinzugefügt">von Hand</span> }
+                            @switch (s.Status)
+                            {
+                                case "gesperrt":
+                                    <span class="trenn">·</span><span>wartet auf „@s.WartetAufTitel“, dann @s.FristTage @(s.FristTage == 1 ? "Tag" : "Tage")</span>
+                                    break;
+                                case "erledigt":
+                                    <span class="trenn">·</span><span>erledigt @s.ErledigtAm?.ToLocalTime().ToString("dd.MM.yyyy")@(s.ErledigtVon is not null ? $" von {s.ErledigtVon}" : "")</span>
+                                    break;
+                                case "entfallen":
+                                    <span class="trenn">·</span><span>@(s.EntfallenGrund == "bedingung" ? "entfällt, Bedingung nicht erfüllt" : "von Hand entfernt")</span>
+                                    break;
+                                case "wartet":
+                                    <span class="trenn">·</span><span class="warntext">wartet auf Kunden bis @VorgangAnzeige.Datum(s.Wiedervorlage!.Value)</span>
+                                    break;
+                                case "wiedervorlage":
+                                    <span class="trenn">·</span><span class="@(s.Ueberfaellig ? "krittext" : "warntext")">Wiedervorlage @VorgangAnzeige.Relativ(s.Faellig!.Value)</span>
+                                    break;
+                                default:
+                                    @if (s.Faellig is { } f)
+                                    {
+                                        <span class="trenn">·</span><span class="@(s.Ueberfaellig ? "krittext" : "")">fällig @VorgangAnzeige.Datum(f) (@VorgangAnzeige.Relativ(f))</span>
+                                    }
+                                    break;
+                            }
+                        </div>
+                        @if (s.AutoAbhaken != "Nie" && s.Status is not ("erledigt" or "entfallen"))
+                        {
+                            <div class="s-auto">Hakt sich ab, sobald @VorgangAnzeige.AutoText(s.AutoAbhaken) — bis dahin von Hand.</div>
+                        }
+                        @if (s.Pflichtfeld is not null && s.PflichtfeldWert is not null)
+                        {
+                            <div class="s-wert">@s.Pflichtfeld: <b>@s.PflichtfeldWert</b></div>
+                        }
+                        @if (_form?.Id != s.Id)
+                        {
+                            <div class="s-akt">
+                                @switch (s.Status)
+                                {
+                                    case "offen" or "inarbeit" or "wiedervorlage":
+                                        @if (s.ZustaendigId != v.IchId || s.Status != "inarbeit")
+                                        {
+                                            <button class="knopf sekundaer klein" disabled="@_sende" @onclick='() => AktionAsync(s, "uebernehmen")'>Übernehmen</button>
+                                        }
+                                        <button class="knopf klein" style="color:var(--knopf-text)" @onclick='() => FormOeffnen(s, "erledigt")'>Erledigt …</button>
+                                        <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "wartet")'>Wartet auf Kunden …</button>
+                                        <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "zuweisen")'>Zuweisen …</button>
+                                        <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "notiz")'>Notiz</button>
+                                        <button class="textknopf leise" @onclick='() => FormOeffnen(s, "entfernen")'>Entfernen</button>
+                                        break;
+                                    case "wartet":
+                                        <button class="knopf klein" style="color:var(--knopf-text)" @onclick='() => FormOeffnen(s, "erledigt")'>Erledigt …</button>
+                                        <button class="knopf sekundaer klein" disabled="@_sende" @onclick='() => AktionAsync(s, "offen")'>Warten beenden</button>
+                                        <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "notiz")'>Notiz</button>
+                                        break;
+                                    case "gesperrt":
+                                        <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "zuweisen")'>Zuweisen …</button>
+                                        <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "notiz")'>Notiz</button>
+                                        <button class="textknopf leise" @onclick='() => FormOeffnen(s, "entfernen")'>Entfernen</button>
+                                        break;
+                                    case "erledigt":
+                                        <button class="textknopf leise" disabled="@_sende" @onclick='() => AktionAsync(s, "offen")'>Wieder öffnen</button>
+                                        break;
+                                    case "entfallen":
+                                        <button class="textknopf" disabled="@_sende" @onclick='() => AktionAsync(s, "offen")'>Zurückholen</button>
+                                        break;
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="s-rechts"><span class="pill">@VorgangAnzeige.SchrittText(s.Status)</span></div>
+
+                    @if (_form is { } form && form.Id == s.Id)
+                    {
+                        <div class="vg-form">
+                            @switch (form.Art)
+                            {
+                                case "erledigt":
+                                    @if (s.Pflichtfeld is not null)
+                                    {
+                                        <label>@s.Pflichtfeld (Pflicht)<input type="text" maxlength="300" @bind="_formWert" /></label>
+                                    }
+                                    <label>Notiz (optional)<textarea maxlength="5000" @bind="_formText"></textarea></label>
+                                    <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="() => ErledigtAsync(s)">Als erledigt markieren</button>
+                                    break;
+                                case "wartet":
+                                    <label>Wiedervorlage am<input type="date" @bind="_formDatum" /></label>
+                                    <label>Worauf wird gewartet? (optional)<textarea maxlength="5000" @bind="_formText" placeholder="z. B. Vertrag liegt beim Kunden"></textarea></label>
+                                    <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="() => WartetAsync(s)">Speichern</button>
+                                    break;
+                                case "zuweisen":
+                                    <label>Zuständig
+                                        <select @bind="_formPerson">
+                                            <option value="0">— niemand, zurück in den Pool @s.Bereich —</option>
+                                            @foreach (var m in v.Mitarbeiter)
+                                            {
+                                                <option value="@m.Id">@m.Name@(m.Zusatz is not null ? $" ({m.Zusatz})" : "")</option>
+                                            }
+                                        </select>
+                                    </label>
+                                    <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="() => ZuweisenAsync(s)">Übernehmen</button>
+                                    break;
+                                case "notiz":
+                                    <label>Notiz zum Schritt<textarea maxlength="5000" @bind="_formText"></textarea></label>
+                                    <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="() => NotizAsync(s)">Speichern</button>
+                                    break;
+                                case "entfernen":
+                                    <span style="flex:1 1 260px; font-size:13px">„@s.Titel“ wird in diesem Vorgang nicht gebraucht? Wer auf den Schritt wartet, startet dann gleich bzw. wartet auf dessen Vorgänger.</span>
+                                    <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="() => EntfernenAsync(s)">Ja, entfernen</button>
+                                    break;
+                            }
+                            <button class="knopf sekundaer klein" @onclick="() => _form = null">Abbrechen</button>
+                            @if (_formFehler is not null) { <div class="fehler">@_formFehler</div> }
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="vg-neu">
+                @if (_neuOffen)
+                {
+                    <div class="vg-form">
+                        <label style="flex-basis:100%">Schritt<input type="text" maxlength="300" @bind="_neuTitel" placeholder="z. B. Schnittstellen-Doku an Kunden senden" /></label>
+                        <label>Bereich
+                            <select @bind="_neuBereich">
+                                <option value="0">— wählen —</option>
+                                @foreach (var b in v.Bereiche) { <option value="@b.Id">@b.Name</option> }
+                            </select>
+                        </label>
+                        <label>Person (optional)
+                            <select @bind="_neuPerson">
+                                <option value="0">— Pool des Bereichs —</option>
+                                @foreach (var m in v.Mitarbeiter) { <option value="@m.Id">@m.Name</option> }
+                            </select>
+                        </label>
+                        <label style="flex:0 1 110px">Frist (Tage)<input type="number" min="0" max="365" @bind="_neuFrist" /></label>
+                        <label>Wartet auf (optional)
+                            <select @bind="_neuWartet">
+                                <option value="0">— startet sofort —</option>
+                                @foreach (var s in v.Schritte.Where(s => s.Status != "entfallen"))
+                                {
+                                    <option value="@s.Id">@s.Nr. @s.Titel</option>
+                                }
+                            </select>
+                        </label>
+                        <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="SchrittHinzufuegenAsync">Hinzufügen</button>
+                        <button class="knopf sekundaer klein" @onclick="() => _neuOffen = false">Abbrechen</button>
+                        @if (_formFehler is not null && _form is null) { <div class="fehler">@_formFehler</div> }
+                    </div>
+                }
+                else
+                {
+                    <button class="textknopf" @onclick="NeuOeffnen">+ Schritt von Hand hinzufügen</button>
+                }
+            </div>
+        </div>
+
+        <div>
+            <div class="karte">
+                <div class="karte-kopf"><h2>Fakten</h2></div>
+                <div class="karte-koerper">
+                    <div class="vg-fakt"><span class="l">Kunde</span><span class="r"><a href="kunden/@v.KundeId">@v.Kunde</a> · @v.Kundennummer</span></div>
+                    <div class="vg-fakt"><span class="l">Vorgangstyp</span><span class="r">@v.Typ (Stand @v.TypStand)</span></div>
+                    <div class="vg-fakt"><span class="l">Odoo-Auftrag</span><span class="r">@(v.OdooAuftrag ?? "—")</span></div>
+                    <div class="vg-fakt"><span class="l">Gestartet</span><span class="r">@VorgangAnzeige.Datum(v.Start)</span></div>
+                    <div class="vg-fakt"><span class="l">Angelegt</span><span class="r">@v.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy HH:mm")@(v.ErstelltVon is not null ? $" von {v.ErstelltVon}" : "")</span></div>
+                    @if (v.AbgeschlossenAm is { } ab)
+                    {
+                        <div class="vg-fakt"><span class="l">Abgeschlossen</span><span class="r">@ab.ToLocalTime().ToString("dd.MM.yyyy")</span></div>
+                    }
+                    <div class="vg-fakt"><span class="l">Strang in der Akte</span><span class="r">@v.StrangName</span></div>
+                </div>
+            </div>
+            <div class="karte">
+                <div class="karte-kopf"><h2>Verlauf</h2><span class="neben">auch in der Kundenakte</span></div>
+                @if (v.Verlauf.Count == 0)
+                {
+                    <div class="leer-hinweis">Noch keine Einträge.</div>
+                }
+                else
+                {
+                    <ul class="vg-verlauf">
+                        @foreach (var e in v.Verlauf)
+                        {
+                            <li>
+                                <span class="wann" title="@e.Zeitpunkt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")">@e.Zeitpunkt.ToLocalTime().ToString("dd.MM. HH:mm")</span>
+                                <div>
+                                    <div class="text">@e.Text</div>
+                                    @if (e.Inhalt is not null) { <div class="vg-text">@e.Inhalt</div> }
+                                    @if (e.Wer is not null) { <div class="wer">@e.Wer</div> }
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+}
+else if (_fehler is null)
+{
+    <div class="leer-hinweis">Lade Vorgang …</div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private VorgangDetail? _v;
+    private string? _fehler;
+    private bool _sende;
+
+    private bool _hinweisBearbeiten;
+    private string _hinweisText = "";
+
+    private (int Id, string Art)? _form;
+    private string _formText = "";
+    private string _formWert = "";
+    private DateTime _formDatum;
+    private int _formPerson;
+    private string? _formFehler;
+
+    private bool _neuOffen;
+    private string _neuTitel = "";
+    private int _neuBereich;
+    private int _neuPerson;
+    private int _neuFrist = 3;
+    private int _neuWartet;
+
+    protected override Task OnParametersSetAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        try
+        {
+            _v = await Http.GetFromJsonAsync<VorgangDetail>($"api/vorgaenge/{Id}");
+            _fehler = null;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _fehler = "Diesen Vorgang gibt es nicht.";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Der Vorgang konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private static string SchrittKlasse(VorgangSchritt s) => s.Status switch
+    {
+        "erledigt" => "erledigt",
+        "entfallen" => "entfallen",
+        "gesperrt" => "gesperrt",
+        "wartet" => "wartet",
+        _ when s.Ueberfaellig => "ueber",
+        _ => "aktiv",
+    };
+
+    private void HinweisOeffnen()
+    {
+        _hinweisText = _v?.Hinweis ?? "";
+        _hinweisBearbeiten = true;
+    }
+
+    private void FormOeffnen(VorgangSchritt s, string art)
+    {
+        _form = (s.Id, art);
+        _formText = "";
+        _formWert = s.PflichtfeldWert ?? "";
+        _formDatum = DateTime.Today.AddDays(7);
+        _formPerson = s.ZustaendigId ?? 0;
+        _formFehler = null;
+        _neuOffen = false;
+    }
+
+    private void NeuOeffnen()
+    {
+        _neuOffen = true;
+        _form = null;
+        _formFehler = null;
+        _neuTitel = "";
+        _neuBereich = 0;
+        _neuPerson = 0;
+        _neuFrist = 3;
+        _neuWartet = 0;
+    }
+
+    private Task HinweisSpeichernAsync() => SendenAsync(
+        () => Http.PutAsJsonAsync($"api/vorgaenge/{Id}/hinweis", new HinweisSetzen(_hinweisText)),
+        () => _hinweisBearbeiten = false);
+
+    private Task AktionAsync(VorgangSchritt s, string aktion) =>
+        SendenAsync(() => Http.PostAsync($"api/vorgaenge/schritte/{s.Id}/{aktion}", null));
+
+    private Task ErledigtAsync(VorgangSchritt s) => SendenAsync(
+        () => Http.PostAsJsonAsync($"api/vorgaenge/schritte/{s.Id}/erledigt",
+            new SchrittErledigen(string.IsNullOrWhiteSpace(_formWert) ? null : _formWert, string.IsNullOrWhiteSpace(_formText) ? null : _formText)));
+
+    private Task WartetAsync(VorgangSchritt s) => SendenAsync(
+        () => Http.PostAsJsonAsync($"api/vorgaenge/schritte/{s.Id}/wartet",
+            new SchrittWarten(DateOnly.FromDateTime(_formDatum), string.IsNullOrWhiteSpace(_formText) ? null : _formText)));
+
+    private Task ZuweisenAsync(VorgangSchritt s) => SendenAsync(
+        () => Http.PostAsJsonAsync($"api/vorgaenge/schritte/{s.Id}/zuweisen", new SchrittZuweisen(_formPerson == 0 ? null : _formPerson)));
+
+    private Task NotizAsync(VorgangSchritt s) => SendenAsync(
+        () => Http.PostAsJsonAsync($"api/vorgaenge/schritte/{s.Id}/notiz", new SchrittNotiz(_formText)));
+
+    private Task EntfernenAsync(VorgangSchritt s) => SendenAsync(
+        () => Http.DeleteAsync($"api/vorgaenge/schritte/{s.Id}"));
+
+    private Task SchrittHinzufuegenAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_neuTitel) || _neuBereich == 0)
+        {
+            _formFehler = "Bitte Schritt und Bereich angeben.";
+            return Task.CompletedTask;
+        }
+        return SendenAsync(
+            () => Http.PostAsJsonAsync($"api/vorgaenge/{Id}/schritte", new SchrittHinzufuegen(_neuTitel, _neuBereich, _neuFrist,
+                _neuWartet == 0 ? null : _neuWartet, _neuPerson == 0 ? null : _neuPerson)),
+            () => _neuOffen = false);
+    }
+
+    /// <summary>Gemeinsamer Rahmen: Sperre, Fehlertext am offenen Formular, Neuladen.</summary>
+    private async Task SendenAsync(Func<Task<HttpResponseMessage>> aufruf, Action? danach = null)
+    {
+        _sende = true;
+        _formFehler = null;
+        _fehler = null;
+        try
+        {
+            var antwort = await aufruf();
+            if (antwort.IsSuccessStatusCode)
+            {
+                _form = null;
+                danach?.Invoke();
+                await LadenAsync();
+            }
+            else
+            {
+                var text = await VorgangAnzeige.FehlerAsync(antwort);
+                if (_form is not null || _neuOffen)
+                    _formFehler = text;
+                else
+                    _fehler = text;
+            }
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+}

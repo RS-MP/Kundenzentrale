@@ -12,4 +12,8 @@ public class Bereich
     public required string Name { get; set; }
 
     public bool Aktiv { get; set; } = true;
+
+    /// <summary>Bereichsleiter: pflegt zusammen mit den Admins die Vorgangstypen (Entscheidung 28.10.2026).</summary>
+    public int? LeiterId { get; set; }
+    public Mitarbeiter? Leiter { get; set; }
 }

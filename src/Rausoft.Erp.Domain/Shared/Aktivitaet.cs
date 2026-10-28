@@ -201,4 +201,5 @@ public enum AktivitaetsVerweisTyp
     Ticket = 3,
     Aufgabe = 4,
     EMail = 5,
+    Vorgang = 6,
 }

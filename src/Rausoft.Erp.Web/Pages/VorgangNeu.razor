@@ -1,0 +1,380 @@
+@page "/vorgaenge/neu"
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>Vorgang anlegen · Kundenzentrale</PageTitle>
+
+<a class="zurueck" href="vorgaenge">← Alle Vorgänge</a>
+<div class="seitenkopf" style="margin-top:10px">
+    <h1>Vorgang anlegen</h1>
+    <span class="untertitel">Sobald in Odoo der Auftrag bestätigt ist — kein Odoo-Projekt mehr nötig</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (_typen is null)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade Vorgangstypen …</div> }
+}
+else if (!_typen.Typen.Any(t => t.Aktiv))
+{
+    <div class="karte"><div class="karte-koerper">
+        <div class="leer-hinweis">
+            Es gibt noch keinen aktiven Vorgangstyp. <a href="vorgaenge/typen">Vorgangstypen anlegen</a>
+        </div>
+    </div></div>
+}
+else
+{
+    <div class="vg-raster anlegen">
+        <div class="karte">
+            <div class="karte-kopf"><h2>Bestellung</h2></div>
+            <div class="karte-koerper">
+                <div class="vg-abschnitt">Kunde</div>
+                @if (_kunde is { } k)
+                {
+                    <div style="margin-bottom:16px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap">
+                        <b>@k.Name</b><span class="neben">@k.Nummer</span>
+                        <button class="textknopf" @onclick="() => _kunde = null">ändern</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="vg-feld" style="margin-bottom:16px">
+                        <input type="search" placeholder="Firmenname oder Kundennummer …" value="@_suche"
+                               @oninput="SucheAsync" autocomplete="off" />
+                        @if (_treffer is { Count: > 0 })
+                        {
+                            <div class="vg-kundentreffer">
+                                @foreach (var t in _treffer)
+                                {
+                                    <button type="button" @onclick="() => KundeWaehlen(t.Id, t.Firmenname, t.Kundennummer)">
+                                        <b>@t.Firmenname</b> <span class="neben">@t.Kundennummer@(t.Ort is not null ? $" · {t.Ort}" : "")</span>
+                                    </button>
+                                }
+                            </div>
+                        }
+                        else if (_suche.Length >= 2 && _treffer is not null)
+                        {
+                            <span class="hilfe">Kein Kunde gefunden.</span>
+                        }
+                    </div>
+                }
+
+                <div class="vg-abschnitt">Vorgangstyp</div>
+                <div class="vg-typwahl">
+                    @foreach (var t in _typen.Typen.Where(t => t.Aktiv))
+                    {
+                        <label class="vg-typkarte @(_typId == t.Id ? "an" : "")">
+                            <input type="radio" name="vorgangstyp" checked="@(_typId == t.Id)" @onchange="() => TypWaehlenAsync(t.Id)" />
+                            <span>
+                                <span class="n">@t.Name</span><br />
+                                <span class="b">@(t.Beschreibung ?? $"{t.AnzahlSchritte} Schritte")</span>
+                            </span>
+                        </label>
+                    }
+                </div>
+
+                @if (_typ is { Bedingungen.Count: > 0 })
+                {
+                    <div class="vg-abschnitt">Was wurde bestellt?</div>
+                    <div class="vg-bedingungen">
+                        @foreach (var b in _typ.Bedingungen)
+                        {
+                            <label><input type="checkbox" checked="@_bedingungen.Contains(b)" @onchange="e => BedingungSetzen(b, e.Value is true)" /> @b</label>
+                        }
+                    </div>
+                }
+
+                <div class="vg-feldgruppe">
+                    <label class="vg-feld">Odoo-Auftragsnummer
+                        <input type="text" maxlength="30" @bind="_odoo" placeholder="z. B. S01241" />
+                        <span class="hilfe">Verbindet den Vorgang mit dem Odoo-Verlauf in der Akte.</span>
+                    </label>
+                    <label class="vg-feld">Start
+                        <input type="date" @bind="_start" />
+                        <span class="hilfe">Ab hier laufen die Fristen.</span>
+                    </label>
+                </div>
+                <label class="vg-feld" style="margin-bottom:16px">Hinweis zum Vorgang (optional)
+                    <textarea maxlength="1000" @bind="_hinweis" placeholder="z. B. ACHTUNG: alten Vertragsstand versenden"></textarea>
+                    <span class="hilfe">Steht gut sichtbar im Vorgang und in der Übersicht — für alle, die an einem Schritt arbeiten.</span>
+                </label>
+
+                <div class="formular-aktionen">
+                    <button class="knopf" disabled="@(_sende || _kunde is null || _typ is null)" @onclick="AnlegenAsync">Vorgang anlegen</button>
+                    <a class="knopf sekundaer" href="vorgaenge">Abbrechen</a>
+                    @if (_kunde is null || _typ is null)
+                    {
+                        <span class="neben">Bitte Kunde und Vorgangstyp wählen.</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="karte">
+            <div class="karte-kopf">
+                <h2>Schritte dieses Vorgangs</h2>
+                @if (_typ is not null) { <span class="neben">nur für diesen Vorgang, die Vorlage bleibt unverändert</span> }
+            </div>
+            @if (_typ is null)
+            {
+                <div class="leer-hinweis">Erst einen Vorgangstyp wählen.</div>
+            }
+            else
+            {
+                @foreach (var s in _typ.Schritte)
+                {
+                    var weg = _entfernt.Contains(s.Nr);
+                    var bedingungFehlt = s.Bedingung is not null && !_bedingungen.Contains(s.Bedingung);
+                    <div class="vg-vorschau @(weg || bedingungFehlt ? "weg" : "")">
+                        <span class="nr">@s.Nr</span>
+                        <span class="t">@s.Titel</span>
+                        <span class="m">
+                            @BereichName(s.BereichId) · @s.FristTage @(s.FristTage == 1 ? "Tag" : "Tage")
+                            @if (Vorgaenger(s.Nr) is { } v) { <span> · wartet auf @v</span> }
+                            @if (s.Bedingung is not null) { <span> · nur wenn „@s.Bedingung“</span> }
+                            @if (weg) { <span> · von Hand entfernt</span> }
+                        </span>
+                        <span class="x">
+                            @if (weg)
+                            {
+                                <button class="textknopf" @onclick="() => _entfernt.Remove(s.Nr)">Zurückholen</button>
+                            }
+                            else if (!bedingungFehlt)
+                            {
+                                <button class="vg-entfernen" title="In diesem Vorgang nicht nötig" @onclick="() => _entfernt.Add(s.Nr)">×</button>
+                            }
+                        </span>
+                    </div>
+                }
+                @foreach (var m in _manuelle)
+                {
+                    <div class="vg-vorschau">
+                        <span class="nr">+</span>
+                        <span class="t">@m.Titel <span class="vg-manuell">von Hand</span></span>
+                        <span class="m">
+                            @BereichName(m.BereichId) · @m.FristTage @(m.FristTage == 1 ? "Tag" : "Tage")
+                            @if (m.WartetAufNr is { } w && Effektiv(w) is { } e) { <span> · wartet auf @e</span> }
+                        </span>
+                        <span class="x"><button class="vg-entfernen" title="Wieder weg" @onclick="() => _manuelle.Remove(m)">×</button></span>
+                    </div>
+                }
+                <div class="vg-neu">
+                    @if (_neuOffen)
+                    {
+                        <div class="vg-form">
+                            <label style="flex-basis:100%">Schritt<input type="text" maxlength="300" @bind="_neuTitel" placeholder="z. B. Altdaten übernehmen" /></label>
+                            <label>Bereich
+                                <select @bind="_neuBereich">
+                                    <option value="0">— wählen —</option>
+                                    @foreach (var b in _typen.Bereiche) { <option value="@b.Id">@b.Name</option> }
+                                </select>
+                            </label>
+                            <label style="flex:0 1 110px">Frist (Tage)<input type="number" min="0" max="365" @bind="_neuFrist" /></label>
+                            <label>Wartet auf (optional)
+                                <select @bind="_neuWartet">
+                                    <option value="0">— startet sofort —</option>
+                                    @foreach (var s in _typ.Schritte) { <option value="@s.Nr">@s.Nr. @s.Titel</option> }
+                                </select>
+                            </label>
+                            <button class="knopf klein" style="color:var(--knopf-text)" @onclick="ManuellHinzufuegen">Hinzufügen</button>
+                            <button class="knopf sekundaer klein" @onclick="() => _neuOffen = false">Abbrechen</button>
+                            @if (_neuFehler is not null) { <div class="fehler">@_neuFehler</div> }
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="textknopf" @onclick="NeuOeffnen">+ Schritt von Hand hinzufügen</button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "kunde")] public int? KundeId { get; set; }
+
+    private sealed record KundeWahl(int Id, string Name, string Nummer);
+    private sealed record Manuell(string Titel, int BereichId, int FristTage, int? WartetAufNr);
+
+    private VorgangstypenUebersicht? _typen;
+    private VorgangstypDetail? _typ;
+    private int? _typId;
+    private KundeWahl? _kunde;
+    private string _suche = "";
+    private List<KundeListenEintrag>? _treffer;
+    private CancellationTokenSource? _sucheAbbruch;
+
+    private readonly HashSet<int> _entfernt = [];
+    private readonly HashSet<string> _bedingungen = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<Manuell> _manuelle = [];
+    private string _odoo = "";
+    private DateTime _start = DateTime.Today;
+    private string _hinweis = "";
+
+    private bool _neuOffen;
+    private string _neuTitel = "";
+    private int _neuBereich;
+    private int _neuFrist = 3;
+    private int _neuWartet;
+    private string? _neuFehler;
+
+    private string? _fehler;
+    private bool _sende;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _typen = await Http.GetFromJsonAsync<VorgangstypenUebersicht>("api/vorgangstypen");
+            if (KundeId is { } id)
+            {
+                var k = await Http.GetFromJsonAsync<KundeDetail>($"api/kunden/{id}");
+                if (k is not null)
+                    _kunde = new KundeWahl(k.Id, k.Firmenname, k.Kundennummer);
+            }
+            if (_typen?.Typen.Count(t => t.Aktiv) == 1)
+                await TypWaehlenAsync(_typen.Typen.First(t => t.Aktiv).Id);
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Laden fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private async Task SucheAsync(ChangeEventArgs e)
+    {
+        _suche = e.Value?.ToString() ?? "";
+        _sucheAbbruch?.Cancel();
+        if (_suche.Trim().Length < 2)
+        {
+            _treffer = null;
+            return;
+        }
+        var abbruch = _sucheAbbruch = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(250, abbruch.Token);
+            var ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
+                $"api/kunden?suche={Uri.EscapeDataString(_suche.Trim())}&proSeite=8", abbruch.Token);
+            _treffer = ergebnis?.Eintraege ?? [];
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void KundeWaehlen(int id, string name, string nummer)
+    {
+        _kunde = new KundeWahl(id, name, nummer);
+        _suche = "";
+        _treffer = null;
+    }
+
+    private async Task TypWaehlenAsync(int id)
+    {
+        _typId = id;
+        _entfernt.Clear();
+        _bedingungen.Clear();
+        // Manuelle Schritte bleiben, verlieren aber ihren Bezug auf die alte Vorlage
+        for (var i = 0; i < _manuelle.Count; i++)
+            _manuelle[i] = _manuelle[i] with { WartetAufNr = null };
+        try
+        {
+            _typ = await Http.GetFromJsonAsync<VorgangstypDetail>($"api/vorgangstypen/{id}");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vorgangstyp konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private void BedingungSetzen(string bedingung, bool an)
+    {
+        if (an) _bedingungen.Add(bedingung);
+        else _bedingungen.Remove(bedingung);
+    }
+
+    private string BereichName(int id) => _typen?.Bereiche.FirstOrDefault(b => b.Id == id)?.Name ?? "Bereich?";
+
+    private bool Entfaellt(VorgangstypSchrittDaten s) =>
+        _entfernt.Contains(s.Nr) || (s.Bedingung is not null && !_bedingungen.Contains(s.Bedingung));
+
+    /// <summary>Wartet-auf nach dem Entfernen: entfallene Vorgänger werden übersprungen (wie auf dem Server).</summary>
+    private string? Effektiv(int nr)
+    {
+        var s = _typ?.Schritte.FirstOrDefault(x => x.Nr == nr);
+        while (s is not null && Entfaellt(s))
+            s = s.WartetAufNr is { } w ? _typ!.Schritte.FirstOrDefault(x => x.Nr == w) : null;
+        return s is null ? null : $"{s.Nr}. {s.Titel}";
+    }
+
+    private string? Vorgaenger(int nr) =>
+        _typ?.Schritte.FirstOrDefault(x => x.Nr == nr)?.WartetAufNr is { } w ? Effektiv(w) : null;
+
+    private void NeuOeffnen()
+    {
+        _neuOffen = true;
+        _neuTitel = "";
+        _neuBereich = 0;
+        _neuFrist = 3;
+        _neuWartet = 0;
+        _neuFehler = null;
+    }
+
+    private void ManuellHinzufuegen()
+    {
+        if (string.IsNullOrWhiteSpace(_neuTitel) || _neuBereich == 0)
+        {
+            _neuFehler = "Bitte Schritt und Bereich angeben.";
+            return;
+        }
+        if (_neuFrist is < 0 or > 365)
+        {
+            _neuFehler = "Die Frist muss zwischen 0 und 365 Tagen liegen.";
+            return;
+        }
+        _manuelle.Add(new Manuell(_neuTitel.Trim(), _neuBereich, _neuFrist, _neuWartet == 0 ? null : _neuWartet));
+        _neuOffen = false;
+    }
+
+    private async Task AnlegenAsync()
+    {
+        if (_kunde is null || _typ is null)
+            return;
+        _sende = true;
+        _fehler = null;
+        try
+        {
+            var anlage = new VorgangAnlegen(
+                _kunde.Id, _typ.Id,
+                string.IsNullOrWhiteSpace(_odoo) ? null : _odoo,
+                string.IsNullOrWhiteSpace(_hinweis) ? null : _hinweis,
+                DateOnly.FromDateTime(_start),
+                _entfernt.ToList(),
+                _bedingungen.ToList(),
+                _manuelle.Select(m => new ManuellerSchrittAnlegen(m.Titel, m.BereichId, m.FristTage, m.WartetAufNr, null)).ToList());
+            var antwort = await Http.PostAsJsonAsync("api/vorgaenge", anlage);
+            if (antwort.IsSuccessStatusCode)
+            {
+                var id = await antwort.Content.ReadFromJsonAsync<int>();
+                Nav.NavigateTo($"vorgaenge/{id}");
+            }
+            else
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+            }
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+}

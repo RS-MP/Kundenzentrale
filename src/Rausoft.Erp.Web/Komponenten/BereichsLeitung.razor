@@ -1,0 +1,87 @@
+@* Bereiche und ihre Leiter (Administration). Bereichsleiter pflegen zusammen mit den
+   Admins die Vorgangstypen (Entscheidung 28.10.2026). Bereiche selbst entstehen in der
+   Benutzerverwaltung über das Feld „Bereich". *@
+@inject HttpClient Http
+
+<details class="gruppe">
+    <summary>Bereiche &amp; Leitung<span class="zahl">@(_bereiche?.Count(b => b.Aktiv) ?? 0)</span></summary>
+    <div class="gruppe-inhalt">
+        <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
+            Der <b>Bereichsleiter</b> pflegt zusammen mit den Admins die <a href="vorgaenge/typen">Vorgangstypen</a>.
+            Neue Bereiche entstehen in der Benutzerverwaltung über das Feld „Bereich“.
+        </div>
+        @if (_fehler is not null)
+        {
+            <div class="fehler">@_fehler</div>
+        }
+        @if (_bereiche is null)
+        {
+            <div style="color:var(--muted)">Lade Bereiche …</div>
+        }
+        else if (_bereiche.Count == 0)
+        {
+            <div style="color:var(--muted)">Noch keine Bereiche.</div>
+        }
+        else
+        {
+            @foreach (var b in _bereiche)
+            {
+                <div class="zeile2" style="align-items:center; @(b.Aktiv ? "" : "opacity:.55")">
+                    <span class="l" style="color:var(--ink); font-weight:600">@b.Name@(b.Aktiv ? "" : " (inaktiv)")</span>
+                    <span class="r">
+                        <select value="@(b.LeiterId ?? 0)" @onchange="e => LeiterSetzenAsync(b, e.Value?.ToString())" disabled="@_sende">
+                            <option value="0">— kein Leiter —</option>
+                            @foreach (var m in _mitarbeiter)
+                            {
+                                <option value="@m.Id">@m.Anzeigename</option>
+                            }
+                        </select>
+                    </span>
+                </div>
+            }
+        }
+    </div>
+</details>
+
+@code {
+    private List<BereichEintrag>? _bereiche;
+    private List<MitarbeiterEintrag> _mitarbeiter = [];
+    private string? _fehler;
+    private bool _sende;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _bereiche = await Http.GetFromJsonAsync<List<BereichEintrag>>("api/mitarbeiter/bereiche/leitung") ?? [];
+            _mitarbeiter = (await Http.GetFromJsonAsync<List<MitarbeiterEintrag>>("api/mitarbeiter") ?? [])
+                .Where(m => m.Aktiv).OrderBy(m => m.Anzeigename).ToList();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Bereiche konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task LeiterSetzenAsync(BereichEintrag bereich, string? wert)
+    {
+        _fehler = null;
+        _sende = true;
+        try
+        {
+            var leiter = int.TryParse(wert, out var id) && id > 0 ? id : (int?)null;
+            var antwort = await Http.PutAsJsonAsync($"api/mitarbeiter/bereiche/{bereich.Id}/leiter", new BereichLeiterSetzen(leiter));
+            if (!antwort.IsSuccessStatusCode)
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+            _bereiche = await Http.GetFromJsonAsync<List<BereichEintrag>>("api/mitarbeiter/bereiche/leitung") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+}

@@ -232,6 +232,12 @@
     </div>
 </details>
 
+@* ---------- Bereiche & Leitung (Vorgangstypen-Pflege) ---------- *@
+@if (_mitarbeiter is not null)
+{
+    <BereichsLeitung />
+}
+
 @* ---------- Odoo-Anbindung ---------- *@
 <details class="gruppe">
     <summary>Odoo-Anbindung<span class="zahl">Import</span></summary>

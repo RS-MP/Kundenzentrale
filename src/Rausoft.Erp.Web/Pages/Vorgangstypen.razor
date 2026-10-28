@@ -1,0 +1,380 @@
+@page "/vorgaenge/typen"
+@inject HttpClient Http
+
+<PageTitle>Vorgangstypen · Kundenzentrale</PageTitle>
+
+<a class="zurueck" href="vorgaenge">← Alle Vorgänge</a>
+<div class="seitenkopf" style="margin-top:10px">
+    <h1>Vorgangstypen</h1>
+    <span class="untertitel">Vorlagen für die Schritte eines Vorgangs — laufende Vorgänge behalten ihre Schritte</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_meldung is not null)
+{
+    <div class="zert-hinweis" style="margin-bottom:14px">@_meldung</div>
+}
+
+@if (_daten is null)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade Vorgangstypen …</div> }
+}
+else
+{
+    @if (_daten.Typen.Count == 0)
+    {
+        <div class="karte" style="margin-bottom:16px"><div class="karte-koerper">
+            <p style="margin:0 0 10px">Noch keine Vorgangstypen angelegt.</p>
+            @if (_daten.DarfPflegen)
+            {
+                <p class="neben" style="margin:0 0 10px">
+                    Die vier Typen aus der Entscheidung vom 28.10.2026 als Startpunkt: Neue Bestellung, Upgrade / Upsell,
+                    Stundenauftrag, Verkauf ohne Zwischenschritte. Fehlende Bereiche (Vertrieb, Technik, Buchhaltung, Support) werden dabei angelegt.
+                </p>
+                <button class="knopf" disabled="@_sende" @onclick="StandardAnlegenAsync">Standardtypen anlegen</button>
+                <button class="knopf sekundaer" @onclick="NeuerTyp">Leeren Vorgangstyp anlegen</button>
+            }
+            else
+            {
+                <p class="neben" style="margin:0">Vorgangstypen pflegen Admins und Bereichsleiter.</p>
+            }
+        </div></div>
+    }
+    else
+    {
+        <div class="vg-typenliste">
+            @foreach (var t in _daten.Typen)
+            {
+                <button type="button" class="@(_typ?.Id == t.Id && !_neu ? "an" : "") @(t.Aktiv ? "" : "inaktiv")" @onclick="() => TypLadenAsync(t.Id)">
+                    <span class="n">@t.Name</span>
+                    <span class="b">
+                        Stand @t.Stand · @t.AnzahlSchritte @(t.AnzahlSchritte == 1 ? "Schritt" : "Schritte")
+                        @if (t.LaufendeVorgaenge > 0) { <span> · @t.LaufendeVorgaenge laufend</span> }
+                        @if (!t.Aktiv) { <span> · deaktiviert</span> }
+                    </span>
+                </button>
+            }
+            @if (_daten.DarfPflegen)
+            {
+                <button type="button" class="@(_neu ? "an" : "")" @onclick="NeuerTyp">
+                    <span class="n">+ Neuer Vorgangstyp</span>
+                    <span class="b">leer beginnen oder einen bestehenden kopieren</span>
+                </button>
+            }
+        </div>
+    }
+
+    @if (_neu || _typ is not null)
+    {
+        var lesend = !_daten.DarfPflegen;
+        <div class="karte">
+            <div class="karte-kopf" style="flex-wrap:wrap">
+                <h2>@(_neu ? "Neuer Vorgangstyp" : _typ!.Name)</h2>
+                @if (!_neu && _typ is { } t)
+                {
+                    <span class="neben">Stand @t.Stand@(t.GeaendertVon is not null ? $" · zuletzt geändert {t.GeaendertAm.ToLocalTime():dd.MM.yyyy} von {t.GeaendertVon}" : "")</span>
+                }
+                <span style="flex:1"></span>
+                @if (!lesend && !_neu && _typ is { } typ)
+                {
+                    @if (_kopieOffen)
+                    {
+                        <input type="text" maxlength="100" @bind="_kopieName" style="min-width:220px" />
+                        <button class="knopf sekundaer klein" disabled="@_sende" @onclick="KopierenAsync">Kopie anlegen</button>
+                        <button class="knopf sekundaer klein" @onclick="() => _kopieOffen = false">Abbrechen</button>
+                    }
+                    else
+                    {
+                        <button class="knopf sekundaer klein" @onclick="KopieOeffnen">Kopieren</button>
+                        <button class="knopf sekundaer klein" disabled="@_sende" @onclick="AktivUmschaltenAsync">@(typ.Aktiv ? "Deaktivieren" : "Wieder aktivieren")</button>
+                    }
+                }
+            </div>
+
+            @if (lesend)
+            {
+                <div class="vg-pflege gesperrt">Nur lesen: Vorgangstypen pflegen Admins und Bereichsleiter (Bereichsleiter tragen Admins unter Administration → Bereiche ein).</div>
+            }
+            else if (!_neu && _typ is { } info)
+            {
+                <div class="vg-pflege">
+                    @if (!info.Aktiv) { <span><b>Deaktiviert:</b> steht beim Anlegen nicht mehr zur Auswahl.</span> }
+                    <span>Änderungen an den Schritten ergeben Stand @(info.Stand + 1).</span>
+                    @if (info.LaufendeVorgaenge > 0) { <span>@(info.LaufendeVorgaenge == 1 ? "1 laufender Vorgang behält seine Schritte." : $"{info.LaufendeVorgaenge} laufende Vorgänge behalten ihre Schritte.")</span> }
+                </div>
+            }
+
+            <div class="karte-koerper">
+                <div class="vg-feldgruppe">
+                    <label class="vg-feld">Name<input type="text" maxlength="100" @bind="_name" disabled="@lesend" /></label>
+                    <label class="vg-feld">Kurzbeschreibung<input type="text" maxlength="300" @bind="_beschreibung" disabled="@lesend" placeholder="erscheint beim Anlegen unter dem Namen" /></label>
+                </div>
+            </div>
+            <div class="vg-tabelle-wrap">
+                <table class="vg-editor">
+                    <thead>
+                        <tr>
+                            <th></th><th>Schritt</th><th>Bereich</th><th>Frist</th><th>Wartet auf</th><th>Nur wenn</th>
+                            <th>Benachrichtigung</th><th>Pflichtfeld</th><th>Hakt sich ab bei</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < _zeilen.Count; i++)
+                        {
+                            var z = _zeilen[i];
+                            var index = i;
+                            <tr>
+                                <td class="nr">@(i + 1)</td>
+                                <td class="titel"><input type="text" maxlength="300" @bind="z.Titel" disabled="@lesend" /></td>
+                                <td class="mittel">
+                                    <select @bind="z.BereichId" disabled="@lesend">
+                                        <option value="0">— wählen —</option>
+                                        @foreach (var b in _daten.Bereiche) { <option value="@b.Id">@b.Name</option> }
+                                    </select>
+                                </td>
+                                <td><input type="number" min="0" max="365" @bind="z.FristTage" disabled="@lesend" title="Tage ab Start des Schritts" /></td>
+                                <td class="mittel">
+                                    <select value="@(z.WartetAuf?.ToString() ?? "")" @onchange="e => z.WartetAuf = Guid.TryParse(e.Value?.ToString(), out var g) ? g : null" disabled="@lesend">
+                                        <option value="">— sofort —</option>
+                                        @for (var j = 0; j < index; j++)
+                                        {
+                                            <option value="@_zeilen[j].Schluessel">@(j + 1). @Kurz(_zeilen[j].Titel)</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td class="mittel"><input type="text" maxlength="100" @bind="z.Bedingung" disabled="@lesend" placeholder="immer" /></td>
+                                <td>
+                                    <select @bind="z.Benachrichtigung" disabled="@lesend">
+                                        <option value="Keine">keine</option>
+                                        <option value="Mail">Mail</option>
+                                        <option value="Teams">Teams</option>
+                                    </select>
+                                </td>
+                                <td class="mittel"><input type="text" maxlength="100" @bind="z.Pflichtfeld" disabled="@lesend" placeholder="—" /></td>
+                                <td>
+                                    <select @bind="z.AutoAbhaken" disabled="@lesend">
+                                        <option value="Nie">nie</option>
+                                        <option value="OdooRechnung">Rechnung in Odoo</option>
+                                        <option value="VertragUnterschrieben">Vertrag unterschrieben</option>
+                                    </select>
+                                </td>
+                                <td style="white-space:nowrap">
+                                    @if (!lesend)
+                                    {
+                                        <button class="vg-entfernen" title="nach oben" disabled="@(index == 0)" @onclick="() => Verschieben(index, -1)">↑</button>
+                                        <button class="vg-entfernen" title="nach unten" disabled="@(index == _zeilen.Count - 1)" @onclick="() => Verschieben(index, 1)">↓</button>
+                                        <button class="vg-entfernen" title="Schritt entfernen" disabled="@(_zeilen.Count == 1)" @onclick="() => Entfernen(index)">×</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (!lesend)
+            {
+                <div class="karte-koerper" style="border-top:1px solid var(--border)">
+                    <div class="formular-aktionen" style="margin-top:0">
+                        <button class="knopf sekundaer" @onclick="ZeileHinzufuegen">+ Schritt</button>
+                        <span style="flex:1"></span>
+                        <button class="knopf" disabled="@_sende" @onclick="SpeichernAsync">@(_neu ? "Vorgangstyp anlegen" : "Speichern")</button>
+                    </div>
+                    <p class="neben" style="margin:10px 0 0">
+                        „Wartet auf“ ist optional — ohne Vorgänger startet ein Schritt sofort parallel. „Nur wenn“ wird beim Anlegen
+                        angekreuzt (z. B. „Schulung bestellt“). Benachrichtigung und automatisches Abhaken werden schon gespeichert,
+                        Versand und Abgleich folgen in einem nächsten Schritt.
+                    </p>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private sealed class Zeile
+    {
+        public Guid Schluessel { get; } = Guid.NewGuid();
+        public string Titel { get; set; } = "";
+        public int BereichId { get; set; }
+        public int FristTage { get; set; } = 3;
+        public Guid? WartetAuf { get; set; }
+        public string? Bedingung { get; set; }
+        public string Benachrichtigung { get; set; } = "Keine";
+        public string? Pflichtfeld { get; set; }
+        public string AutoAbhaken { get; set; } = "Nie";
+    }
+
+    private VorgangstypenUebersicht? _daten;
+    private VorgangstypDetail? _typ;
+    private bool _neu;
+    private string _name = "";
+    private string _beschreibung = "";
+    private List<Zeile> _zeilen = [];
+    private bool _kopieOffen;
+    private string _kopieName = "";
+    private string? _fehler;
+    private string? _meldung;
+    private bool _sende;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ListeLadenAsync();
+        if (_daten?.Typen.FirstOrDefault(t => t.Aktiv) is { } erster)
+            await TypLadenAsync(erster.Id);
+    }
+
+    private async Task ListeLadenAsync()
+    {
+        try { _daten = await Http.GetFromJsonAsync<VorgangstypenUebersicht>("api/vorgangstypen"); }
+        catch (Exception ex) { _fehler = $"Vorgangstypen konnten nicht geladen werden: {ex.Message}"; }
+    }
+
+    private async Task TypLadenAsync(int id)
+    {
+        _fehler = null;
+        _meldung = null;
+        _kopieOffen = false;
+        try
+        {
+            _typ = await Http.GetFromJsonAsync<VorgangstypDetail>($"api/vorgangstypen/{id}");
+            _neu = false;
+            if (_typ is null)
+                return;
+            _name = _typ.Name;
+            _beschreibung = _typ.Beschreibung ?? "";
+            var zeilen = _typ.Schritte.Select(s => new Zeile
+            {
+                Titel = s.Titel, BereichId = s.BereichId, FristTage = s.FristTage, Bedingung = s.Bedingung,
+                Benachrichtigung = s.Benachrichtigung, Pflichtfeld = s.Pflichtfeld, AutoAbhaken = s.AutoAbhaken,
+            }).ToList();
+            for (var i = 0; i < zeilen.Count; i++)
+                if (_typ.Schritte[i].WartetAufNr is { } w && w >= 1 && w <= zeilen.Count)
+                    zeilen[i].WartetAuf = zeilen[w - 1].Schluessel;
+            _zeilen = zeilen;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vorgangstyp konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private void NeuerTyp()
+    {
+        _neu = true;
+        _typ = null;
+        _name = "";
+        _beschreibung = "";
+        _zeilen = [new Zeile()];
+        _fehler = null;
+        _meldung = null;
+    }
+
+    private static string Kurz(string titel) => titel.Length <= 28 ? titel : titel[..27] + "…";
+
+    private void ZeileHinzufuegen() => _zeilen.Add(new Zeile());
+
+    private void Verschieben(int index, int richtung)
+    {
+        var ziel = index + richtung;
+        (_zeilen[index], _zeilen[ziel]) = (_zeilen[ziel], _zeilen[index]);
+    }
+
+    private void Entfernen(int index)
+    {
+        var weg = _zeilen[index];
+        _zeilen.RemoveAt(index);
+        // Wer auf den entfernten Schritt gewartet hat, wartet jetzt auf dessen Vorgänger
+        foreach (var z in _zeilen.Where(z => z.WartetAuf == weg.Schluessel))
+            z.WartetAuf = weg.WartetAuf;
+    }
+
+    private VorgangstypSpeichern Daten()
+    {
+        var nr = _zeilen.Select((z, i) => (z.Schluessel, Nr: i + 1)).ToDictionary(x => x.Schluessel, x => x.Nr);
+        return new VorgangstypSpeichern(_name, string.IsNullOrWhiteSpace(_beschreibung) ? null : _beschreibung,
+            _zeilen.Select((z, i) => new VorgangstypSchrittDaten(i + 1, z.Titel, z.BereichId, z.FristTage,
+                z.WartetAuf is { } w && nr.TryGetValue(w, out var n) ? n : null,
+                string.IsNullOrWhiteSpace(z.Bedingung) ? null : z.Bedingung,
+                z.Benachrichtigung, string.IsNullOrWhiteSpace(z.Pflichtfeld) ? null : z.Pflichtfeld, z.AutoAbhaken)).ToList());
+    }
+
+    private Task SpeichernAsync() => AusfuehrenAsync(async () =>
+    {
+        if (_neu)
+        {
+            var antwort = await Http.PostAsJsonAsync("api/vorgangstypen", Daten());
+            if (!antwort.IsSuccessStatusCode)
+                return await VorgangAnzeige.FehlerAsync(antwort);
+            var id = await antwort.Content.ReadFromJsonAsync<int>();
+            await ListeLadenAsync();
+            await TypLadenAsync(id);
+            _meldung = "Vorgangstyp angelegt.";
+        }
+        else
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/vorgangstypen/{_typ!.Id}", Daten());
+            if (!antwort.IsSuccessStatusCode)
+                return await VorgangAnzeige.FehlerAsync(antwort);
+            var stand = _typ.Stand;
+            await ListeLadenAsync();
+            await TypLadenAsync(_typ.Id);
+            _meldung = _typ?.Stand > stand ? $"Gespeichert als Stand {_typ.Stand}." : "Gespeichert.";
+        }
+        return null;
+    });
+
+    private void KopieOeffnen()
+    {
+        _kopieName = $"{_typ!.Name} (Kopie)";
+        _kopieOffen = true;
+    }
+
+    private Task KopierenAsync() => AusfuehrenAsync(async () =>
+    {
+        var antwort = await Http.PostAsJsonAsync($"api/vorgangstypen/{_typ!.Id}/kopie", new VorgangstypKopieren(_kopieName));
+        if (!antwort.IsSuccessStatusCode)
+            return await VorgangAnzeige.FehlerAsync(antwort);
+        var id = await antwort.Content.ReadFromJsonAsync<int>();
+        await ListeLadenAsync();
+        await TypLadenAsync(id);
+        _meldung = "Kopie angelegt — jetzt anpassen und speichern.";
+        return null;
+    });
+
+    private Task AktivUmschaltenAsync() => AusfuehrenAsync(async () =>
+    {
+        var aktiv = !_typ!.Aktiv;
+        var antwort = await Http.PutAsJsonAsync($"api/vorgangstypen/{_typ.Id}/aktiv", new AktivSetzen(aktiv));
+        if (!antwort.IsSuccessStatusCode)
+            return await VorgangAnzeige.FehlerAsync(antwort);
+        await ListeLadenAsync();
+        await TypLadenAsync(_typ.Id);
+        _meldung = aktiv ? "Wieder aktiv — steht beim Anlegen zur Auswahl." : "Deaktiviert — steht beim Anlegen nicht mehr zur Auswahl.";
+        return null;
+    });
+
+    private Task StandardAnlegenAsync() => AusfuehrenAsync(async () =>
+    {
+        var antwort = await Http.PostAsync("api/vorgangstypen/standard", null);
+        if (!antwort.IsSuccessStatusCode)
+            return await VorgangAnzeige.FehlerAsync(antwort);
+        await ListeLadenAsync();
+        if (_daten?.Typen.FirstOrDefault() is { } erster)
+            await TypLadenAsync(erster.Id);
+        _meldung = "Die vier Standardtypen sind angelegt.";
+        return null;
+    });
+
+    private async Task AusfuehrenAsync(Func<Task<string?>> aktion)
+    {
+        _fehler = null;
+        _meldung = null;
+        _sende = true;
+        try { _fehler = await aktion(); }
+        catch (Exception ex) { _fehler = $"Fehler: {ex.Message}"; }
+        finally { _sende = false; }
+    }
+}

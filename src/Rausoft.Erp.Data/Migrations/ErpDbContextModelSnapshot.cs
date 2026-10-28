@@ -1027,6 +1027,12 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int>("AutoAbhaken")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Benachrichtigung")
+                        .HasColumnType("int");
+
                     b.Property<string>("Beschreibung")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(max)");
@@ -1034,6 +1040,10 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<string>("Bezug")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("EntfallenGrund")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime?>("ErledigtAm")
                         .HasColumnType("datetime2");
@@ -1050,13 +1060,30 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<DateOnly?>("Faellig")
                         .HasColumnType("date");
 
+                    b.Property<int?>("FristTage")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Herkunft")
+                        .HasColumnType("int");
+
                     b.Property<int?>("KundeId")
                         .HasColumnType("int");
 
                     b.Property<int?>("OdooId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Pflichtfeld")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PflichtfeldWert")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<int>("Quelle")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Reihenfolge")
                         .HasColumnType("int");
 
                     b.Property<int>("Status")
@@ -1070,6 +1097,15 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
+
+                    b.Property<int?>("VorgangId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WartetAufId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("Wiedervorlage")
+                        .HasColumnType("date");
 
                     b.Property<int?>("ZustaendigBereichId")
                         .HasColumnType("int");
@@ -1091,11 +1127,15 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsUnique()
                         .HasFilter("[OdooId] IS NOT NULL");
 
-                    b.HasIndex("ZustaendigBereichId");
+                    b.HasIndex("VorgangId");
 
-                    b.HasIndex("ZustaendigId");
+                    b.HasIndex("WartetAufId");
 
                     b.HasIndex("KundeId", "Status");
+
+                    b.HasIndex("ZustaendigBereichId", "Status");
+
+                    b.HasIndex("ZustaendigId", "Status");
 
                     b.ToTable("Aufgaben");
                 });
@@ -1111,12 +1151,17 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<bool>("Aktiv")
                         .HasColumnType("bit");
 
+                    b.Property<int?>("LeiterId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LeiterId");
 
                     b.HasIndex("Name")
                         .IsUnique();
@@ -1461,6 +1506,165 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasIndex("AboId");
 
                     b.ToTable("AboPositionen");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.Vorgang", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AbgeschlossenAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ErstelltAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErstelltVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Hinweis")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("KundeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OdooAuftrag")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateOnly>("Start")
+                        .HasColumnType("date");
+
+                    b.Property<string>("StrangName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("StrangSchluessel")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Titel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("VorgangstypId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("VorgangstypStand")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AbgeschlossenAm");
+
+                    b.HasIndex("ErstelltVonId");
+
+                    b.HasIndex("KundeId");
+
+                    b.HasIndex("OdooAuftrag")
+                        .HasFilter("[OdooAuftrag] IS NOT NULL");
+
+                    b.HasIndex("VorgangstypId");
+
+                    b.ToTable("Vorgaenge");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.Vorgangstyp", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Aktiv")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Beschreibung")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeaendertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Stand")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GeaendertVonId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Vorgangstypen");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.VorgangstypSchritt", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AutoAbhaken")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Bedingung")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Benachrichtigung")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BereichId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FristTage")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Nr")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Pflichtfeld")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Titel")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("VorgangstypId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WartetAufNr")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BereichId");
+
+                    b.HasIndex("VorgangstypId", "Nr")
+                        .IsUnique();
+
+                    b.ToTable("VorgangstypSchritte");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.PreislistenVersion", b =>
@@ -2066,6 +2270,16 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasForeignKey("KundeId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Rausoft.Erp.Domain.Vorgaenge.Vorgang", "Vorgang")
+                        .WithMany("Schritte")
+                        .HasForeignKey("VorgangId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Aufgabe", "WartetAuf")
+                        .WithMany()
+                        .HasForeignKey("WartetAufId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Rausoft.Erp.Domain.Shared.Bereich", "ZustaendigBereich")
                         .WithMany()
                         .HasForeignKey("ZustaendigBereichId")
@@ -2082,9 +2296,23 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.Navigation("Kunde");
 
+                    b.Navigation("Vorgang");
+
+                    b.Navigation("WartetAuf");
+
                     b.Navigation("Zustaendig");
 
                     b.Navigation("ZustaendigBereich");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Bereich", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "Leiter")
+                        .WithMany()
+                        .HasForeignKey("LeiterId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Leiter");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Mitarbeiter", b =>
@@ -2149,6 +2377,61 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Abo");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.Vorgang", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErstelltVon")
+                        .WithMany()
+                        .HasForeignKey("ErstelltVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
+                        .WithMany()
+                        .HasForeignKey("KundeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Rausoft.Erp.Domain.Vorgaenge.Vorgangstyp", "Vorgangstyp")
+                        .WithMany()
+                        .HasForeignKey("VorgangstypId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ErstelltVon");
+
+                    b.Navigation("Kunde");
+
+                    b.Navigation("Vorgangstyp");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.Vorgangstyp", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
+                        .WithMany()
+                        .HasForeignKey("GeaendertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("GeaendertVon");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.VorgangstypSchritt", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Bereich", "Bereich")
+                        .WithMany()
+                        .HasForeignKey("BereichId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Rausoft.Erp.Domain.Vorgaenge.Vorgangstyp", "Vorgangstyp")
+                        .WithMany("Schritte")
+                        .HasForeignKey("VorgangstypId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Bereich");
+
+                    b.Navigation("Vorgangstyp");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.PreislistenVersion", b =>
@@ -2309,6 +2592,16 @@ namespace Rausoft.Erp.Data.Migrations
             modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.Abo", b =>
                 {
                     b.Navigation("Positionen");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.Vorgang", b =>
+                {
+                    b.Navigation("Schritte");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.Vorgangstyp", b =>
+                {
+                    b.Navigation("Schritte");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiNeuerung", b =>

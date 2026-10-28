@@ -6,6 +6,7 @@ using Rausoft.Erp.Domain.Customers;
 using Rausoft.Erp.Domain.Servers;
 using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Domain.Subscriptions;
+using Rausoft.Erp.Domain.Vorgaenge;
 using Rausoft.Erp.Domain.Wiki;
 
 namespace Rausoft.Erp.Data;
@@ -28,6 +29,11 @@ public class ErpDbContext(
     public DbSet<Aufgabe> Aufgaben => Set<Aufgabe>();
     public DbSet<AuditLogEintrag> AuditLog => Set<AuditLogEintrag>();
     public DbSet<Einstellung> Einstellungen => Set<Einstellung>();
+
+    // Vorgänge
+    public DbSet<Vorgang> Vorgaenge => Set<Vorgang>();
+    public DbSet<Vorgangstyp> Vorgangstypen => Set<Vorgangstyp>();
+    public DbSet<VorgangstypSchritt> VorgangstypSchritte => Set<VorgangstypSchritt>();
 
     // Kontakte
     public DbSet<Kunde> Kunden => Set<Kunde>();
@@ -86,6 +92,7 @@ public class ErpDbContext(
         {
             e.HasIndex(b => b.Name).IsUnique();
             e.Property(b => b.Name).HasMaxLength(100);
+            e.HasOne(b => b.Leiter).WithMany().HasForeignKey(b => b.LeiterId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<Nummernkreis>(e =>
@@ -157,6 +164,49 @@ public class ErpDbContext(
             e.HasOne(a => a.ZustaendigBereich).WithMany().HasForeignKey(a => a.ZustaendigBereichId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(a => a.ErstelltVon).WithMany().HasForeignKey(a => a.ErstelltVonId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(a => a.ErledigtVon).WithMany().HasForeignKey(a => a.ErledigtVonId).OnDelete(DeleteBehavior.Restrict);
+            // Vorgangsschritte
+            e.Property(a => a.EntfallenGrund).HasMaxLength(20);
+            e.Property(a => a.Pflichtfeld).HasMaxLength(100);
+            e.Property(a => a.PflichtfeldWert).HasMaxLength(300);
+            e.HasIndex(a => new { a.ZustaendigBereichId, a.Status });
+            e.HasIndex(a => new { a.ZustaendigId, a.Status });
+            e.HasOne(a => a.WartetAuf).WithMany().HasForeignKey(a => a.WartetAufId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // --- Vorgänge (Bestellung → Teilaufgaben je Bereich) -----------------
+        modelBuilder.Entity<Vorgangstyp>(e =>
+        {
+            e.HasIndex(t => t.Name).IsUnique();
+            e.Property(t => t.Name).HasMaxLength(100);
+            e.Property(t => t.Beschreibung).HasMaxLength(300);
+            e.HasOne(t => t.GeaendertVon).WithMany().HasForeignKey(t => t.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasMany(t => t.Schritte).WithOne(s => s.Vorgangstyp!)
+                .HasForeignKey(s => s.VorgangstypId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VorgangstypSchritt>(e =>
+        {
+            e.HasIndex(s => new { s.VorgangstypId, s.Nr }).IsUnique();
+            e.Property(s => s.Titel).HasMaxLength(300);
+            e.Property(s => s.Bedingung).HasMaxLength(100);
+            e.Property(s => s.Pflichtfeld).HasMaxLength(100);
+            e.HasOne(s => s.Bereich).WithMany().HasForeignKey(s => s.BereichId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Vorgang>(e =>
+        {
+            e.Property(v => v.Titel).HasMaxLength(200);
+            e.Property(v => v.OdooAuftrag).HasMaxLength(30);
+            e.Property(v => v.Hinweis).HasMaxLength(1000);
+            e.Property(v => v.StrangSchluessel).HasMaxLength(60);
+            e.Property(v => v.StrangName).HasMaxLength(300);
+            e.HasIndex(v => v.AbgeschlossenAm);
+            e.HasIndex(v => v.OdooAuftrag).HasFilter("[OdooAuftrag] IS NOT NULL");
+            e.HasOne(v => v.Kunde).WithMany().HasForeignKey(v => v.KundeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(v => v.Vorgangstyp).WithMany().HasForeignKey(v => v.VorgangstypId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(v => v.ErstelltVon).WithMany().HasForeignKey(v => v.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasMany(v => v.Schritte).WithOne(a => a.Vorgang)
+                .HasForeignKey(a => a.VorgangId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AktivitaetAnhang>(e =>

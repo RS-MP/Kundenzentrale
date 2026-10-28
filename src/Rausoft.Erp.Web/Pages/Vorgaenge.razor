@@ -1,0 +1,165 @@
+@page "/vorgaenge"
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>Vorgänge · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Vorgänge</h1>
+    <span class="untertitel">Bestellungen und ihre Schritte je Bereich — hängende zuerst</span>
+    <span style="flex:1"></span>
+    <a class="knopf sekundaer" href="vorgaenge/typen">Vorgangstypen</a>
+    <a class="knopf" href="vorgaenge/neu">+ Vorgang anlegen</a>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (_daten is null)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade Vorgänge …</div> }
+}
+else
+{
+    var laufend = _daten.Vorgaenge.Where(v => v.Status != "fertig").ToList();
+    <div class="vg-kpis">
+        @foreach (var (schluessel, label) in Kennzahlen)
+        {
+            var anzahl = schluessel == "" ? laufend.Count : laufend.Count(v => v.Status == schluessel);
+            <button type="button" class="vg-kpi @(_statusFilter == schluessel ? "an" : "")" @onclick="() => _statusFilter = schluessel">
+                <div class="wert @(schluessel == "" ? "" : "status " + VorgangAnzeige.StatusKlasse(schluessel))">@anzahl</div>
+                <div class="label">@label</div>
+            </button>
+        }
+    </div>
+
+    <div class="karte">
+        <div class="vg-filter">
+            <div class="chips">
+                <button type="button" class="chip @(_bereich is null ? "aktiv" : "")" @onclick="() => _bereich = null">Alle Bereiche</button>
+                @foreach (var b in _daten.Bereiche)
+                {
+                    <button type="button" class="chip @(_bereich == b.Id ? "aktiv" : "")" @onclick="() => _bereich = b.Id">@b.Name</button>
+                }
+            </div>
+            <span style="flex:1"></span>
+            <label class="vg-schalter" title="Ein aktiver Schritt liegt bei Ihnen oder unbesetzt im Pool Ihres Bereichs">
+                <input type="checkbox" @bind="_nurIch" /> Nur wo ich dran bin
+            </label>
+            <label class="vg-schalter" title="Abgeschlossene Vorgänge der letzten 90 Tage">
+                <input type="checkbox" checked="@_abgeschlossene" @onchange="AbgeschlosseneUmschaltenAsync" /> Abgeschlossene zeigen
+            </label>
+        </div>
+
+        @{ var zeilen = Gefiltert().ToList(); }
+        @if (zeilen.Count == 0)
+        {
+            <div class="leer-hinweis">
+                @if (_daten.Vorgaenge.Count == 0)
+                {
+                    <span>Noch keine Vorgänge. Ein Vorgang entsteht von Hand, sobald in Odoo ein Auftrag bestätigt ist: „+ Vorgang anlegen“.</span>
+                }
+                else
+                {
+                    <span>Keine Vorgänge für diese Auswahl.</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="vg-tabelle-wrap">
+                <table class="liste">
+                    <thead>
+                        <tr><th>Kunde</th><th>Vorgang</th><th>Gestartet</th><th>Fortschritt</th><th>Nächster Schritt</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in zeilen)
+                        {
+                            <tr @onclick='() => Nav.NavigateTo($"vorgaenge/{v.Id}")'>
+                                <td>
+                                    <div class="haupt">@v.Kunde</div>
+                                    <div class="neben">@v.Kundennummer</div>
+                                    @if (v.Hinweis is not null)
+                                    {
+                                        <div class="vg-hinweis-zeile" title="@v.Hinweis">⚠ <span>@v.Hinweis</span></div>
+                                    }
+                                </td>
+                                <td>
+                                    <div>@v.Typ</div>
+                                    <div class="neben">@(v.OdooAuftrag is not null ? $"Odoo {v.OdooAuftrag}" : "ohne Odoo-Auftrag")</div>
+                                </td>
+                                <td>@VorgangAnzeige.Datum(v.Start)</td>
+                                <td>
+                                    <div class="vg-fortschritt">
+                                        <span class="vg-balken">@for (var i = 0; i < v.Gesamt; i++) { <i class="@(i < v.Erledigt ? "erl" : "")"></i> }</span>
+                                        <span class="zahl">@v.Erledigt von @v.Gesamt</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (v.NaechsterSchritt is not null)
+                                    {
+                                        <div>@v.NaechsterSchritt</div>
+                                        <div class="neben">
+                                            @(v.NaechsterPerson ?? $"Pool {v.NaechsterBereich}")
+                                            @if (v.NaechsterFaellig is { } f)
+                                            {
+                                                <span class="@(v.NaechsterUeberfaellig ? "krittext" : "")"> · fällig @VorgangAnzeige.Relativ(f)</span>
+                                            }
+                                        </div>
+                                    }
+                                    else if (v.AbgeschlossenAm is { } ab)
+                                    {
+                                        <span class="neben">abgeschlossen am @ab.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                                    }
+                                </td>
+                                <td><span class="status @VorgangAnzeige.StatusKlasse(v.Status)">@VorgangAnzeige.StatusText(v.Status)</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private static readonly (string Schluessel, string Label)[] Kennzahlen =
+    [
+        ("", "Laufend"), ("haengt", "Hängt"), ("neu", "Neu"), ("laeuft", "Läuft"), ("wartet", "Wartet auf Kunden"),
+    ];
+
+    private VorgangUebersicht? _daten;
+    private string? _fehler;
+    private string _statusFilter = "";
+    private int? _bereich;
+    private bool _nurIch;
+    private bool _abgeschlossene;
+
+    protected override Task OnInitializedAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        try
+        {
+            _daten = await Http.GetFromJsonAsync<VorgangUebersicht>($"api/vorgaenge?abgeschlossene={_abgeschlossene}");
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Vorgänge konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task AbgeschlosseneUmschaltenAsync(ChangeEventArgs e)
+    {
+        _abgeschlossene = e.Value is true;
+        await LadenAsync();
+    }
+
+    private IEnumerable<VorgangZeile> Gefiltert() => _daten!.Vorgaenge
+        .Where(v => _statusFilter == "" ? _abgeschlossene || v.Status != "fertig" : v.Status == _statusFilter)
+        .Where(v => _bereich is null || v.AktiveBereiche.Contains(_bereich.Value))
+        .Where(v => !_nurIch || v.IchBinDran);
+}

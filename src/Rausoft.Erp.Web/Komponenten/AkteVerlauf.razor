@@ -91,7 +91,8 @@
     <div class="karte-kopf">
         <h2>Offene Aufgaben</h2>
         <span class="zahl">@(_aufgaben?.Count(a => !a.Erledigt) ?? 0) offen</span>
-        <button type="button" class="knopf sekundaer klein rechts" @onclick='() => FormularAsync("aufgabe")'>+ Aufgabe</button>
+        <a class="knopf sekundaer klein rechts" href="vorgaenge/neu?kunde=@KundeId" title="Bestellung mit Schritten je Bereich anlegen">+ Vorgang</a>
+        <button type="button" class="knopf sekundaer klein" @onclick='() => FormularAsync("aufgabe")'>+ Aufgabe</button>
     </div>
     @if (_formular == "aufgabe" && _auswahl is { } aw)
     {
@@ -128,8 +129,16 @@
             {
                 var ueber = !a.Erledigt && a.Faellig is { } f && f < Heute;
                 <div class="auf-zeile @(a.Erledigt ? "erledigt" : "")">
-                    <input type="checkbox" checked="@a.Erledigt" title="erledigt" @onchange="e => AufgabeErledigtAsync(a, e.Value is true)" />
-                    <span class="faellig @(ueber ? "ueber" : "")">@(ueber ? "überfällig " : "")@(a.Faellig?.ToString("dd.MM.") ?? "ohne Datum")</span>
+                    @if (a.VorgangId is { } vid)
+                    {
+                        @* Vorgangsschritte werden im Vorgang erledigt (Pflichtfeld, Weitergabe an den nächsten Bereich) *@
+                        <a href="vorgaenge/@vid" title="Schritt eines Vorgangs — im Vorgang bearbeiten" style="text-align:center">↗</a>
+                    }
+                    else
+                    {
+                        <input type="checkbox" checked="@a.Erledigt" title="erledigt" @onchange="e => AufgabeErledigtAsync(a, e.Value is true)" />
+                    }
+                    <span class="faellig @(ueber ? "ueber" : "")">@(a.WartetAufKunden && !ueber ? "Wiedervorlage " : ueber ? "überfällig " : "")@(a.Faellig?.ToString("dd.MM.") ?? "ohne Datum")</span>
                     <div>
                         <div class="titel">@a.Titel</div>
                         <div class="woher">
@@ -138,7 +147,9 @@
                             else if (a.Zustaendig is not null)
                             {<span class="nm">@a.Zustaendig</span>@BereichTag(a.ZustaendigBereich)}
                             else {<span>niemand zugeordnet</span>}
-                            @if (a.Bezug is not null) {<text> · @a.Bezug</text>}
+                            @if (a.WartetAufKunden) {<text> · wartet auf Kunden</text>}
+                            @if (a.VorgangId is { } v) {<text> · </text><a href="vorgaenge/@v">@(a.Bezug ?? "Vorgang")</a>}
+                            else if (a.Bezug is not null) {<text> · @a.Bezug</text>}
                             · aus @a.Quelle
                         </div>
                         @if (a.Beschreibung is not null)

@@ -80,9 +80,11 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
         }
 
         var heute = DateOnly.FromDateTime(DateTime.Now);
+        // Wartet auf Kunden: maßgeblich ist die Wiedervorlage statt der Frist
         var offeneAufgaben = await db.Aufgaben.AsNoTracking()
-            .Where(t => t.KundeId == id && t.Status != AufgabenStatus.Erledigt)
-            .Select(t => t.Faellig).ToListAsync(ct);
+            .Where(t => t.KundeId == id)
+            .Where(Aufgabe.IstOffen)
+            .Select(t => t.Status == AufgabenStatus.WartetAufKunden ? t.Wiedervorlage : t.Faellig).ToListAsync(ct);
         var vereinbarungenOffen = await db.Vereinbarungen.CountAsync(v => v.KundeId == id && !v.Erledigt, ct);
 
         // Spalten/Zeilen nach Aktivität sortiert (wer am häufigsten beteiligt ist, zuerst)
@@ -109,16 +111,23 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
 
     // --- Aufgaben ----------------------------------------------------------------------
 
-    /// <summary>Offene Aufgaben des Kunden und die der letzten 7 Tage erledigten (zum Nachvollziehen).</summary>
+    /// <summary>
+    /// Offene Aufgaben des Kunden und die der letzten 7 Tage erledigten (zum Nachvollziehen).
+    /// Vorgangsschritte erscheinen erst, wenn sie dran sind (nicht gesperrt), entfallene nie.
+    /// </summary>
     [HttpGet("{id:int}/aufgaben")]
     public async Task<ActionResult<List<AufgabeEintrag>>> Aufgaben(int id, CancellationToken ct)
     {
         var grenze = DateTime.UtcNow.AddDays(-7);
         var liste = await db.Aufgaben.AsNoTracking()
-            .Where(a => a.KundeId == id && (a.Status != AufgabenStatus.Erledigt || a.ErledigtAm >= grenze))
+            .Where(a => a.KundeId == id && a.Status != AufgabenStatus.Entfallen
+                        && (a.Status != AufgabenStatus.Erledigt || a.ErledigtAm >= grenze))
+            .Where(a => a.WartetAufId == null
+                        || a.WartetAuf!.Status == AufgabenStatus.Erledigt || a.WartetAuf.Status == AufgabenStatus.Entfallen)
             .Select(a => new
             {
-                a.Id, a.Titel, a.Art, a.Beschreibung, a.Faellig, a.Status, a.Bezug, a.StrangSchluessel, a.Quelle, a.ErledigtAm,
+                a.Id, a.Titel, a.Art, a.Beschreibung, a.Status, a.Bezug, a.StrangSchluessel, a.Quelle, a.ErledigtAm, a.VorgangId,
+                Faellig = a.Status == AufgabenStatus.WartetAufKunden ? a.Wiedervorlage : a.Faellig,
                 Person = a.Zustaendig != null ? a.Zustaendig.Anzeigename : null,
                 PersonBereich = a.Zustaendig != null && a.Zustaendig.Bereich != null ? a.Zustaendig.Bereich.Name : null,
                 Pool = a.ZustaendigBereich != null ? a.ZustaendigBereich.Name : null,
@@ -133,7 +142,8 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
                 a.Person is not null ? a.PersonBereich : a.Pool,
                 a.Person is null && a.Pool is not null,
                 a.Status == AufgabenStatus.Erledigt, a.Bezug, a.StrangSchluessel,
-                a.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale", a.ErledigtAm))
+                a.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale", a.ErledigtAm,
+                a.VorgangId, a.Status == AufgabenStatus.WartetAufKunden))
             .ToList());
     }
 
@@ -181,6 +191,8 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
         var aufgabe = await db.Aufgaben.FirstOrDefaultAsync(a => a.Id == aufgabeId, ct);
         if (aufgabe is null)
             return NotFound();
+        if (aufgabe.VorgangId is not null)
+            return BadRequest("Vorgangsschritte werden im Vorgang erledigt (Pflichtfelder, Weitergabe an den nächsten Bereich).");
         var ich = await AktuellerMitarbeiterId(ct);
         var warErledigt = aufgabe.Status == AufgabenStatus.Erledigt;
         if (setzen.Erledigt && !warErledigt)

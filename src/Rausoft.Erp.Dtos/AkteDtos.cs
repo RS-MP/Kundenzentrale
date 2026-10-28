@@ -37,7 +37,10 @@ public record AufgabeEintrag(
     string? Bezug,
     string? Vorgang,
     string Quelle,
-    DateTime? ErledigtAm);
+    DateTime? ErledigtAm,
+    /// <summary>Gesetzt bei Vorgangsschritten — erledigt wird dann im Vorgang.</summary>
+    int? VorgangId = null,
+    bool WartetAufKunden = false);
 
 /// <summary>Zuständig ist entweder <paramref name="ZustaendigId"/> (Person) oder <paramref name="ZustaendigBereichId"/> (Pool).</summary>
 public record AufgabeAnlegen(string Titel, string? Art, DateOnly? Faellig, int? ZustaendigId, int? ZustaendigBereichId, string? Vorgang);
