@@ -1,0 +1,1136 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kundenzentrale Vorgänge</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: App-Rahmen der Kundenzentrale (Seitennavigation links, Inhalt rechts).
+   Vorgangsansicht: Schritte links (breit), Fakten und Verlauf rechts.
+   Tokens = app.css (Variante A, Ruhig-Konzept: Farbe nur für Status). */
+:root{
+  --bg:#F3F4F6; --surface:#FFFFFF; --surface2:#ECEEF1; --border:#DDE1E6; --border-strong:#C3CBD4;
+  --ink:#18222C; --ink2:#42566A; --muted:#5F7080;
+  --accent:#0B6875; --accent-strong:#084F5A; --accent-soft:#DCEEF1; --accent-line:#AFD8DE;
+  --good:#1B7A44; --good-bg:#E0F1E7; --warn:#8A6100; --warn-bg:#F8EFD6; --crit:#B23730; --crit-bg:#FAE6E4;
+  --knopf-text:#FFFFFF;
+  --shadow:0 1px 2px rgba(20,30,40,.05),0 8px 24px rgba(20,30,40,.06);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0F141A; --surface:#161D25; --surface2:#1C242E; --border:#2B3543; --border-strong:#404E5F;
+  --ink:#E9EEF3; --ink2:#B4C1CD; --muted:#7E8D9B;
+  --accent:#56BDCB; --accent-strong:#8AD4DF; --accent-soft:#0F3138; --accent-line:#1D4A53;
+  --good:#59C78F; --good-bg:#132A1E; --warn:#E3B75E; --warn-bg:#2C2312; --crit:#EB8078; --crit-bg:#341B18;
+  --knopf-text:#08252B;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+  color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#0F141A; --surface:#161D25; --surface2:#1C242E; --border:#2B3543; --border-strong:#404E5F;
+  --ink:#E9EEF3; --ink2:#B4C1CD; --muted:#7E8D9B;
+  --accent:#56BDCB; --accent-strong:#8AD4DF; --accent-soft:#0F3138; --accent-line:#1D4A53;
+  --good:#59C78F; --good-bg:#132A1E; --warn:#E3B75E; --warn-bg:#2C2312; --crit:#EB8078; --crit-bg:#341B18;
+  --knopf-text:#08252B;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+  color-scheme:dark; }
+
+*{box-sizing:border-box}
+html,body{margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 "Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif}
+a{color:var(--accent); text-decoration:none; cursor:pointer}
+a:hover{text-decoration:underline}
+h1{font-size:21px; font-weight:650; letter-spacing:-.01em; margin:0; text-wrap:balance}
+h2{font-size:14px; font-weight:650; margin:0}
+button{font:inherit; cursor:pointer; color:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+[hidden]{display:none!important}
+
+/* App-Rahmen */
+.app-rahmen{display:grid; grid-template-columns:214px minmax(0,1fr); min-height:100vh}
+.seitennav{background:var(--surface); border-right:1px solid var(--border); position:sticky; top:0; height:100vh;
+  display:flex; flex-direction:column; padding:14px 10px; padding-left:max(10px,env(safe-area-inset-left,0px))}
+.marke{font-weight:700; font-size:15px; white-space:nowrap; padding:4px 12px 16px}
+.marke .firma{color:var(--accent)}
+.seitennav-links{display:flex; flex-direction:column; gap:2px}
+.seitennav-links button{display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; border:0; background:none;
+  color:var(--ink2); font-weight:500; position:relative; text-align:left; white-space:nowrap}
+.seitennav-links button:hover{background:var(--surface2)}
+.seitennav-links button.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600}
+.seitennav-links button.active::before{content:""; position:absolute; left:-10px; top:6px; bottom:6px; width:3px; border-radius:2px; background:var(--accent)}
+.abzeichen{margin-left:auto; min-width:19px; height:19px; border-radius:10px; background:var(--crit); color:var(--surface); font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; padding:0 5px}
+.seitennav-fuss{margin-top:auto; padding:12px 6px 2px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:10px}
+.seitennav-fuss label{font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px}
+.thema-segment{display:inline-flex; align-self:center; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden}
+.thema-segment button{border:0; background:var(--surface); color:var(--ink2); padding:4px 11px; font-size:12.5px; border-right:1px solid var(--border); white-space:nowrap}
+.thema-segment button:last-child{border-right:0}
+.thema-segment button.an{background:var(--accent); color:var(--knopf-text); font-weight:600}
+.inhalt{max-width:1280px; margin:0 auto; width:100%; min-width:0;
+  padding-block:24px 70px; padding-left:max(26px,env(safe-area-inset-left,0px)); padding-right:max(26px,env(safe-area-inset-right,0px))}
+@media (max-width:820px){
+  .app-rahmen{display:block}
+  .seitennav{position:sticky; top:env(safe-area-inset-top,0px); height:auto; z-index:10; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 10px;
+    border-right:0; border-bottom:1px solid var(--border); padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px))}
+  body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--surface)}
+  .marke{padding:0}
+  .seitennav-links{flex-direction:row; order:3; width:100%; overflow-x:auto}
+  .seitennav-links button{padding:5px 10px}
+  .seitennav-links button.active::before, .seitennav-links svg{display:none}
+  .seitennav-fuss{margin:0 0 0 auto; border-top:0; padding:0; flex-direction:row; align-items:center}
+  .seitennav-fuss label span{display:none}
+  .inhalt{padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); padding-block:16px 70px}
+}
+
+/* Bausteine aus app.css */
+.seitenkopf{display:flex; align-items:center; gap:10px 14px; margin-bottom:16px; flex-wrap:wrap}
+.seitenkopf .rechts{margin-left:auto; display:flex; gap:8px; flex-wrap:wrap}
+.karte{background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow); overflow:hidden; min-width:0}
+.karte + .karte{margin-top:16px}
+.karte-kopf{padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap}
+.karte-kopf .zusatz{color:var(--muted); font-size:13px}
+.karte-kopf .rechts{margin-left:auto}
+.karte-koerper{padding:14px 16px}
+.karte-fuss{padding:10px 16px; border-top:1px solid var(--border); color:var(--muted); font-size:12.5px; background:var(--surface2)}
+.tabelle-wrap{overflow-x:auto}
+table.liste{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums}
+table.liste th{text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; padding:9px 14px; border-bottom:1px solid var(--border); background:var(--surface2); white-space:nowrap}
+table.liste td{padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:top}
+table.liste tr:last-child td{border-bottom:0}
+table.liste tbody tr.klickbar{cursor:pointer}
+table.liste tbody tr.klickbar:hover{background:var(--accent-soft)}
+td .haupt{font-weight:600}
+td .neben, .neben{color:var(--muted); font-size:12.5px}
+.pill{display:inline-block; padding:0 8px; border-radius:999px; font-size:12px; font-weight:500; border:1px solid var(--border-strong); color:var(--ink2); white-space:nowrap; line-height:19px}
+.status{display:inline-flex; align-items:center; gap:6px; white-space:nowrap; font-weight:500}
+.status::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0}
+.status.gut::before{background:var(--good)} .status.warnung::before{background:var(--warn)}
+.status.kritisch::before{background:var(--crit)} .status.akzent::before{background:var(--accent)}
+.status.kritisch{color:var(--crit)}
+.krittext{color:var(--crit)} .warntext{color:var(--warn)}
+.chips{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.chip{font-size:13px; border:1px solid var(--border-strong); background:var(--surface); color:var(--ink2); border-radius:999px; padding:3px 12px}
+.chip:hover{border-color:var(--accent)}
+.chip.aktiv{background:var(--ink); border-color:var(--ink); color:var(--surface)}
+.knopf{background:var(--accent); color:var(--knopf-text); border:0; border-radius:7px; padding:7px 14px; font-weight:600; white-space:nowrap}
+.knopf:hover{background:var(--accent-strong)}
+.knopf.sekundaer{background:var(--surface2); color:var(--ink2); border:1px solid var(--border-strong); font-weight:500}
+.knopf.sekundaer:hover{background:var(--border)}
+.knopf.klein{padding:3px 10px; font-size:12.5px}
+.knopf:disabled{opacity:.45; cursor:default}
+.textknopf{background:none; border:0; color:var(--accent); padding:2px 0; font-size:13px}
+.textknopf:hover{text-decoration:underline}
+.seg{display:inline-flex; gap:3px; background:var(--surface2); padding:3px; border-radius:9px}
+.seg button{border:0; background:transparent; padding:4px 13px; border-radius:7px; color:var(--ink2); font-size:13px}
+.seg button.an{background:var(--surface); color:var(--ink); box-shadow:var(--shadow); font-weight:600}
+input[type=text], input[type=date], input[type=number], select, textarea{font:inherit; color:var(--ink); background:var(--surface);
+  border:1px solid var(--border-strong); border-radius:7px; padding:6px 9px; min-width:0}
+input:focus, select:focus, textarea:focus{outline:2px solid var(--accent-line); border-color:var(--accent)}
+input:disabled, select:disabled{background:var(--surface2); color:var(--muted)}
+.fehler{color:var(--crit); font-size:12.5px}
+
+/* Hinweis-Kasten (Mockup) */
+.mock-hinweis{font-size:13px; color:var(--ink2); border:1px dashed var(--border-strong); border-radius:10px; padding:10px 14px; margin-bottom:16px; background:var(--surface)}
+.mock-hinweis summary{cursor:pointer; font-weight:600; color:var(--ink)}
+.mock-hinweis ul{margin:6px 0 2px; padding-left:18px}
+
+/* KPI-Zeile */
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:10px; margin-bottom:14px}
+.kpi{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 14px; text-align:left; min-width:0}
+.kpi:hover{border-color:var(--accent)}
+.kpi.an{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink)}
+.kpi .wert{font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; display:flex; align-items:center; gap:8px; color:var(--ink)}
+.kpi .wert.status::before{width:9px; height:9px}
+.kpi .label{color:var(--muted); font-size:12.5px}
+.filterleiste{display:flex; gap:10px 14px; flex-wrap:wrap; align-items:center; padding:10px 16px; border-bottom:1px solid var(--border)}
+.umschalter{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--ink2); cursor:pointer; user-select:none}
+.umschalter input{accent-color:var(--accent)}
+
+/* Fortschritt */
+.fortschritt{display:flex; align-items:center; gap:8px; white-space:nowrap}
+.balken{display:flex; gap:3px}
+.balken i{display:block; width:13px; height:7px; border-radius:2px; background:var(--surface2); border:1px solid var(--border-strong)}
+.balken i.erl{background:var(--good); border-color:var(--good)}
+.balken i.akt{background:var(--accent-line); border-color:var(--accent)}
+.balken i.wartet{background:var(--warn); border-color:var(--warn)}
+.balken i.ueber{background:var(--crit); border-color:var(--crit)}
+.balken i.gesp{background:transparent; border-style:dashed}
+.fortschritt .zahl{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums}
+.naechst .titel{font-weight:500}
+.naechst .weitere{color:var(--muted); font-size:12px}
+
+/* Vorgangsansicht */
+.zurueck{display:inline-block; margin-bottom:10px; font-size:13px}
+.vorgang-kopf{background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow); padding:14px 18px; margin-bottom:16px;
+  display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center}
+.vorgang-kopf .titelblock{min-width:0; flex:1 1 320px}
+.vorgang-kopf .meta{color:var(--ink2); margin-top:3px}
+.vorgang-kopf .meta .trenn{color:var(--border-strong); margin:0 6px}
+.akte{display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:16px; align-items:start}
+@media (max-width:980px){ .akte{grid-template-columns:minmax(0,1fr)} }
+.schritt{display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:4px 12px; padding:13px 16px; border-bottom:1px solid var(--border)}
+.schritt:last-child{border-bottom:0}
+.schritt .nr{width:26px; height:26px; border-radius:50%; border:1.5px solid var(--border-strong); display:flex; align-items:center; justify-content:center;
+  font-size:12.5px; font-weight:600; color:var(--ink2); font-variant-numeric:tabular-nums}
+.schritt.erledigt .nr{background:var(--good); border-color:var(--good); color:var(--surface)}
+.schritt.ueber .nr{border-color:var(--crit); color:var(--crit)}
+.schritt.wartet .nr{border-color:var(--warn); color:var(--warn)}
+.schritt.aktiv .nr{border-color:var(--accent); color:var(--accent)}
+.schritt.gesperrt .nr{border-style:dashed}
+.schritt.gesperrt .s-titel, .schritt.gesperrt .s-meta{color:var(--muted)}
+.schritt.erledigt .s-titel{color:var(--ink2)}
+.schritt.entfaellt{opacity:.6}
+.schritt.entfaellt .s-titel{text-decoration:line-through; font-weight:400}
+.s-haupt{min-width:0}
+.s-titel{font-weight:600; padding-top:2px}
+.s-meta{color:var(--ink2); font-size:13px; display:flex; flex-wrap:wrap; gap:2px 8px; align-items:center; margin-top:2px}
+.s-meta .trenn{color:var(--border-strong)}
+.s-auto{font-size:12.5px; color:var(--muted); margin-top:5px}
+.s-auto::before{content:"↻"; color:var(--accent); font-weight:700; margin-right:6px}
+.s-auto .textknopf{font-size:12.5px; margin-left:8px}
+.s-notiz{font-size:13px; color:var(--ink2); margin-top:6px; padding:5px 10px; background:var(--surface2); border-radius:7px}
+.s-notiz .wer{color:var(--muted); font-size:12px; margin-left:6px}
+.s-rechts{padding-top:2px}
+.s-akt{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px}
+.s-form{grid-column:2 / -1; margin-top:8px; padding:10px 12px; border:1px solid var(--accent-line); border-radius:8px; background:var(--accent-soft);
+  display:flex; flex-wrap:wrap; gap:8px 10px; align-items:flex-end}
+.s-form label{display:flex; flex-direction:column; gap:3px; font-size:12.5px; color:var(--ink2); flex:1 1 180px}
+.s-form textarea{min-height:56px; resize:vertical}
+.s-form .fehler{flex-basis:100%}
+@media (max-width:620px){
+  .schritt{grid-template-columns:30px minmax(0,1fr)}
+  .schritt .nr{grid-row:1 / span 2}
+  .s-rechts{grid-column:2; grid-row:1; padding-top:0}
+  .s-haupt{grid-column:2; grid-row:2}
+  .s-form{grid-column:2}
+}
+.fakt{display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px dashed var(--border); font-size:13.5px}
+.fakt:last-of-type{border-bottom:0}
+.fakt .l{color:var(--muted)} .fakt .r{text-align:right; min-width:0; overflow-wrap:anywhere}
+.uebergang{font-size:12.5px; color:var(--ink2); background:var(--surface2); border-radius:7px; padding:8px 10px; margin-top:10px}
+.verlauf{list-style:none; margin:0; padding:0}
+.verlauf li{padding:8px 16px; border-bottom:1px solid var(--border); font-size:13px; display:grid; grid-template-columns:46px minmax(0,1fr); gap:8px}
+.verlauf li:last-child{border-bottom:0}
+.verlauf .wann{color:var(--muted); font-variant-numeric:tabular-nums}
+.verlauf .wer{color:var(--muted); font-size:12px}
+.verlauf li.system .text{color:var(--ink2)}
+
+/* Anlegen */
+.anlegen{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:16px; align-items:start}
+@media (max-width:980px){ .anlegen{grid-template-columns:minmax(0,1fr)} }
+.feld{display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--ink2)}
+.feld .hilfe{color:var(--muted); font-size:12px}
+.feldgruppe{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:16px}
+.abschnitt{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:600; margin:4px 0 8px}
+.typwahl{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:8px; margin-bottom:16px}
+.typkarte{display:flex; gap:10px; align-items:flex-start; border:1px solid var(--border-strong); border-radius:9px; padding:10px 12px; cursor:pointer; background:var(--surface)}
+.typkarte:hover{border-color:var(--accent)}
+.typkarte.an{border-color:var(--accent); background:var(--accent-soft)}
+.typkarte input{margin-top:3px; accent-color:var(--accent)}
+.typkarte .n{font-weight:600}
+.typkarte .b{font-size:12.5px; color:var(--muted)}
+.typkarte .vorschlag{font-size:10.5px; font-weight:600; letter-spacing:.05em; color:var(--accent); margin-left:6px}
+.bedingungen{display:flex; flex-direction:column; gap:6px; margin-bottom:16px}
+.bedingungen label{display:flex; gap:8px; align-items:center; font-size:13.5px}
+.bedingungen input{accent-color:var(--accent)}
+.odoo-band{display:flex; gap:4px 14px; flex-wrap:wrap; align-items:baseline; padding:9px 12px; border-radius:8px; background:var(--surface2); margin-bottom:16px; font-size:13px}
+.vorschau-schritt{display:grid; grid-template-columns:24px minmax(0,1fr) auto; gap:2px 10px; padding:9px 16px; border-bottom:1px solid var(--border)}
+.vorschau-schritt:last-of-type{border-bottom:0}
+.vorschau-schritt .x{grid-column:3; grid-row:1 / span 2; align-self:center}
+.vorschau-schritt .nr{color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums}
+.vorschau-schritt .t{font-weight:500}
+.vorschau-schritt .m{grid-column:2; font-size:12.5px; color:var(--muted)}
+.vorschau-schritt.weg .t{text-decoration:line-through; color:var(--muted); font-weight:400}
+
+/* Vorlagen */
+.vorlagen-liste{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:8px; margin-bottom:16px}
+.vorlagen-liste button{display:block; text-align:left; border:1px solid var(--border-strong); border-radius:9px; background:var(--surface); padding:9px 14px}
+.vorlagen-liste button:hover{border-color:var(--accent)}
+.vorlagen-liste button.an{background:var(--accent-soft); border-color:var(--accent)}
+.vorlagen-liste .n{font-weight:600; display:block}
+.vorlagen-liste .b{font-size:12px; color:var(--muted)}
+table.editor{border-collapse:collapse; width:100%; min-width:940px; font-size:13px}
+table.editor th{text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; padding:8px 8px; background:var(--surface2); border-bottom:1px solid var(--border); white-space:nowrap}
+table.editor td{padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:middle}
+table.editor tr:last-child td{border-bottom:0}
+table.editor input[type=text]{width:100%}
+table.editor td.titel{min-width:250px}
+table.editor td.mittel{min-width:120px}
+table.editor input[type=number]{width:62px}
+table.editor select{max-width:190px}
+table.editor .nr{color:var(--muted); font-weight:600; width:28px}
+.entfernen{border:0; background:none; color:var(--muted); font-size:16px; padding:2px 6px; border-radius:5px}
+.entfernen:hover:not(:disabled){color:var(--crit); background:var(--crit-bg)}
+.entfernen:disabled{opacity:.4; cursor:default}
+.pflege{font-size:12.5px; color:var(--ink2); padding:10px 16px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:4px 14px}
+.pflege.gesperrt{background:var(--warn-bg); color:var(--warn)}
+
+/* Hinweis am Vorgang, manuelle Schritte, Schritt hinzufügen */
+.vg-hinweis{flex-basis:100%; display:flex; gap:6px 10px; align-items:flex-start; flex-wrap:wrap; background:var(--warn-bg); color:var(--warn);
+  border:1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius:8px; padding:8px 12px; font-weight:600}
+.vg-hinweis .txt{flex:1 1 240px; min-width:0; overflow-wrap:anywhere}
+.vg-hinweis .textknopf{font-weight:500}
+.vg-hinweis.bearbeiten{background:var(--surface2); color:var(--ink2); border-color:var(--border); font-weight:400; flex-direction:column; align-items:stretch}
+.vg-hinweis.bearbeiten label{font-size:12.5px}
+textarea.hinweis-feld{width:100%; min-height:46px; resize:vertical}
+.hinweis-zeile{margin-top:4px; font-size:12.5px; font-weight:600; color:var(--warn); display:flex; gap:5px; max-width:300px}
+.hinweis-zeile span{overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
+.manuell{font-size:11px; font-weight:600; letter-spacing:.03em; color:var(--accent); border:1px dashed var(--accent); border-radius:4px; padding:0 5px; line-height:17px; white-space:nowrap}
+.textknopf.leise{color:var(--muted); font-size:12.5px}
+.textknopf.leise:hover{color:var(--crit)}
+.neu-schritt{padding:12px 16px; border-top:1px solid var(--border); background:var(--accent-soft); display:flex; flex-wrap:wrap; gap:8px 10px; align-items:flex-end}
+.neu-schritt label{display:flex; flex-direction:column; gap:3px; font-size:12.5px; color:var(--ink2)}
+.neu-schritt label.breit{flex:1 1 220px}
+.neu-schritt input[type=number]{width:72px}
+.neu-schritt .fehler{flex-basis:100%}
+.karten-aktion{padding:10px 16px; border-top:1px solid var(--border)}
+.vorlagen-liste button.aus{opacity:.6}
+.vorlagen-liste button.neu{border-style:dashed; color:var(--accent); font-weight:600}
+
+/* Toast */
+.toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(20px + env(safe-area-inset-bottom,0px)); z-index:30;
+  background:var(--ink); color:var(--surface); border-radius:9px; padding:9px 16px; font-size:13.5px; box-shadow:var(--shadow);
+  display:flex; gap:14px; align-items:center; width:max-content; max-width:calc(100% - 32px)}
+.toast button{background:none; border:0; color:var(--accent-line); font-weight:600; padding:0}
+.leer{padding:26px 16px; text-align:center; color:var(--muted)}
+@media (prefers-reduced-motion: no-preference){ .toast{animation:rein .18s ease-out} @keyframes rein{from{opacity:0}} }
+</style>
+</head>
+<body>
+<div class="app-rahmen">
+  <aside class="seitennav" id="nav"></aside>
+  <main class="inhalt" id="inhalt"></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+/* ===== Stammdaten (Beispiele) ===== */
+const HEUTE = new Date(2026, 9, 28);
+const d = (t, m) => new Date(2026, m - 1, t);
+const plus = (dt, n) => { const x = new Date(dt); x.setDate(x.getDate() + n); return x; };
+const fmt = dt => dt ? String(dt.getDate()).padStart(2, '0') + '.' + String(dt.getMonth() + 1).padStart(2, '0') + '.' : '';
+const isoDatum = dt => dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+const ausIso = s => { const [y, m, t] = (s || '').split('-').map(Number); return y ? new Date(y, m - 1, t) : null; };
+const tageZwischen = (a, b) => Math.round((b - a) / 86400000);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const BEREICHE = { vertrieb: 'Vertrieb', technik: 'Technik', buchhaltung: 'Buchhaltung', support: 'Support' };
+const PERSONEN = {
+  stauch:  { n: 'D. Stauch',  b: 'vertrieb' },
+  weiss:   { n: 'T. Weiß',    b: 'technik' },
+  becker:  { n: 'A. Becker',  b: 'buchhaltung' },
+  krause:  { n: 'S. Krause',  b: 'support' },
+  hofmann: { n: 'K. Hofmann', b: 'support' },
+  system:  { n: 'System (Odoo-Import)', b: null },
+};
+const LEITER = { vertrieb: 'stauch', technik: 'weiss', buchhaltung: 'becker', support: 'hofmann' };
+const AUTO = {
+  odoo: 'der Odoo-Import die Rechnung zum Auftrag findet',
+  vertrag: 'der Vertrag in der Kundenzentrale auf „unterschrieben" steht',
+};
+const AUTO_KURZ = { '': 'nie', odoo: 'Rechnung in Odoo', vertrag: 'Vertrag unterschrieben' };
+const INFO = { keine: 'keiner', mail: 'Mail', teams: 'Teams' };
+const KUNDEN = ['Berghoff Logistik GmbH', 'Brandt Spedition KG', 'Hanse Leasing GmbH', 'Kanzlei Seidel & Partner',
+  'Möller Edelmetall GmbH', 'Nordbau GmbH', 'Peters GmbH', 'Wendt Pharma GmbH'];
+
+const S = (t, b, frist, extra = {}) => ({ t, b, frist, wartet: null, bed: '', info: 'keine', pflicht: '', auto: '', ...extra });
+let VORLAGEN = [
+  { id: 'neu', name: 'Neue Bestellung', beschr: 'Neukunde: Mandant, Vertrag, Rechnung, Zugang, Schulung', stand: 3, schritte: [
+    S('Mandant in der Shared Cloud anlegen', 'technik', 3, { info: 'mail', pflicht: 'Mandanten-ID' }),
+    S('Vertrag an Kunden senden', 'vertrieb', 2),
+    S('Unterschriebenen Vertrag erfassen', 'vertrieb', 14, { wartet: 1, auto: 'vertrag' }),
+    S('Rechnung in Odoo stellen', 'buchhaltung', 3, { info: 'mail', auto: 'odoo' }),
+    S('Zugangsdaten an Kunden senden', 'technik', 2, { wartet: 0, info: 'teams' }),
+    S('Schulungstermin vereinbaren', 'support', 7, { bed: 'Schulung bestellt', info: 'mail' }),
+  ]},
+  { id: 'upgrade', name: 'Upgrade / Upsell', beschr: 'Bestandskunde: Freischaltung, Nachtrag, Rechnung', stand: 2, schritte: [
+    S('Module und Lizenzen in der Shared Cloud freischalten', 'technik', 3, { info: 'mail' }),
+    S('Vertragsnachtrag an Kunden senden', 'vertrieb', 2, { bed: 'Vertragsnachtrag nötig' }),
+    S('Rechnung in Odoo stellen', 'buchhaltung', 3, { info: 'mail', auto: 'odoo' }),
+    S('Kunden über die Freischaltung informieren', 'vertrieb', 1, { wartet: 0 }),
+    S('Schulungstermin vereinbaren', 'support', 7, { bed: 'Schulung bestellt', info: 'mail' }),
+  ]},
+  { id: 'stunden', name: 'Stundenauftrag', beschr: 'Projekt ohne Software, z. B. Einrichtung oder Beratung', stand: 1, schritte: [
+    S('Termin mit Kunden abstimmen', 'technik', 5, { info: 'mail' }),
+    S('Leistung erbringen und Stunden erfassen', 'technik', 20, { wartet: 0 }),
+    S('Rechnung in Odoo stellen', 'buchhaltung', 3, { wartet: 1, info: 'mail', auto: 'odoo' }),
+  ]},
+  { id: 'direkt', name: 'Verkauf ohne Zwischenschritte', beschr: 'Nur Rechnung, z. B. Zusatzlizenz', stand: 1, schritte: [
+    S('Rechnung in Odoo stellen', 'buchhaltung', 3, { info: 'mail', auto: 'odoo' }),
+  ]},
+];
+const vorlage = id => VORLAGEN.find(v => v.id === id);
+VORLAGEN.forEach(v => { v.aktiv = true; });
+let typZaehler = 0;
+
+/* ===== Vorgänge (Beispiele) ===== */
+let seq = 0;
+function baue(vid, ueber) {
+  return vorlage(vid).schritte.map((s, i) => ({ ...s, status: 'offen', zust: null, fristDat: null, erledigtAm: null,
+    erledigtVon: null, wv: null, wert: '', notiz: null, ...(ueber[i] || {}) }));
+}
+const N = (text, wer, am) => ({ text, wer, am });
+let VORGAENGE = [
+  { id: 1, kunde: 'Berghoff Logistik GmbH', typ: 'neu', stand: 3, odoo: 'S01231', bestaetigt: d(20,10), start: d(20,10), von: 'stauch',
+    ap: 'Frau Berghoff (GF)', positionen: ['Tier PROFESSIONAL', 'Add-on WorldCheck', 'Schulung (halber Tag)'],
+    schritte: baue('neu', [
+      { status: 'erledigt', zust: 'weiss', fristDat: d(23,10), erledigtAm: d(22,10), erledigtVon: 'weiss', wert: 'BERGHOFF-01', notiz: N('Mandant angelegt, Stammdaten-Import läuft', 'weiss', d(22,10)) },
+      { status: 'erledigt', zust: 'stauch', fristDat: d(22,10), erledigtAm: d(21,10), erledigtVon: 'stauch', notiz: N('Vertrag per Mail an Frau Berghoff', 'stauch', d(21,10)) },
+      { status: 'wartet', zust: 'stauch', fristDat: d(4,11), wv: d(4,11), notiz: N('Unterschrift der Geschäftsführung kommt nächste Woche', 'stauch', d(27,10)) },
+      { status: 'erledigt', zust: 'becker', fristDat: d(23,10), erledigtAm: d(23,10), erledigtVon: 'system', notiz: N('Rechnung RE/2026/0412 zum Auftrag gefunden', 'system', d(23,10)) },
+      { status: 'offen', fristDat: d(24,10) },
+      { status: 'wartet', zust: 'krause', fristDat: d(31,10), wv: d(31,10), notiz: N('Terminvorschläge 10. und 12.11. gesendet', 'krause', d(24,10)) },
+    ]) },
+  { id: 2, kunde: 'Nordbau GmbH', typ: 'upgrade', stand: 2, odoo: 'S01236', bestaetigt: d(26,10), start: d(26,10), von: 'stauch',
+    ap: 'Herr Albers (IT-Leitung)', positionen: ['Upgrade auf ENTERPRISE', 'Zusatzbenutzer (10)'],
+    schritte: baue('upgrade', [
+      { status: 'inarbeit', zust: 'weiss', fristDat: d(29,10) },
+      { status: 'offen', zust: 'stauch', fristDat: d(28,10) },
+      { status: 'offen', fristDat: d(29,10) },
+      { status: 'offen' },
+      { status: 'entfaellt' },
+    ]) },
+  { id: 3, kunde: 'Kanzlei Seidel & Partner', typ: 'stunden', stand: 1, odoo: 'S01229', bestaetigt: d(14,10), start: d(14,10), von: 'stauch',
+    ap: 'Frau Dr. Seidel (Partnerin)', positionen: ['Einrichtung Schnittstelle (8 Stunden)'],
+    schritte: baue('stunden', [
+      { status: 'erledigt', zust: 'weiss', fristDat: d(19,10), erledigtAm: d(16,10), erledigtVon: 'weiss', notiz: N('Termin vor Ort am 30.10.', 'weiss', d(16,10)) },
+      { status: 'inarbeit', zust: 'weiss', fristDat: d(5,11) },
+      { status: 'offen' },
+    ]) },
+  { id: 4, kunde: 'Peters GmbH', typ: 'neu', stand: 3, odoo: 'S01225', bestaetigt: d(8,10), start: d(8,10), von: 'stauch',
+    ap: 'Herr Peters (GF)', positionen: ['Tier STARTER'],
+    schritte: baue('neu', [
+      { status: 'erledigt', zust: 'weiss', fristDat: d(11,10), erledigtAm: d(9,10), erledigtVon: 'weiss', wert: 'PETERS-01' },
+      { status: 'erledigt', zust: 'stauch', fristDat: d(10,10), erledigtAm: d(9,10), erledigtVon: 'stauch' },
+      { status: 'wartet', zust: 'stauch', fristDat: d(30,10), wv: d(30,10), notiz: N('Vertrag liegt bei der Rechtsabteilung des Kunden', 'stauch', d(20,10)) },
+      { status: 'erledigt', zust: 'becker', fristDat: d(11,10), erledigtAm: d(10,10), erledigtVon: 'system' },
+      { status: 'erledigt', zust: 'weiss', fristDat: d(11,10), erledigtAm: d(10,10), erledigtVon: 'weiss' },
+      { status: 'entfaellt' },
+    ]) },
+  { id: 5, kunde: 'Möller Edelmetall GmbH', typ: 'direkt', stand: 1, odoo: 'S01238', bestaetigt: d(27,10), start: d(27,10), von: 'stauch',
+    ap: 'Frau Möller (Einkauf)', positionen: ['Zusatzbenutzer (3)'],
+    schritte: baue('direkt', [ { status: 'offen', fristDat: d(30,10) } ]) },
+  { id: 6, kunde: 'Brandt Spedition KG', typ: 'upgrade', stand: 2, odoo: 'S01219', bestaetigt: d(1,10), start: d(1,10), von: 'stauch',
+    ap: 'Herr Brandt (GF)', positionen: ['Add-on WorldCheck'],
+    schritte: baue('upgrade', [
+      { status: 'erledigt', zust: 'weiss', erledigtAm: d(2,10), erledigtVon: 'weiss' },
+      { status: 'erledigt', zust: 'stauch', erledigtAm: d(2,10), erledigtVon: 'stauch' },
+      { status: 'erledigt', zust: 'becker', erledigtAm: d(3,10), erledigtVon: 'system' },
+      { status: 'erledigt', zust: 'stauch', erledigtAm: d(6,10), erledigtVon: 'stauch' },
+      { status: 'entfaellt' },
+    ]) },
+  { id: 7, kunde: 'Hanse Leasing GmbH', typ: 'neu', stand: 3, odoo: 'S01233', bestaetigt: d(23,10), start: d(23,10), von: 'stauch',
+    ap: 'Herr Kühn (Compliance)', positionen: ['Tier PROFESSIONAL', 'Schulung (halber Tag)'],
+    schritte: baue('neu', [
+      { status: 'offen', fristDat: d(26,10) },
+      { status: 'erledigt', zust: 'stauch', fristDat: d(25,10), erledigtAm: d(24,10), erledigtVon: 'stauch' },
+      { status: 'wartet', zust: 'stauch', fristDat: d(6,11), wv: d(6,11), notiz: N('Herr Kühn sendet unterschrieben zurück', 'stauch', d(24,10)) },
+      { status: 'inarbeit', zust: 'becker', fristDat: d(28,10) },
+      { status: 'offen' },
+      { status: 'offen', fristDat: d(30,10) },
+    ]) },
+];
+// Beispiele für Einzelfall-Anpassungen: Hinweis und manueller Schritt
+VORGAENGE.find(v => v.id === 7).hinweis = 'ACHTUNG: alten Vertragsstand 2024 versenden, so mit Herrn Kühn vereinbart';
+VORGAENGE.find(v => v.id === 3).schritte.push({ ...S('Schnittstellen-Doku an Kunden senden', 'technik', 3, { wartet: 1, manuell: true }),
+  status: 'offen', zust: 'weiss', fristDat: null, erledigtAm: null, erledigtVon: null, wv: null, wert: '', notiz: null });
+
+// Verlauf je Vorgang aus den Beispieldaten ableiten
+VORGAENGE.forEach(v => {
+  v.verlauf = [{ am: v.start, wer: v.von, text: `Vorgang angelegt aus Vorlage „${vorlage(v.typ).name}" (Stand ${v.stand})`, n: seq++ }];
+  if (v.hinweis) v.verlauf.push({ am: v.start, wer: v.von, text: `Hinweis gesetzt: ${v.hinweis}`, n: seq++ });
+  v.schritte.forEach((s, i) => {
+    if (s.manuell) v.verlauf.push({ am: v.start, wer: v.von, text: `Schritt ${i + 1} von Hand hinzugefügt: ${s.t}`, n: seq++ });
+    if (s.erledigtAm) v.verlauf.push({ am: s.erledigtAm, wer: s.erledigtVon, text: `Schritt ${i + 1} erledigt: ${s.t}`, n: seq++ });
+    if (s.notiz) v.verlauf.push({ am: s.notiz.am, wer: s.notiz.wer, text: `Schritt ${i + 1}: ${s.notiz.text}`, n: seq++ });
+  });
+});
+
+let VORSCHLAEGE = [
+  { odoo: 'S01241', kunde: 'Wendt Pharma GmbH', neukunde: true, bestaetigt: d(27,10), von: 'stauch', ap: 'Frau Wendt (Compliance)', positionen: ['Tier STARTER', 'Schulung (halber Tag)'], vorlage: 'neu' },
+  { odoo: 'S01240', kunde: 'Nordbau GmbH', bestaetigt: d(27,10), von: 'stauch', ap: 'Herr Albers (IT-Leitung)', positionen: ['Beratung (4 Stunden)'], vorlage: 'stunden' },
+  { odoo: 'S01239', kunde: 'Kanzlei Seidel & Partner', bestaetigt: d(26,10), von: 'stauch', ap: 'Frau Dr. Seidel (Partnerin)', positionen: ['Zusatzbenutzer (5)'], vorlage: 'direkt' },
+];
+const NICHT_ANGEZEIGT = { mitRechnung: 17, abo: 15 };
+
+/* ===== Ableitungen ===== */
+const fertigOderWeg = s => s.status === 'erledigt' || s.status === 'entfaellt';
+const gesperrt = (v, s) => s.wartet != null && v.schritte[s.wartet] && !fertigOderWeg(v.schritte[s.wartet]);
+const aktiv = (v, s) => !fertigOderWeg(s) && !gesperrt(v, s);
+const ueberfaellig = (v, s) => aktiv(v, s) && s.status !== 'wartet' && s.fristDat && s.fristDat < HEUTE;
+function vStatus(v) {
+  const rel = v.schritte.filter(s => s.status !== 'entfaellt');
+  if (rel.every(s => s.status === 'erledigt')) return 'fertig';
+  if (rel.some(s => ueberfaellig(v, s))) return 'haengt';
+  const akt = rel.filter(s => aktiv(v, s));
+  if (akt.length && akt.every(s => s.status === 'wartet')) return 'wartet';
+  if (!rel.some(s => s.status !== 'offen')) return 'neu';
+  return 'laeuft';
+}
+const VST = { haengt: ['Hängt', 'kritisch', 0], neu: ['Neu', '', 1], laeuft: ['Läuft', 'akzent', 2], wartet: ['Wartet auf Kunden', 'warnung', 3], fertig: ['Abgeschlossen', 'gut', 4] };
+function aktiveSchritte(v) {
+  return v.schritte.map((s, i) => ({ s, i })).filter(x => aktiv(v, x.s))
+    .sort((a, b) => (ueberfaellig(v, b.s) - ueberfaellig(v, a.s)) || ((a.s.status === 'wartet') - (b.s.status === 'wartet')) || a.i - b.i);
+}
+const name = k => k ? (PERSONEN[k]?.n ?? k) : '';
+const meins = (v, s) => aktiv(v, s) && (s.zust === ich || (!s.zust && s.b === PERSONEN[ich].b));
+
+/* ===== Zustand der Oberfläche ===== */
+let ich = 'stauch';
+let ansicht = 'uebersicht', aktId = null;
+let fBereich = 'alle', fNurIch = false, fStatus = null, fFertig = false;
+let formular = null;           // { i, art } in der Vorgangsansicht
+let formFehler = '';
+let entwurf = null;            // Anlegen
+let aktVorlage = 'neu';
+let ausgeblendet = [];
+
+const $ = s => document.querySelector(s);
+const inhalt = $('#inhalt');
+
+/* ===== Navigation ===== */
+const IKONE = {
+  kunden: '<circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c.7-2.6 2.8-4 5.2-4s4.5 1.4 5.2 4"/>',
+  vertraege: '<rect x="3.2" y="2.2" width="9.6" height="11.6" rx="1.4"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3"/>',
+  vorgaenge: '<path d="M2.6 4.2l1 1 1.8-2M2.6 8.2l1 1 1.8-2"/><path d="M7.4 4.4h6M7.4 8.4h6M7.4 12.2h6"/><circle cx="4" cy="12.2" r="1.1"/>',
+  partner: '<circle cx="5.5" cy="5.5" r="2.2"/><circle cx="11" cy="6.5" r="1.8"/><path d="M1.8 13c.5-2.2 2-3.4 3.7-3.4S8.7 10.8 9.2 13"/>',
+  vorlagen: '<path d="M4.5 2.2h5.2l3 3v8.4a1.2 1.2 0 0 1-1.2 1.2H4.5a1.2 1.2 0 0 1-1.2-1.2V3.4a1.2 1.2 0 0 1 1.2-1.2Z"/>',
+  wiki: '<path d="M8 4.2C6.6 3 4.6 2.6 2.5 2.8v9.4c2.1-.2 4.1.2 5.5 1.4 1.4-1.2 3.4-1.6 5.5-1.4V2.8C11.4 2.6 9.4 3 8 4.2Z"/><path d="M8 4.2v9.4"/>',
+  server: '<rect x="2.5" y="3" width="11" height="4.2" rx="1.2"/><rect x="2.5" y="8.8" width="11" height="4.2" rx="1.2"/>',
+  admin: '<circle cx="8" cy="8" r="2.2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/>',
+};
+const NAV = [['kunden', 'Kunden'], ['vertraege', 'Verträge'], ['vorgaenge', 'Vorgänge'], ['partner', 'Partner'], ['vorlagen', 'Vorlagen'], ['wiki', 'Wiki'], ['server', 'Server'], ['admin', 'Administration']];
+let thema = null;
+try { thema = localStorage.getItem('kz-thema'); } catch (e) {}
+if (thema) document.documentElement.dataset.theme = thema;
+
+function renderNav() {
+  const haengen = VORGAENGE.filter(v => vStatus(v) === 'haengt').length;
+  $('#nav').innerHTML = `
+    <div class="marke"><span class="firma">rausoft</span> Kundenzentrale</div>
+    <nav class="seitennav-links" aria-label="Hauptnavigation">
+      ${NAV.map(([k, t]) => `<button data-nav="${k}" class="${k === 'vorgaenge' ? 'active' : ''}">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${IKONE[k]}</svg>${t}
+        ${k === 'vorgaenge' && haengen ? `<span class="abzeichen" title="${haengen} Vorgänge hängen">${haengen}</span>` : ''}</button>`).join('')}
+    </nav>
+    <div class="seitennav-fuss">
+      <label for="ich"><span>Angemeldet als (Mockup)</span>
+        <select id="ich">${Object.entries(PERSONEN).filter(([k]) => k !== 'system').map(([k, p]) =>
+          `<option value="${k}" ${k === ich ? 'selected' : ''}>${p.n} · ${BEREICHE[p.b]}${LEITER[p.b] === k ? ' (Leitung)' : ''}</option>`).join('')}</select></label>
+      <span class="thema-segment" role="group" aria-label="Darstellung">
+        <button data-thema="" class="${!thema ? 'an' : ''}" title="Systemeinstellung">◐ Auto</button>
+        <button data-thema="light" class="${thema === 'light' ? 'an' : ''}" title="Hell">☀</button>
+        <button data-thema="dark" class="${thema === 'dark' ? 'an' : ''}" title="Dunkel">☾</button>
+      </span>
+    </div>`;
+}
+
+/* ===== Ansicht: Übersicht ===== */
+function balken(v) {
+  const rel = v.schritte.filter(s => s.status !== 'entfaellt');
+  const erl = rel.filter(s => s.status === 'erledigt').length;
+  return `<div class="fortschritt" title="${erl} von ${rel.length} Schritten erledigt"><span class="balken">${rel.map(s => {
+    const c = s.status === 'erledigt' ? 'erl' : gesperrt(v, s) ? 'gesp' : ueberfaellig(v, s) ? 'ueber' : s.status === 'wartet' ? 'wartet' : 'akt';
+    return `<i class="${c}"></i>`; }).join('')}</span><span class="zahl">${erl}/${rel.length}</span></div>`;
+}
+function statusHtml(v) { const [t, c] = VST[vStatus(v)]; return `<span class="status ${c}">${t}</span>`; }
+
+function renderUebersicht() {
+  const offen = VORGAENGE.filter(v => vStatus(v) !== 'fertig');
+  const n = st => VORGAENGE.filter(v => vStatus(v) === st).length;
+  let liste = VORGAENGE.filter(v => fFertig || vStatus(v) !== 'fertig');
+  if (fStatus) liste = liste.filter(v => vStatus(v) === fStatus);
+  if (fBereich !== 'alle') liste = liste.filter(v => v.schritte.some(s => aktiv(v, s) && s.b === fBereich));
+  if (fNurIch) liste = liste.filter(v => v.schritte.some(s => meins(v, s)));
+  liste.sort((a, b) => VST[vStatus(a)][2] - VST[vStatus(b)][2] || a.start - b.start);
+  const vorschl = VORSCHLAEGE.filter(x => !ausgeblendet.includes(x.odoo));
+
+  inhalt.innerHTML = `
+    ${kopfVorgaenge('uebersicht')}
+    <details class="mock-hinweis"><summary>Mockup Vorgänge · Konzept vom 28.10.2026 · Beispieldaten</summary>
+      <ul>
+        <li>Unten links die Person wechseln: „Nur wo ich dran bin" zeigt dann deren Aufgaben und den Pool ihres Bereichs.</li>
+        <li>Einen Odoo-Auftrag unten mit „Vorgang anlegen" übernehmen. Im Vorgang Schritte übernehmen, abhaken oder auf den Kunden warten lassen.</li>
+        <li>Beim Anlegen und im laufenden Vorgang Schritte entfernen oder von Hand hinzufügen und einen Hinweis erfassen. Unter „Vorlagen" neue Vorgangstypen anlegen, kopieren oder deaktivieren.</li>
+        <li>Im Übergang bleiben Angebot, Auftragsbestätigung und Rechnung in Odoo. Nichts wird gespeichert, neu laden setzt alles zurück.</li>
+      </ul></details>
+    <div class="kpis">
+      ${kpi(null, offen.length, 'Laufende Vorgänge', '')}
+      ${kpi('haengt', n('haengt'), 'Hängen, Frist überschritten', 'kritisch')}
+      ${kpi('neu', n('neu'), 'Neu, noch niemand dran', '')}
+      ${kpi('wartet', n('wartet'), 'Warten nur noch auf Kunden', 'warnung')}
+      <button class="kpi" data-akt="zu-odoo"><div class="wert">${vorschl.length}</div><div class="label">Odoo-Aufträge ohne Vorgang</div></button>
+    </div>
+    <section class="karte">
+      <div class="karte-kopf"><h2>Laufende Vorgänge</h2><span class="zusatz">${liste.length} angezeigt</span></div>
+      <div class="filterleiste">
+        <div class="chips" role="group" aria-label="Bereich">
+          <button class="chip ${fBereich === 'alle' ? 'aktiv' : ''}" data-bereich="alle">Alle Bereiche</button>
+          ${Object.entries(BEREICHE).map(([k, t]) => `<button class="chip ${fBereich === k ? 'aktiv' : ''}" data-bereich="${k}">${t}</button>`).join('')}
+        </div>
+        <label class="umschalter" for="nurich"><input type="checkbox" id="nurich" ${fNurIch ? 'checked' : ''}> Nur wo ich dran bin</label>
+        <label class="umschalter" for="fertig"><input type="checkbox" id="fertig" ${fFertig ? 'checked' : ''}> Abgeschlossene zeigen</label>
+        ${fStatus ? `<button class="textknopf" data-akt="status-weg">Filter „${VST[fStatus][0]}" aufheben</button>` : ''}
+      </div>
+      ${liste.length ? `<div class="tabelle-wrap"><table class="liste"><thead><tr>
+        <th>Kunde</th><th>Vorgang</th><th>Fortschritt</th><th>Als Nächstes</th><th>Status</th></tr></thead><tbody>
+        ${liste.map(v => zeile(v)).join('')}</tbody></table></div>`
+        : `<div class="leer">Keine Vorgänge für diesen Filter.</div>`}
+    </section>
+    <section class="karte" id="odoo">
+      <div class="karte-kopf"><h2>Bestätigte Odoo-Aufträge ohne Rechnung und ohne Vorgang</h2>
+        <span class="zusatz">Stand Odoo-Import 28.10.2026, 06:00</span></div>
+      ${vorschl.length ? `<div class="tabelle-wrap"><table class="liste"><thead><tr>
+        <th>Auftrag</th><th>Kunde</th><th>Positionen</th><th>Vorschlag</th><th></th></tr></thead><tbody>
+        ${vorschl.map(x => `<tr>
+          <td><div class="haupt">${x.odoo}</div><div class="neben">bestätigt ${fmt(x.bestaetigt)} · ${name(x.von)}</div></td>
+          <td>${esc(x.kunde)}${x.neukunde ? ' <span class="pill">Neukunde</span>' : ''}</td>
+          <td>${x.positionen.map(esc).join('<br>')}</td>
+          <td>${vorlage(x.vorlage).name}</td>
+          <td style="text-align:right; white-space:nowrap"><button class="knopf klein" data-akt="aus-odoo" data-odoo="${x.odoo}">Vorgang anlegen</button>
+            <button class="knopf sekundaer klein" data-akt="ausblenden" data-odoo="${x.odoo}">Ausblenden</button></td></tr>`).join('')}
+        </tbody></table></div>` : `<div class="leer">Alle bestätigten Aufträge ohne Rechnung haben einen Vorgang.</div>`}
+      <div class="karte-fuss">Nicht angezeigt: ${NICHT_ANGEZEIGT.mitRechnung} bestätigte Aufträge, zu denen es schon eine Rechnung gibt, davon ${NICHT_ANGEZEIGT.abo} Abo-Verlängerungen. Deren Rechnung schreibt Odoo automatisch.${ausgeblendet.length ? ` Von Hand ausgeblendet: ${ausgeblendet.length}.` : ''}</div>
+    </section>`;
+}
+function kpi(st, wert, label, cls) {
+  return `<button class="kpi ${fStatus === st && st ? 'an' : ''}" data-kpi="${st ?? ''}"><div class="wert ${cls ? 'status ' + cls : ''}">${wert}</div><div class="label">${label}</div></button>`;
+}
+function zeile(v) {
+  const akt = aktiveSchritte(v);
+  const erst = akt[0];
+  let naechst = '<span class="neben">Alles erledigt</span>';
+  if (erst) {
+    const s = erst.s, ue = ueberfaellig(v, s);
+    const wer = s.zust ? name(s.zust) : `Pool ${BEREICHE[s.b]}`;
+    const wann = s.status === 'wartet' ? `<span class="warntext">wartet bis ${fmt(s.wv)}</span>` :
+      ue ? `<span class="krittext">seit ${fmt(s.fristDat)} überfällig</span>` : s.fristDat ? `bis ${fmt(s.fristDat)}` : '';
+    naechst = `<div class="naechst"><div class="titel">${esc(s.t)}</div>
+      <div class="neben"><span class="pill">${BEREICHE[s.b]}</span> ${wer}${wann ? ' · ' + wann : ''}</div>
+      ${akt.length > 1 ? `<div class="weitere">und ${akt.length - 1} weitere${akt.length - 1 === 1 ? 'r' : ''} offen</div>` : ''}</div>`;
+  }
+  return `<tr class="klickbar" data-vorgang="${v.id}" tabindex="0">
+    <td><div class="haupt">${esc(v.kunde)}</div><div class="neben">${v.odoo || 'ohne Odoo-Auftrag'} · seit ${fmt(v.start)}</div>
+      ${v.hinweis ? `<div class="hinweis-zeile" title="${esc(v.hinweis)}"><span aria-hidden="true">⚠</span><span>${esc(v.hinweis)}</span></div>` : ''}</td>
+    <td>${vorlage(v.typ).name}</td><td>${balken(v)}</td><td>${naechst}</td><td>${statusHtml(v)}</td></tr>`;
+}
+function kopfVorgaenge(tab) {
+  return `<div class="seitenkopf"><h1>Vorgänge</h1>
+    <div class="seg" role="tablist"><button role="tab" aria-selected="${tab === 'uebersicht'}" class="${tab === 'uebersicht' ? 'an' : ''}" data-ansicht="uebersicht">Übersicht</button>
+      <button role="tab" aria-selected="${tab === 'vorlagen'}" class="${tab === 'vorlagen' ? 'an' : ''}" data-ansicht="vorlagen">Vorlagen</button></div>
+    <div class="rechts"><button class="knopf" data-akt="neu">Vorgang anlegen</button></div></div>`;
+}
+
+/* ===== Ansicht: Vorgang ===== */
+function renderVorgang() {
+  const v = VORGAENGE.find(x => x.id === aktId);
+  if (!v) { ansicht = 'uebersicht'; return render(); }
+  const vl = vorlage(v.typ);
+  inhalt.innerHTML = `
+    <a class="zurueck" data-ansicht="uebersicht" href="#uebersicht">← Alle Vorgänge</a>
+    <div class="vorgang-kopf">
+      <div class="titelblock"><h1>${esc(v.kunde)}</h1>
+        <div class="meta">${vl.name}<span class="trenn">|</span>${v.odoo ? 'Odoo-Auftrag ' + v.odoo : 'ohne Odoo-Auftrag'}<span class="trenn">|</span>seit ${fmt(v.start)}, angelegt von ${name(v.von)}</div></div>
+      ${balken(v)} ${statusHtml(v)}
+      ${hinweisBlock(v)}
+    </div>
+    <div class="akte">
+      <section class="karte"><div class="karte-kopf"><h2>Schritte</h2>
+        <span class="zusatz">Jeder Schritt ist eine Aufgabe im Pool seines Bereichs</span></div>
+        ${v.schritte.map((s, i) => schrittHtml(v, s, i)).join('')}
+        ${vStatus(v) !== 'fertig' ? neuSchrittHtml(v.schritte, formular?.art === 'neu', 'vg') : ''}
+      </section>
+      <div>
+        <section class="karte"><div class="karte-kopf"><h2>Auftrag</h2></div><div class="karte-koerper">
+          <div class="fakt"><span class="l">Odoo-Auftrag</span><span class="r">${v.odoo || '—'}${v.bestaetigt ? `, bestätigt ${fmt(v.bestaetigt)}` : ''}</span></div>
+          <div class="fakt"><span class="l">Positionen</span><span class="r">${v.positionen.length ? v.positionen.map(esc).join('<br>') : '—'}</span></div>
+          <div class="fakt"><span class="l">Ansprechpartner</span><span class="r">${esc(v.ap || '—')}</span></div>
+          <div class="fakt"><span class="l">Vorlage</span><span class="r">${vl.name}, Stand ${v.stand}</span></div>
+          <div class="fakt"><span class="l">In der Kundenakte</span><span class="r"><a data-akt="akte">Strang „Verkauf ${v.odoo || 'ohne Nr.'}"</a></span></div>
+          <div class="uebergang">Im Übergang bleiben Angebot, Auftragsbestätigung und Rechnung in Odoo. Hier läuft nur die Abwicklung.</div>
+        </div></section>
+        <section class="karte"><div class="karte-kopf"><h2>Verlauf des Vorgangs</h2></div>
+          <ul class="verlauf">${[...v.verlauf].sort((a, b) => b.am - a.am || b.n - a.n).map(e =>
+            `<li class="${e.wer === 'system' ? 'system' : ''}"><span class="wann">${fmt(e.am)}</span><span><span class="text">${esc(e.text)}</span><br><span class="wer">${name(e.wer)}</span></span></li>`).join('')}</ul>
+        </section>
+      </div>
+    </div>`;
+  const f = inhalt.querySelector('.s-form input, .s-form textarea, #f-hinweis, .neu-schritt input');
+  if (f) f.focus();
+}
+function hinweisBlock(v) {
+  if (formular?.art === 'hinweis') return `<div class="vg-hinweis bearbeiten">
+    <label for="f-hinweis">Hinweis zum Vorgang, sichtbar für alle, die an einem Schritt arbeiten</label>
+    <textarea id="f-hinweis" class="hinweis-feld" placeholder="z. B. ACHTUNG: alten Vertragsstand versenden">${esc(v.hinweis || '')}</textarea>
+    <div style="display:flex; gap:6px; flex-wrap:wrap"><button class="knopf klein" data-akt="hinweis-speichern">Speichern</button>
+      ${v.hinweis ? '<button class="knopf sekundaer klein" data-akt="hinweis-weg">Hinweis entfernen</button>' : ''}
+      <button class="knopf sekundaer klein" data-akt="abbrechen">Abbrechen</button></div></div>`;
+  if (v.hinweis) return `<div class="vg-hinweis"><span aria-hidden="true">⚠</span><span class="txt">${esc(v.hinweis)}</span>
+    <button class="textknopf" data-akt="hinweis-form">Bearbeiten</button></div>`;
+  return `<div style="flex-basis:100%"><button class="textknopf" data-akt="hinweis-form">+ Hinweis zum Vorgang</button></div>`;
+}
+function schrittHtml(v, s, i) {
+  const nr = i + 1;
+  if (s.status === 'entfaellt') return `<div class="schritt entfaellt"><div class="nr">${nr}</div><div class="s-haupt">
+    <div class="s-titel">${esc(s.t)}</div><div class="s-meta">${s.grund === 'entfernt' ? 'Von Hand entfernt, nur in diesem Vorgang' : `Entfällt, weil „${esc(s.bed)}" nicht zutrifft`}</div></div></div>`;
+  const gs = gesperrt(v, s), ue = ueberfaellig(v, s), erl = s.status === 'erledigt';
+  let st, cls, zcls;
+  if (erl) { st = `Erledigt ${fmt(s.erledigtAm)}`; cls = 'gut'; zcls = 'erledigt'; }
+  else if (gs) { st = `Wartet auf Schritt ${s.wartet + 1}`; cls = ''; zcls = 'gesperrt'; }
+  else if (s.status === 'wartet') { st = 'Wartet auf Kunden'; cls = 'warnung'; zcls = 'wartet'; }
+  else if (ue) { st = 'Überfällig'; cls = 'kritisch'; zcls = 'ueber'; }
+  else if (s.status === 'inarbeit') { st = 'In Arbeit'; cls = 'akzent'; zcls = 'aktiv'; }
+  else { st = s.zust ? 'Offen' : 'Offen im Pool'; cls = ''; zcls = 'aktiv'; }
+
+  const meta = [`<span class="pill">${BEREICHE[s.b]}</span>`];
+  if (s.manuell) meta.push('<span class="manuell" title="Nur in diesem Vorgang, nicht aus der Vorlage">von Hand</span>');
+  if (erl) meta.push(`von ${name(s.erledigtVon)}`);
+  else meta.push(s.zust ? name(s.zust) : `Pool ${BEREICHE[s.b]}`);
+  if (gs) meta.push(`Frist ${s.frist} Tage nach Schritt ${s.wartet + 1}`);
+  else if (!erl && s.status === 'wartet') meta.push(`<span class="warntext">Wiedervorlage ${fmt(s.wv)}</span>`);
+  else if (!erl && s.fristDat) meta.push(ue ? `<span class="krittext">Frist ${fmt(s.fristDat)}, ${tageZwischen(s.fristDat, HEUTE)} Tage drüber</span>` : `Frist ${fmt(s.fristDat)}`);
+  if (s.pflicht && s.wert) meta.push(`${esc(s.pflicht)}: <b>${esc(s.wert)}</b>`);
+  if (!erl && s.info !== 'keine' && gs) meta.push(`Hinweis per ${INFO[s.info]}, sobald dran`);
+
+  let akt = '';
+  if (!erl) {
+    const k = [];
+    if (aktiv(v, s)) {
+    if (!s.zust) k.push(`<button class="knopf klein" data-akt="uebernehmen" data-i="${i}">Übernehmen</button>`);
+    if (s.status === 'wartet') k.push(`<button class="knopf sekundaer klein" data-akt="antwort" data-i="${i}">Kunde hat geantwortet</button>`);
+    else {
+      k.push(`<button class="knopf ${s.zust ? '' : 'sekundaer'} klein" data-akt="erledigt-form" data-i="${i}">Erledigt</button>`);
+      k.push(`<button class="knopf sekundaer klein" data-akt="wartet-form" data-i="${i}">Wartet auf Kunden</button>`);
+    }
+    k.push(`<button class="knopf sekundaer klein" data-akt="notiz-form" data-i="${i}">Notiz</button>`);
+    }
+    k.push(`<button class="textknopf leise" data-akt="vg-entfernen" data-i="${i}" title="Nur in diesem Vorgang entfernen">Entfernen</button>`);
+    akt = `<div class="s-akt">${k.join('')}</div>`;
+  }
+  const fehler = formFehler ? `<div class="fehler">${esc(formFehler)}</div>` : '';
+  const abbr = `<button class="knopf sekundaer klein" data-akt="abbrechen">Abbrechen</button>`;
+  let form = '';
+  if (formular && formular.i === i) {
+    if (formular.art === 'erledigt') form = `<div class="s-form">
+      <label for="f-wert">${esc(s.pflicht)} (Pflichtfeld, landet in der Kundenakte)<input type="text" id="f-wert" value="${esc(s.wert)}" autocomplete="off"></label>
+      <label for="f-notiz">Notiz (optional)<input type="text" id="f-notiz" autocomplete="off"></label>
+      <button class="knopf klein" data-akt="erledigt" data-i="${i}">Als erledigt markieren</button>${abbr}${fehler}</div>`;
+    if (formular.art === 'wartet') form = `<div class="s-form">
+      <label for="f-wv">Wiedervorlage am<input type="date" id="f-wv" value="${isoDatum(plus(HEUTE, 7))}"></label>
+      <label for="f-notiz">Worauf wartet ihr?<input type="text" id="f-notiz" placeholder="z. B. Unterschrift der Geschäftsführung" autocomplete="off"></label>
+      <button class="knopf klein" data-akt="wartet" data-i="${i}">Warten bis zum Datum</button>${abbr}${fehler}</div>`;
+    if (formular.art === 'notiz') form = `<div class="s-form">
+      <label for="f-notiz">Notiz zum Schritt<textarea id="f-notiz" placeholder="z. B. heute telefonisch nicht erreicht"></textarea></label>
+      <button class="knopf klein" data-akt="notiz" data-i="${i}">Notiz speichern</button>${abbr}${fehler}</div>`;
+  }
+  return `<div class="schritt ${zcls}">
+    <div class="nr" aria-hidden="true">${erl ? '✓' : nr}</div>
+    <div class="s-haupt">
+      <div class="s-titel">${esc(s.t)}</div>
+      <div class="s-meta">${meta.join('<span class="trenn" aria-hidden="true">·</span>')}</div>
+      ${s.auto && !erl ? `<div class="s-auto">Wird automatisch abgehakt, sobald ${AUTO[s.auto]}.
+        ${s.auto === 'odoo' && aktiv(v, s) ? `<button class="textknopf" data-akt="odoo-demo" data-i="${i}">Demo: Import findet die Rechnung</button>` : ''}</div>` : ''}
+      ${s.notiz ? `<div class="s-notiz">„${esc(s.notiz.text)}"<span class="wer">${name(s.notiz.wer)}, ${fmt(s.notiz.am)}</span></div>` : ''}
+      ${akt}
+    </div>
+    <div class="s-rechts"><span class="status ${cls}">${st}</span></div>
+    ${form}
+  </div>`;
+}
+
+/* Aktionen auf Schritten */
+function protokoll(v, wer, text) { v.verlauf.push({ am: HEUTE, wer, text, n: seq++ }); }
+function erledigen(v, i, wer) {
+  const s = v.schritte[i];
+  s.status = 'erledigt'; s.erledigtAm = HEUTE; s.erledigtVon = wer; if (!s.zust && wer !== 'system') s.zust = wer;
+  protokoll(v, wer, `Schritt ${i + 1} erledigt: ${s.t}${s.pflicht && s.wert ? ` (${s.pflicht} ${s.wert})` : ''}`);
+  const frei = [];
+  v.schritte.forEach((t, j) => {
+    if (t.wartet === i && t.status !== 'entfaellt' && t.status !== 'erledigt') {
+      t.fristDat = plus(HEUTE, t.frist);
+      const an = t.zust ? name(t.zust) : BEREICHE[t.b];
+      protokoll(v, 'system', `Schritt ${j + 1} ist jetzt dran: ${t.zust ? name(t.zust) : 'Pool ' + BEREICHE[t.b]}, Frist ${fmt(t.fristDat)}`
+        + (t.info !== 'keine' ? `. Hinweis per ${INFO[t.info]} an ${an}` : ''));
+      frei.push(`Schritt ${j + 1} liegt jetzt bei ${an}`);
+    }
+  });
+  if (vStatus(v) === 'fertig') { protokoll(v, 'system', 'Vorgang abgeschlossen'); toast('Alle Schritte erledigt, Vorgang abgeschlossen.'); }
+  else toast(frei.length ? `Schritt ${i + 1} erledigt. ` + frei.join(', ') + '.' : `Schritt ${i + 1} erledigt.`);
+}
+
+// Schritt im laufenden Vorgang entfernen: wer auf ihn wartet, hängt sich an seinen Vorgänger
+function entfernen(v, i) {
+  const s = v.schritte[i];
+  s.status = 'entfaellt'; s.grund = 'entfernt';
+  v.schritte.forEach(t => {
+    if (t.wartet !== i) return;
+    t.wartet = s.wartet;
+    if (!t.fristDat && (t.wartet == null || fertigOderWeg(v.schritte[t.wartet]))) t.fristDat = plus(HEUTE, t.frist);
+  });
+}
+
+/* ===== Ansicht: Anlegen ===== */
+function neuerEntwurf(x) {
+  const erste = VORLAGEN.find(v => v.aktiv).id;
+  const vor = x && vorlage(x.vorlage)?.aktiv ? x.vorlage : null;
+  entwurf = { kunde: x?.kunde || '', odoo: x?.odoo || '', vorlage: vor || erste, vorschlag: vor,
+    start: isoDatum(HEUTE), bed: {}, ap: x?.ap || '', positionen: x?.positionen || [], aus: x || null, fehler: {},
+    hinweis: '', schritte: [], neuForm: false };
+  bedDefaults(); entwurfSchritte();
+}
+// Schritte dieses Vorgangs = Kopie der Vorlage; manuell hinzugefügte bleiben beim Typwechsel erhalten
+function entwurfSchritte() {
+  const manuelle = entwurf.schritte.filter(s => s.manuell).map(s => ({ ...s, wartet: null }));
+  entwurf.schritte = [...vorlage(entwurf.vorlage).schritte.map(s => ({ ...s, entfernt: false })), ...manuelle];
+}
+function leseNeu() {
+  const t = $('#n-t').value.trim(), w = $('#n-wartet').value;
+  if (!t) { formFehler = 'Bitte einen Namen für den Schritt eintragen.'; return null; }
+  formFehler = '';
+  return { t, b: $('#n-b').value, frist: Math.max(0, Number($('#n-frist').value) || 0), wartet: w === '' ? null : Number(w) };
+}
+function neuSchrittHtml(schritte, offen, praefix) {
+  if (!offen) return `<div class="karten-aktion"><button class="knopf sekundaer klein" data-akt="${praefix}-neu-form">Schritt von Hand hinzufügen</button></div>`;
+  const wahl = schritte.map((s, k) => (s.status === 'entfaellt' || s.status === 'erledigt' || s.entfernt || s.weg) ? '' : `<option value="${k}">Schritt ${k + 1}</option>`).join('');
+  return `<div class="neu-schritt">
+    <label class="breit" for="n-t">Neuer Schritt<input type="text" id="n-t" placeholder="z. B. Altdaten aus Excel übernehmen" autocomplete="off"></label>
+    <label for="n-b">Bereich<select id="n-b">${Object.entries(BEREICHE).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>
+    <label for="n-frist">Frist (Tage)<input type="number" id="n-frist" min="0" max="90" value="3"></label>
+    <label for="n-wartet">Wartet auf<select id="n-wartet"><option value="">sofort los</option>${wahl}</select></label>
+    <button class="knopf klein" data-akt="${praefix}-neu">Hinzufügen</button>
+    <button class="knopf sekundaer klein" data-akt="${praefix === 'e' ? 'e-neu-abbrechen' : 'abbrechen'}">Abbrechen</button>
+    ${formFehler ? `<div class="fehler">${esc(formFehler)}</div>` : ''}
+  </div>`;
+}
+function bedDefaults() {
+  entwurf.bed = {};
+  bedingungen().forEach(b => {
+    entwurf.bed[b] = b === 'Schulung bestellt' ? entwurf.positionen.some(p => /Schulung/i.test(p)) : true;
+  });
+}
+const bedingungen = () => [...new Set(vorlage(entwurf.vorlage).schritte.map(s => s.bed).filter(Boolean))];
+
+function renderAnlegen() {
+  const e = entwurf;
+  inhalt.innerHTML = `
+    <a class="zurueck" data-ansicht="uebersicht" href="#uebersicht">← Alle Vorgänge</a>
+    <div class="seitenkopf"><h1>Vorgang anlegen</h1></div>
+    <div class="anlegen">
+      <section class="karte"><div class="karte-koerper">
+        ${e.aus ? `<div class="odoo-band"><b>Aus Odoo-Auftrag ${e.aus.odoo}</b><span>bestätigt ${fmt(e.aus.bestaetigt)} von ${name(e.aus.von)}</span><span class="neben">${e.positionen.map(esc).join(' · ')}</span></div>` : ''}
+        <div class="abschnitt">Auftrag</div>
+        <div class="feldgruppe">
+          <label class="feld" for="a-kunde">Kunde
+            <input type="text" id="a-kunde" list="kundenliste" value="${esc(e.kunde)}" autocomplete="off" placeholder="Name eingeben">
+            ${e.fehler.kunde ? `<span class="fehler">${e.fehler.kunde}</span>` : '<span class="hilfe">Bestandskunde oder neu aus Odoo übernommen</span>'}</label>
+          <datalist id="kundenliste">${KUNDEN.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+          <label class="feld" for="a-odoo">Odoo-Auftragsnummer
+            <input type="text" id="a-odoo" value="${esc(e.odoo)}" autocomplete="off" placeholder="S01234">
+            ${e.fehler.odoo ? `<span class="fehler">${e.fehler.odoo}</span>` : '<span class="hilfe">Verbindet den Vorgang mit dem Verlauf aus Odoo</span>'}</label>
+          <label class="feld" for="a-start">Start
+            <input type="date" id="a-start" value="${e.start}"><span class="hilfe">Fristen zählen ab hier</span></label>
+        </div>
+        <div class="abschnitt">Vorgangstyp</div>
+        <div class="typwahl" role="radiogroup" aria-label="Vorgangstyp">
+          ${VORLAGEN.filter(vl => vl.aktiv).map(vl => `<label class="typkarte ${e.vorlage === vl.id ? 'an' : ''}">
+            <input type="radio" name="a-typ" value="${vl.id}" ${e.vorlage === vl.id ? 'checked' : ''}>
+            <span><span class="n">${esc(vl.name)}</span>${e.vorschlag === vl.id ? '<span class="vorschlag">VORSCHLAG</span>' : ''}<br><span class="b">${esc(vl.beschr)}</span></span></label>`).join('')}
+        </div>
+        ${bedingungen().length ? `<div class="abschnitt">Was gehört dazu?</div><div class="bedingungen">
+          ${bedingungen().map((b, k) => `<label for="a-bed-${k}"><input type="checkbox" id="a-bed-${k}" data-bed="${esc(b)}" ${e.bed[b] ? 'checked' : ''}> ${esc(b)}</label>`).join('')}</div>` : ''}
+        <div class="abschnitt">Hinweis zum Vorgang</div>
+        <label class="feld" for="a-hinweis" style="margin-bottom:16px">
+          <textarea id="a-hinweis" class="hinweis-feld" placeholder="z. B. ACHTUNG: alten Vertragsstand versenden">${esc(e.hinweis)}</textarea>
+          <span class="hilfe">Optional. Steht gut sichtbar am Vorgang und bei jedem Schritt im Pool, auch für Technik und Buchhaltung.</span></label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button class="knopf" data-akt="anlegen">Vorgang anlegen</button>
+          <button class="knopf sekundaer" data-ansicht="uebersicht">Abbrechen</button></div>
+      </div></section>
+      <section class="karte"><div class="karte-kopf"><h2>Schritte dieses Vorgangs</h2><span class="zusatz" id="vs-zahl"></span></div>
+        <div id="vorschau"></div>
+        <div class="karte-fuss">Entfernen und Hinzufügen gilt nur für diesen Vorgang, die Vorlage bleibt unverändert.</div></section>
+    </div>`;
+  renderVorschau();
+}
+function renderVorschau() {
+  const e = entwurf, vl = vorlage(e.vorlage), start = ausIso(e.start) || HEUTE;
+  const sch = e.schritte.map(s => ({ ...s, weg: !!(s.bed && !e.bed[s.bed]) }));
+  const raus = s => s.weg || s.entfernt;
+  const vorg = k => { while (k != null && raus(sch[k])) k = sch[k].wartet; return k; };
+  $('#vorschau').innerHTML = sch.map((s, i) => {
+    let m, x = '';
+    if (s.weg) m = `entfällt, weil „${esc(s.bed)}" nicht angehakt ist`;
+    else if (s.entfernt) {
+      m = 'von Hand entfernt, nur in diesem Vorgang';
+      x = `<button class="textknopf" data-akt="e-zurueck" data-i="${i}">Zurückholen</button>`;
+    } else {
+      const w = vorg(s.wartet);
+      const fr = w != null ? `startet nach Schritt ${w + 1}, dann ${s.frist} Tage Frist` : `Frist ${fmt(plus(start, s.frist))}`;
+      m = `${BEREICHE[s.b]} · ${fr}${s.info !== 'keine' ? ` · Hinweis per ${INFO[s.info]}` : ''}${s.pflicht ? ` · Pflichtfeld ${esc(s.pflicht)}` : ''}${s.auto ? ' · hakt sich selbst ab' : ''}`;
+      x = `<button class="entfernen" data-akt="e-entfernen" data-i="${i}" title="Nur in diesem Vorgang entfernen" aria-label="Schritt ${i + 1} entfernen">×</button>`;
+    }
+    return `<div class="vorschau-schritt ${raus(s) ? 'weg' : ''}"><span class="nr">${i + 1}</span>
+      <span class="t">${esc(s.t)}${s.manuell ? ' <span class="manuell">von Hand</span>' : ''}</span>${x ? `<span class="x">${x}</span>` : ''}<span class="m">${m}</span></div>`;
+  }).join('') + neuSchrittHtml(sch, e.neuForm, 'e');
+  const n = sch.filter(s => !raus(s)).length;
+  $('#vs-zahl').textContent = `${n} Schritt${n === 1 ? '' : 'e'}, Grundlage „${vl.name}", Stand ${vl.stand}`;
+  if (e.neuForm) $('#n-t')?.focus();
+}
+function anlegen() {
+  const e = entwurf; e.fehler = {};
+  e.kunde = e.kunde.trim(); e.odoo = e.odoo.trim().toUpperCase();
+  if (!e.kunde) e.fehler.kunde = 'Bitte einen Kunden eintragen.';
+  if (e.odoo && !/^S\d{5}$/.test(e.odoo)) e.fehler.odoo = 'Die Odoo-Auftragsnummer hat die Form S01234.';
+  else if (e.odoo && VORGAENGE.some(v => v.odoo === e.odoo)) e.fehler.odoo = `Zu ${e.odoo} gibt es schon einen Vorgang.`;
+  if (Object.keys(e.fehler).length) return renderAnlegen();
+  const vl = vorlage(e.vorlage), start = ausIso(e.start) || HEUTE;
+  const id = Math.max(...VORGAENGE.map(v => v.id)) + 1;
+  const schritte = e.schritte.map(({ entfernt, ...s }) => {
+    const weg = !!(s.bed && !e.bed[s.bed]);
+    return { ...s, status: weg || entfernt ? 'entfaellt' : 'offen', grund: entfernt ? 'entfernt' : weg ? 'bedingung' : null,
+      zust: null, fristDat: null, erledigtAm: null, erledigtVon: null, wv: null, wert: '', notiz: null };
+  });
+  // Wartet ein Schritt auf einen entfallenen, hängt er sich an dessen Vorgänger
+  schritte.forEach(s => { while (s.wartet != null && schritte[s.wartet].status === 'entfaellt') s.wartet = schritte[s.wartet].wartet; });
+  schritte.forEach(s => { if (s.status !== 'entfaellt' && s.wartet == null) s.fristDat = plus(start, s.frist); });
+  const v = { id, kunde: e.kunde, typ: vl.id, stand: vl.stand, odoo: e.odoo, bestaetigt: e.aus?.bestaetigt || null, start, von: ich,
+    ap: e.ap, positionen: e.positionen, schritte, verlauf: [], hinweis: e.hinweis.trim() };
+  protokoll(v, ich, `Vorgang angelegt aus Vorlage „${vl.name}" (Stand ${vl.stand})`);
+  if (v.hinweis) protokoll(v, ich, `Hinweis gesetzt: ${v.hinweis}`);
+  schritte.forEach((s, i) => {
+    if (s.grund === 'entfernt') protokoll(v, ich, `Schritt ${i + 1} von Hand entfernt: ${s.t}`);
+    if (s.manuell) protokoll(v, ich, `Schritt ${i + 1} von Hand hinzugefügt: ${s.t}`);
+  });
+  schritte.forEach((s, i) => { if (s.status !== 'entfaellt' && s.wartet == null && s.info !== 'keine')
+    protokoll(v, 'system', `Hinweis per ${INFO[s.info]} an ${BEREICHE[s.b]}: Schritt ${i + 1} liegt im Pool`); });
+  VORGAENGE.push(v);
+  if (!KUNDEN.includes(e.kunde)) KUNDEN.push(e.kunde);
+  VORSCHLAEGE = VORSCHLAEGE.filter(x => x.odoo !== e.odoo);
+  const pools = [...new Set(schritte.filter(s => s.status !== 'entfaellt' && s.wartet == null).map(s => BEREICHE[s.b]))];
+  zeige('vorgang', id);
+  toast(`Vorgang angelegt. Die ersten Schritte liegen in den Pools ${pools.join(', ')}.`);
+}
+
+/* ===== Ansicht: Vorlagen ===== */
+function renderVorlagen() {
+  const vl = vorlage(aktVorlage);
+  const darf = Object.values(LEITER).includes(ich);
+  const dis = darf ? '' : 'disabled';
+  inhalt.innerHTML = `
+    ${kopfVorgaenge('vorlagen')}
+    <div class="vorlagen-liste" role="group" aria-label="Vorgangstyp wählen">${VORLAGEN.map(x => `<button class="${x.id === aktVorlage ? 'an' : ''}${x.aktiv ? '' : ' aus'}" data-vorlage="${x.id}" aria-pressed="${x.id === aktVorlage}">
+      <span class="n">${esc(x.name)}</span><span class="b">${x.schritte.length} Schritt${x.schritte.length === 1 ? '' : 'e'} · Stand ${x.stand}${x.aktiv ? '' : ' · deaktiviert'}</span></button>`).join('')}
+      ${darf ? '<button class="neu" data-akt="vt-neu">+ Neuer Vorgangstyp</button>' : ''}</div>
+    <div>
+      <section class="karte">
+        <div class="karte-kopf"><h2>${esc(vl.name)}</h2><span class="zusatz">Stand ${vl.stand}${vl.aktiv ? '' : ' · deaktiviert, für neue Vorgänge nicht wählbar'}</span>
+          <span class="rechts" style="display:flex; gap:8px; flex-wrap:wrap">
+            <button class="knopf sekundaer" data-akt="vt-kopie" ${dis}>Kopieren</button>
+            <button class="knopf sekundaer" data-akt="vt-aktiv" ${dis}>${vl.aktiv ? 'Deaktivieren' : 'Wieder aktivieren'}</button>
+            <button class="knopf" data-akt="v-speichern" ${dis}>Als Stand ${vl.stand + 1} speichern</button></span></div>
+        <div class="karte-koerper feldgruppe" style="margin:0; border-bottom:1px solid var(--border)">
+          <label class="feld" for="vt-name">Name des Vorgangstyps<input type="text" id="vt-name" value="${esc(vl.name)}" autocomplete="off" ${dis}></label>
+          <label class="feld" for="vt-beschr">Kurzbeschreibung, erscheint beim Anlegen<input type="text" id="vt-beschr" value="${esc(vl.beschr)}" autocomplete="off" ${dis}></label>
+        </div>
+        <div class="pflege ${darf ? '' : 'gesperrt'}">${darf
+          ? `<span>Vorlagen pflegen Admin und Bereichsleitung.</span><span>Leitung: ${Object.entries(LEITER).map(([b, p]) => `${BEREICHE[b]} ${name(p)}`).join(' · ')}</span>`
+          : `<span>${name(ich)} kann diese Vorlage nur ansehen. Ändern dürfen Admin und Bereichsleitung.</span>`}</div>
+        <div class="tabelle-wrap"><table class="editor"><thead><tr>
+          <th>#</th><th>Schritt</th><th>Bereich</th><th>Frist (Tage)</th><th>Wartet auf</th><th>Nur wenn</th><th title="Hinweis an den Bereich, sobald der Schritt dran ist">Hinweis</th><th>Pflichtfeld</th><th>Hakt sich ab bei</th><th></th></tr></thead><tbody>
+          ${vl.schritte.map((s, i) => `<tr>
+            <td class="nr">${i + 1}</td>
+            <td class="titel"><input type="text" id="v-t-${i}" data-feld="t" data-i="${i}" value="${esc(s.t)}" aria-label="Schritt ${i + 1}" ${dis}></td>
+            <td><select id="v-b-${i}" data-feld="b" data-i="${i}" aria-label="Bereich" ${dis}>${Object.entries(BEREICHE).map(([k, t]) => `<option value="${k}" ${s.b === k ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+            <td><input type="number" id="v-frist-${i}" min="0" max="90" data-feld="frist" data-i="${i}" value="${s.frist}" aria-label="Frist in Tagen" ${dis}></td>
+            <td><select id="v-wartet-${i}" data-feld="wartet" data-i="${i}" aria-label="Wartet auf" ${dis}><option value="">sofort los</option>${vl.schritte.slice(0, i).map((_, k) => `<option value="${k}" ${s.wartet === k ? 'selected' : ''}>Schritt ${k + 1}</option>`).join('')}</select></td>
+            <td class="mittel"><input type="text" id="v-bed-${i}" data-feld="bed" data-i="${i}" value="${esc(s.bed)}" placeholder="immer" aria-label="Bedingung" ${dis}></td>
+            <td><select id="v-info-${i}" data-feld="info" data-i="${i}" aria-label="Hinweis bei Weitergabe" ${dis}>${Object.entries(INFO).map(([k, t]) => `<option value="${k}" ${s.info === k ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+            <td class="mittel"><input type="text" id="v-pflicht-${i}" data-feld="pflicht" data-i="${i}" value="${esc(s.pflicht)}" placeholder="—" aria-label="Pflichtfeld" ${dis}></td>
+            <td><select id="v-auto-${i}" data-feld="auto" data-i="${i}" aria-label="Hakt sich selbst ab" ${dis}>${Object.entries(AUTO_KURZ).map(([k, t]) => `<option value="${k}" ${s.auto === k ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+            <td><button class="entfernen" data-akt="v-entfernen" data-i="${i}" title="Schritt entfernen" aria-label="Schritt ${i + 1} entfernen" ${dis}>×</button></td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="karte-fuss" style="display:flex; gap:10px 16px; flex-wrap:wrap; align-items:center">
+          <button class="knopf sekundaer klein" data-akt="v-neu" ${dis}>Schritt hinzufügen</button>
+          <span>Die Frist zählt ab Start oder, wenn der Schritt wartet, ab Erledigung des Vorgängers. Schritte ohne „Wartet auf" laufen parallel, auch die Rechnung.</span></div>
+      </section>
+    </div>`;
+}
+
+/* ===== Rendern, Navigation, Ereignisse ===== */
+function render() {
+  renderNav();
+  if (ansicht === 'vorgang') renderVorgang();
+  else if (ansicht === 'anlegen') renderAnlegen();
+  else if (ansicht === 'vorlagen') renderVorlagen();
+  else renderUebersicht();
+}
+function zeige(a, id) {
+  ansicht = a; aktId = id ?? null; formular = null; formFehler = '';
+  const h = a === 'vorgang' ? 'vorgang-' + id : a;
+  try { history.replaceState(null, '', '#' + h); } catch (e) {}
+  render(); window.scrollTo(0, 0);
+}
+let toastTimer;
+function toast(text, undo) {
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(text)}</span>${undo ? '<button id="undo">Rückgängig</button>' : ''}`;
+  t.hidden = false;
+  if (undo) $('#undo').onclick = () => { undo(); t.hidden = true; };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, undo ? 6000 : 4000);
+}
+
+document.addEventListener('click', ev => {
+  const el = ev.target.closest('[data-nav],[data-thema],[data-ansicht],[data-akt],[data-bereich],[data-kpi],[data-vorgang],[data-vorlage]');
+  if (!el || el.disabled) return;
+  if (el.tagName === 'A') ev.preventDefault();
+  if (el.dataset.nav) { if (el.dataset.nav === 'vorgaenge') zeige('uebersicht'); else toast('Im Mockup ist nur der Bereich Vorgänge ausgearbeitet.'); return; }
+  if (el.dataset.thema !== undefined) {
+    thema = el.dataset.thema || null;
+    if (thema) document.documentElement.dataset.theme = thema; else delete document.documentElement.dataset.theme;
+    try { thema ? localStorage.setItem('kz-thema', thema) : localStorage.removeItem('kz-thema'); } catch (e) {}
+    renderNav(); return;
+  }
+  if (el.dataset.ansicht) { zeige(el.dataset.ansicht); return; }
+  if (el.dataset.bereich) { fBereich = el.dataset.bereich; render(); return; }
+  if (el.dataset.kpi !== undefined) { const k = el.dataset.kpi || null; fStatus = fStatus === k ? null : k; render(); return; }
+  if (el.dataset.vorgang) { zeige('vorgang', Number(el.dataset.vorgang)); return; }
+  if (el.dataset.vorlage) { aktVorlage = el.dataset.vorlage; render(); return; }
+
+  const a = el.dataset.akt, i = Number(el.dataset.i);
+  const v = VORGAENGE.find(x => x.id === aktId);
+  switch (a) {
+    case 'neu': neuerEntwurf(null); zeige('anlegen'); break;
+    case 'aus-odoo': neuerEntwurf(VORSCHLAEGE.find(x => x.odoo === el.dataset.odoo)); zeige('anlegen'); break;
+    case 'ausblenden': {
+      const nr = el.dataset.odoo; ausgeblendet.push(nr); render();
+      toast(`${nr} ausgeblendet.`, () => { ausgeblendet = ausgeblendet.filter(x => x !== nr); render(); });
+      break; }
+    case 'zu-odoo': $('#odoo')?.scrollIntoView({ block: 'start' }); break;
+    case 'status-weg': fStatus = null; render(); break;
+    case 'anlegen': anlegen(); break;
+    case 'akte': toast('Springt in die Kundenakte, gefiltert auf diesen Strang.'); break;
+    case 'uebernehmen': {
+      const s = v.schritte[i]; s.zust = ich; s.status = 'inarbeit';
+      protokoll(v, ich, `Schritt ${i + 1} übernommen`); toast(`${name(ich)} hat Schritt ${i + 1} übernommen.`); render(); break; }
+    case 'antwort': {
+      const s = v.schritte[i]; s.status = 'inarbeit'; s.wv = null; s.fristDat = plus(HEUTE, 2);
+      protokoll(v, ich, `Schritt ${i + 1}: Kunde hat geantwortet, weiter in Arbeit`); render(); break; }
+    case 'erledigt-form':
+      if (!v.schritte[i].pflicht) { formular = null; erledigen(v, i, ich); render(); }
+      else { formular = { i, art: 'erledigt' }; formFehler = ''; render(); }
+      break;
+    case 'wartet-form': formular = { i, art: 'wartet' }; formFehler = ''; render(); break;
+    case 'notiz-form': formular = { i, art: 'notiz' }; formFehler = ''; render(); break;
+    case 'abbrechen': formular = null; formFehler = ''; render(); break;
+    case 'erledigt': {
+      const s = v.schritte[i], wert = $('#f-wert').value.trim(), notiz = $('#f-notiz').value.trim();
+      if (!wert) { formFehler = `Bitte ${s.pflicht} eintragen. Kollegen finden sie danach in der Kundenakte.`; render(); return; }
+      s.wert = wert; if (notiz) s.notiz = N(notiz, ich, HEUTE);
+      formular = null; formFehler = ''; erledigen(v, i, ich); render(); break; }
+    case 'wartet': {
+      const s = v.schritte[i], wv = ausIso($('#f-wv').value), grund = $('#f-notiz').value.trim();
+      if (!wv || wv <= HEUTE) { formFehler = 'Die Wiedervorlage muss nach heute liegen.'; render(); return; }
+      s.status = 'wartet'; s.wv = wv; s.fristDat = wv; if (!s.zust) s.zust = ich;
+      if (grund) s.notiz = N(grund, ich, HEUTE);
+      protokoll(v, ich, `Schritt ${i + 1} wartet auf Kunden bis ${fmt(wv)}${grund ? ': ' + grund : ''}`);
+      formular = null; formFehler = ''; toast(`Wiedervorlage am ${fmt(wv)}. Bis dahin keine rote Ampel.`); render(); break; }
+    case 'notiz': {
+      const text = $('#f-notiz').value.trim();
+      if (!text) { formFehler = 'Die Notiz ist leer.'; render(); return; }
+      v.schritte[i].notiz = N(text, ich, HEUTE); protokoll(v, ich, `Schritt ${i + 1}: ${text}`);
+      formular = null; formFehler = ''; render(); break; }
+    case 'odoo-demo': {
+      const s = v.schritte[i]; s.notiz = N(`Rechnung RE/2026/04${30 + v.id} zum Auftrag gefunden`, 'system', HEUTE);
+      erledigen(v, i, 'system'); render(); break; }
+    /* Hinweis und Anpassungen am laufenden Vorgang */
+    case 'hinweis-form': formular = { i: -2, art: 'hinweis' }; formFehler = ''; render(); break;
+    case 'hinweis-speichern': {
+      const t = $('#f-hinweis').value.trim();
+      if (t !== (v.hinweis || '')) protokoll(v, ich, t ? `Hinweis gesetzt: ${t}` : 'Hinweis entfernt');
+      v.hinweis = t; formular = null; render(); break; }
+    case 'hinweis-weg': v.hinweis = ''; protokoll(v, ich, 'Hinweis entfernt'); formular = null; render(); break;
+    case 'vg-entfernen': {
+      const vorher = structuredClone({ s: v.schritte, l: v.verlauf });
+      const t = v.schritte[i].t;
+      entfernen(v, i); protokoll(v, ich, `Schritt ${i + 1} von Hand entfernt: ${t}`);
+      formular = null; render();
+      toast(`Schritt ${i + 1} entfernt, nur in diesem Vorgang.`, () => { v.schritte = vorher.s; v.verlauf = vorher.l; render(); });
+      break; }
+    case 'vg-neu-form': formular = { i: -1, art: 'neu' }; formFehler = ''; render(); break;
+    case 'vg-neu': {
+      const n = leseNeu(); if (!n) { render(); return; }
+      const frei = n.wartet == null || fertigOderWeg(v.schritte[n.wartet]);
+      v.schritte.push({ ...S(n.t, n.b, n.frist, { wartet: n.wartet, manuell: true }), status: 'offen', zust: null,
+        fristDat: frei ? plus(HEUTE, n.frist) : null, erledigtAm: null, erledigtVon: null, wv: null, wert: '', notiz: null });
+      protokoll(v, ich, `Schritt ${v.schritte.length} von Hand hinzugefügt: ${n.t} (Pool ${BEREICHE[n.b]})`);
+      formular = null; render(); toast(`Schritt ${v.schritte.length} hinzugefügt, liegt ${frei ? 'jetzt' : 'später'} im Pool ${BEREICHE[n.b]}.`); break; }
+    /* Anpassungen beim Anlegen */
+    case 'e-entfernen': entwurf.schritte[i].entfernt = true; renderVorschau(); break;
+    case 'e-zurueck': entwurf.schritte[i].entfernt = false; renderVorschau(); break;
+    case 'e-neu-form': entwurf.neuForm = true; formFehler = ''; renderVorschau(); break;
+    case 'e-neu-abbrechen': entwurf.neuForm = false; formFehler = ''; renderVorschau(); break;
+    case 'e-neu': {
+      const n = leseNeu(); if (!n) { renderVorschau(); return; }
+      entwurf.schritte.push({ ...S(n.t, n.b, n.frist, { wartet: n.wartet, manuell: true }), entfernt: false });
+      entwurf.neuForm = false; renderVorschau(); break; }
+    /* Vorgangstypen */
+    case 'vt-neu': {
+      const id = 'typ' + (++typZaehler);
+      VORLAGEN.push({ id, name: 'Neuer Vorgangstyp', beschr: '', stand: 1, aktiv: true, schritte: [S('Erster Schritt', 'vertrieb', 3)] });
+      aktVorlage = id; render(); const f = $('#vt-name'); f?.focus(); f?.select(); break; }
+    case 'vt-kopie': {
+      const q = vorlage(aktVorlage), id = 'typ' + (++typZaehler);
+      VORLAGEN.push({ ...structuredClone(q), id, name: q.name + ' (Kopie)', stand: 1, aktiv: true });
+      aktVorlage = id; render(); toast(`Kopie von „${q.name}" angelegt. Jetzt umbenennen und anpassen.`); break; }
+    case 'vt-aktiv': {
+      const vl = vorlage(aktVorlage);
+      if (vl.aktiv && VORLAGEN.filter(x => x.aktiv).length === 1) { toast('Mindestens ein Vorgangstyp muss aktiv bleiben.'); break; }
+      vl.aktiv = !vl.aktiv;
+      const laufend = VORGAENGE.filter(x => x.typ === vl.id && vStatus(x) !== 'fertig').length;
+      toast(vl.aktiv ? `„${vl.name}" steht wieder zur Auswahl.`
+        : `„${vl.name}" ist deaktiviert und für neue Vorgänge nicht mehr wählbar. ${laufend === 1 ? '1 laufender Vorgang bleibt' : `${laufend} laufende Vorgänge bleiben`} unverändert.`);
+      render(); break; }
+    case 'v-neu': vorlage(aktVorlage).schritte.push(S('Neuer Schritt', 'vertrieb', 3)); render(); break;
+    case 'v-entfernen': {
+      const vl = vorlage(aktVorlage); vl.schritte.splice(i, 1);
+      vl.schritte.forEach(s => { if (s.wartet === i) s.wartet = null; else if (s.wartet > i) s.wartet--; });
+      render(); break; }
+    case 'v-speichern': {
+      const vl = vorlage(aktVorlage); vl.stand++;
+      toast(`„${vl.name}" als Stand ${vl.stand} gespeichert. Gilt für neue Vorgänge, laufende behalten ihre Schritte.`); render(); break; }
+  }
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Enter' && ev.target.matches('tr[data-vorgang]')) zeige('vorgang', Number(ev.target.dataset.vorgang));
+});
+document.addEventListener('change', ev => {
+  const t = ev.target;
+  if (t.id === 'ich') { ich = t.value; formular = null; render(); return; }
+  if (t.id === 'nurich') { fNurIch = t.checked; render(); return; }
+  if (t.id === 'fertig') { fFertig = t.checked; render(); return; }
+  if (t.name === 'a-typ') { entwurf.vorlage = t.value; bedDefaults(); entwurfSchritte(); renderAnlegen(); return; }
+  if (t.id === 'vt-name') { const vl = vorlage(aktVorlage); vl.name = t.value.trim() || vl.name; render(); return; }
+  if (t.id === 'vt-beschr') { vorlage(aktVorlage).beschr = t.value.trim(); return; }
+  if (t.dataset.bed !== undefined) { entwurf.bed[t.dataset.bed] = t.checked; renderVorschau(); return; }
+  if (t.id === 'a-start') { entwurf.start = t.value; renderVorschau(); return; }
+  if (t.dataset.feld) {
+    const s = vorlage(aktVorlage).schritte[Number(t.dataset.i)], f = t.dataset.feld;
+    s[f] = f === 'frist' ? Math.max(0, Number(t.value) || 0) : f === 'wartet' ? (t.value === '' ? null : Number(t.value)) : t.value;
+  }
+});
+document.addEventListener('input', ev => {
+  const t = ev.target;
+  if (t.id === 'a-kunde') entwurf.kunde = t.value;
+  if (t.id === 'a-odoo') entwurf.odoo = t.value;
+  if (t.id === 'a-hinweis') entwurf.hinweis = t.value;
+});
+
+/* Start: Ansicht aus dem Link (#uebersicht, #vorlagen, #anlegen, #vorgang-1) */
+(function start() {
+  const h = (location.hash || '').slice(1);
+  const m = /^vorgang-(\d+)$/.exec(h);
+  if (m && VORGAENGE.some(v => v.id === Number(m[1]))) { ansicht = 'vorgang'; aktId = Number(m[1]); }
+  else if (h === 'vorlagen') ansicht = 'vorlagen';
+  else if (h === 'anlegen') { neuerEntwurf(VORSCHLAEGE[0]); ansicht = 'anlegen'; }
+  render();
+})();
+</script>
+</body>
+</html>

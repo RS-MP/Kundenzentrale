@@ -24,6 +24,9 @@ Aufgaben, Timeline, Angebote/CRM, Tickets und schlanke Fakturierung.
 - **Konzept „Kundenakte ruhig" 09/2026** (`mockup/akte-ruhig.html`,
   Beruhigungs-Iteration der laufenden App nach B-Prinzipien, in Diskussion):
   https://claude.ai/code/artifact/5646e699-a66b-4778-abae-7da8eadc5ebb
+- **Vorgänge** 10/2026 (`mockup/vorgaenge.html`, Bestellung → Teilaufgaben je
+  Bereich, Dashboard, Odoo-Vorschlagsliste, Vorlagen-Editor; zum Abstimmen mit
+  den Bereichen): https://claude.ai/artifact/1yxgF5FRxaoQ5N1bVGE6Xb
 
 Bei Updates aus diesem Projekt die jeweilige URL als `url`-Parameter an das
 Artifact-Tool übergeben, sonst entsteht eine neue URL.

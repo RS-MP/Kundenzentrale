@@ -155,7 +155,8 @@ Layout-Entscheidung nach Ansicht beider Varianten.
   z. B. Vertrag liegt beim Kunden. Keine rote Ampel, aber am Stichtag wieder
   offen. Ergänzt die Status-Liste der Aufgabenverwaltung.
 - **Vorgangsstatus wird berechnet, nicht gepflegt:** Neu · Läuft · Wartet auf
-  Kunden (mindestens ein aktiver Schritt wartet, keiner überfällig) · Hängt
+  Kunden (alle noch offenen Schritte warten auf den Kunden, keiner
+  überfällig — sonst „Läuft", weil intern noch jemand dran ist) · Hängt
   (mindestens ein Schritt überfällig) · Abgeschlossen (alle Schritte
   erledigt oder übersprungen).
 
@@ -210,6 +211,9 @@ Kundenzentrale übernimmt nur die Abwicklung der Teilaufgaben.
 
 ### Sichtbarkeit und Dashboard
 
+Klickbares Mockup: `mockup/vorgaenge.html` (Übersicht mit Odoo-Vorschlagsliste,
+Vorgang anlegen, Vorgangsansicht, Vorlagen-Editor; Stand 28.10.2026).
+
 - **Vorgangsansicht:** eine Zeile pro Schritt mit Bereich, Zuständigem,
   Status, Frist und letztem Verlaufseintrag — „Wo steht die Bestellung X?"
   in zwei Sekunden.
@@ -223,8 +227,33 @@ Kundenzentrale übernimmt nur die Abwicklung der Teilaufgaben.
   S01194"). „Was lief zuletzt?" zeigt die offenen Schritte, erledigte Schritte
   wandern als Einträge in den Verlauf.
 
+### Vorgang im Einzelfall anpassen (Ergänzung 28.10.2026)
+
+Die Vorlage ist nur der Startpunkt. Beim Anlegen (und Vorschlag: auch später
+am laufenden Vorgang) kann der Bearbeiter den einzelnen Vorgang anpassen,
+ohne die Vorlage zu ändern:
+
+- **Schritt entfernen:** Der Schritt entfällt nur in diesem Vorgang (mit
+  Vermerk „von Hand entfernt" im Verlauf). Wartet ein anderer Schritt auf ihn,
+  startet dieser sofort bzw. hängt sich an den davorliegenden Schritt.
+- **Manuellen Schritt hinzufügen:** Titel, Bereich, Frist, optional Person,
+  optional „wartet auf Schritt X". Manuelle Schritte sind im Vorgang als
+  solche erkennbar und verhalten sich sonst wie Vorlagenschritte (Pool,
+  Status, Wiedervorlage).
+- **Hinweis zum Vorgang** (z. B. „ACHTUNG: alten Vertragsstand versenden"):
+  Freitext, der **überall sichtbar** ist, wo am Vorgang gearbeitet wird — im
+  Kopf der Vorgangsansicht, als Markierung in der Übersicht und bei jedem
+  Schritt in „Meine Aufgaben"/Bereichs-Pool, damit ihn auch der Kollege aus
+  der Technik oder Buchhaltung sieht. Änderungen am Hinweis landen im Verlauf.
+  Passt zur Regel, dass alte unterschriebene Vertragsstände gültig bleiben.
+
 ### Vorlagenpflege und Abgrenzung
 
+- **Vorgangstypen sind pflegbar** (Ergänzung 28.10.2026): neue anlegen,
+  umbenennen, Schritte ändern, eine bestehende Vorlage als Ausgangspunkt
+  kopieren. Nicht mehr benötigte Typen werden **deaktiviert statt gelöscht**
+  — laufende und abgeschlossene Vorgänge verweisen weiter darauf, für neue
+  Vorgänge stehen sie nicht mehr zur Auswahl.
 - Vorlagen werden in der Oberfläche gepflegt, nicht im Code — durch **Admin
   und Bereichsleiter** (je Bereich eine definierte Person; Entscheidung
   28.10.2026, Ergänzung des Rollenmodells: Bereich bekommt ein Feld
@@ -240,12 +269,14 @@ Kundenzentrale übernimmt nur die Abwicklung der Teilaufgaben.
 
 - `Vorgang`: Kunde, Vorlage, Titel, berechneter Status, optionale Verweise
   auf Angebot und Vertrag, **Odoo-Auftragsnummer** (Übergang), Start,
-  Abschluss, Strang-Schlüssel.
+  Abschluss, Strang-Schlüssel, **Hinweis** (Freitext, optional).
 - `VorgangsVorlage` + `VorlagenSchritt`: Titel, Bereich, Reihenfolge, Frist in
   Tagen, „wartet auf" (Schritt, optional), Bedingung, Benachrichtigung
-  (keine / Mail / Teams).
-- `Aufgabe` zusätzlich: Vorgang, Reihenfolge, „wartet auf Aufgabe"; neuer
-  Status „Wartet auf Kunden".
+  (keine / Mail / Teams); Vorlage zusätzlich **Aktiv** (Deaktivieren statt
+  Löschen).
+- `Aufgabe` zusätzlich: Vorgang, Reihenfolge, „wartet auf Aufgabe",
+  **Herkunft** (Vorlage / manuell hinzugefügt), Vermerk „von Hand entfernt";
+  neuer Status „Wartet auf Kunden".
 - `Bereich` zusätzlich: Leiter (Mitarbeiter) für die Vorlagenpflege.
 
 ### Entscheidungen 28.10.2026 (MP)
@@ -261,6 +292,11 @@ Kundenzentrale übernimmt nur die Abwicklung der Teilaufgaben.
 6. **Übergang (mind. 1 Jahr):** Angebot, Bestätigung und Rechnung bleiben in
    Odoo; Vorgänge werden in der Kundenzentrale manuell angelegt (mit
    Odoo-Auftragsnummer), kein Odoo-Projekt mehr für neue Bestellungen.
+7. **Einzelfall anpassen:** Beim Anlegen Schritte entfernen, manuelle
+   Schritte hinzufügen und einen gut sichtbaren Hinweis zum Vorgang erfassen
+   (z. B. „ACHTUNG: alten Vertragsstand versenden").
+8. **Vorgangstypen pflegbar:** neue anlegen, ändern, kopieren; deaktivieren
+   statt löschen.
 
 ## Rechnungen & Offene Posten
 
