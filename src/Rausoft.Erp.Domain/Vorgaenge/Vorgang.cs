@@ -38,6 +38,9 @@ public class Vorgang
     public DateOnly Start { get; set; }
 
     public DateTime ErstelltAm { get; set; }
+
+    /// <summary>Optimistic Concurrency: gleichzeitige Änderungen (Takt, Knopf, Bearbeitung) kollidieren statt sich zu überschreiben.</summary>
+    public byte[] RowVersion { get; set; } = [];
     public int? ErstelltVonId { get; set; }
     public Mitarbeiter? ErstelltVon { get; set; }
 

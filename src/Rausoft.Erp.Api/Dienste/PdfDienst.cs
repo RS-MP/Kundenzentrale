@@ -18,7 +18,7 @@ namespace Rausoft.Erp.Api.Dienste;
 /// PFX-Zertifikat (Einstellung Vertragserzeugung.SignaturZertifikat) und
 /// dessen Passwort als verschlüsseltes Geheimnis (Signatur.PfxPasswort).
 /// </summary>
-public class PdfDienst(ErpDbContext db, GeheimnisDienst geheimnisse)
+public class PdfDienst(ErpDbContext db, GeheimnisDienst geheimnisse, ILogger<PdfDienst> log)
 {
     public async Task<byte[]> DocxZuPdfAsync(byte[] docx, string vertragsnummer, string vorlagenStand,
         string kunde, CancellationToken ct)
@@ -36,7 +36,8 @@ public class PdfDienst(ErpDbContext db, GeheimnisDienst geheimnisse)
         pdf.DocumentInfo.Title = $"Vertrag {vertragsnummer} — {kunde}";
         pdf.DocumentInfo.Description = $"Erstellt aus Vorlage {vorlagenStand} am {DateTime.Now:dd.MM.yyyy HH:mm} (Kundenzentrale).";
 
-        var zertifikat = await ZertifikatLadenAsync(ct);
+        // using: der private Schlüssel landet sonst in einem temporären Schlüsselcontainer des App-Pool-Kontos (N5)
+        using var zertifikat = await ZertifikatLadenAsync(ct);
         if (zertifikat is not null)
         {
             var feld = new SignatureField("RausoftSignatur")
@@ -70,7 +71,12 @@ public class PdfDienst(ErpDbContext db, GeheimnisDienst geheimnisse)
         if (string.IsNullOrWhiteSpace(pfad))
             return null;
         if (!File.Exists(pfad))
-            throw new InvalidOperationException($"Signatur-Zertifikat nicht gefunden: {pfad}");
+        {
+            // Der Serverpfad gehört nicht in die Antwort an den Vertragsersteller (SICHERHEIT.md N5)
+            log.LogError("Signatur-Zertifikat nicht gefunden: {Pfad}", pfad);
+            throw new InvalidOperationException(
+                "Das Signatur-Zertifikat wurde unter dem eingestellten Pfad nicht gefunden (Administration → Verzeichnisse → Signatur).");
+        }
         var passwort = await geheimnisse.HolenAsync(GeheimnisSchluessel.SignaturPfxPasswort, ct)
             ?? throw new InvalidOperationException(
                 "Das PFX-Passwort ist nicht gesetzt (Administration → Verzeichnisse → Signatur).");

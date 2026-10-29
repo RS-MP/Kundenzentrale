@@ -599,10 +599,12 @@ public class VertraegeController(
         // Ablegen — Dateiname nach dem gewachsenen Ablage-Prinzip: <KundenNr>.pdf,
         // bei Bestehen <KundenNr>-1.pdf usw.; die gefüllte .docx liegt als
         // bearbeitbare Quelle gleichnamig daneben (registriert wird das PDF).
-        var zielPfad = Path.Combine(v.ZielVoll, kunde.Kundennummer + ".pdf");
+        // Kundennummer kommt aus Odoo (ref) — vor dem Pfad bereinigen (SICHERHEIT.md N5)
+        var dateiBasis = Dateinamen.Sicher(kunde.Kundennummer, ersatz: $"kunde-{kunde.Id}");
+        var zielPfad = Path.Combine(v.ZielVoll, dateiBasis + ".pdf");
         for (var n = 1; System.IO.File.Exists(zielPfad)
              || System.IO.File.Exists(Path.ChangeExtension(zielPfad, ".docx")); n++)
-            zielPfad = Path.Combine(v.ZielVoll, $"{kunde.Kundennummer}-{n}.pdf");
+            zielPfad = Path.Combine(v.ZielVoll, $"{dateiBasis}-{n}.pdf");
         await System.IO.File.WriteAllBytesAsync(zielPfad, pdfBytes, ct);
         await System.IO.File.WriteAllBytesAsync(Path.ChangeExtension(zielPfad, ".docx"), speicher.ToArray(), ct);
 

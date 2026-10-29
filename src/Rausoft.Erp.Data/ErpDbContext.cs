@@ -128,6 +128,9 @@ public class ErpDbContext(
             // Odoo-Nachricht nur einmal übernehmen (gefilterter Unique-Index: NULL mehrfach erlaubt)
             e.HasIndex(a => a.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
             e.HasIndex(a => new { a.KundeId, a.Quelle });
+            // Vorgangs-Detail, Akte-Aufgaben, Strang umhängen und Vertrag löschen filtern auf den
+            // Verweis — ohne Index scannt jeder Aufruf die gesamte (Chatter-)Tabelle (SICHERHEIT.md Q1)
+            e.HasIndex(a => new { a.VerweisTyp, a.VerweisId }).HasFilter("[VerweisId] IS NOT NULL");
         });
 
         modelBuilder.Entity<AktivitaetTeilnehmer>(e =>
@@ -202,6 +205,7 @@ public class ErpDbContext(
             e.Property(v => v.StrangName).HasMaxLength(300);
             e.HasIndex(v => v.AbgeschlossenAm);
             e.HasIndex(v => v.OdooAuftrag).HasFilter("[OdooAuftrag] IS NOT NULL");
+            e.Property(v => v.RowVersion).IsRowVersion();
             e.HasOne(v => v.Kunde).WithMany().HasForeignKey(v => v.KundeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(v => v.Vorgangstyp).WithMany().HasForeignKey(v => v.VorgangstypId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(v => v.ErstelltVon).WithMany().HasForeignKey(v => v.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
@@ -598,7 +602,36 @@ public class ErpDbContext(
     // Wert im Audit-JSON. Server: der Healthcheck-Takt würde das Log fluten.
     private static readonly HashSet<Type> NichtAuditieren =
         [typeof(AuditLogEintrag), typeof(Aktivitaet), typeof(AktivitaetAnhang), typeof(AktivitaetTeilnehmer), typeof(Nummernkreis),
-         typeof(GeheimeEinstellung), typeof(Domain.Servers.Server)];
+         typeof(GeheimeEinstellung), typeof(Domain.Servers.Server), typeof(Domain.Servers.ZertifikatEreignis)];
+
+    // Eigenschaften, die Hintergrundläufe im Takt pflegen oder die nur Nutzdaten tragen —
+    // sie würden das Audit-Log fluten, ohne etwas Nachvollziehbares zu sagen (SICHERHEIT.md N4).
+    // Ändert ein Speichervorgang NUR solche Eigenschaften, entsteht kein Eintrag.
+    private static readonly Dictionary<Type, HashSet<string>> NichtAuditierteEigenschaften = new()
+    {
+        [typeof(Domain.Servers.Zertifikat)] =
+            [nameof(Domain.Servers.Zertifikat.LiveGeprueftAm), nameof(Domain.Servers.Zertifikat.LiveGueltigBis),
+             nameof(Domain.Servers.Zertifikat.LiveAussteller), nameof(Domain.Servers.Zertifikat.LiveFehler),
+             nameof(Domain.Servers.Zertifikat.LiveFehlerSeit), nameof(Domain.Servers.Zertifikat.LiveFehlerGemeldetAm),
+             nameof(Domain.Servers.Zertifikat.LiveProtokoll), nameof(Domain.Servers.Zertifikat.LiveWarnungen),
+             nameof(Domain.Servers.Zertifikat.LetzteErinnerungAm), nameof(Domain.Servers.Zertifikat.ErinnerungenGesendet),
+             nameof(Domain.Servers.Zertifikat.LetzterMailFehler)],
+        // Der Preislisten-JSON (bis 5 MB) liegt in der Tabelle selbst; Version, Stand und Hash reichen im Audit.
+        [typeof(Domain.Wiki.PreislistenVersion)] = [nameof(Domain.Wiki.PreislistenVersion.Daten)],
+    };
+
+    // Einstellungen, die Hintergrundläufe als Zeitstempel fortschreiben (kein Admin-Handeln)
+    private static readonly HashSet<string> AutomatischGepflegteEinstellungen =
+        [EinstellungsSchluessel.ServicePortalLetzterPush, EinstellungsSchluessel.OdooLetzterImport,
+         EinstellungsSchluessel.ZertifikateLetzterWochenbericht];
+
+    private static bool Auditieren(EntityEntry entry) =>
+        !NichtAuditieren.Contains(entry.Entity.GetType())
+        && !(entry.Entity is Einstellung { Schluessel: var schluessel } && AutomatischGepflegteEinstellungen.Contains(schluessel));
+
+    private static bool EigenschaftAuditieren(EntityEntry entry, string name) =>
+        name != "RowVersion"
+        && !(NichtAuditierteEigenschaften.TryGetValue(entry.Entity.GetType(), out var ausgenommen) && ausgenommen.Contains(name));
 
     private List<(EntityEntry Entry, AuditLogEintrag Eintrag)> SammleAuditEintraege()
     {
@@ -610,8 +643,11 @@ public class ErpDbContext(
         {
             if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
                 continue;
-            if (NichtAuditieren.Contains(entry.Entity.GetType()))
+            if (!Auditieren(entry))
                 continue;
+            var aenderungen = SerialisiereAenderungen(entry);
+            if (entry.State == EntityState.Modified && aenderungen is null)
+                continue;   // nur ausgenommene Eigenschaften geändert (Takt-Felder)
 
             var eintrag = new AuditLogEintrag
             {
@@ -624,7 +660,7 @@ public class ErpDbContext(
                     EntityState.Deleted => AuditAktion.Deleted,
                     _ => AuditAktion.Updated,
                 },
-                AenderungenJson = SerialisiereAenderungen(entry),
+                AenderungenJson = aenderungen,
             };
             liste.Add((entry, eintrag));
         }
@@ -652,7 +688,7 @@ public class ErpDbContext(
 
         foreach (var prop in entry.Properties)
         {
-            if (prop.Metadata.Name == "RowVersion")
+            if (!EigenschaftAuditieren(entry, prop.Metadata.Name))
                 continue;
 
             switch (entry.State)

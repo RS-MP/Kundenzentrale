@@ -898,6 +898,9 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasIndex("KundeId", "Zeitpunkt")
                         .IsDescending(false, true);
 
+                    b.HasIndex("VerweisTyp", "VerweisId")
+                        .HasFilter("[VerweisId] IS NOT NULL");
+
                     b.HasIndex("KundeId", "OdooModell", "OdooResId");
 
                     b.ToTable("Aktivitaeten");
@@ -1535,6 +1538,12 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<string>("OdooAuftrag")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<DateOnly>("Start")
                         .HasColumnType("date");

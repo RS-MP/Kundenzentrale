@@ -33,7 +33,15 @@ public class EinstellungenController(ErpDbContext db) : ControllerBase
         if (einstellung is null)
             return NotFound();
 
-        einstellung.Wert = aenderung.Wert.Trim();
+        var wert = aenderung.Wert.Trim();
+        // Zu diesen Zielen gehen API-Key bzw. Bearer-Token — nur über https (SICHERHEIT.md N5)
+        if (schluessel is Rausoft.Erp.Domain.Shared.EinstellungsSchluessel.OdooUrl
+                or Rausoft.Erp.Domain.Shared.EinstellungsSchluessel.ServicePortalUrl
+            && wert.Length > 0
+            && !(Uri.TryCreate(wert, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps))
+            return BadRequest("Die Adresse muss eine vollständige https://-URL sein (Zugangsdaten gehen an dieses Ziel).");
+
+        einstellung.Wert = wert;
         await db.SaveChangesAsync(ct);
         return NoContent();
     }

@@ -696,15 +696,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         throw new InvalidOperationException(string.Join(" | ", fehler));
     }
 
-    private static string SichererName(string name)
-    {
-        var ungueltig = Path.GetInvalidFileNameChars();
-        var sb = new StringBuilder(name.Length);
-        foreach (var c in name)
-            sb.Append(ungueltig.Contains(c) ? '_' : c);
-        var s = sb.ToString().Trim().TrimEnd('.');
-        return s.Length == 0 ? "datei" : (s.Length > 150 ? s[..150] : s);
-    }
+    private static string SichererName(string name) => Rausoft.Erp.Domain.Shared.Dateinamen.Sicher(name);
 
     // --- Odoo-Zuordnung ------------------------------------------------------------
 

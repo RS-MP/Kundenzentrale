@@ -21,11 +21,25 @@ public class VorgangsAbgleichDienst(
 {
     private static DateOnly Heute => DateOnly.FromDateTime(DateTime.Now);
 
+    // Nur ein Abgleich zur Zeit (SICHERHEIT.md N2): Takt, Knopf und Chatter-Import
+    // starten ihn unabhängig voneinander — zwei parallele Läufe würden denselben
+    // Schritt doppelt erledigen und den Verlauf doppelt schreiben.
+    private static readonly SemaphoreSlim Sperre = new(1, 1);
+
     public async Task<VorgangsAbgleichErgebnis> AbgleichenAsync(CancellationToken ct)
     {
-        var straenge = await StraengeNachziehenAsync(ct);
-        var (abgehakt, hinweis) = await RechnungenAbhakenAsync(ct);
-        return new VorgangsAbgleichErgebnis(straenge, abgehakt, hinweis);
+        if (!await Sperre.WaitAsync(TimeSpan.Zero, ct))
+            return new VorgangsAbgleichErgebnis(0, 0, "Der Abgleich läuft gerade bereits — bitte gleich noch einmal aktualisieren.");
+        try
+        {
+            var straenge = await StraengeNachziehenAsync(ct);
+            var (abgehakt, hinweis) = await RechnungenAbhakenAsync(ct);
+            return new VorgangsAbgleichErgebnis(straenge, abgehakt, hinweis);
+        }
+        finally
+        {
+            Sperre.Release();
+        }
     }
 
     private async Task<int> StraengeNachziehenAsync(CancellationToken ct)
@@ -71,8 +85,11 @@ public class VorgangsAbgleichDienst(
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
         {
+            // Details (Host, Port, Antwort) nur ins Log — der Hinweis geht an jeden Mitarbeiter (SICHERHEIT.md N5)
             log.LogWarning(ex, "Vorgangs-Abgleich: Odoo nicht erreichbar");
-            return (0, $"Odoo nicht erreichbar: {VorgangsHilfen.Kuerzen(ex.Message, 200)}");
+            return (0, ex is TaskCanceledException
+                ? "Odoo antwortet nicht (Zeitüberschreitung) — Rechnungen wurden nicht abgeglichen."
+                : "Odoo ist nicht erreichbar — Rechnungen wurden nicht abgeglichen. Details stehen im Server-Log.");
         }
 
         var treffer = AuftragsRechnungen.Zuordnen(rechnungen, offen.Select(o => o.Auftrag));

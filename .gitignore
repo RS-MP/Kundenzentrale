@@ -492,3 +492,6 @@ telerik-license.txt
 
 # Vorlagen-Rohdateien gehoeren in die Ablage, nicht ins Repo
 /*.docx
+
+# Server-Konfiguration liegt nur auf dem Server (DEPLOYMENT.md), nie im Repo
+appsettings.Production.json
