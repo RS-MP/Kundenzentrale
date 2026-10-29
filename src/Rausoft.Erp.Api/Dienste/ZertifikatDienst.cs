@@ -23,16 +23,23 @@ namespace Rausoft.Erp.Api.Dienste;
 /// </summary>
 public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<ZertifikatDienst> log)
 {
+    /// <param name="ErlaubtePorts">Ports, zu denen die Live-Prüfung verbinden darf (SICHERHEIT.md N1).</param>
+    /// <param name="EmpfaengerDomaenen">Domänen, an die Statusmails gehen dürfen; leer = Domäne der Absenderadresse fehlt → keine Einschränkung.</param>
     public record Einstellungen(
         int IntervallTage, int EskalationTage, int PruefstoerungTage,
         string? StandardEmpfaenger, string? EskalationEmpfaenger, string? AbgelaufenEmpfaenger,
-        string WochenberichtTag, bool ServerAutomatisch);
+        string WochenberichtTag, bool ServerAutomatisch,
+        List<int> ErlaubtePorts, List<string> EmpfaengerDomaenen);
 
     public async Task<Einstellungen> EinstellungenAsync(CancellationToken ct)
     {
         var w = await db.Einstellungen.AsNoTracking()
-            .Where(e => e.Schluessel.StartsWith("Zertifikate."))
+            .Where(e => e.Schluessel.StartsWith("Zertifikate.") || e.Schluessel == EinstellungsSchluessel.MailAbsender)
             .ToDictionaryAsync(e => e.Schluessel, e => e.Wert, ct);
+        // Empfänger-Domänen: Einstellung, sonst die Domäne der Absenderadresse (eigene Firma)
+        var domaenen = ZertifikatPruefregeln.Domaenen(w.GetValueOrDefault(EinstellungsSchluessel.ZertifikateEmpfaengerDomaenen));
+        if (domaenen.Count == 0 && ZertifikatPruefregeln.Domaene(w.GetValueOrDefault(EinstellungsSchluessel.MailAbsender)) is { } absender)
+            domaenen = [absender];
         int Zahl(string schluessel, int standard) =>
             int.TryParse(w.GetValueOrDefault(schluessel), out var z) && z > 0 ? z : standard;
         string? Text(string schluessel) =>
@@ -45,8 +52,14 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
             Text(EinstellungsSchluessel.ZertifikateEskalationEmpfaenger),
             Text(EinstellungsSchluessel.ZertifikateAbgelaufenEmpfaenger),
             Text(EinstellungsSchluessel.ZertifikateWochenberichtTag) ?? "Montag",
-            !string.Equals(w.GetValueOrDefault(EinstellungsSchluessel.ZertifikateServerAutomatisch), "false", StringComparison.OrdinalIgnoreCase));
+            !string.Equals(w.GetValueOrDefault(EinstellungsSchluessel.ZertifikateServerAutomatisch), "false", StringComparison.OrdinalIgnoreCase),
+            ZertifikatPruefregeln.Ports(w.GetValueOrDefault(EinstellungsSchluessel.ZertifikateErlaubtePorts)),
+            domaenen);
     }
+
+    /// <summary>Empfängerliste aus Text, beschränkt auf gültige Adressen in erlaubten Domänen (N1).</summary>
+    private static List<string> Empfaenger(Einstellungen e, string? text) =>
+        ZertifikatPruefregeln.ZulaessigeEmpfaenger(ZertifikatErinnerung.Empfaenger(text), e.EmpfaengerDomaenen);
 
     // --- Live-Prüfung ------------------------------------------------------------
 
@@ -70,6 +83,18 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
         }
 
         var host = z.Hostname.Trim();
+        // Schutzregeln auch für Bestandsdaten durchsetzen, nicht nur beim Speichern (N1)
+        einstellungen ??= await EinstellungenAsync(ct);
+        if ((ZertifikatPruefregeln.HostnameFehler(host) ?? ZertifikatPruefregeln.PortFehler(z.Port, einstellungen.ErlaubtePorts)) is { } regel)
+        {
+            if (z.LiveFehlerSeit is null)
+            {
+                z.LiveFehlerSeit = jetzt;
+                z.Protokoll(ZertifikatEreignisArt.Pruefstoerung, $"Prüfung nicht erlaubt: {regel}", null, jetzt);
+            }
+            z.LiveFehler = regel;
+            return;
+        }
         try
         {
             var (zert, fehler, protokoll) = await HandshakeAsync(host, z.Port, SslProtocols.None, ct);
@@ -122,8 +147,7 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
                 z.Protokoll(ZertifikatEreignisArt.ErneuertErkannt,
                     $"Neues Zertifikat erkannt: gültig bis {neuesLive:dd.MM.yyyy} (vorher {alt:dd.MM.yyyy}), Aussteller {z.LiveAussteller}", null, jetzt);
                 log.LogInformation("Zertifikat {Name}: Erneuerung erkannt, gültig bis {Bis}", z.Bezeichnung, neuesLive);
-                einstellungen ??= await EinstellungenAsync(ct);
-                await MailVersuchAsync(z, einstellungen.StandardEmpfaenger,
+                await MailVersuchAsync(z, einstellungen, einstellungen.StandardEmpfaenger,
                     $"Erledigt: SSL-Zertifikat {z.Bezeichnung} erneuert (gültig bis {neuesLive:dd.MM.yyyy})",
                     $"""
                     Die Live-Prüfung hat für „{z.Bezeichnung}" ({host}:{z.Port}) ein neues Zertifikat erkannt.
@@ -138,14 +162,15 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            var text = ex is OperationCanceledException ? "Zeitüberschreitung (10 s)" : ex.Message;
+            // Fester Text für alle Mitarbeiter; die Originalmeldung (IP, Port, OS-Details) nur ins Log (N1)
+            var text = ZertifikatPruefregeln.FehlerText(ex);
             if (z.LiveFehlerSeit is null)
             {
                 z.LiveFehlerSeit = jetzt;
                 z.Protokoll(ZertifikatEreignisArt.Pruefstoerung, $"Prüfung fehlgeschlagen: {text}", null, jetzt);
             }
             z.LiveFehler = text.Length > 500 ? text[..500] : text;
-            log.LogWarning("Live-Prüfung Zertifikat {Name} ({Host}:{Port}) fehlgeschlagen: {Fehler}", z.Bezeichnung, host, z.Port, text);
+            log.LogWarning(ex, "Live-Prüfung Zertifikat {Name} ({Host}:{Port}) fehlgeschlagen: {Fehler}", z.Bezeichnung, host, z.Port, text);
         }
     }
 
@@ -254,14 +279,14 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
             if (!ZertifikatErinnerung.ErinnerungFaellig(z.GueltigBis, z.VorlaufTage, z.LetzteErinnerungAm, e.IntervallTage, jetzt))
                 continue;
             var stufe = ZertifikatErinnerung.Stufe(z.GueltigBis, z.VorlaufTage, e.EskalationTage, heute);
-            var empfaenger = ZertifikatErinnerung.Empfaenger(string.IsNullOrWhiteSpace(z.Empfaenger) ? e.StandardEmpfaenger : z.Empfaenger);
+            var empfaenger = Empfaenger(e, string.IsNullOrWhiteSpace(z.Empfaenger) ? e.StandardEmpfaenger : z.Empfaenger);
             if (stufe is "eskalation" or "abgelaufen")
-                empfaenger = empfaenger.Union(ZertifikatErinnerung.Empfaenger(e.EskalationEmpfaenger), StringComparer.OrdinalIgnoreCase).ToList();
+                empfaenger = empfaenger.Union(Empfaenger(e, e.EskalationEmpfaenger), StringComparer.OrdinalIgnoreCase).ToList();
             if (stufe is "abgelaufen")
-                empfaenger = empfaenger.Union(ZertifikatErinnerung.Empfaenger(e.AbgelaufenEmpfaenger), StringComparer.OrdinalIgnoreCase).ToList();
+                empfaenger = empfaenger.Union(Empfaenger(e, e.AbgelaufenEmpfaenger), StringComparer.OrdinalIgnoreCase).ToList();
             if (empfaenger.Count == 0)
             {
-                z.LetzterMailFehler = "Keine Empfänger hinterlegt (weder am Zertifikat noch als Standardempfänger).";
+                z.LetzterMailFehler = "Keine zulässigen Empfänger hinterlegt (weder am Zertifikat noch als Standardempfänger; erlaubte Domänen siehe Administration).";
                 fehler.Add($"{z.Bezeichnung}: {z.LetzterMailFehler}");
                 continue;
             }
@@ -345,10 +370,10 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
         var gemeldet = 0;
         foreach (var z in gestoert)
         {
-            var empfaenger = ZertifikatErinnerung.Empfaenger(string.IsNullOrWhiteSpace(z.Empfaenger) ? e.StandardEmpfaenger : z.Empfaenger);
+            var empfaenger = Empfaenger(e, string.IsNullOrWhiteSpace(z.Empfaenger) ? e.StandardEmpfaenger : z.Empfaenger);
             if (empfaenger.Count == 0)
                 continue;
-            var ok = await MailVersuchAsync(z, string.Join(",", empfaenger),
+            var ok = await MailVersuchAsync(z, e, string.Join(",", empfaenger),
                 $"Prüfstörung: SSL-Zertifikat {z.Bezeichnung} seit {(jetzt - z.LiveFehlerSeit!.Value).Days} Tagen nicht prüfbar",
                 $"""
                 Die Live-Prüfung des Zertifikats „{z.Bezeichnung}" ({z.Hostname}:{z.Port}) schlägt seit dem {z.LiveFehlerSeit:dd.MM.yyyy HH:mm} fehl:
@@ -382,7 +407,7 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
             if (letzter is not null && DateOnly.TryParse(letzter.Wert, out var d) && heute.DayNumber - d.DayNumber < 6)
                 return false;
         }
-        var empfaenger = ZertifikatErinnerung.Empfaenger(e.StandardEmpfaenger);
+        var empfaenger = Empfaenger(e, e.StandardEmpfaenger);
         if (empfaenger.Count == 0)
             return false;
 
@@ -438,9 +463,9 @@ public class ZertifikatDienst(ErpDbContext db, MailDienst mail, ILogger<Zertifik
     }
 
     /// <summary>Mail senden und Fehler am Zertifikat protokollieren statt werfen.</summary>
-    private async Task<bool> MailVersuchAsync(Zertifikat z, string? empfaengerText, string betreff, string text, CancellationToken ct)
+    private async Task<bool> MailVersuchAsync(Zertifikat z, Einstellungen e, string? empfaengerText, string betreff, string text, CancellationToken ct)
     {
-        var empfaenger = ZertifikatErinnerung.Empfaenger(empfaengerText);
+        var empfaenger = Empfaenger(e, empfaengerText);
         if (empfaenger.Count == 0)
             return false;
         try

@@ -34,7 +34,7 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
         return Ok(new ZertifikatUebersicht(
             liste.Select(z => NachEintrag(z, e.EskalationTage)).ToList(), darf, await mail.IstEingerichtetAsync(ct),
             e.StandardEmpfaenger, e.EskalationEmpfaenger, e.AbgelaufenEmpfaenger, e.IntervallTage, e.EskalationTage,
-            e.ServerAutomatisch, server));
+            e.ServerAutomatisch, server, e.ErlaubtePorts, e.EmpfaengerDomaenen));
     }
 
     /// <summary>Für Abzeichen in Navigation und Server-Übersicht.</summary>
@@ -121,7 +121,12 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
         return Ok(NachEintrag(z, e.EskalationTage));
     }
 
-    /// <summary>Live-Prüfung eines Zertifikats jetzt ausführen (erkennt auch eine Erneuerung).</summary>
+    /// <summary>
+    /// Live-Prüfung eines Zertifikats jetzt ausführen (erkennt auch eine Erneuerung).
+    /// Schreibt, übernimmt ggf. die Erneuerung und verschickt Mails — daher wie alle
+    /// anderen schreibenden Endpunkte nur für Support/Admin (SICHERHEIT.md N1).
+    /// </summary>
+    [Authorize(Policy = "Betrieb")]
     [HttpPost("{id:int}/pruefen")]
     public async Task<ActionResult<ZertifikatEintrag>> Pruefen(int id, CancellationToken ct)
     {
@@ -183,6 +188,12 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
     {
         if (string.IsNullOrWhiteSpace(d.Bezeichnung))
             return "Die Bezeichnung darf nicht leer sein.";
+        // Schutzregeln der Live-Prüfung (SICHERHEIT.md N1): kein Netz-Abtasten, keine Statusmails nach außen
+        var e = await dienst.EinstellungenAsync(ct);
+        if (ZertifikatPruefregeln.HostnameFehler(d.Hostname) is { } hostFehler)
+            return hostFehler;
+        if (!string.IsNullOrWhiteSpace(d.Hostname) && ZertifikatPruefregeln.PortFehler(d.Port, e.ErlaubtePorts) is { } portFehler)
+            return portFehler;
         if (d.Port is < 1 or > 65535)
             return "Der Port muss zwischen 1 und 65535 liegen.";
         if (d.LaufzeitMonate is < 1 or > 120)
@@ -191,10 +202,11 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
             return "Der Vorlauf muss zwischen 1 und 365 Tagen liegen.";
         if (d.ServerId is { } sid && !await db.Server.AnyAsync(s => s.Id == sid, ct))
             return "Der gewählte Server existiert nicht.";
-        var ungueltig = (d.Empfaenger ?? "").Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(e => !e.Contains('@')).ToList();
+        var ungueltig = ZertifikatPruefregeln.UnzulaessigeEmpfaenger(d.Empfaenger, e.EmpfaengerDomaenen);
         if (ungueltig.Count > 0)
-            return $"Ungültige Empfängeradresse: {string.Join(", ", ungueltig)}";
+            return e.EmpfaengerDomaenen.Count == 0
+                ? $"Ungültige Empfängeradresse: {string.Join(", ", ungueltig)}"
+                : $"Ungültige oder nicht erlaubte Empfängeradresse: {string.Join(", ", ungueltig)} (erlaubt: @{string.Join(", @", e.EmpfaengerDomaenen)})";
         return null;
     }
 

@@ -72,7 +72,10 @@ public record ZertifikatUebersicht(
     int ErinnerungIntervallTage,
     int EskalationTage,
     bool ServerAutomatisch,
-    List<ServerAuswahl> Server);
+    List<ServerAuswahl> Server,
+    // Schutzregeln der Live-Prüfung (SICHERHEIT.md N1), für Hinweise im Formular
+    List<int> ErlaubtePorts,          // Ports, zu denen die Live-Prüfung verbinden darf
+    List<string> EmpfaengerDomaenen); // Domänen, an die Statusmails gehen dürfen; leer = keine Einschränkung
 
 public record ServerAuswahl(int Id, string Alias);
 

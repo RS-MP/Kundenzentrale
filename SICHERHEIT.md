@@ -1,13 +1,21 @@
-# Kundenzentrale · Sicherheitsbewertung
+# Kundenzentrale · Sicherheits- und Qualitätsbewertung
 
-Stand: 15.10.2026 · Grundlage: Code-Review des Repositories (Commit dc87785),
-DEPLOYMENT.md, ANFORDERUNGEN.md, DATENMODELL.md und ein Paket-Schwachstellen-Scan
-(`dotnet list package --vulnerable`). Kein Penetrationstest, keine Prüfung der
-Server-Konfiguration vor Ort (IIS, NTFS, SQL Server, GPO).
+Stand: 29.10.2026 · Grundlage: Code-Review des Repositories (Commit 66b3d27),
+DEPLOYMENT.md, ANFORDERUNGEN.md, DATENMODELL.md, Build + Testlauf und ein
+Paket-Schwachstellen-Scan (`dotnet list package --vulnerable`). Kein
+Penetrationstest, keine Prüfung der Server-Konfiguration vor Ort (IIS, NTFS,
+SQL Server, GPO).
 
-Zweck: Input für eine Präsentation zum Thema Sicherheit. Teil 1 listet alle
-umgesetzten Regeln mit Bewertung, Teil 2 das Verbesserungspotenzial, Teil 3 eine
-folientaugliche Kurzfassung.
+Vorgänger: Bewertung vom 15.10.2026 (Commit dc87785). Seitdem 33 Commits mit
+rund 30.000 neuen Zeilen: Vorgänge mit Teilaufgaben, „Meine Aufgaben",
+Zertifikatsüberwachung mit Mailversand, Serverstatus, Odoo-Chatter-Import in
+die Kunden-Timeline, Odoo-Abgleich der Vorgänge, Wiki-Formatierung, HTTPS.
+Diese Bewertung prüft den Gesamtstand neu, mit Schwerpunkt auf den neuen
+Bereichen.
+
+Zweck: Teil 1 listet alle umgesetzten Sicherheitsregeln mit Bewertung, Teil 2
+das Verbesserungspotenzial (Sicherheit), Teil 3 eine folientaugliche
+Kurzfassung, Teil 4 Qualität und Performance (neu).
 
 Bewertungsskala je Regel:
 - **gut** — Regel ist vollständig und sauber umgesetzt, keine Lücke erkennbar.
@@ -20,14 +28,22 @@ Bewertungsskala je Regel:
 
 - Interne Web-Anwendung (Blazor WebAssembly + ASP.NET Core REST API, .NET 10 LTS),
   Betrieb als IIS-Unteranwendung auf einem Windows Server im Haus, nur aus dem
-  Intranet erreichbar, aktuell über **http** (kein TLS).
+  Intranet erreichbar, seit 29.10.2026 über **HTTPS auf Port 8443**
+  (selbstsigniertes Zertifikat per GPO verteilt, http leitet um).
 - Anmeldung über **Windows-Authentifizierung gegen die lokale AD** (SSO per
   Kerberos/NTLM). Entra ID ist als zweiter Modus vorbereitet.
 - Verarbeitet werden Kundenstammdaten, Ansprechpartner, Verträge inklusive
   Vertragsdokumenten (PDF/Word auf Dateifreigaben), vertrauliche
-  Sondervereinbarungen, die interne Preisliste sowie Zugangsdaten zu Odoo,
-  zum externen Service Portal und zum PDF-Signaturzertifikat.
+  Sondervereinbarungen, die interne Preisliste, der importierte Odoo-Chatter
+  (E-Mail-Verkehr mit Kunden samt Anhängen), Vorgänge und Aufgaben sowie
+  Zugangsdaten zu Odoo, zum externen Service Portal, zum SMTP-Server und zum
+  PDF-Signaturzertifikat.
+- Neu: die Anwendung öffnet selbst Verbindungen nach außen (TLS-Handshakes zu
+  Kundenservern für die Zertifikatsüberwachung, Odoo-API, SMTP) und
+  verschickt E-Mails.
 - Datenbank: SQL Server, Zugriff per Windows-Auth des App-Pool-Kontos.
+- Derzeit **offener Testbetrieb** für alle Mitarbeiter; Produktiv-Reset zum
+  Zeitpunkt X (DEPLOYMENT.md).
 
 ---
 
@@ -37,285 +53,374 @@ Bewertungsskala je Regel:
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| A1 | Keine eigenen Passwörter, keine Tokens in der eigenen Datenbank | Identität kommt ausschließlich von der AD (Windows-Auth) oder von Entra ID (Token-Validierung). Die Mitarbeiter-Tabelle speichert nur Windows-Konto bzw. Entra-Objekt-ID (`Mitarbeiter.cs`). | **gut** — größte Angriffsfläche (Passwortdatenbank) existiert schlicht nicht. |
-| A2 | Jeder Endpunkt ist standardmäßig geschützt („deny by default") | `FallbackPolicy = DefaultPolicy` in `Program.cs`; ohne ausdrückliches `[AllowAnonymous]` ist jede Route anmeldepflichtig. Einziges `[AllowAnonymous]` ist der Test-Healthcheck, der in Produktion 404 liefert. | **gut** — ein vergessenes `[Authorize]` kann keine Lücke öffnen. |
-| A3 | Entwicklungs-Login ohne Anmeldung nur lokal | Pseudo-Benutzer nur bei Environment = Development **und** Flag `Entwicklung:AuthDeaktiviert`; beim Start wird eine Warnung geloggt. | **solide** — doppelte Absicherung ist richtig. Einschränkung: das Launch-Profil `http-prod-db` kombiniert genau diesen Pseudo-Admin mit der **Produktions-Datenbank** (siehe V7). |
-| A4 | Unbekannte Domänenkonten werden ohne Rollen angelegt | Middleware legt beim ersten Zugriff einen Mitarbeiter mit `Rollen = Keine` an; Rollen vergibt nur ein Admin. Der konfigurierte Erst-Admin bekommt beim Start einmalig die Admin-Rolle. | **ausbaufähig** — Rollen sind sauber „leer", aber **jedes** Domänenkonto (auch Dienst- oder Testkonten) erhält damit Lesezugriff auf Kunden, Verträge und Preisliste (siehe V3). |
-| A5 | Windows-Auth über IIS, Negotiate-Handler nur für Kestrel | `AddNegotiate()`; unter IIS übernimmt IIS die Authentifizierung, anonymer Zugriff ist an der Anwendung deaktiviert (DEPLOYMENT.md). | **gut** — Standardweg, wie beim Urlaubsplaner. |
+| A1 | Keine eigenen Passwörter, keine Tokens in der eigenen Datenbank | Identität kommt ausschließlich von der AD (Windows-Auth) oder von Entra ID. Die Mitarbeiter-Tabelle speichert nur Windows-Konto bzw. Entra-Objekt-ID. | **gut** |
+| A2 | Jeder Endpunkt ist standardmäßig geschützt („deny by default") | `FallbackPolicy` und `DefaultPolicy` = angemeldet **und** aktiver Mitarbeiter-Datensatz (`Program.cs`). Einziges `[AllowAnonymous]` im Code ist der Test-Healthcheck, der außerhalb von Development 404 liefert. Alle 131 Endpunkte der 17 Controller wurden einzeln abgeglichen (Anhang). | **gut** |
+| A3 | Entwicklungs-Login ohne Anmeldung nur lokal | Pseudo-Benutzer nur bei Environment = Development **und** Flag `Entwicklung:AuthDeaktiviert`; Start-Warnung im Log. | **solide** — das Launch-Profil `http-prod-db` kombiniert weiterhin Pseudo-Admin mit der Produktions-DB (V7, offen). |
+| A4 | Unbekannte Domänenkonten werden ohne Rollen angelegt | Middleware legt beim ersten Zugriff einen aktiven Mitarbeiter mit `Rollen = Keine` an; Rollen vergibt nur ein Admin. | **ausbaufähig** — bewusst so bis zum Produktiv-Reset (Testbetrieb für alle). Vorher entscheiden: neue Konten inaktiv anlegen oder AD-Gruppe als Voraussetzung (V3b). |
+| A5 | Windows-Auth über IIS, Negotiate-Handler nur für Kestrel | `AddNegotiate()`; unter IIS übernimmt IIS die Authentifizierung. | **gut** |
 
 ### B · Autorisierung und Rollenmodell
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| B1 | Berechtigungen werden serverseitig durchgesetzt, nie nur im Frontend | Policies `Admin` und `Compliance` lesen die Rollen **aus der Datenbank**, nicht aus Claims (`AdminAnforderung.cs`). Vertraulich-, Wiki- und Preislisten-Rechte werden je Request in der API geprüft; das Frontend blendet nur aus. | **gut** — Rollen lassen sich clientseitig nicht fälschen. |
-| B2 | Rollen als Flags, getrennte Verantwortungen | `MitarbeiterRolle`: Admin, Vertrieb, Support, Buchhaltung, Compliance, Vertrauliche Verträge, Wiki-Redaktion. | **gut** — feingranular genug für die Phase 1. |
-| B3 | Funktionstrennung: Admin ≠ Einsicht in vertrauliche Verträge | Rolle „Vertrauliche Verträge" ist bewusst **nicht** in Admin enthalten; Admin-Löschung einer Akte gibt vertrauliche Pfade nicht preis. | **gut** — seltene, aber richtige Entscheidung (technische Administration heißt nicht Dateneinsicht). |
-| B4 | Vertrauliche Bestandteile: ohne Rolle nur Metadaten | API liefert ohne Rolle nur Dokumentart, Datum, Kurzinfo; Titel, Beschreibung, Dokumente und **Dateipfade verlassen den Server nicht**. Verlaufseinträge nennen nur die Dokumentart. Dokumente liegen in einer getrennten Ablage; Registrierung erzwingt die richtige Ablage. | **gut** |
-| B5 | Vorlagen: Verwaltung/Freigabe nur Compliance, Nutzung je Rolle | `[Authorize(Policy="Compliance")]` auf allen schreibenden Vorlagen-Endpunkten; `Vorlage.ErlaubtFuer()` prüft die Nutzungsfreigabe serverseitig (Unit-Test vorhanden). | **gut** |
-| B6 | Wiki: Redaktion nur für freigegebene Themen | `WikiBerechtigung`: Admin/Compliance alles, Wiki-Redaktion nur die am Mitarbeiter hinterlegten Themen; unbekannte Themenschlüssel werden verworfen. | **gut** |
-| B7 | Interne Preise nur für Vertrieb/Admin/Compliance | Sichtbarkeitsfilter in der API, interne Datei-Links werden entfernt; Unit-Test „OhneBerechtigung_EnthaeltNichtsInternes". | **gut** |
-| B8 | Keine Selbst-Aussperrung, Deaktivieren statt Löschen | Admin kann sich weder deaktivieren noch die eigene Admin-Rolle entziehen; Konten mit Verlaufs-/Audit-Verweisen werden deaktiviert statt gelöscht. | **gut** |
-| B9 | Deaktivierte Konten verlieren Rechte | `Aktiv` wird in den Admin-, Compliance-, Vertraulich-, Wiki- und Preislisten-Prüfungen beachtet. | **ausbaufähig** — die **Grundberechtigung** (alle lesenden Endpunkte) prüft `Aktiv` nicht: ein deaktivierter Mitarbeiter kann weiterhin Kunden, Verträge und die externe Preisliste lesen (siehe V3). |
+| B1 | Berechtigungen werden serverseitig durchgesetzt, nie nur im Frontend | Policies `Admin`, `Compliance`, `Betrieb` lesen Rollen **aus der Datenbank** und prüfen `Aktiv`; Vertraulich-, Wiki-, Preislisten- und Vorgangstypen-Rechte werden je Request in der API geprüft. Stichproben im Frontend zeigen keine Stelle, an der das Frontend mehr erlaubt als der Server. | **gut** |
+| B2 | Rollen als Flags, getrennte Verantwortungen | `MitarbeiterRolle`: Admin, Vertrieb, Support, Buchhaltung, Compliance, Vertrauliche Verträge, Wiki-Redaktion; dazu Bereichsleiter je Bereich (für Vorgangstypen). | **gut** |
+| B3 | Funktionstrennung: Admin ≠ Einsicht in vertrauliche Verträge | Rolle „Vertrauliche Verträge" ist bewusst **nicht** in Admin enthalten. | **gut** |
+| B4 | Vertrauliche Bestandteile: ohne Rolle nur Metadaten | Unverändert: Titel, Beschreibung, Dokumente und Dateipfade vertraulicher Bestandteile verlassen den Server nicht. Nicht-vertrauliche Dokumente liefern den UNC-Pfad an alle Mitarbeiter (gewollt: „Ordner öffnen"). | **gut** |
+| B5 | Vorlagen: Verwaltung/Freigabe nur Compliance | `[Authorize(Policy="Compliance")]` auf allen schreibenden Vorlagen-Endpunkten. Die Policy ist als **Compliance oder Admin** implementiert (`AdminAnforderung.cs`), ebenso `Betrieb` = Support oder Admin. | **solide** — Admin ist damit bei Compliance-Themen stimmberechtigt; bei vertraulichen Verträgen wurde die Trennung bewusst gezogen, hier nicht. Entscheidung dokumentieren (E1). |
+| B6 | Wiki: Redaktion nur für freigegebene Themen | `WikiBerechtigung`: Admin/Compliance alles, Wiki-Redaktion nur hinterlegte Themen. | **gut** |
+| B7 | Interne Preise nur für Vertrieb/Admin/Compliance | Sichtbarkeitsfilter in der API, Unit-Test vorhanden. | **gut** |
+| B8 | Keine Selbst-Aussperrung, Deaktivieren statt Löschen | Unverändert. | **gut** |
+| B9 | Deaktivierte Konten verlieren alle Rechte | `AktiverMitarbeiterAnforderung` als Fallback-Policy lädt den Datensatz und prüft `Aktiv`; die Rollen-Handler prüfen zusätzlich selbst. | **gut** — V3 vom 15.10. umgesetzt. |
+| B10 | Vorgänge und Aufgaben: Teamfunktionen ohne Rollenbindung | Jeder aktive Mitarbeiter darf Vorgänge anlegen, jeden Schritt übernehmen (auch einen bereits fremd zugewiesenen), zuweisen, erledigen, wieder öffnen, entfernen; „Meine Aufgaben" zeigt auf Wunsch jeden Bereich (Vertretung). So in ANFORDERUNGEN.md beschrieben, Frontend und Server konsistent offen. Jede Änderung landet im Audit-Log und im Vorgangsprotokoll. | **solide** — fachlich gewollt für ein kleines Team; nachvollziehbar, nicht eingeschränkt. Mindestschutz überlegen: „Entfernen" und „Wieder öffnen" auf Zuständigen oder Bereichsleiter begrenzen (E2). |
+| B11 | Vorgangstypen (Vorlagen-Editor) nur Admin oder Bereichsleiter | Alle fünf schreibenden Endpunkte prüfen `DarfTypenPflegenAsync`; Bereichsleiter trägt nur ein Admin ein; laufende Nummer wird serverseitig vergeben. | **gut** |
+| B12 | Zertifikate pflegen nur Support/Admin (Policy „Betrieb") | Alle schreibenden Endpunkte inklusive `pruefen` tragen `Betrieb`; Testmail nur Admin. (Lücke bei `pruefen` am 29.10. geschlossen, N1.) | **gut** |
+| B13 | Mitarbeiter-, Server-, Einstellungs- und Importpflege nur Admin | Klassen-Policies; Rollen per Namens-Whitelist; `WindowsKonto` nicht änderbar; Odoo-Import und Chatter-Import nur Admin. | **gut** |
+| B14 | Kein Over-Posting | Alle Eingaben über positionale DTO-Records ohne `Id`/`Rollen`/`Aktiv`, außer bei Admin-Endpunkten. | **gut** |
 
 ### C · Geheimnisse und Verschlüsselung
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| C1 | Geheimnisse nie im Klartext persistieren | `GeheimnisDienst`: Portal-Push-Token, Odoo-API-Key und PFX-Passwort werden mit ASP.NET Core Data Protection verschlüsselt in der Tabelle `GeheimeEinstellungen` abgelegt. | **gut** |
-| C2 | Schlüsselschutz per DPAPI, maschinengebunden | Schlüsselbund unter `ProgramData\Rausoft\Kundenzentrale\Schluessel`, `ProtectKeysWithDpapi(protectToLocalMachine: true)`; NTFS-ACL-Anleitung in DEPLOYMENT.md. Import-Tool nutzt denselben Schlüsselbund. | **solide** — korrekt umgesetzt; der Schlüsselbund ist bewusst nicht portabel. Offen: kein dokumentiertes Backup/Restore des Schlüsselbunds (siehe V10). |
-| C3 | Geheimnisse sind write-only | API liefert nur „gesetzt am"; Werte werden nie zurückgegeben, UI nutzt `type="password"`. „Bearer "-Präfix wird beim Speichern entfernt. Nur bekannte Schlüssel sind erlaubt. | **gut** |
-| C4 | Geheimnisse nie in Logs oder im Audit-Log | `GeheimeEinstellung` steht auf der Nicht-auditieren-Liste; Import-Tool gibt den Key nie aus („vorhanden, wird nie angezeigt"). | **gut** |
-| C5 | Keine Secrets im Repository | `appsettings.json` enthält nur Platzhalter; Connection String nutzt Windows-Auth (kein Passwort); Telerik-Lizenz, Offline-Pakete, `*.pfx` und lokale Ablagen sind in `.gitignore` und waren nie im Git-Verlauf. | **gut** |
-| C6 | Dokumentintegrität per Hash und Signatur | SHA-256 für jede Dokumentversion und jede Vorlagen-Version; Vorlagen-Dateitabelle erkennt veränderte eingefrorene Kopien; PDFs erhalten optional eine digitale Signatur (PFX). | **solide** — sehr gut angelegt; die Signatur ist produktiv noch nicht aktiv (Zertifikat fehlt, DEPLOYMENT.md). |
-| C7 | Vertragsdokumente unveränderlich | `ErpDbContext` wirft bei Änderung/Löschung von `Vertragsdokument`; einzige Ausnahme ist die explizite Admin-Löschung einer Akte, bei der die Dateien liegen bleiben. | **gut** — Leitplanke ist technisch erzwungen, nicht nur Konvention. |
+| C1 | Geheimnisse nie im Klartext persistieren | `GeheimnisDienst`: Portal-Token, Odoo-API-Key, PFX-Passwort und neu das **SMTP-Passwort** liegen Data-Protection-verschlüsselt in `GeheimeEinstellungen`. Whitelist der vier Schlüssel in der API. | **gut** |
+| C2 | Schlüsselschutz per DPAPI, maschinengebunden | Unverändert; Import-Tool nutzt denselben Schlüsselbund. | **solide** — Backup/Restore des Schlüsselbunds weiterhin nicht dokumentiert (V10). |
+| C3 | Geheimnisse sind write-only | API liefert nur „gesetzt am"; Frontend nutzt `type="password"` und leert das Feld nach dem Speichern. SMTP-Host, Port, Benutzer, Absender liegen als normale Einstellungen in der DB (keine Geheimnisse). | **gut** |
+| C4 | Geheimnisse nie in Logs, Audit oder Fehlermeldungen | Alle Logger-Aufrufe in Mail-, Zertifikat-, Serverstatus- und Odoo-Diensten geprüft: nur Betreff, Anzahl, Hostname, Bezeichnung. Token nur im Authorization-Header, Odoo-Key nur im JSON-Body; `OdooClient` loggt höchstens die Key-Länge. `GeheimeEinstellung` bleibt vom Audit ausgenommen. | **gut** |
+| C5 | Keine Secrets im Repository | `appsettings*.json` ohne neue Geheimnis-Schlüssel; `*.pfx`, Telerik-Lizenz, `publish/`, lokale Ablagen in `.gitignore`; Git-Verlauf ohne Treffer auf Passwörter oder Zertifikatsdateien. | **gut** |
+| C6 | Dokumentintegrität per Hash und Signatur | Unverändert (SHA-256, optionale PFX-Signatur, produktiv noch nicht aktiv). | **solide** |
+| C7 | Vertragsdokumente unveränderlich | Unverändert, technisch im `DbContext` erzwungen. | **gut** |
+| C8 | Keine Zertifikatsprüfung abgeschaltet | Kein `ServerCertificateCustomValidationCallback` oder `DangerousAcceptAnyServerCertificateValidator` im Code; SMTP validiert normal. Der TLS-Check der Zertifikatsüberwachung akzeptiert bewusst jedes Zertifikat, weil er nur liest und nichts sendet. | **gut** |
 
 ### D · Datei- und Dokumentzugriff
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| D1 | Kein freier Zugriff aufs Ablageverzeichnis | Download nur über registrierte Dokument-IDs; der Pfad kommt aus der Datenbank, nie aus dem Request. | **gut** |
-| D2 | Schutz vor Path Traversal | Registrierung: `Path.GetFullPath` + Prüfung „liegt unter Basisverzeichnis"; Zielverzeichnis der Vertragserzeugung muss in der Ablage liegen; Vorlagen-Freigabe akzeptiert nur reine Dateinamen mit `.docx` und prüft ungültige Zeichen. | **gut** |
-| D3 | Upload begrenzt und validiert | Preislisten-Import: `[RequestSizeLimit(5 MB)]`, Pflicht-Schema `rausoft.preisliste/`, Strukturprüfung, Version muss strikt steigen, Datei wird unverändert mit SHA-256 abgelegt. | **gut** |
-| D4 | Auslieferung registrierter Dateien | Content-Type aus der Dateiendung, Anzeige inline (Vorschau). | **ausbaufähig** — ohne `X-Content-Type-Options: nosniff` und ohne Typ-Whitelist könnte eine im Archiv abgelegte HTML/SVG-Datei im Kontext der Anwendung ausgeführt werden (siehe V5). Risiko gering, da nur Mitarbeiter Dateien ablegen. |
+| D1 | Kein freier Zugriff aufs Ablageverzeichnis | Downloads (Vertragsdokumente, Chatter-Anhänge) nur über IDs; Pfad kommt aus der Datenbank. | **gut** |
+| D2 | Schutz vor Path Traversal | Registrierung und Zielverzeichnis mit `GetFullPath` + „liegt unter Basis"; Vorlagen-Freigabe nur reiner `.docx`-Dateiname. **Neu und sauber:** Chatter-Anhang-Download prüft die Basis; der Chatter-Import bereinigt Kundennummer und Odoo-Dateinamen (`SichererName`, 150 Zeichen, OdooId-Präfix). **Lücke:** die Vertragserzeugung baut den Dateinamen aus `Kundennummer` ohne Bereinigung; der Wert kommt nur aus Odoo (`ref`), ist über die API nicht setzbar. | **solide** (N5) |
+| D3 | Upload begrenzt und validiert | Einziger Upload bleibt der Preislisten-Import (5 MB, Schema, Version strikt steigend). Chatter-Anhänge: 50 MB je Anhang im Import. | **gut** |
+| D4 | Auslieferung registrierter Dateien | Vertragsdokumente: Content-Type aus Endung, inline, kein `nosniff`. **Chatter-Anhänge** (stammen von externen Absendern!) werden mit `Content-Disposition: attachment` ausgeliefert, HTML/SVG werden also nicht im Anwendungskontext gerendert. | **ausbaufähig** für Vertragsdokumente (V5), **gut** für Chatter-Anhänge. |
+| D5 | Keine temporären Dateien in der API | Nur `MemoryStream`; das Import-Tool schreibt Berichte an einen vom Admin gewählten Pfad (CLI). | **gut** |
 
 ### E · Eingaben, Injection, Frontend
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| E1 | Kein SQL-Injection-Risiko | Ausschließlich EF Core LINQ, kein `FromSql`/`ExecuteSqlRaw` im gesamten Code. | **gut** |
-| E2 | Kein Over-Posting | Eingaben laufen über eigene DTO-Records (`Rausoft.Erp.Dtos`), Entitäten werden nie direkt gebunden oder zurückgegeben. | **gut** |
-| E3 | Fachliche Validierung in der API | Pflichtfelder, Eindeutigkeit (Alias, E-Mail, Konto), URL-Schema nur http/https, Rollen- und Themen-Whitelists, Seitengrößen gedeckelt (max. 100). Längen über `HasMaxLength` in der DB. | **solide** — Validierung ist handgeschrieben und daher nicht einheitlich; Längenüberschreitungen enden in einem 500 statt 400. |
-| E4 | Kein XSS im Frontend | Keine Verwendung von `MarkupString`/innerHTML; Blazor rendert kodiert. JSON ausschließlich über `System.Text.Json`. | **gut** |
-| E5 | Optimistic Concurrency | `RowVersion` auf Kunde, Ansprechpartner, Vertrag u. a. | **gut** |
-| E6 | CSRF-Schutz | Keine explizite Maßnahme. JSON-Endpunkte sind faktisch geschützt (kein CORS in Produktion, JSON erzwingt Preflight). | **ausbaufähig** — der Multipart-Upload (Preislisten-Import) ist ein „simple request" und mit **ambienter Windows-Anmeldung** über ein fremdes Formular auslösbar (siehe V4). |
+| E1 | Kein SQL-Injection-Risiko | Ausschließlich EF Core LINQ, kein `FromSql`/`ExecuteSqlRaw`. | **gut** |
+| E2 | Kein Over-Posting | Siehe B14. | **gut** |
+| E3 | Fachliche Validierung in der API | Unverändert handgeschrieben; Längenüberschreitungen und Unique-Verstöße enden in 500 statt 400/409 (V12, Q5). | **solide** |
+| E4 | Kein XSS im Frontend | Einzige `MarkupString`-Stelle ist der neue Wiki-Formatierer `WikiFormat.ZuHtml`: jeder Text wird zuerst HTML-kodiert, Links nur `http(s)://` aus bereits kodiertem Text, `rel="noopener noreferrer"`. Unit-Tests decken `<script>`, Attribut-Ausbruch und `javascript:` ab. | **gut** |
+| E5 | Optimistic Concurrency | `RowVersion` auf Kunde, Ansprechpartner, Vertrag u. a. **Nicht** auf Vorgang/Aufgabe (Q7). | **solide** |
+| E6 | CSRF-Schutz | Keine explizite Maßnahme; JSON-Endpunkte faktisch geschützt (kein CORS, Preflight). Der Multipart-Upload bleibt mit ambienter Windows-Anmeldung aus fremdem Formular auslösbar. | **ausbaufähig** (V4) |
+| E7 | Mail-Header-Injection | `MailAddress` verwirft ungültige Adressen, `MailMessage.Subject` verwirft CR/LF, Body ist Plaintext. | **gut** |
 
 ### F · Audit und Nachvollziehbarkeit
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| F1 | Zentrales Audit-Log automatisch | `ErpDbContext.SaveChanges` schreibt für jede Änderung Entität, ID, Aktion, Mitarbeiter und Alt/Neu-Werte als JSON. Rollenänderungen, Einstellungen, Verträge, Vorlagen sind damit lückenlos erfasst. | **solide** — sehr guter Mechanismus; es fehlen Ansicht, Aufbewahrungsregel und Integritätsschutz (siehe V8). |
-| F2 | Protokollcharakter-Entitäten ausgenommen | Audit-Log, Timeline, Nummernkreise, Geheimnisse, Server-Healthcheck-Takt werden nicht auditiert. | **gut** — bewusste, dokumentierte Ausnahmen. |
-| F3 | Verlauf (Timeline) mit Datensparsamkeit | Löschungen, Registrierungen und Änderungen landen im Kundenverlauf; vertrauliche Titel/Pfade bleiben draußen. | **gut** |
-| F4 | Sicherheitsereignisse im Log | Nur Start-Warnung bei Dev-Auth, Import-Fehler, Portal-Warnungen. | **ausbaufähig** — abgewiesene Zugriffe (403), Rollenwechsel oder Geheimnis-Änderungen erzeugen keinen eigenen Log-Eintrag (siehe V8). |
+| F1 | Zentrales Audit-Log automatisch | Unverändert: jede Änderung mit Entität, ID, Aktion, Mitarbeiter, Alt/Neu als JSON. Hintergrundläufe schreiben mit `MitarbeiterId = null`. | **solide** — weiterhin ohne Ansicht und Aufbewahrungsregel (V8). |
+| F2 | Protokollcharakter-Entitäten ausgenommen | Audit-Log, Timeline, Nummernkreise, Geheimnisse, Server-Takt sind ausgenommen. **Nicht** ausgenommen: `Einstellung` (Zeitstempel `LetzterPush`, `LetzterImport`, `LetzterWochenbericht` werden bei jedem Takt auditiert), `Zertifikat` (täglicher Live-Check je Zertifikat), `PreislistenVersion.Daten` (bis 5 MB JSON pro Import ins Audit kopiert). | **ausbaufähig** (N4) |
+| F3 | Verlauf (Timeline) mit Datensparsamkeit | Vertrauliche Titel/Pfade bleiben draußen. Verlaufseinträge können im Namen eines anderen Mitarbeiters erfasst werden (fachlich gewollt); der tatsächliche Erfasser steht nur im Audit-Log. | **solide** (E3 unten) |
+| F4 | Sicherheitsereignisse im Log | Unverändert: keine eigenen Einträge für 403, Rollenwechsel, Geheimnis-Änderungen. | **ausbaufähig** (V8) |
 
-### G · Datensparsamkeit nach außen (Service Portal, Odoo)
+### G · Außenzugriffe und Datensparsamkeit (Service Portal, Odoo, Zertifikate, Mail)
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| G1 | Nur Alias + Status verlassen das Haus | `ServerStatusDienst` pusht ausschließlich Alias, Erreichbarkeit, Connector-Status, Sanktionslisten-Datum, Fehlertext. Interne URLs, Mandanten-Kennungen und Kundenbezüge bleiben intern. | **gut** — Sicherheitsmodell ist in der Schnittstellen-Anleitung festgehalten und im Code eingehalten. |
-| G2 | Generische Fehlertexte | Exceptions werden auf feste Texte („Timeout nach 15s", „Verbindungsfehler") abgebildet, Antwortfelder werden gekürzt. | **gut** |
-| G3 | Ausgehende Aufrufe nur mit Admin-gepflegten Zielen | Server-URLs und Portal-URL pflegen nur Admins; Timeouts 15 s/30 s; Bearer-Token aus dem verschlüsselten Speicher. | **gut** |
-| G4 | Odoo-Zugang ohne Dateien | URL/DB/Benutzer in Einstellungen, API-Key verschlüsselt; Import-Tool liest denselben Schlüsselbund, Umgebungsvariablen nur als Override. | **gut** |
+| G1 | Nur Alias + Status verlassen das Haus (Service Portal) | Unverändert eingehalten. | **gut** |
+| G2 | Generische Fehlertexte nach außen und in Antworten | `ServerStatusDienst` und seit 29.10. auch die Zertifikats-Live-Prüfung (`ZertifikatPruefregeln.FehlerText`: feste Kategorien, Original nur im Log) bilden Exceptions auf feste Texte ab. **Nicht** so beim Odoo-Abgleich (`ex.Message` bis 200 Zeichen als Hinweis an jeden Auslöser). | **solide** (N5) |
+| G3 | Ausgehende Aufrufe nur mit Admin-gepflegten Zielen | Server-URLs und Portal-URL pflegt nur Admin, Schema nur http/https. Zertifikats-Hostnamen pflegt Support, seit 29.10. nur als DNS-Name oder IP ohne Loopback/Link-Local/Multicast und nur auf Admin-gepflegte Ports (`Zertifikate.ErlaubtePorts`, Standard 443/8443); die Regeln greifen auch für Bestandsdaten beim täglichen Takt. `Odoo.Url` und `ServicePortal.Url` nimmt der Einstellungs-Endpunkt ohne Schema-Prüfung an. Timeouts überall gesetzt (10–30 s). | **solide** (N5) |
+| G4 | Odoo-Zugang ohne Dateien, nur lesend | Key aus `GeheimnisDienst`; API-Zugriffe sind `search_read`/`read`. Live-Abfrage von Kundenaufträgen und der Abgleich stehen jedem Mitarbeiter offen (gewollt: „per Knopf"). | **gut** |
+| G5 | Zertifikats-Live-Prüfung als Netz-Orakel | Seit 29.10. begrenzt: Ziel nur auf erlaubten Ports, Hostname-Regeln, feste Fehlertexte ohne IP/Port-Details, Auslösen nur Support/Admin. Es bleibt erkennbar, ob auf einem erlaubten Port ein TLS-Dienst antwortet — das ist der Zweck der Funktion. | **gut** |
+| G6 | Monitoring-Mails | Empfänger je Zertifikat müssen gültige Adressen in erlaubten Domänen sein (`Zertifikate.EmpfaengerDomaenen`, Standard: Domäne der Absenderadresse); beim Versand werden Adressen außerhalb übersprungen, auch aus den Admin-Einstellungen. Inhalt nennt Hostname, Port, Aussteller, Fehlertext, Notiz. | **gut** |
 
 ### H · Transport, Betrieb, Deployment
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| H1 | Nur intern erreichbar | IIS-Unteranwendung im Intranet, keine Veröffentlichung nach außen; alte Port-Site und Firewall-Regel entfernt. | **gut** |
-| H2 | Transportverschlüsselung | **Kein HTTPS** im Windows-Modus (bewusst, wegen Zertifikatswarnung an der Default Web Site). `UseHttpsRedirection` nur im Entra-Modus. | **ausbaufähig** — Kundendaten, Vertrags-PDFs und NTLM-Handshakes laufen im Klartext durchs LAN (siehe V1). |
-| H3 | Verschlüsselung zum SQL Server | `Encrypt=True`, aber `TrustServerCertificate=True`. | **ausbaufähig** — Verbindung ist verschlüsselt, der Server aber nicht authentifiziert (siehe V6). |
-| H4 | Least Privilege für das App-Pool-Konto | Eigener App-Pool, SQL-Rechte `db_datareader/db_datawriter/db_ddladmin`, NTFS-Hinweise für Schlüsselbund und vertrauliche Ablage. | **solide** — `db_ddladmin` dauerhaft nur wegen Auto-Migration (siehe V9). |
-| H5 | CORS, OpenAPI, Test-Endpunkte nur in Entwicklung | CORS nur für Loopback-Origins im Development; `MapOpenApi` und Test-Healthcheck nur im Development. | **gut** |
-| H6 | HTTP-Security-Header | Keine gesetzt (CSP, nosniff, frame-ancestors, Referrer-Policy). | **ausbaufähig** (siehe V5) |
-| H7 | Aktuelle Plattform und Pakete | .NET 10 LTS, Pakete auf 10.0.11; Microsoft.Identity.Web 4.14. | **ausbaufähig** — der Scan vom 15.10.2026 meldet bekannte Schwachstellen in 10.0.11-Paketen, Fix ist 10.0.13 (siehe V2). Es gibt keinen regelmäßigen Scan. |
-| H8 | Backups | In DEPLOYMENT.md beschrieben (Voll + Log), Checkbox noch offen. | **ausbaufähig** (siehe V10) |
-| H9 | Dokumentation des Sicherheitsmodells | CLAUDE.md (verbindliche Regeln), DEPLOYMENT.md (ACLs, Konten, Geheimnisse), Schnittstellen-Anleitung (Datensparsamkeit), Kommentare im Code nennen die Regel, die sie umsetzen. | **gut** — ungewöhnlich gut nachvollziehbar für ein Projekt dieser Größe. |
+| H1 | Nur intern erreichbar | IIS-Unteranwendung im Intranet. | **gut** |
+| H2 | Transportverschlüsselung | **Seit 29.10.2026 HTTPS auf Port 8443**, `Hosting:HttpsErzwingen = true` auf dem Server, http leitet um. HSTS bewusst aus (Port 443 gehört einer anderen Site, Urlaubsplaner läuft http). Selbstsigniertes Zertifikat per Computer-GPO verteilt (keine AD-CA vorhanden). | **gut** — V1 umgesetzt. Rest: Zertifikat läuft 27.10.2029 ab, Erneuerung in den Kalender. |
+| H3 | Verschlüsselung zum SQL Server | `Encrypt=True`, aber `TrustServerCertificate=True`. | **ausbaufähig** (V6) |
+| H4 | Least Privilege für das App-Pool-Konto | Unverändert; `db_ddladmin` wegen Auto-Migration. | **solide** (V9) |
+| H5 | CORS, OpenAPI, Test-Endpunkte nur in Entwicklung | Unverändert. | **gut** |
+| H6 | HTTP-Security-Header | Weiterhin keine (`nosniff`, CSP `frame-ancestors`, Referrer-Policy). | **ausbaufähig** (V5) |
+| H7 | Aktuelle Plattform und Pakete | Alle Microsoft-Pakete 10.0.13, Scan am 29.10.2026: **keine anfälligen Pakete** in allen 7 Projekten. Verfügbar: 10.0.14, Microsoft.Identity.Web 4.16.1, Telerik 2026.3.1027. Scan ist Pflichtschritt im Update-Ritual. | **gut** — V2 umgesetzt. |
+| H8 | Backups | Weiterhin nur beschrieben, nicht als erledigt vermerkt. | **ausbaufähig** (V10) |
+| H9 | Dokumentation des Sicherheitsmodells | Unverändert gut; DEPLOYMENT.md ist allerdings zu einem Änderungsprotokoll mit über 20 offenen „Publish aktualisieren"-Kästchen gewachsen (Q-Hinweis). | **gut** |
+| H10 | Hintergrunddienste robust | Serverstatus, Zertifikate, Vorgangs-Abgleich: eigener Scope je Lauf, `Exception` wird gefangen und geloggt, Abbruch beim Herunterfahren sauber. Importe laufen per `Task.Run` mit Einzel-Lauf-Sperre, aber ohne Abbruch-Token (bei IIS-Recycle harter Abbruch mitten im Batch, Teilstände konsistent). | **solide** (Q8) |
 
 ### I · Entwicklungsprozess
 
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
-| I1 | Tests für Berechtigungslogik | 28 Unit-Tests, davon zwei sicherheitsrelevant (Vorlagen-Nutzungsfreigabe, Preislisten-Sichtbarkeit). | **ausbaufähig** — keine Tests für Pfadprüfung, Vertraulich-Filter, Rollen-Policies (siehe V11). |
-| I2 | Automatisierte Prüfungen (CI, Scans) | Keine CI-Pipeline, kein automatischer Schwachstellen-Scan, kein Secret-Scan. | **ausbaufähig** (siehe V2, V11) |
+| I1 | Tests für Berechtigungs- und Sicherheitslogik | 145 Unit-Tests, alle grün; sicherheitsrelevant: Wiki-XSS (3), Vorlagen-Nutzungsfreigabe, Preislisten-Sichtbarkeit. Keine Tests für Rollen-Policies, Pfadprüfungen, Vertraulich-Filter, Audit-Unveränderlichkeit. | **solide** (V11) |
+| I2 | Automatisierte Prüfungen (CI, Scans) | Keine CI; Scan manuell im Update-Ritual. Build ohne Warnungen. | **ausbaufähig** (V11) |
 
 ---
 
-## Teil 2 · Verbesserungspotenzial (priorisiert)
+## Teil 2 · Verbesserungspotenzial Sicherheit (priorisiert)
 
 Priorität = Risiko im konkreten Einsatzkontext (internes Netz, Mitarbeiter als
 einzige Nutzer), nicht die abstrakte Schwere.
 
-**Umsetzungsstand 15.10.2026 (nach dem Review):**
-- V1 — Code-Teil erledigt: HTTPS-Umleitung + HSTS im Windows-Modus per
-  Schalter `Hosting:HttpsErzwingen` (Standard `false`, damit der http-Testbetrieb
-  weiterläuft). Offen: Zertifikat + https-Binding am Server, Anleitung in
-  DEPLOYMENT.md „HTTPS im Intranet".
-- V2 — erledigt: alle Pakete auf 10.0.13, `System.Security.Cryptography.Pkcs`
-  explizit auf 10.0.13 gepinnt; Scan meldet für alle Projekte „keine anfälligen
-  Pakete". Scan ist jetzt Pflichtschritt im Update-Ritual (DEPLOYMENT.md).
-  Offen: Hosting Bundle / Desktop Runtime auf dem Server auf den aktuellen Patch.
-- V3 — erledigt: Fallback- und Default-Policy verlangen einen **aktiven**
-  Mitarbeiter-Datensatz (`AktiverMitarbeiterAnforderung`); Deaktivieren sperrt
-  vollständig aus. Bewusst beibehalten (Testphase): neue Domänenkonten werden
-  weiterhin automatisch **aktiv** ohne Rollen angelegt — vor dem Produktiv-Reset
-  entscheiden, ob neue Konten inaktiv starten oder eine AD-Gruppe Voraussetzung wird.
+**Umsetzungsstand der Punkte vom 15.10.2026:**
+- V1 HTTPS — **erledigt** (29.10.2026, Port 8443, http-Umleitung aktiv).
+- V2 Pakete/Scan — **erledigt** (10.0.13, Scan sauber, Pflichtschritt).
+- V3 Aktive Mitarbeiter — **erledigt** (Fallback-Policy). Offen bleibt V3b:
+  Auto-Anlage neuer Domänenkonten als aktiv, Entscheidung vor dem Produktiv-Reset.
+- V4 bis V15 — **offen**, Beschreibung und Maßnahme unverändert (siehe unten,
+  gekürzt).
 
-### Hohe Priorität
+### Neue Punkte (29.10.2026)
 
-**V1 · HTTPS im Intranet einführen.**
-Alles läuft über http: Kundendaten, Vertrags-PDFs mit Sondervereinbarungen,
-NTLM-Authentifizierung. Jeder im LAN mitlesende Rechner sieht die Daten; NTLM
-über http ist zudem relay-fähig.
-Maßnahme: internes Zertifikat aus der AD-Zertifizierungsstelle, https-Binding
-an der Default Web Site, Intranetzone-GPO auf die https-URL erweitern,
-anschließend `UseHttpsRedirection` und HSTS auch im Windows-Modus aktivieren.
-Aufwand: klein (Serverseite), eine Zeile im Code.
+**N1 · Zertifikatsüberwachung härten.** (hoch, Aufwand klein) — **erledigt 29.10.2026**
+(`ZertifikatPruefregeln` im Domain-Projekt mit 9 Unit-Tests, Migration
+`ZertifikatPruefregeln` mit zwei Einstellungen, Policy auf `pruefen`; Regeln
+gelten beim Speichern und beim täglichen Takt auch für Bestandsdaten.)
+Vier Teile im selben Modul:
+(a) `POST api/zertifikate/{id}/pruefen` bekommt `[Authorize(Policy="Betrieb")]`
+wie alle anderen schreibenden Zertifikat-Endpunkte (`ZertifikateController.cs:125`).
+(b) Hostname beim Speichern prüfen: DNS-Name oder IP, kein Loopback, keine
+Link-Local-/Metadaten-Adressen, optional Port-Whitelist (443, 8443, konfigurierbar).
+(c) `LiveFehler` wie in G2 auf feste Texte abbilden („Verbindung abgelehnt",
+„Zeitüberschreitung", „Kein Zertifikat", „Kette ungültig"); den rohen Text nur
+ins Server-Log.
+(d) Empfänger-Adressen gegen eine erlaubte Domänenliste prüfen (Einstellung,
+Standard: eigene Domäne), damit Statusmails über interne Hosts nicht an
+Fremdadressen gehen.
+Risiko heute: gering (nur Erreichbarkeits-Orakel im eigenen Netz, keine
+Daten), aber Verstoß gegen die eigene Regel „Außenziele nur Admin-gepflegt,
+Fehlertexte generisch".
 
-**V2 · Pakete auf 10.0.13 heben und regelmäßigen Schwachstellen-Scan einführen.**
-Der Scan vom 15.10.2026 meldet für die eingesetzten 10.0.11-Pakete:
-- `Microsoft.AspNetCore.Authentication.Negotiate` — falsche LDAP-Zuordnung bei
-  aktivierter LDAP-Claim-Auflösung (GHSA-vrrp-6v32-2p8g). Nicht genutzt, daher
-  hier nicht ausnutzbar, aber im Produktpfad.
-- `Microsoft.AspNetCore.Components.WebAssembly.Server` — zwei Lücken im Debug-
-  Proxy/Debug-Endpunkt (nur Entwicklungsrechner betroffen).
-- transitiv `System.Security.Cryptography.Pkcs` und `.Xml` — CPU-Erschöpfung bei
-  Signaturprüfung (relevant für die PDF-Signatur-Pipeline).
-Maßnahme: alle Microsoft-Pakete auf 10.0.13, ASP.NET Core Hosting Bundle und
-Desktop Runtime auf dem Server nachziehen; `dotnet list package --vulnerable`
-als festen Schritt vor jedem Publish in DEPLOYMENT.md aufnehmen.
-Aufwand: klein.
+**N2 · Vorgangs-Abgleich gegen Parallelläufe sichern.** (mittel, Aufwand klein)
+Der Abgleich läuft stündlich, per Knopf (jeder Mitarbeiter) und nach jedem
+Chatter-Import, ohne gegenseitigen Ausschluss; `Vorgang`/`Aufgabe` haben keine
+`RowVersion`. Zwei Läufe können denselben Schritt doppelt erledigen und zwei
+Verlaufseinträge „Automatisch erledigt" schreiben. Maßnahme: `SemaphoreSlim(1,1)`
+im Dienst (Muster aus `OdooImportDienst`) und `RowVersion` auf `Vorgang`.
 
-**V3 · Zugang auf aktive, freigegebene Mitarbeiter beschränken.**
-Zwei Lücken im selben Mechanismus: (a) die Grundberechtigung prüft nur „ist
-angemeldet", nicht `Mitarbeiter.Aktiv` — Deaktivieren sperrt nur die
-Rollenfunktionen, nicht das Lesen; (b) jedes Domänenkonto wird automatisch
-angelegt und darf sofort alles lesen, was keine Rolle braucht (Kunden,
-Ansprechpartner, Verträge, Server-Übersicht, externe Preisliste).
-Maßnahme: eine Policy „AktiverMitarbeiter" als Fallback-Policy, die den
-Datensatz lädt und `Aktiv` prüft; optional neue Konten mit `Aktiv = false`
-anlegen oder den Zugang an eine AD-Gruppe binden. Dann wird Deaktivieren zum
-echten Aussperren.
-Aufwand: klein bis mittel (eine Policy, ein Handler, Caching je Request).
+**N3 · Mehrstufige Schreibvorgänge absichern.** (mittel, Aufwand mittel)
+Vertrag anlegen (Nummer, Vertrag, Verlauf = drei Commits), Vertrag aus Vorlage
+(PDF+DOCX auf Platte **vor** dem DB-Commit → verwaiste Dateien mit verbrauchter
+Nummer bei Fehler), Vorlagen-Freigabe (`File.Copy` vor SaveChanges;
+`Nummer = Max+1` im Speicher kollidiert bei gleichzeitiger Freigabe am
+Unique-Index → 500), Dokument registrieren (`Version = Max+1`, gleiches Muster).
+Maßnahme: Transaktion um die DB-Teile (Muster in `VorgaengeController.Anlegen`),
+Dateien erst nach Commit schreiben oder bei Fehler löschen, `DbUpdateException`
+→ 409.
 
-### Mittlere Priorität
+**N4 · Audit-Log vom Rauschen befreien.** (mittel, Aufwand klein)
+Automatisch gepflegte Einstellungen (`…Letzter…`), `Zertifikat.Live*` und
+`PreislistenVersion.Daten` vom Audit ausnehmen (Typ- oder Property-Ausschluss in
+`ErpDbContext.NichtAuditieren`). Sonst wächst das Audit-Log um hunderte
+nutzlose Zeilen pro Tag und kopiert bei jedem Preislisten-Import bis zu 5 MB.
+Index `Aktivitaeten(VerweisTyp, VerweisId)` ergänzen (siehe Q1), weil sonst
+jeder Vorgangsaufruf die Chatter-Tabelle komplett scannt.
 
-**V4 · CSRF-Schutz für den Multipart-Upload.**
-Windows-Auth wird vom Browser automatisch mitgeschickt. JSON-Endpunkte sind
-durch den fehlenden CORS-Freischein geschützt, der Preislisten-Import
-(`multipart/form-data`) nicht: eine fremde Intranet-Seite könnte ein Formular
-im Namen des angemeldeten Redakteurs abschicken. Schaden begrenzt (nur neuere,
-schema-gültige Preislisten-Version), aber ein Muster, das bei weiteren Uploads
-wiederkehrt.
-Maßnahme: globaler Filter, der bei schreibenden Requests einen eigenen Header
-(z. B. `X-Requested-With`) verlangt, den das Blazor-Frontend immer setzt.
-Aufwand: klein.
+**N5 · Kleine Härtungen.** (niedrig, Aufwand je sehr klein)
+- `PdfDienst`: Serverpfad der PFX-Datei nicht in der Fehlermeldung an den
+  Vertragsersteller ausgeben (nur ins Log); geladenes Zertifikat `using`/
+  disposen.
+- Vertragserzeugung: `Kundennummer` vor `Path.Combine` bereinigen
+  (`SichererName` aus dem Chatter-Import wiederverwenden) und Ziel mit
+  `LiegtUnter` prüfen.
+- `EinstellungenController`: für `Odoo.Url` und `ServicePortal.Url` Schema
+  `https://` erzwingen (Key und Token gehen dorthin).
+- Odoo-Abgleich: Hinweis „Odoo nicht erreichbar" ohne `ex.Message`.
+- `.gitignore`: `appsettings.Production.json` explizit aufnehmen (liegt heute
+  nur auf dem Server, war nie im Repo).
 
-**V5 · Security-Header und sichere Dateiauslieferung.**
-Maßnahme: Middleware setzt `X-Content-Type-Options: nosniff`,
-`Content-Security-Policy` mit `frame-ancestors 'self'`, `Referrer-Policy`;
-Dokument-Download nur PDF/DOCX inline, alle anderen Typen mit
-`Content-Disposition: attachment`.
-Aufwand: klein.
+### Entscheidungen (kein Code, sondern Festlegung)
 
-**V6 · SQL-Verbindung ohne `TrustServerCertificate`.**
-`Encrypt=True` ist gesetzt, aber ohne Zertifikatsprüfung ist ein Man-in-the-
-Middle zum SQL Server möglich.
-Maßnahme: SQL Server ein AD-CS-Zertifikat geben, Flag entfernen (Connection
-String in `appsettings.Production.json`, Umgebungsvariable des Import-Tasks).
-Aufwand: klein.
+**E1 · Admin in Compliance und Betrieb enthalten?** Heute: ja (`Compliance` =
+Compliance oder Admin, `Betrieb` = Support oder Admin). Bei vertraulichen
+Verträgen wurde Admin bewusst ausgeschlossen. Entweder so belassen und in
+CLAUDE.md/ANFORDERUNGEN.md festhalten, oder Admin aus `Compliance` nehmen.
 
-**V7 · Launch-Profil `http-prod-db` entschärfen.**
-Das Profil startet die API im Development-Modus mit Pseudo-Admin ohne
-Anmeldung gegen die **Produktions-Datenbank**. Auf dem Entwicklungsrechner
-lokal gebunden, aber ein Fehlgriff reicht.
-Maßnahme: Profil entfernen oder Dev-Auth im Code zusätzlich an einen
-LocalDB/localhost-Connection-String koppeln.
-Aufwand: sehr klein.
+**E2 · Vorgänge/Aufgaben bleiben teamoffen?** Heute darf jeder jeden Schritt
+übernehmen, umhängen, erledigen, entfernen, auch fremd zugewiesene. Für ein
+kleines Team sinnvoll; wenn eingeschränkt, dann minimal: Entfernen und Wieder
+öffnen nur für Zuständigen, Bereichsleiter oder Admin.
 
-**V8 · Audit-Log sichtbar und auswertbar machen, Sicherheitsereignisse loggen.**
-Der Mechanismus ist vorbildlich, aber ohne Ansicht wird er nur per SQL
-genutzt. Zusätzlich fehlen Einträge für abgewiesene Zugriffe (403),
-Geheimnis-Änderungen (nur „gesetzt am") und Rollenwechsel als eigenes Ereignis.
-Maßnahme: Admin-Seite „Audit-Log" mit Filter (Mitarbeiter, Entität,
-Zeitraum), Logging von 403 mit Konto und Route, Aufbewahrungsregel festlegen
-(Datenschutz-Löschkonzept aus DATENMODELL.md).
-Aufwand: mittel.
+**E3 · Verlaufseinträge im Namen anderer.** Wer einen Eintrag mit fremden
+Teilnehmern erfasst, erscheint nicht als Autor. Entweder akzeptieren (Audit-Log
+kennt den Erfasser) oder `ErstelltVonId` zusätzlich speichern und anzeigen.
 
-**V9 · Datenbankrechte des App-Pools reduzieren.**
-`db_ddladmin` dauerhaft, weil Migrationen beim Start laufen.
-Maßnahme: akzeptieren und in DEPLOYMENT.md begründen (Einzelinstanz, Haus-
-Betrieb) **oder** Migrationen als expliziten Publish-Schritt mit separatem
-Konto ausführen.
-Aufwand: klein; eher eine bewusste Entscheidung als Arbeit.
+**E4 · Test- und Produktivumgebung auf dem Server.** Spätestens zum Produktiv-
+Reset eine zweite IIS-Unteranwendung `/Kundenzentrale-Test` mit eigenem
+App-Pool, eigener Datenbank, eigenen Ablageordnern (nie das Kunden-Archiv),
+eigenem Data-Protection-Schlüsselring und abgeschaltetem Mailversand, Odoo-
+Import und Portal-Push. Release-Weg: Publish zuerst nach Test, dann nach Prod.
+Konzept gehört in DEPLOYMENT.md neben den Produktiv-Reset.
 
-**V10 · Backups und Schlüsselbund-Sicherung tatsächlich einrichten.**
-DB-Backup steht als offener Punkt in DEPLOYMENT.md. Der DPAPI-Schlüsselbund
-ist maschinengebunden; nach Serververlust sind die Geheimnisse weg (bewusst so,
-aber nur dann unkritisch, wenn alle drei Werte beschaffbar bleiben).
-Maßnahme: Wartungsplan Voll + Log, Restore-Test einmal durchführen; für die
-Geheimnisse dokumentieren, wo Token, Odoo-Key und PFX-Passwort im Notfall
-neu bezogen werden.
-Aufwand: klein (Betrieb).
+### Offen aus dem 15.10.2026 (Kurzform)
 
-### Niedrige Priorität
-
-**V11 · Sicherheitstests und CI.** Tests für `LiegtUnter`/Pfadprüfung,
-Vertraulich-Filter in `NachDetail`, Rollen-Policies (mit In-Memory-DB) sowie
-ein Build + Test + Schwachstellen-Scan als GitHub-Action oder lokales Skript.
-
-**V12 · Einheitliche Eingabevalidierung.** DataAnnotations oder FluentValidation
-für Längen und Formate, damit Überlängen als 400 statt 500 enden.
-
-**V13 · Rate-Limits und globale Body-Limits.** Im Intranet nicht dringend;
-sinnvoll vor einem späteren Entra-/Außenzugang (`AddRateLimiter`,
-`MaxRequestBodySize`).
-
-**V14 · Admin-Rechte sind weitreichend.** Ein Admin kann jedes Verzeichnis als
-Ablage setzen und darüber Dateien lesen, die das App-Pool-Konto lesen darf.
-Vertretbar (Admins sind vertrauenswürdig), aber Grund, das App-Pool-Konto
-strikt auf die benötigten Freigaben zu beschränken (NTFS, nicht Code).
-
-**V15 · `AllowedHosts: "*"`.** Auf die tatsächlichen Hostnamen einschränken,
-sobald HTTPS und DNS-Name stehen (Host-Header-Injection, geringes Risiko).
+- **V3b** Neue Domänenkonten inaktiv anlegen oder AD-Gruppe verlangen (vor Produktiv-Reset).
+- **V4** CSRF-Header (`X-Requested-With`) für schreibende Requests, Frontend setzt ihn immer. Mittel.
+- **V5** Security-Header (`nosniff`, CSP `frame-ancestors 'self'`, Referrer-Policy); Vertragsdokumente außer PDF als `attachment`. Mittel.
+- **V6** SQL-Verbindung ohne `TrustServerCertificate` (Server-Zertifikat nötig). Mittel.
+- **V7** Launch-Profil `http-prod-db` entfernen oder Dev-Auth an localhost-DB koppeln. Mittel, sehr klein.
+- **V8** Audit-Ansicht für Admins, 403/Rollenwechsel/Geheimnis-Änderung als eigene Log-Einträge, Aufbewahrungsregel. Mittel.
+- **V9** `db_ddladmin` begründen oder Migrationen als Publish-Schritt. Mittel.
+- **V10** Backups einrichten, Restore einmal testen, Schlüsselbund-Notfallweg dokumentieren. Mittel.
+- **V11** Tests für Pfadprüfung, Vertraulich-Filter, Policies; Build+Test+Scan als Skript. Niedrig.
+- **V12** Einheitliche Eingabevalidierung (400 statt 500). Niedrig.
+- **V13** Rate-Limits und globale Body-Limits vor einem Außenzugang. Niedrig.
+- **V14** Admin kann jedes Verzeichnis als Ablage setzen; App-Pool per NTFS eng halten. Niedrig.
+- **V15** `AllowedHosts` auf die echten Hostnamen. Niedrig.
 
 ---
 
 ## Teil 3 · Kurzfassung für Folien
 
-**Gesamteinschätzung:** Für eine interne Fachanwendung in Phase 1 ist das
-Sicherheitsniveau **überdurchschnittlich**. Die schwer nachrüstbaren Dinge
-(keine eigene Passwortdatenbank, deny-by-default, serverseitige Rollen,
-verschlüsselte Geheimnisse, unveränderliche Dokumente, Audit-Log, Datensparsamkeit
-nach außen) sind von Anfang an richtig gebaut. Die offenen Punkte sind
-überwiegend **Betriebs- und Härtungsthemen** (TLS, Paket-Updates, Header), die
-sich mit geringem Aufwand schließen lassen. Ein echter Logikfehler ist nur V3
-(deaktivierte Konten lesen weiter).
+**Gesamteinschätzung:** Das Sicherheitsniveau ist gegenüber dem 15.10.
+**gestiegen**: die drei damaligen Hoch-Prio-Punkte (HTTPS, Pakete, aktive
+Mitarbeiter) sind umgesetzt, und die neuen Bereiche (Vorgänge, Chatter-Import,
+Zertifikate, Mail) halten die Grundregeln ein: deny-by-default, Rollen aus der
+DB, Geheimnisse verschlüsselt und write-only, Pfade geprüft, externe Anhänge
+nur als Download, kein XSS im Wiki-Formatierer. Der einzige echte neue Befund
+ist die Zertifikats-Live-Prüfung (N1): ein fehlendes Policy-Attribut und zu
+gesprächige Fehlertexte, beides in einer Stunde behoben. Alles Weitere sind
+Robustheit (Parallelläufe, Transaktionen), Hygiene (Audit-Rauschen) und die
+bekannten Betriebsthemen (CSRF-/Security-Header, SQL-Zertifikat, Backups).
 
 **Fünf Stärken**
-1. Keine Passwörter, keine Tokens im eigenen System — Identität kommt aus der AD.
-2. Jeder Endpunkt geschützt, Rollen werden aus der Datenbank geprüft, nie aus dem Frontend.
-3. Funktionstrennung: Admin sieht keine vertraulichen Verträge; Compliance gibt Vorlagen frei.
-4. Geheimnisse DPAPI-verschlüsselt, write-only, nie in Logs oder Audit.
-5. Dokumente unveränderlich mit SHA-256, optional signiert; alles landet im Audit-Log.
+1. Keine Passwörter, keine Tokens im eigenen System; HTTPS seit 29.10.
+2. 131 Endpunkte, alle geschützt; Rollen aus der Datenbank; Deaktivieren sperrt aus.
+3. Vier Geheimnisse DPAPI-verschlüsselt, write-only, nie in Logs oder Antworten.
+4. Externe Inhalte (Odoo-Chatter, Wiki-Text) werden sicher ausgeliefert bzw. kodiert.
+5. Dokumente unveränderlich, alles im Audit-Log, Build warnungsfrei, 145 Tests grün.
 
-**Fünf Maßnahmen als Nächstes**
-1. HTTPS mit internem Zertifikat (V1).
-2. Pakete auf 10.0.13, Scan vor jedem Publish (V2).
-3. Zugang nur für aktive Mitarbeiter, Deaktivieren = Aussperren (V3).
-4. CSRF-Header und Security-Header (V4, V5).
-5. SQL-Zertifikat, Backups, Audit-Ansicht (V6, V8, V10).
+**Fünf Maßnahmen als Nächstes** (N1 am 29.10. erledigt)
+1. Vorgangs-Abgleich sperren, Transaktionen bei Vertrag/Vorlage (N2, N3).
+2. Audit-Rauschen und fehlenden Index beheben (N4).
+3. CSRF- und Security-Header, Profil `http-prod-db` entfernen (V4, V5, V7).
+4. Kleine Härtungen: PFX-Pfad, Kundennummer, URL-Schema (N5).
+5. Backups, SQL-Zertifikat, Test/Prod-Trennung zum Produktiv-Reset (V10, V6, E4).
 
 **Zahlen für eine Folie**
-| Kennzahl | Wert |
-|---|---|
-| Geprüfte Regeln | 50 |
-| davon „gut" | 32 |
-| davon „solide" | 6 |
-| davon „ausbaufähig" | 12 |
-| Verbesserungspunkte | 15 (3 hoch, 7 mittel, 5 niedrig) |
-| Bekannte Paket-Schwachstellen (Stand 15.10.2026) | 8 Advisories in 4 Paketen, alle mit Fix in 10.0.13 |
+| Kennzahl | 15.10.2026 | 29.10.2026 |
+|---|---|---|
+| Geprüfte Regeln | 50 | 61 |
+| davon „gut" | 32 | 37 (nach N1) |
+| davon „solide" | 6 | 15 |
+| davon „ausbaufähig" | 12 | 9 |
+| Offene Verbesserungspunkte Sicherheit | 15 | 17 (0 hoch, 11 mittel, 6 niedrig) + 4 Entscheidungen |
+| Bekannte Paket-Schwachstellen | 8 in 4 Paketen | 0 |
+| Unit-Tests | 28 | 177, alle grün |
+| Build-Warnungen | – | 0 |
+
+---
+
+## Teil 4 · Qualität und Performance (neu)
+
+Sortiert nach Nutzen. Aufwand: klein = unter einem Tag, mittel = wenige Tage,
+groß = schrittweise.
+
+**Q1 · Fehlender Index auf `Aktivitaeten(VerweisTyp, VerweisId)`.** (klein)
+Vier heiße Abfragen filtern darauf (Vorgangs-Detail, Akte-Aufgaben,
+Strang umhängen, Vertrag löschen). Nach dem Chatter-Import hat die Tabelle
+zehntausende Zeilen, jeder Vorgangsaufruf scannt sie komplett.
+`ErpDbContext.cs:111-131` + Migration, gefiltert auf `VerweisId IS NOT NULL`.
+
+**Q2 · Vertragsliste und Kennzahlen laden alle Verträge in den Speicher.** (mittel)
+`VertraegeController.Liste` materialisiert alle Verträge mit Bestandteilen,
+filtert und pagt dann im Speicher (wegen des berechneten Vertragsendes);
+`Kennzahlen` lädt dieselbe Menge erneut. Maßnahme: Vertragsende als persistierte
+Spalte beim Speichern berechnen, dann `Skip/Take` in SQL.
+
+**Q3 · Mitarbeiter-Lookup 3–5× pro Request.** (klein)
+Fallback-Policy, Rollen-Handler, Controller-Hilfen und `ErmittleMitarbeiterId`
+fragen denselben Datensatz je Request mehrfach ab (18 Vorkommen in 12 Dateien).
+Maßnahme: `IAktuellerBenutzer` (scoped) um einen Lazy-Cache mit Id, Rollen,
+Aktiv erweitern; alle Stellen darauf umstellen. Beseitigt zugleich Duplikate.
+
+**Q4 · Kategorie-Regel in vier Kopien.** (mittel)
+`KundenController` enthält die Regel für Kundenkategorien viermal (Filter,
+Projektion, Einzeln mit acht sequenziellen `AnyAsync`, `KategorienAsync`).
+Maßnahme: Expression-Bausteine im Domain-Projekt, einmal definiert.
+
+**Q5 · Kein globales Exception-Handling.** (klein)
+Kein `UseExceptionHandler`/`AddProblemDetails`; `DbUpdateException`,
+Unique-Verstöße und `NummernkreisDienst`-Fehler enden als 500. Maßnahme:
+ProblemDetails + Mapping `DbUpdateException` → 409, Validierung → 400.
+
+**Q6 · Verlaufseintrag in sechs Varianten von Hand gebaut.** (mittel)
+Vier Stellen im `KundenController`, je eine in `VertraegeController`,
+`AkteController`, `VorgangsProtokoll`, mit unbeabsichtigten Unterschieden
+(Teilnehmer, Stufe). Dazu `Kuerzen` fünffach. Maßnahme: ein `VerlaufDienst`
+als einziger Schreibweg.
+
+**Q7 · Vorgangs-Abgleich: Parallelläufe und N+1.** (mittel) Siehe N2; zusätzlich
+je Kandidat zwei Abfragen und je Vorgang Laden + SaveChanges.
+
+**Q8 · Importe ignorieren das Herunterfahren.** (klein bis mittel)
+`OdooImportDienst` und `ChatterImportDienst` starten per `Task.Run` ohne
+`ApplicationStopping`-Token; die Importer selbst nehmen keinen
+`CancellationToken`. `ChatterImportDienst.Bericht` kopiert bei jedem Status-Poll
+bis zu 4 MB. Maßnahme: Lifetime-Token durchreichen, Bericht ab Offset liefern.
+
+**Q9 · Zeitwerte gemischt.** (klein)
+`DateTime.Now`/`Today` (Vorgänge, Aufgaben, Verträge) neben `UtcNow`
+(Zertifikate, Akte-Überblick). Zwischen 0 und 2 Uhr weichen Fälligkeiten und
+Tagesläufe um einen Tag ab. Maßnahme: ein `Uhr`-Dienst mit `HeuteLokal`
+(Europe/Berlin) und `JetztUtc`.
+
+**Q10 · Zertifikats-Erinnerungen: Mail raus, Status erst am Ende gespeichert.** (klein)
+Stirbt der Prozess in der Schleife, gehen beim nächsten Takt alle Mails erneut
+raus. Maßnahme: SaveChanges nach jeder erfolgreichen Mail.
+
+**Q11 · Sehr lange Methoden.** (groß, schrittweise)
+19 Methoden über 80 Zeilen, Spitzenreiter `OdooImporter.AusfuehrenAsync` (359),
+`VertragsBestandScanner` (220), `ChatterImporter` (188), `KundenController.Liste`
+(131). Fachlogik in Controllern: PDF/Ablage/Nummern in `AusVorlage`,
+Dateioperationen in `Freigeben`. Prioritär `AusVorlage` + `VorbereitenAsync` →
+`VertragsErzeugungDienst`, `Freigeben` → `VorlagenFreigabeDienst`; dann sind
+beide testbar (Q12).
+
+**Q12 · Tests decken nur reine Domain-/Parser-Logik ab.** (mittel)
+145 Tests ohne Datenbank: ChatterFilter (31), VorgangsLogik (19), Zertifikat-
+Erinnerung (10), Wiki (15), Preisliste (7), Vertragsende, Dokumentdatum,
+Aufgaben. Fehlt: Rollen-Policies, `WikiBerechtigung`, Pfadprüfungen,
+Vertraulich-Filter, Nummernkreis-Retry, Vorgangs-Abgleich, Audit/Unveränderlichkeit,
+Kategorie-Regel. Pfad- und Vertraulich-Hilfen sind `private static` — in eigene
+Klassen ziehen, dann sind es reine Unit-Tests; für Policies und Nummernkreis
+Sqlite-InMemory einführen.
+
+**Q13 · Hintergrund-Intervalle hart codiert.** (klein)
+Nur der Serverstatus-Takt ist konfigurierbar; Zertifikate und Abgleich
+(1 h) sowie die Startverzögerungen sind fest. Maßnahme: Sektion `Hintergrund`
+in `appsettings`.
+
+**Q14 · DEPLOYMENT.md als Änderungsprotokoll.** (klein, Doku)
+Über 20 offene „Publish aktualisieren"-Kästchen seit September. Maßnahme:
+erledigte Publishes abhaken oder in ein `CHANGELOG.md` verschieben; in
+DEPLOYMENT.md nur noch die tatsächlich offenen Serverschritte führen.
+
+**Kleinere Hinweise:** `KundenController.Liste` mit 15 korrelierten `EXISTS`
+pro Zeile (bei wenigen hundert Kunden in Ordnung); `VorgaengeController.Uebersicht`
+lädt stets alle laufenden Vorgänge (in Ordnung bei heutiger Menge);
+`VorlagenController` nutzt synchrones `File.Copy`; `OdooClient` ohne expliziten
+Timeout (100 s Standard); `AsNoTracking` ist bei Lesezugriffen durchgängig
+gesetzt (106 Vorkommen); Paging überall außer Vertragsliste.
+
+**Paketstand (29.10.2026):** alle Microsoft-Pakete 10.0.13 (10.0.14 verfügbar),
+Microsoft.Identity.Web 4.14.2 (4.16.1), Telerik 2026.3.923 (2026.3.1027),
+Test-SDK 17.14.1 (18.11.0). Keine Schwachstellen.
 
 ---
 
 ## Anhang · Prüfumfang
 
-Geprüft: `Program.cs`, alle Controller und Dienste der API, `ErpDbContext`,
-Domain-Entitäten (Mitarbeiter, Geheimnisse, Verträge, Vorlagen, Wiki),
-Import-Tool (`OdooZugang`, `OdooClient`), Blazor-Frontend (`index.html`,
-`Program.cs`, Razor-Seiten auf Roh-HTML), `appsettings*`, `launchSettings`,
-`web.config`, `.gitignore`, Git-Verlauf auf Lizenz-/Schlüsseldateien,
-NuGet-Schwachstellenscan über alle Projekte.
+Geprüft: `Program.cs`, alle 17 Controller mit 131 Endpunkten (Policy je
+Endpunkt, Zusatzprüfungen im Methodenkörper, DTO-Felder), alle Dienste der API
+(Policies, Geheimnisse, Mail, Zertifikate, Serverstatus, Odoo-Import, Chatter-
+Import, Vorgangs-Abgleich, PDF, Vorlagen), `ErpDbContext` (Audit, Indizes,
+Unveränderlichkeit), Domain-Entitäten, Import-Tool, Blazor-Frontend
+(`MarkupString`, HttpClient-Setup, Admin-Seite), `appsettings*`,
+`launchSettings`, `.gitignore`, Git-Verlauf auf Geheimnisse und
+Zertifikatsdateien, Build, Testlauf, NuGet-Schwachstellen- und Veraltet-Scan,
+DEPLOYMENT.md-Stand.
 
 Nicht geprüft: tatsächliche IIS-, NTFS- und SQL-Server-Konfiguration auf dem
 Server, GPOs, Netzsegmentierung, Telerik-Bibliotheken selbst, das externe
-Service Portal.
+Service Portal, Odoo selbst.

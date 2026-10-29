@@ -54,4 +54,7 @@ public static class EinstellungsSchluessel
     public const string ZertifikateWochenberichtTag = "Zertifikate.WochenberichtTag";
     public const string ZertifikateLetzterWochenbericht = "Zertifikate.LetzterWochenbericht";
     public const string ZertifikateServerAutomatisch = "Zertifikate.ServerAutomatisch";
+    // Schutz der Live-Prüfung (SICHERHEIT.md N1): nur diese Ports, Statusmails nur an diese Domänen
+    public const string ZertifikateErlaubtePorts = "Zertifikate.ErlaubtePorts";
+    public const string ZertifikateEmpfaengerDomaenen = "Zertifikate.EmpfaengerDomaenen";
 }

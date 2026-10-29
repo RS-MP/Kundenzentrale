@@ -18,6 +18,22 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (29.10.2026, SICHERHEIT.md N1 — Zertifikatsüberwachung
+  gehärtet):** Migration `ZertifikatPruefregeln` läuft automatisch (zwei neue
+  Einstellungen `Zertifikate.ErlaubtePorts` = „443, 8443" und
+  `Zertifikate.EmpfaengerDomaenen` = leer → Domäne der Absenderadresse).
+  Wirkung: „Prüfen" nur noch für Support/Admin; Hostname muss DNS-Name oder
+  IP sein (kein localhost/Loopback/Link-Local); Port nur aus der Liste;
+  Empfänger je Zertifikat nur in den erlaubten Domänen; Fehlertexte der
+  Live-Prüfung sind feste Kategorien (Details nur im Log). Nach dem Update:
+  1) Administration → E-Mail-Versand: `Mail.Absender` muss gesetzt sein, sonst
+     gilt keine Domänen-Einschränkung (Hinweis in der Zertifikate-Seite).
+  2) Zertifikate-Seite prüfen: Einträge mit anderem Port als 443/8443 zeigen
+     nach dem nächsten Takt „Port … ist nicht zulässig" — dann entweder Port in
+     `Zertifikate.ErlaubtePorts` ergänzen oder Eintrag korrigieren.
+  3) Bestehende Empfänger außerhalb der eigenen Domäne werden beim Versand
+     übersprungen (Mailfehler-Text am Zertifikat nennt es) — ggf. Domäne ergänzen.
+
 - [ ] **Publish aktualisieren (23.10.2026 spät, Akte „Was lief zuletzt?"):**
   Migration `AkteUeberblick` läuft automatisch (Tabellen AktivitaetTeilnehmer,
   Vereinbarungen, Aufgaben). Die linke Spalte der Kundenakte ist neu

@@ -68,6 +68,7 @@ else
                     <label>
                         Port
                         <input type="number" min="1" max="65535" @bind="f.Port" />
+                        <span class="neben">Erlaubt: @string.Join(", ", _uebersicht.ErlaubtePorts)</span>
                     </label>
 
                     <div class="zert-block">Laufzeit und Erinnerung</div>
@@ -92,7 +93,7 @@ else
                     <label class="sp4">
                         E-Mail-Empfänger
                         <input type="text" maxlength="1000" @bind="f.Empfaenger" placeholder="technik@rausoft.de, mp@rausoft.de" />
-                        <span class="neben">Mehrere mit Komma. Leer = Standardempfänger@(_uebersicht.StandardEmpfaenger is { Length: > 0 } se ? $" ({se})" : " — in der Administration noch nicht gesetzt").</span>
+                        <span class="neben">Mehrere mit Komma. Leer = Standardempfänger@(_uebersicht.StandardEmpfaenger is { Length: > 0 } se ? $" ({se})" : " — in der Administration noch nicht gesetzt").@(_uebersicht.EmpfaengerDomaenen.Count > 0 ? $" Nur Adressen @{string.Join(", @", _uebersicht.EmpfaengerDomaenen)}." : "")</span>
                     </label>
                     <label class="sp4">
                         Notiz
