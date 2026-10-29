@@ -232,7 +232,12 @@ nächsten Server-Update Publish kopieren und die Punkte abhaken:
   unter der Default Web Site, eigener App-Pool; alte 8081-Site + Firewall-Regel
   entfernt).
 - [x] ~~GPO: Intranetzone~~ — erledigt 11.09.2026 (eigene GPO
-  „Kundenzentrale Intranetzone", Benutzerkonfiguration, `http://rs-w2019-01` = 1). (einmalig, AD-seitig) — damit KEIN Benutzer je
+  „Kundenzentrale Intranetzone", Benutzerkonfiguration, `http://rs-w2019-01` = 1).
+  **Korrektur 29.10.2026:** Laut `gpresult /r /scope user` am Arbeitsplatz wirkt
+  diese GPO nicht; die Zonenliste kommt aus der GPO **„Lokale Anwendungen"**
+  (Benutzerkonfiguration, Registry `HKCU\Software\Policies\…\ZoneMapKey`).
+  Änderungen an der Zonenliste dort vornehmen.
+  Ursprüngliche Anleitung (einmalig, AD-seitig) — damit KEIN Benutzer je
   einen Anmeldedialog sieht: Benutzerkonfiguration → Administrative Vorlagen
   → Windows-Komponenten → Internet Explorer → Internetsystemsteuerung →
   Sicherheitsseite → „Liste der Site zu Zonenzuweisungen": `http://rs-w2019-01`
@@ -353,7 +358,7 @@ Kundendaten laufen nicht mehr im Klartext. Reihenfolge, ca. 30–45 Minuten:
 3. **Test im Browser:** `https://rs-w2019-01/Kundenzentrale` und
    `https://kundenzentrale.<domäne>/Kundenzentrale` müssen ohne Warnung laden
    und die Windows-Anmeldung unsichtbar durchlaufen. Falls ein Anmeldedialog
-   erscheint: beide https-Adressen in der GPO „Kundenzentrale Intranetzone"
+   erscheint: beide https-Adressen in der GPO „Lokale Anwendungen"
    ergänzen (`https://rs-w2019-01` = 1, `https://kundenzentrale.<domäne>` = 1).
    **Auch den Urlaubsplaner über https aufrufen** — er hängt an derselben
    Default Web Site und muss dort ebenfalls funktionieren (siehe Schritt 4).
