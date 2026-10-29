@@ -16,7 +16,7 @@ namespace Rausoft.Erp.Api.Controllers;
 [ApiController]
 [Route("api/mitarbeiter")]
 [Authorize(Policy = "Admin")]
-public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer) : ControllerBase
+public class MitarbeiterController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     internal static readonly (MitarbeiterRolle Rolle, string Name)[] AlleRollen =
     [
@@ -162,11 +162,7 @@ public class MitarbeiterController(ErpDbContext db, IAktuellerBenutzer benutzer)
         return NoContent();
     }
 
-    private Task<int?> EigeneId(CancellationToken ct) =>
-        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
-            ? Task.FromResult<int?>(null)
-            : db.Mitarbeiter.Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-                .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+    private Task<int?> EigeneId(CancellationToken ct) => angemeldet.IdAsync(ct);
 
     private static MitarbeiterEintrag NachEintrag(Mitarbeiter m, int? eigeneId) => new(
         m.Id, m.WindowsKonto, m.Anzeigename, m.Email,

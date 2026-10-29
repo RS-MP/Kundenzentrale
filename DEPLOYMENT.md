@@ -18,6 +18,18 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (29.10.2026, SICHERHEIT.md Paket 1+2):** Migration
+  `VorgangRowVersionUndVerweisIndex` läuft automatisch (RowVersion auf
+  Vorgänge, Index auf Aktivitäten-Verweise). Wirkung: schreibende API-Aufrufe
+  verlangen die Kopfzeile `X-Requested-With: Kundenzentrale` (setzt das
+  Frontend selbst — **Browser-Cache leeren bzw. Seite hart neu laden**, sonst
+  bekommt ein altes Frontend 403 bei jedem Speichern); Security-Header;
+  Vertragsdokumente außer PDF kommen als Download; Datenbankkonflikte melden
+  409 mit Text; Vorgangs-Abgleich läuft nur einmal gleichzeitig; Audit-Log
+  ohne Takt-Rauschen; Odoo-/Portal-URL in den Einstellungen nur noch https.
+  Vor dem Kopieren `wwwroot\_framework` auf dem Server leeren (alte
+  Assembly-Stände sammeln sich dort an).
+
 - [ ] **Publish aktualisieren (29.10.2026, SICHERHEIT.md N1 — Zertifikatsüberwachung
   gehärtet):** Migration `ZertifikatPruefregeln` läuft automatisch (zwei neue
   Einstellungen `Zertifikate.ErlaubtePorts` = „443, 8443" und

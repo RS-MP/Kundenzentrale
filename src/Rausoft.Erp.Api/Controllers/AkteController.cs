@@ -16,7 +16,7 @@ namespace Rausoft.Erp.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/kunden")]
-public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : ControllerBase
+public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     private const int MaxTage = 3650;
 
@@ -465,9 +465,5 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
             ? null
             : (await VorgaengeAsync(kundeId, ct)).FirstOrDefault(v => v.Schluessel == schluessel);
 
-    private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) =>
-        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
-            ? Task.FromResult<int?>(null)
-            : db.Mitarbeiter.Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-                .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+    private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) => angemeldet.IdAsync(ct);
 }

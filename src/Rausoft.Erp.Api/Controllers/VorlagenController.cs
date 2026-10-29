@@ -16,7 +16,7 @@ namespace Rausoft.Erp.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/vorlagen")]
-public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : ControllerBase
+public class VorlagenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     private const string FreigabeOrdner = "Freigegeben";
 
@@ -294,9 +294,7 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
         var heute = DateOnly.FromDateTime(DateTime.Today);
         var gueltigAb = freigabe.GueltigAb is { } datum && datum > heute ? datum : heute;
 
-        var mitarbeiterId = await db.Mitarbeiter
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+        var mitarbeiterId = await angemeldet.IdAsync(ct);
 
         // Unveränderte Datei nicht erneut freigeben — sonst entstünden inhaltsgleiche Versionen
         var quellSha = Convert.ToHexString(
@@ -312,19 +310,17 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
         Directory.CreateDirectory(Path.Combine(verzeichnis, FreigabeOrdner));
         if (System.IO.File.Exists(ziel))
             return BadRequest($"Die Versionsdatei existiert bereits: {relativerPfad}");
-        System.IO.File.Copy(quelle, ziel);
 
-        string pruefsumme;
-        await using (var stream = System.IO.File.OpenRead(ziel))
-            pruefsumme = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(stream, ct))
-                .ToLowerInvariant();
-
+        // Erst die Datenbank (der Unique-Index VorlageId+Nummer fängt eine gleichzeitige Freigabe
+        // als 409 ab), dann die eingefrorene Kopie; schlägt das Kopieren fehl, rollt die
+        // Transaktion den Versionseintrag zurück — keine verwaiste Datei (SICHERHEIT.md N3).
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         vorlage.Versionen.Add(new VorlagenVersion
         {
             Vorlage = vorlage,
             Nummer = nummer,
             Dateipfad = relativerPfad,
-            Sha256 = pruefsumme,
+            Sha256 = quellSha,   // die Kopie ist byteidentisch mit der Quelle
             FreigegebenAm = DateTime.UtcNow,
             FreigegebenVonId = mitarbeiterId,
             QuellDateiname = freigabe.Dateiname,
@@ -332,6 +328,10 @@ public class VorlagenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
             Notiz = string.IsNullOrWhiteSpace(freigabe.Notiz) ? null : freigabe.Notiz.Trim(),
         });
         await db.SaveChangesAsync(ct);
+        await using (var von = System.IO.File.OpenRead(quelle))
+        await using (var nach = System.IO.File.Create(ziel))
+            await von.CopyToAsync(nach, ct);
+        await tx.CommitAsync(ct);
 
         var neueste = vorlage.Versionen.OrderByDescending(v => v.Nummer).First();
         return Ok(new VorlageEintrag(vorlage.Id, vorlage.Name, vorlage.Aktiv,

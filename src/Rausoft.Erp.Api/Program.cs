@@ -69,6 +69,8 @@ builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHand
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, BetriebAnforderungHandler>();
 // Wiki: Themen-Freigabe je Redakteur (kein Policy, weil themenabhängig)
 builder.Services.AddScoped<WikiBerechtigung>();
+// Mitarbeiter-Datensatz zum Konto einmal je Request (Policies, Controller, Wiki) — SICHERHEIT.md Q3
+builder.Services.AddScoped<AngemeldeterMitarbeiter>();
 
 // Blazor WASM (eigener Dev-Port) darf die API in der Entwicklung aufrufen
 builder.Services.AddCors();
@@ -106,12 +108,19 @@ builder.Services.AddHostedService<ZertifikatHintergrund>();
 builder.Services.AddScoped<VorgangsAbgleichDienst>();
 builder.Services.AddHostedService<VorgangsAbgleichHintergrund>();
 
+// Datenbankkonflikte (RowVersion, Unique-Index) als 409 mit Text statt 500 (SICHERHEIT.md Q5)
+builder.Services.AddExceptionHandler<DatenbankFehlerHandler>();
+
 builder.Services.AddControllers().AddJsonOptions(options =>
     // Übergangslösung bis zur DTO-Schicht: Navigations-Zyklen (Kunde ↔ Ansprechpartner) kappen
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+// Muss ganz vorn stehen, damit auch Ausnahmen aus der Autorisierung und den
+// Controllern hier ankommen; ohne registrierten Handler bleibt es beim 500.
+app.UseExceptionHandler(_ => { });
 
 // Migrationen automatisch anwenden — Einzelinstanz-Betrieb, das Deployment
 // braucht so keinen separaten Migrationsschritt.
@@ -199,6 +208,9 @@ if (app.Environment.IsDevelopment())
         .AllowAnyHeader()
         .AllowAnyMethod());
 }
+
+// Security-Header und CSRF-Kopfzeile für schreibende API-Aufrufe (SICHERHEIT.md V4/V5)
+app.UseSchutzKopfzeilen();
 
 app.UseAuthentication();
 

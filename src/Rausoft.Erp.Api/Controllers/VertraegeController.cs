@@ -12,7 +12,8 @@ namespace Rausoft.Erp.Api.Controllers;
 [ApiController]
 [Route("api/vertraege")]
 public class VertraegeController(
-    ErpDbContext db, NummernkreisDienst nummernkreis, IAktuellerBenutzer benutzer, Dienste.PdfDienst pdfDienst)
+    ErpDbContext db, NummernkreisDienst nummernkreis, Dienste.PdfDienst pdfDienst,
+    Dienste.AngemeldeterMitarbeiter angemeldet)
     : ControllerBase
 {
     private const int MaxProSeite = 100;
@@ -220,7 +221,9 @@ public class VertraegeController(
         if (anlage.PartnerId is { } partnerId && (partner = await db.Partner.FindAsync([partnerId], ct)) is null)
             return BadRequest("Der angegebene Partner existiert nicht.");
 
-        // Nummer zuerst ziehen (eigener SaveChanges), dann den Vertrag anlegen
+        // Nummer, Vertrag und Verlauf in EINER Transaktion (SICHERHEIT.md N3): bricht es
+        // nach der Nummernvergabe ab, wird auch die Nummer nicht verbraucht.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var nummer = await nummernkreis.NaechsteNummerAsync("Vertrag", ct);
 
         var vertrag = new Vertrag
@@ -250,6 +253,7 @@ public class VertraegeController(
         await VerlaufAsync(kunde?.Id,
             $"Vertrag {nummer} angelegt", null, vertrag.Id, ct);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         vertrag.Kunde = kunde;
         vertrag.Partner = partner;
@@ -581,6 +585,12 @@ public class VertraegeController(
         if (v.AngebotsNummer is null && anlage.AboId != 0)
             offene.Add("Angebotsnummer (kein Angebot/Abo beim Kunden)");
 
+        // Nummer, Datenbank und Dateien gehören zusammen (SICHERHEIT.md N3): Die Transaktion
+        // umfasst Nummernvergabe und Vertragsakte; die Dateien werden erst geschrieben, wenn
+        // die Datenbank sie annimmt, und bei einem Fehler vor dem Commit wieder entfernt.
+        // So bleiben weder verwaiste PDFs noch verbrauchte Vertragsnummern zurück.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
         // Vertragsnummer vorab — sie steht in den PDF-Metadaten/der Signatur
         var nummer = await nummernkreis.NaechsteNummerAsync("Vertrag", ct);
 
@@ -605,13 +615,8 @@ public class VertraegeController(
         for (var n = 1; System.IO.File.Exists(zielPfad)
              || System.IO.File.Exists(Path.ChangeExtension(zielPfad, ".docx")); n++)
             zielPfad = Path.Combine(v.ZielVoll, $"{dateiBasis}-{n}.pdf");
-        await System.IO.File.WriteAllBytesAsync(zielPfad, pdfBytes, ct);
-        await System.IO.File.WriteAllBytesAsync(Path.ChangeExtension(zielPfad, ".docx"), speicher.ToArray(), ct);
-
-        string pruefsumme;
-        await using (var stream = System.IO.File.OpenRead(zielPfad))
-            pruefsumme = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(stream, ct))
-                .ToLowerInvariant();
+        var docxPfad = Path.ChangeExtension(zielPfad, ".docx");
+        var pruefsumme = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(pdfBytes)).ToLowerInvariant();
 
         // Vertragsakte (Entwurf) + Bestandteil + Dokumentversion
         var vertrag = new Vertrag
@@ -653,6 +658,20 @@ public class VertraegeController(
         await VerlaufAsync(kunde.Id,
             $"Vertrag {nummer} aus Vorlage „{v.VorlagenStand}“ erstellt", null, vertrag.Id, ct);
         await db.SaveChangesAsync(ct);
+
+        try
+        {
+            await System.IO.File.WriteAllBytesAsync(zielPfad, pdfBytes, ct);
+            await System.IO.File.WriteAllBytesAsync(docxPfad, speicher.ToArray(), ct);
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            // Datenbank rollt beim Dispose der Transaktion zurück — die Dateien müssen wir selbst entfernen
+            foreach (var pfad in new[] { zielPfad, docxPfad })
+                try { if (System.IO.File.Exists(pfad)) System.IO.File.Delete(pfad); } catch (IOException) { }
+            throw;
+        }
 
         return Ok(new VorlagenErgebnis(vertrag.Id, nummer, Path.GetFileName(zielPfad), offene));
     }
@@ -829,10 +848,14 @@ public class VertraegeController(
 
         new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider()
             .TryGetContentType(dokument.DateinameOriginal, out var contentType);
+        contentType ??= "application/octet-stream";
 
         var stream = System.IO.File.OpenRead(dokument.Dateipfad);
-        // Ohne fileDownloadName → Anzeige inline (Vorschau) statt Download
-        return File(stream, contentType ?? "application/octet-stream", enableRangeProcessing: true);
+        // Nur PDF inline (Vorschau im Browser); alles andere als Download, damit eine im
+        // Archiv abgelegte HTML-/SVG-Datei nie im Kontext der Anwendung ausgeführt wird (SICHERHEIT.md V5)
+        return contentType == "application/pdf"
+            ? File(stream, contentType, enableRangeProcessing: true)
+            : File(stream, contentType, dokument.DateinameOriginal, enableRangeProcessing: true);
     }
 
     // --- Hilfen ----------------------------------------------------------------
@@ -863,17 +886,9 @@ public class VertraegeController(
             VerweisId = vertragId,
         };
 
-    private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) =>
-        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
-            ? Task.FromResult<int?>(null)
-            : db.Mitarbeiter.Where(Domain.Shared.Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-                .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+    private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) => angemeldet.IdAsync(ct);
 
-    private async Task<MitarbeiterRolle> AktuelleRollen(CancellationToken ct) =>
-        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
-            ? MitarbeiterRolle.Keine
-            : await db.Mitarbeiter.Where(Domain.Shared.Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-                .Where(m => m.Aktiv).Select(m => m.Rollen).FirstOrDefaultAsync(ct);
+    private Task<MitarbeiterRolle> AktuelleRollen(CancellationToken ct) => angemeldet.RollenAsync(ct);
 
     // --- Vertraulichkeit (FEEDBACK Nr. 20) -------------------------------------
 

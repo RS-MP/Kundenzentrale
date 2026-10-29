@@ -1,7 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using Rausoft.Erp.Data;
-using Rausoft.Erp.Domain.Shared;
 
 namespace Rausoft.Erp.Api.Dienste;
 
@@ -11,25 +8,18 @@ namespace Rausoft.Erp.Api.Dienste;
 /// Damit sperrt „Deaktivieren" in der Benutzerverwaltung wirklich aus — vorher
 /// verlor ein deaktivierter Benutzer nur die Rollenfunktionen, konnte aber
 /// weiterhin Kunden, Verträge und Preisliste lesen (SICHERHEIT.md, V3).
-/// Rollen-Policies (Admin, Compliance) prüfen zusätzlich ihre Rolle.
+/// Rollen-Policies (Admin, Compliance, Betrieb) prüfen zusätzlich ihre Rolle.
+/// Der Datensatz kommt aus <see cref="AngemeldeterMitarbeiter"/> (einmal je Request).
 /// </summary>
 public class AktiverMitarbeiterAnforderung : IAuthorizationRequirement;
 
-public class AktiverMitarbeiterAnforderungHandler(ErpDbContext db, IAktuellerBenutzer benutzer)
+public class AktiverMitarbeiterAnforderungHandler(AngemeldeterMitarbeiter angemeldet)
     : AuthorizationHandler<AktiverMitarbeiterAnforderung>
 {
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context, AktiverMitarbeiterAnforderung anforderung)
     {
-        if (benutzer.EntraObjectId is null && benutzer.WindowsKonto is null)
-            return;
-
-        var aktiv = await db.Mitarbeiter.AsNoTracking()
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Select(m => m.Aktiv)
-            .FirstOrDefaultAsync();
-
-        if (aktiv)
+        if (await angemeldet.AktivAsync())
             context.Succeed(anforderung);
     }
 }

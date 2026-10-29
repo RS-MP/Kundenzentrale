@@ -14,7 +14,8 @@ namespace Rausoft.Erp.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/wiki")]
-public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienste.WikiBerechtigung berechtigung)
+public class WikiController(ErpDbContext db, Dienste.WikiBerechtigung berechtigung,
+    Dienste.AngemeldeterMitarbeiter angemeldet)
     : ControllerBase
 {
     /// <summary>Regionen in Anzeigereihenfolge — DE und EU zuerst, dann nach Bedeutung für unsere Kunden.</summary>
@@ -112,9 +113,7 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
         }
         prozess.Text = Leer(daten.Text);
         prozess.GeaendertAm = DateTime.UtcNow;
-        prozess.GeaendertVonId = await db.Mitarbeiter
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+        prozess.GeaendertVonId = await angemeldet.IdAsync(ct);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -419,21 +418,11 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
         return ergebnis;
     }
 
-    private async Task<bool> DarfInternesAsync(CancellationToken ct)
-    {
-        if (benutzer.EntraObjectId is null && benutzer.WindowsKonto is null)
-            return false;
-        var rollen = await db.Mitarbeiter.AsNoTracking()
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Where(m => m.Aktiv).Select(m => m.Rollen).FirstOrDefaultAsync(ct);
-        // Interne Preisliste: Vertrieb, Admin, Compliance (Entscheidung MP 14.10.2026)
-        return rollen.HasFlag(MitarbeiterRolle.Vertrieb) || rollen.HasFlag(MitarbeiterRolle.Admin)
-               || rollen.HasFlag(MitarbeiterRolle.Compliance);
-    }
+    // Interne Preisliste: Vertrieb, Admin, Compliance (Entscheidung MP 14.10.2026)
+    private Task<bool> DarfInternesAsync(CancellationToken ct) =>
+        angemeldet.HatRolleAsync(MitarbeiterRolle.Vertrieb | MitarbeiterRolle.Admin | MitarbeiterRolle.Compliance, ct);
 
-    private Task<int?> EigeneIdAsync(CancellationToken ct) =>
-        db.Mitarbeiter.Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+    private Task<int?> EigeneIdAsync(CancellationToken ct) => angemeldet.IdAsync(ct);
 
     private static PreislisteVersionEintrag NachVersion(PreislistenVersion p) => new(
         p.Id, p.Version, p.Stand, p.GueltigAb, p.DateiIntern, p.DateiExtern,
@@ -482,9 +471,7 @@ public class WikiController(ErpDbContext db, IAktuellerBenutzer benutzer, Dienst
         liste.Prozess = Leer(d.Prozess);
         liste.Aktiv = d.Aktiv;
         liste.GeaendertAm = DateTime.UtcNow;
-        liste.GeaendertVonId = await db.Mitarbeiter
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+        liste.GeaendertVonId = await angemeldet.IdAsync(ct);
         return null;
     }
 

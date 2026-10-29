@@ -15,7 +15,7 @@ namespace Rausoft.Erp.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/vorgangstypen")]
-public class VorgangstypenController(ErpDbContext db, IAktuellerBenutzer benutzer) : ControllerBase
+public class VorgangstypenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<VorgangstypenUebersicht>> Liste(CancellationToken ct)
@@ -27,7 +27,7 @@ public class VorgangstypenController(ErpDbContext db, IAktuellerBenutzer benutze
             .OrderByDescending(t => t.Aktiv).ThenBy(t => t.Name)
             .Select(t => new { t.Id, t.Name, t.Beschreibung, t.Aktiv, t.Stand, Schritte = t.Schritte.Count })
             .ToListAsync(ct);
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         return Ok(new VorgangstypenUebersicht(
             typen.Select(t => new VorgangstypEintrag(t.Id, t.Name, t.Beschreibung, t.Aktiv, t.Stand, t.Schritte,
                 laufend.GetValueOrDefault(t.Id))).ToList(),
@@ -57,7 +57,7 @@ public class VorgangstypenController(ErpDbContext db, IAktuellerBenutzer benutze
     [HttpPost]
     public async Task<ActionResult<int>> Anlegen(VorgangstypSpeichern daten, CancellationToken ct)
     {
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (!await DarfTypenPflegenAsync(db, ich, ct))
             return Forbid();
         var (schritte, fehler) = await SchritteLesenAsync(daten, null, ct);
@@ -80,7 +80,7 @@ public class VorgangstypenController(ErpDbContext db, IAktuellerBenutzer benutze
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Speichern(int id, VorgangstypSpeichern daten, CancellationToken ct)
     {
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (!await DarfTypenPflegenAsync(db, ich, ct))
             return Forbid();
         var typ = await db.Vorgangstypen.Include(t => t.Schritte).FirstOrDefaultAsync(t => t.Id == id, ct);
@@ -120,7 +120,7 @@ public class VorgangstypenController(ErpDbContext db, IAktuellerBenutzer benutze
     [HttpPost("{id:int}/kopie")]
     public async Task<ActionResult<int>> Kopieren(int id, VorgangstypKopieren kopie, CancellationToken ct)
     {
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (!await DarfTypenPflegenAsync(db, ich, ct))
             return Forbid();
         var quelle = await db.Vorgangstypen.AsNoTracking().Include(t => t.Schritte).FirstOrDefaultAsync(t => t.Id == id, ct);
@@ -152,7 +152,7 @@ public class VorgangstypenController(ErpDbContext db, IAktuellerBenutzer benutze
     [HttpPut("{id:int}/aktiv")]
     public async Task<IActionResult> Aktiv(int id, AktivSetzen setzen, CancellationToken ct)
     {
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (!await DarfTypenPflegenAsync(db, ich, ct))
             return Forbid();
         var typ = await db.Vorgangstypen.FirstOrDefaultAsync(t => t.Id == id, ct);
@@ -177,7 +177,7 @@ public class VorgangstypenController(ErpDbContext db, IAktuellerBenutzer benutze
     [HttpPost("standard")]
     public async Task<IActionResult> StandardAnlegen(CancellationToken ct)
     {
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (!await DarfTypenPflegenAsync(db, ich, ct))
             return Forbid();
         if (await db.Vorgangstypen.AnyAsync(ct))

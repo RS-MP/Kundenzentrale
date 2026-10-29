@@ -20,7 +20,7 @@ namespace Rausoft.Erp.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/vorgaenge")]
-public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer benutzer) : ControllerBase
+public partial class VorgaengeController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     private const int MaxManuelleSchritte = 20;
     private const int AbgeschlosseneTage = 90;
@@ -47,7 +47,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             .AsSplitQuery()
             .ToListAsync(ct);
 
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         var meinBereich = ich is null ? null
             : await db.Mitarbeiter.Where(m => m.Id == ich).Select(m => m.BereichId).FirstOrDefaultAsync(ct);
         var heute = Heute;
@@ -123,7 +123,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             v.Titel, v.OdooAuftrag, v.Hinweis, v.Start, StatusText(VorgangsLogik.Status(v.Schritte, heute)),
             v.ErstelltAm, v.ErstelltVon?.Anzeigename, v.AbgeschlossenAm, v.StrangName,
             v.Schritte.OrderBy(s => s.Reihenfolge).Select(s => SchrittDto(s, heute)).ToList(),
-            verlauf, await BereicheAsync(ct), mitarbeiter, await IchAsync(db, benutzer, ct)));
+            verlauf, await BereicheAsync(ct), mitarbeiter, await angemeldet.IdAsync(ct)));
     }
 
     private static VorgangSchritt SchrittDto(Aufgabe s, DateOnly heute) => new(
@@ -184,7 +184,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
         if (schritte.All(s => s.Status == AufgabenStatus.Entfallen))
             return BadRequest("Mindestens ein Schritt muss bleiben.");
 
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         var jetzt = DateTime.UtcNow;
         var strang = await OdooStrangAsync(kunde.Id, odoo, ct);
         var titel = Kuerzen(odoo is null ? typ.Name : $"{typ.Name} {odoo}", 200);
@@ -352,7 +352,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
                 return BadRequest($"Zum Auftrag {neu} läuft schon der Vorgang „{laufend.Titel}“.");
         }
 
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         v.OdooAuftrag = neu;
         // Automatisch vergebenen Titel nachziehen, von Hand geänderte Titel bleiben
         var typName = v.Vorgangstyp!.Name;
@@ -383,7 +383,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             return BadRequest("Der Hinweis darf höchstens 1.000 Zeichen lang sein.");
         if (neu == v.Hinweis)
             return NoContent();
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         Verlauf(v, ich, neu is null ? "Hinweis zum Vorgang entfernt" : v.Hinweis is null ? "Hinweis zum Vorgang gesetzt" : "Hinweis zum Vorgang geändert",
             neu is null ? $"Bisher: {v.Hinweis}" : neu, AktivitaetsStufe.Wesentlich);
         v.Hinweis = neu;
@@ -409,7 +409,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             if (vorgaenger is null || vorgaenger.Status == AufgabenStatus.Entfallen)
                 return BadRequest("Der Schritt, auf den gewartet werden soll, gehört nicht zum Vorgang oder ist entfallen.");
         }
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         var schritt = new Aufgabe
         {
             KundeId = v.KundeId,
@@ -444,7 +444,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             return NotFound();
         if (VorgangsLogik.FertigOderWeg(s))
             return BadRequest("Erledigte oder schon entfallene Schritte lassen sich nicht entfernen.");
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         var freigegeben = VorgangsLogik.Entfernen(s, v.Schritte, Heute);
         Verlauf(v, ich, $"Schritt von Hand entfernt: {s.Titel}");
         Freigabe(v, ich, freigegeben);
@@ -462,7 +462,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             return NotFound();
         if (!VorgangsLogik.Aktiv(s))
             return BadRequest("Der Schritt ist noch nicht dran oder schon fertig.");
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (ich is null)
             return BadRequest("Kein Mitarbeiter-Datensatz zum angemeldeten Konto.");
         s.ZustaendigId = ich;
@@ -491,7 +491,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
         }
         if (s.ZustaendigId == zuweisen.ZustaendigId)
             return NoContent();
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         s.ZustaendigId = zuweisen.ZustaendigId;
         if (zuweisen.ZustaendigId is null && s.Status == AufgabenStatus.InArbeit)
             s.Status = AufgabenStatus.Offen;
@@ -515,7 +515,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             return BadRequest($"Bitte „{s.Pflichtfeld}“ eintragen.");
         if (wert is { Length: > 300 } || erledigen.Notiz is { Length: > 5000 })
             return BadRequest("Wert höchstens 300, Notiz höchstens 5.000 Zeichen.");
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (s.Pflichtfeld is not null)
             s.PflichtfeldWert = wert;
         s.ZustaendigId ??= ich;
@@ -545,7 +545,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
             return BadRequest("Die Wiedervorlage muss nach heute und innerhalb eines Jahres liegen.");
         if (warten.Notiz is { Length: > 5000 })
             return BadRequest("Die Notiz darf höchstens 5.000 Zeichen lang sein.");
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         s.Status = AufgabenStatus.WartetAufKunden;
         s.Wiedervorlage = warten.Wiedervorlage;
         s.ZustaendigId ??= ich;
@@ -562,7 +562,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
         var (v, s) = await SchrittLadenAsync(schrittId, ct);
         if (v is null || s is null)
             return NotFound();
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         var text = s.Status switch
         {
             AufgabenStatus.Erledigt => $"Schritt wieder geöffnet: {s.Titel}",
@@ -593,7 +593,7 @@ public partial class VorgaengeController(ErpDbContext db, IAktuellerBenutzer ben
         var text = notiz.Text?.Trim() ?? "";
         if (text.Length is 0 or > 5000)
             return BadRequest("Die Notiz braucht einen Text (höchstens 5.000 Zeichen).");
-        Verlauf(v, await IchAsync(db, benutzer, ct), $"Notiz zu „{s.Titel}“", text, AktivitaetsStufe.Wesentlich, AktivitaetsTyp.Notiz);
+        Verlauf(v, await angemeldet.IdAsync(ct), $"Notiz zu „{s.Titel}“", text, AktivitaetsStufe.Wesentlich, AktivitaetsTyp.Notiz);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }

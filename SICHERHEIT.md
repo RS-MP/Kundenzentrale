@@ -55,7 +55,7 @@ Bewertungsskala je Regel:
 |---|---|---|---|
 | A1 | Keine eigenen Passwörter, keine Tokens in der eigenen Datenbank | Identität kommt ausschließlich von der AD (Windows-Auth) oder von Entra ID. Die Mitarbeiter-Tabelle speichert nur Windows-Konto bzw. Entra-Objekt-ID. | **gut** |
 | A2 | Jeder Endpunkt ist standardmäßig geschützt („deny by default") | `FallbackPolicy` und `DefaultPolicy` = angemeldet **und** aktiver Mitarbeiter-Datensatz (`Program.cs`). Einziges `[AllowAnonymous]` im Code ist der Test-Healthcheck, der außerhalb von Development 404 liefert. Alle 131 Endpunkte der 17 Controller wurden einzeln abgeglichen (Anhang). | **gut** |
-| A3 | Entwicklungs-Login ohne Anmeldung nur lokal | Pseudo-Benutzer nur bei Environment = Development **und** Flag `Entwicklung:AuthDeaktiviert`; Start-Warnung im Log. | **solide** — das Launch-Profil `http-prod-db` kombiniert weiterhin Pseudo-Admin mit der Produktions-DB (V7, offen). |
+| A3 | Entwicklungs-Login ohne Anmeldung nur lokal | Pseudo-Benutzer nur bei Environment = Development **und** Flag `Entwicklung:AuthDeaktiviert`; Start-Warnung im Log. Das Launch-Profil gegen die Produktions-DB ist seit 29.10. entfernt (V7). | **gut** |
 | A4 | Unbekannte Domänenkonten werden ohne Rollen angelegt | Middleware legt beim ersten Zugriff einen aktiven Mitarbeiter mit `Rollen = Keine` an; Rollen vergibt nur ein Admin. | **ausbaufähig** — bewusst so bis zum Produktiv-Reset (Testbetrieb für alle). Vorher entscheiden: neue Konten inaktiv anlegen oder AD-Gruppe als Voraussetzung (V3b). |
 | A5 | Windows-Auth über IIS, Negotiate-Handler nur für Kestrel | `AddNegotiate()`; unter IIS übernimmt IIS die Authentifizierung. | **gut** |
 
@@ -98,7 +98,7 @@ Bewertungsskala je Regel:
 | D1 | Kein freier Zugriff aufs Ablageverzeichnis | Downloads (Vertragsdokumente, Chatter-Anhänge) nur über IDs; Pfad kommt aus der Datenbank. | **gut** |
 | D2 | Schutz vor Path Traversal | Registrierung und Zielverzeichnis mit `GetFullPath` + „liegt unter Basis"; Vorlagen-Freigabe nur reiner `.docx`-Dateiname. **Neu und sauber:** Chatter-Anhang-Download prüft die Basis; der Chatter-Import bereinigt Kundennummer und Odoo-Dateinamen (`SichererName`, 150 Zeichen, OdooId-Präfix). **Lücke:** die Vertragserzeugung baut den Dateinamen aus `Kundennummer` ohne Bereinigung; der Wert kommt nur aus Odoo (`ref`), ist über die API nicht setzbar. | **solide** (N5) |
 | D3 | Upload begrenzt und validiert | Einziger Upload bleibt der Preislisten-Import (5 MB, Schema, Version strikt steigend). Chatter-Anhänge: 50 MB je Anhang im Import. | **gut** |
-| D4 | Auslieferung registrierter Dateien | Vertragsdokumente: Content-Type aus Endung, inline, kein `nosniff`. **Chatter-Anhänge** (stammen von externen Absendern!) werden mit `Content-Disposition: attachment` ausgeliefert, HTML/SVG werden also nicht im Anwendungskontext gerendert. | **ausbaufähig** für Vertragsdokumente (V5), **gut** für Chatter-Anhänge. |
+| D4 | Auslieferung registrierter Dateien | Vertragsdokumente seit 29.10. nur als PDF inline, alle anderen Typen als Download; Chatter-Anhänge (von externen Absendern!) waren schon Download. Dazu `nosniff` auf allen Antworten. | **gut** |
 | D5 | Keine temporären Dateien in der API | Nur `MemoryStream`; das Import-Tool schreibt Berichte an einen vom Admin gewählten Pfad (CLI). | **gut** |
 
 ### E · Eingaben, Injection, Frontend
@@ -107,10 +107,10 @@ Bewertungsskala je Regel:
 |---|---|---|---|
 | E1 | Kein SQL-Injection-Risiko | Ausschließlich EF Core LINQ, kein `FromSql`/`ExecuteSqlRaw`. | **gut** |
 | E2 | Kein Over-Posting | Siehe B14. | **gut** |
-| E3 | Fachliche Validierung in der API | Unverändert handgeschrieben; Längenüberschreitungen und Unique-Verstöße enden in 500 statt 400/409 (V12, Q5). | **solide** |
+| E3 | Fachliche Validierung in der API | Unverändert handgeschrieben; Längenüberschreitungen enden noch in 500 statt 400 (V12). Datenbankkonflikte (RowVersion, Unique-Index, Fremdschlüssel) liefern seit 29.10. 409 mit lesbarem Text (`DatenbankFehlerHandler`, Q5). | **solide** |
 | E4 | Kein XSS im Frontend | Einzige `MarkupString`-Stelle ist der neue Wiki-Formatierer `WikiFormat.ZuHtml`: jeder Text wird zuerst HTML-kodiert, Links nur `http(s)://` aus bereits kodiertem Text, `rel="noopener noreferrer"`. Unit-Tests decken `<script>`, Attribut-Ausbruch und `javascript:` ab. | **gut** |
-| E5 | Optimistic Concurrency | `RowVersion` auf Kunde, Ansprechpartner, Vertrag u. a. **Nicht** auf Vorgang/Aufgabe (Q7). | **solide** |
-| E6 | CSRF-Schutz | Keine explizite Maßnahme; JSON-Endpunkte faktisch geschützt (kein CORS, Preflight). Der Multipart-Upload bleibt mit ambienter Windows-Anmeldung aus fremdem Formular auslösbar. | **ausbaufähig** (V4) |
+| E5 | Optimistic Concurrency | `RowVersion` auf Kunde, Ansprechpartner, Vertrag, seit 29.10. auch Vorgang. Konflikte enden als 409 (Q5). | **gut** |
+| E6 | CSRF-Schutz | Seit 29.10.: jeder schreibende API-Aufruf braucht die Kopfzeile `X-Requested-With: Kundenzentrale` (Middleware `SchutzKopfzeilen`); ein HTML-Formular kann sie nicht setzen, fremde Skripte scheitern am Preflight. Das Frontend setzt sie zentral am HttpClient. | **gut** |
 | E7 | Mail-Header-Injection | `MailAddress` verwirft ungültige Adressen, `MailMessage.Subject` verwirft CR/LF, Body ist Plaintext. | **gut** |
 
 ### F · Audit und Nachvollziehbarkeit
@@ -118,7 +118,7 @@ Bewertungsskala je Regel:
 | # | Regel | Umsetzung | Bewertung |
 |---|---|---|---|
 | F1 | Zentrales Audit-Log automatisch | Unverändert: jede Änderung mit Entität, ID, Aktion, Mitarbeiter, Alt/Neu als JSON. Hintergrundläufe schreiben mit `MitarbeiterId = null`. | **solide** — weiterhin ohne Ansicht und Aufbewahrungsregel (V8). |
-| F2 | Protokollcharakter-Entitäten ausgenommen | Audit-Log, Timeline, Nummernkreise, Geheimnisse, Server-Takt sind ausgenommen. **Nicht** ausgenommen: `Einstellung` (Zeitstempel `LetzterPush`, `LetzterImport`, `LetzterWochenbericht` werden bei jedem Takt auditiert), `Zertifikat` (täglicher Live-Check je Zertifikat), `PreislistenVersion.Daten` (bis 5 MB JSON pro Import ins Audit kopiert). | **ausbaufähig** (N4) |
+| F2 | Protokollcharakter-Entitäten ausgenommen | Audit-Log, Timeline, Nummernkreise, Geheimnisse, Server-Takt, Zertifikatsereignisse sind ausgenommen; seit 29.10. zusätzlich die Takt-Zeitstempel in `Einstellung`, die Live-/Erinnerungsfelder von `Zertifikat` und der Preislisten-JSON (Typ- bzw. Eigenschaftsausschluss in `ErpDbContext`). Ändert ein Lauf nur solche Felder, entsteht kein Eintrag. | **gut** |
 | F3 | Verlauf (Timeline) mit Datensparsamkeit | Vertrauliche Titel/Pfade bleiben draußen. Verlaufseinträge können im Namen eines anderen Mitarbeiters erfasst werden (fachlich gewollt); der tatsächliche Erfasser steht nur im Audit-Log. | **solide** (E3 unten) |
 | F4 | Sicherheitsereignisse im Log | Unverändert: keine eigenen Einträge für 403, Rollenwechsel, Geheimnis-Änderungen. | **ausbaufähig** (V8) |
 
@@ -142,7 +142,7 @@ Bewertungsskala je Regel:
 | H3 | Verschlüsselung zum SQL Server | `Encrypt=True`, aber `TrustServerCertificate=True`. | **ausbaufähig** (V6) |
 | H4 | Least Privilege für das App-Pool-Konto | Unverändert; `db_ddladmin` wegen Auto-Migration. | **solide** (V9) |
 | H5 | CORS, OpenAPI, Test-Endpunkte nur in Entwicklung | Unverändert. | **gut** |
-| H6 | HTTP-Security-Header | Weiterhin keine (`nosniff`, CSP `frame-ancestors`, Referrer-Policy). | **ausbaufähig** (V5) |
+| H6 | HTTP-Security-Header | Seit 29.10.: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, CSP `frame-ancestors 'self'`, `Referrer-Policy: strict-origin-when-cross-origin` auf jeder Antwort. Keine vollständige CSP (Blazor WASM bräuchte `unsafe-eval`). | **gut** |
 | H7 | Aktuelle Plattform und Pakete | Alle Microsoft-Pakete 10.0.13, Scan am 29.10.2026: **keine anfälligen Pakete** in allen 7 Projekten. Verfügbar: 10.0.14, Microsoft.Identity.Web 4.16.1, Telerik 2026.3.1027. Scan ist Pflichtschritt im Update-Ritual. | **gut** — V2 umgesetzt. |
 | H8 | Backups | Weiterhin nur beschrieben, nicht als erledigt vermerkt. | **ausbaufähig** (V10) |
 | H9 | Dokumentation des Sicherheitsmodells | Unverändert gut; DEPLOYMENT.md ist allerdings zu einem Änderungsprotokoll mit über 20 offenen „Publish aktualisieren"-Kästchen gewachsen (Q-Hinweis). | **gut** |
@@ -191,14 +191,21 @@ Risiko heute: gering (nur Erreichbarkeits-Orakel im eigenen Netz, keine
 Daten), aber Verstoß gegen die eigene Regel „Außenziele nur Admin-gepflegt,
 Fehlertexte generisch".
 
-**N2 · Vorgangs-Abgleich gegen Parallelläufe sichern.** (mittel, Aufwand klein)
+**Umsetzungsstand 29.10.2026 (Paket 1 und 2, Commits nach 4464df7):**
+N2, N3, N4, N5, V4, V5, V7 sowie Q1, Q3, Q5 sind umgesetzt — Details bei den
+Punkten. Offen bleiben V3b, V6, V8–V15, Q2, Q4, Q6–Q14 und die Entscheidungen E1–E4.
+
+**N2 · Vorgangs-Abgleich gegen Parallelläufe sichern.** (mittel, Aufwand klein) — **erledigt**
+(`SemaphoreSlim` im Dienst, zweiter Start meldet „läuft bereits"; `RowVersion` auf `Vorgang`, Migration `VorgangRowVersionUndVerweisIndex`)
 Der Abgleich läuft stündlich, per Knopf (jeder Mitarbeiter) und nach jedem
 Chatter-Import, ohne gegenseitigen Ausschluss; `Vorgang`/`Aufgabe` haben keine
 `RowVersion`. Zwei Läufe können denselben Schritt doppelt erledigen und zwei
 Verlaufseinträge „Automatisch erledigt" schreiben. Maßnahme: `SemaphoreSlim(1,1)`
 im Dienst (Muster aus `OdooImportDienst`) und `RowVersion` auf `Vorgang`.
 
-**N3 · Mehrstufige Schreibvorgänge absichern.** (mittel, Aufwand mittel)
+**N3 · Mehrstufige Schreibvorgänge absichern.** (mittel, Aufwand mittel) — **erledigt**
+(Vertrag anlegen und aus Vorlage in einer Transaktion, Dateien erst nach DB-Annahme und bei Fehler gelöscht;
+Vorlagen-Freigabe erst DB dann Kopie; Unique-Kollisionen über Q5 als 409)
 Vertrag anlegen (Nummer, Vertrag, Verlauf = drei Commits), Vertrag aus Vorlage
 (PDF+DOCX auf Platte **vor** dem DB-Commit → verwaiste Dateien mit verbrauchter
 Nummer bei Fehler), Vorlagen-Freigabe (`File.Copy` vor SaveChanges;
@@ -208,7 +215,9 @@ Maßnahme: Transaktion um die DB-Teile (Muster in `VorgaengeController.Anlegen`)
 Dateien erst nach Commit schreiben oder bei Fehler löschen, `DbUpdateException`
 → 409.
 
-**N4 · Audit-Log vom Rauschen befreien.** (mittel, Aufwand klein)
+**N4 · Audit-Log vom Rauschen befreien.** (mittel, Aufwand klein) — **erledigt**
+(`ErpDbContext`: Takt-Einstellungen, `Zertifikat.Live*`/Erinnerungsfelder, `PreislistenVersion.Daten` und `ZertifikatEreignis` ausgenommen;
+Index `IX_Aktivitaeten_VerweisTyp_VerweisId`)
 Automatisch gepflegte Einstellungen (`…Letzter…`), `Zertifikat.Live*` und
 `PreislistenVersion.Daten` vom Audit ausnehmen (Typ- oder Property-Ausschluss in
 `ErpDbContext.NichtAuditieren`). Sonst wächst das Audit-Log um hunderte
@@ -216,7 +225,7 @@ nutzlose Zeilen pro Tag und kopiert bei jedem Preislisten-Import bis zu 5 MB.
 Index `Aktivitaeten(VerweisTyp, VerweisId)` ergänzen (siehe Q1), weil sonst
 jeder Vorgangsaufruf die Chatter-Tabelle komplett scannt.
 
-**N5 · Kleine Härtungen.** (niedrig, Aufwand je sehr klein)
+**N5 · Kleine Härtungen.** (niedrig, Aufwand je sehr klein) — **erledigt** (alle fünf Punkte; `Dateinamen.Sicher` im Domain-Projekt mit Tests)
 - `PdfDienst`: Serverpfad der PFX-Datei nicht in der Fehlermeldung an den
   Vertragsersteller ausgeben (nur ins Log); geladenes Zertifikat `using`/
   disposen.
@@ -255,10 +264,10 @@ Konzept gehört in DEPLOYMENT.md neben den Produktiv-Reset.
 ### Offen aus dem 15.10.2026 (Kurzform)
 
 - **V3b** Neue Domänenkonten inaktiv anlegen oder AD-Gruppe verlangen (vor Produktiv-Reset).
-- **V4** CSRF-Header (`X-Requested-With`) für schreibende Requests, Frontend setzt ihn immer. Mittel.
-- **V5** Security-Header (`nosniff`, CSP `frame-ancestors 'self'`, Referrer-Policy); Vertragsdokumente außer PDF als `attachment`. Mittel.
+- **V4** — **erledigt 29.10.**: `SchutzKopfzeilen`-Middleware verlangt `X-Requested-With: Kundenzentrale` bei jedem schreibenden `/api`-Aufruf (sonst 403), das Blazor-Frontend setzt die Kopfzeile am HttpClient.
+- **V5** — **erledigt 29.10.**: `nosniff`, `X-Frame-Options: SAMEORIGIN`, CSP `frame-ancestors 'self'`, `Referrer-Policy`; Vertragsdokumente nur als PDF inline, alle anderen Typen als Download.
 - **V6** SQL-Verbindung ohne `TrustServerCertificate` (Server-Zertifikat nötig). Mittel.
-- **V7** Launch-Profil `http-prod-db` entfernen oder Dev-Auth an localhost-DB koppeln. Mittel, sehr klein.
+- **V7** — **erledigt 29.10.**: Launch-Profil `http-prod-db` entfernt.
 - **V8** Audit-Ansicht für Admins, 403/Rollenwechsel/Geheimnis-Änderung als eigene Log-Einträge, Aufbewahrungsregel. Mittel.
 - **V9** `db_ddladmin` begründen oder Migrationen als Publish-Schritt. Mittel.
 - **V10** Backups einrichten, Restore einmal testen, Schlüsselbund-Notfallweg dokumentieren. Mittel.
@@ -316,7 +325,7 @@ bekannten Betriebsthemen (CSRF-/Security-Header, SQL-Zertifikat, Backups).
 Sortiert nach Nutzen. Aufwand: klein = unter einem Tag, mittel = wenige Tage,
 groß = schrittweise.
 
-**Q1 · Fehlender Index auf `Aktivitaeten(VerweisTyp, VerweisId)`.** (klein)
+**Q1 · Fehlender Index auf `Aktivitaeten(VerweisTyp, VerweisId)`.** (klein) — **erledigt 29.10.**
 Vier heiße Abfragen filtern darauf (Vorgangs-Detail, Akte-Aufgaben,
 Strang umhängen, Vertrag löschen). Nach dem Chatter-Import hat die Tabelle
 zehntausende Zeilen, jeder Vorgangsaufruf scannt sie komplett.
@@ -328,7 +337,7 @@ filtert und pagt dann im Speicher (wegen des berechneten Vertragsendes);
 `Kennzahlen` lädt dieselbe Menge erneut. Maßnahme: Vertragsende als persistierte
 Spalte beim Speichern berechnen, dann `Skip/Take` in SQL.
 
-**Q3 · Mitarbeiter-Lookup 3–5× pro Request.** (klein)
+**Q3 · Mitarbeiter-Lookup 3–5× pro Request.** (klein) — **erledigt 29.10.** (`AngemeldeterMitarbeiter`, scoped, lädt Id/Rollen/Aktiv/WikiThemen einmal; Policies, zehn Controller und `WikiBerechtigung` nutzen ihn; `ErpDbContext` behält seinen eigenen Cache für das Audit)
 Fallback-Policy, Rollen-Handler, Controller-Hilfen und `ErmittleMitarbeiterId`
 fragen denselben Datensatz je Request mehrfach ab (18 Vorkommen in 12 Dateien).
 Maßnahme: `IAktuellerBenutzer` (scoped) um einen Lazy-Cache mit Id, Rollen,
@@ -339,7 +348,7 @@ Aktiv erweitern; alle Stellen darauf umstellen. Beseitigt zugleich Duplikate.
 Projektion, Einzeln mit acht sequenziellen `AnyAsync`, `KategorienAsync`).
 Maßnahme: Expression-Bausteine im Domain-Projekt, einmal definiert.
 
-**Q5 · Kein globales Exception-Handling.** (klein)
+**Q5 · Kein globales Exception-Handling.** (klein) — **erledigt 29.10.** (`DatenbankFehlerHandler` als `IExceptionHandler`: Concurrency, Unique 2601/2627, FK 547 → 409 mit Text; alles andere bleibt 500)
 Kein `UseExceptionHandler`/`AddProblemDetails`; `DbUpdateException`,
 Unique-Verstöße und `NummernkreisDienst`-Fehler enden als 500. Maßnahme:
 ProblemDetails + Mapping `DbUpdateException` → 409, Validierung → 400.

@@ -8,12 +8,6 @@ namespace Rausoft.Erp.Api.Dienste;
 /// <summary>Gemeinsame Hilfen der Vorgangs-Controller: angemeldeter Mitarbeiter, Pflegerecht, Status als Text.</summary>
 public static class VorgangsHilfen
 {
-    public static Task<int?> IchAsync(ErpDbContext db, IAktuellerBenutzer benutzer, CancellationToken ct) =>
-        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
-            ? Task.FromResult<int?>(null)
-            : db.Mitarbeiter.Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-                .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
-
     /// <summary>Vorgangstypen pflegen dürfen Admins und Bereichsleiter (Entscheidung 28.10.2026).</summary>
     public static async Task<bool> DarfTypenPflegenAsync(ErpDbContext db, int? ich, CancellationToken ct)
     {

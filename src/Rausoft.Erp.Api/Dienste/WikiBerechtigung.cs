@@ -10,20 +10,12 @@ namespace Rausoft.Erp.Api.Dienste;
 /// Wiki-Redaktion nur die Themen, die dem Benutzer einzeln freigegeben sind
 /// (FEEDBACK Nr. 22). Serverseitig geprüft, das Frontend blendet nur aus.
 /// </summary>
-public class WikiBerechtigung(ErpDbContext db, IAktuellerBenutzer benutzer)
+public class WikiBerechtigung(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
 {
     /// <summary>Themen, die der angemeldete Benutzer bearbeiten darf (leer = keines).</summary>
     public async Task<IReadOnlySet<string>> BearbeitbareThemenAsync(CancellationToken ct)
     {
-        if (benutzer.EntraObjectId is null && benutzer.WindowsKonto is null)
-            return new HashSet<string>();
-
-        var m = await db.Mitarbeiter.AsNoTracking()
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Where(x => x.Aktiv)
-            .Select(x => new { x.Rollen, x.WikiThemen })
-            .FirstOrDefaultAsync(ct);
-        if (m is null)
+        if (await angemeldet.HolenAsync(ct) is not { Aktiv: true } m)
             return new HashSet<string>();
 
         if (m.Rollen.HasFlag(MitarbeiterRolle.Admin) || m.Rollen.HasFlag(MitarbeiterRolle.Compliance))
@@ -39,13 +31,8 @@ public class WikiBerechtigung(ErpDbContext db, IAktuellerBenutzer benutzer)
         (await BearbeitbareThemenAsync(ct)).Contains(thema);
 
     /// <summary>Mitarbeiter-Id des angemeldeten Kontos (null = kein Datensatz).</summary>
-    public Task<int?> EigeneIdAsync(CancellationToken ct) =>
-        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
-            ? Task.FromResult<int?>(null)
-            : db.Mitarbeiter.AsNoTracking()
-                .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-                .Where(m => m.Aktiv)
-                .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+    public async Task<int?> EigeneIdAsync(CancellationToken ct) =>
+        await angemeldet.HolenAsync(ct) is { Aktiv: true } m ? m.Id : null;
 
     /// <summary>
     /// Zuständig für Meldungen und Lesestand eines Themas: Verantwortlicher und

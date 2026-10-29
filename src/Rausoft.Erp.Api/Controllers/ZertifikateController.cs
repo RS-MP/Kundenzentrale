@@ -18,7 +18,7 @@ namespace Rausoft.Erp.Api.Controllers;
 [ApiController]
 [Route("api/zertifikate")]
 public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, MailDienst mail,
-    IAuthorizationService autorisierung, IAktuellerBenutzer benutzer) : ControllerBase
+    IAuthorizationService autorisierung, AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<ZertifikatUebersicht>> Liste(CancellationToken ct)
@@ -180,9 +180,7 @@ public class ZertifikateController(ErpDbContext db, ZertifikatDienst dienst, Mai
 
     // --- Hilfen ----------------------------------------------------------------
 
-    private Task<int?> EigeneIdAsync(CancellationToken ct) =>
-        db.Mitarbeiter.Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+    private Task<int?> EigeneIdAsync(CancellationToken ct) => angemeldet.IdAsync(ct);
 
     private async Task<string?> PruefeAsync(ZertifikatSpeichern d, CancellationToken ct)
     {

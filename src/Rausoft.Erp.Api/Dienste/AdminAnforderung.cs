@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using Rausoft.Erp.Data;
 using Rausoft.Erp.Domain.Shared;
 
 namespace Rausoft.Erp.Api.Dienste;
@@ -9,48 +7,34 @@ namespace Rausoft.Erp.Api.Dienste;
 /// Autorisierung "Admin": Die Rolle wird serverseitig aus der Mitarbeiter-
 /// Tabelle geprüft (über Entra-Objekt-ID bzw. Windows-Konto), nie aus Claims
 /// des Frontends — Berechtigungen werden nie nur im Frontend durchgesetzt.
+/// Deaktivierte Konten haben keine Rollen (<see cref="AngemeldeterMitarbeiter.RollenAsync"/>).
 /// </summary>
 public class AdminAnforderung : IAuthorizationRequirement;
 
-public class AdminAnforderungHandler(ErpDbContext db, IAktuellerBenutzer benutzer)
+public class AdminAnforderungHandler(AngemeldeterMitarbeiter angemeldet)
     : AuthorizationHandler<AdminAnforderung>
 {
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context, AdminAnforderung anforderung)
     {
-        if (benutzer.EntraObjectId is null && benutzer.WindowsKonto is null)
-            return;
-
-        var rollen = await db.Mitarbeiter
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Where(m => m.Aktiv)
-            .Select(m => m.Rollen)
-            .FirstOrDefaultAsync();
-
-        if (rollen.HasFlag(MitarbeiterRolle.Admin))
+        if (await angemeldet.HatRolleAsync(MitarbeiterRolle.Admin))
             context.Succeed(anforderung);
     }
 }
 
-/// <summary>Autorisierung "Compliance": Vorlagen verwalten/freigeben — Compliance-Rolle oder Admin.</summary>
+/// <summary>
+/// Autorisierung "Compliance": Vorlagen verwalten/freigeben — Compliance-Rolle oder Admin
+/// (Entscheidung E1 in SICHERHEIT.md: Admin ist hier bewusst eingeschlossen).
+/// </summary>
 public class ComplianceAnforderung : IAuthorizationRequirement;
 
-public class ComplianceAnforderungHandler(ErpDbContext db, IAktuellerBenutzer benutzer)
+public class ComplianceAnforderungHandler(AngemeldeterMitarbeiter angemeldet)
     : AuthorizationHandler<ComplianceAnforderung>
 {
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context, ComplianceAnforderung anforderung)
     {
-        if (benutzer.EntraObjectId is null && benutzer.WindowsKonto is null)
-            return;
-
-        var rollen = await db.Mitarbeiter
-            .Where(Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-            .Where(m => m.Aktiv)
-            .Select(m => m.Rollen)
-            .FirstOrDefaultAsync();
-
-        if (rollen.HasFlag(MitarbeiterRolle.Compliance) || rollen.HasFlag(MitarbeiterRolle.Admin))
+        if (await angemeldet.HatRolleAsync(MitarbeiterRolle.Compliance | MitarbeiterRolle.Admin))
             context.Succeed(anforderung);
     }
 }

@@ -16,7 +16,7 @@ namespace Rausoft.Erp.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/aufgaben")]
-public class AufgabenController(ErpDbContext db, IAktuellerBenutzer benutzer) : ControllerBase
+public class AufgabenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     private const int MaxZeilen = 500;
 
@@ -28,7 +28,7 @@ public class AufgabenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
     public async Task<ActionResult<AufgabenUebersicht>> Liste(
         [FromQuery] string sicht = "meine", [FromQuery] int? bereichId = null, CancellationToken ct = default)
     {
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         var meinBereich = ich is null ? null
             : await db.Mitarbeiter.Where(m => m.Id == ich).Select(m => m.BereichId).FirstOrDefaultAsync(ct);
         var bereich = bereichId ?? meinBereich;
@@ -96,7 +96,7 @@ public class AufgabenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
     [HttpGet("zaehler")]
     public async Task<ActionResult<AufgabenZaehler>> Zaehler(CancellationToken ct)
     {
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (ich is null)
             return Ok(new AufgabenZaehler(0, 0));
         var bereich = await db.Mitarbeiter.Where(m => m.Id == ich).Select(m => m.BereichId).FirstOrDefaultAsync(ct);
@@ -121,7 +121,7 @@ public class AufgabenController(ErpDbContext db, IAktuellerBenutzer benutzer) : 
             return BadRequest("Vorgangsschritte bitte über den Vorgang übernehmen.");
         if (aufgabe.Status is AufgabenStatus.Erledigt or AufgabenStatus.Entfallen)
             return BadRequest("Die Aufgabe ist schon erledigt.");
-        var ich = await IchAsync(db, benutzer, ct);
+        var ich = await angemeldet.IdAsync(ct);
         if (ich is null)
             return BadRequest("Kein Mitarbeiter-Datensatz zum angemeldeten Konto.");
         aufgabe.ZustaendigId = ich;

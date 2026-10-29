@@ -8,7 +8,7 @@ namespace Rausoft.Erp.Api.Controllers;
 
 [ApiController]
 [Route("api/kunden")]
-public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuellerBenutzer benutzer) : ControllerBase
+public class KundenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     private const int MaxProSeite = 100;
 
@@ -368,11 +368,7 @@ public class KundenController(ErpDbContext db, Rausoft.Erp.Domain.Shared.IAktuel
         return NoContent();
     }
 
-    private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) =>
-        benutzer.EntraObjectId is null && benutzer.WindowsKonto is null
-            ? Task.FromResult<int?>(null)
-            : db.Mitarbeiter.Where(Domain.Shared.Mitarbeiter.KontoFilter(benutzer.EntraObjectId, benutzer.WindowsKonto))
-                .Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+    private Task<int?> AktuellerMitarbeiterId(CancellationToken ct) => angemeldet.IdAsync(ct);
 
     /// <summary>Abos des Kunden mit Lizenz-Positionen — Basis der Karte „Betrieb &amp; Lizenzen".</summary>
     [HttpGet("{id:int}/abos")]
