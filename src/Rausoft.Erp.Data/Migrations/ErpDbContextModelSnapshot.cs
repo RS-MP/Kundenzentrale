@@ -1676,6 +1676,95 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("VorgangstypSchritte");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.FaqEintrag", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ErstelltAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErstelltVonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeaendertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kategorie")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("KundeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Loesung")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Produkt")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Schlagwoerter")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Symptom")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TicketId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Titel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Ursache")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Vorkommen")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ZuletztVorgekommenAm")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErstelltVonId");
+
+                    b.HasIndex("GeaendertVonId");
+
+                    b.HasIndex("KundeId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("Produkt", "Kategorie");
+
+                    b.ToTable("FaqEintraege");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.PreislistenVersion", b =>
                 {
                     b.Property<int>("Id")
@@ -2441,6 +2530,30 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Bereich");
 
                     b.Navigation("Vorgangstyp");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.FaqEintrag", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErstelltVon")
+                        .WithMany()
+                        .HasForeignKey("ErstelltVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
+                        .WithMany()
+                        .HasForeignKey("GeaendertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
+                        .WithMany()
+                        .HasForeignKey("KundeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ErstelltVon");
+
+                    b.Navigation("GeaendertVon");
+
+                    b.Navigation("Kunde");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.PreislistenVersion", b =>

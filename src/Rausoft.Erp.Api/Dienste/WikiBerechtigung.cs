@@ -30,6 +30,15 @@ public class WikiBerechtigung(ErpDbContext db, AngemeldeterMitarbeiter angemelde
     public async Task<bool> DarfBearbeitenAsync(string thema, CancellationToken ct) =>
         (await BearbeitbareThemenAsync(ct)).Contains(thema);
 
+    /// <summary>
+    /// FAQ Support: freigeben, veraltet setzen, löschen und fremde Einträge ändern
+    /// dürfen Support, Admin, Compliance und die Redaktion des Themas „faq"
+    /// (Regeln in <see cref="FaqRegeln"/>).
+    /// </summary>
+    public async Task<bool> DarfFaqFreigebenAsync(CancellationToken ct) =>
+        await angemeldet.HolenAsync(ct) is { Aktiv: true } m
+        && FaqRegeln.DarfFreigeben(m.Rollen, Themen(m.WikiThemen));
+
     /// <summary>Mitarbeiter-Id des angemeldeten Kontos (null = kein Datensatz).</summary>
     public async Task<int?> EigeneIdAsync(CancellationToken ct) =>
         await angemeldet.HolenAsync(ct) is { Aktiv: true } m ? m.Id : null;

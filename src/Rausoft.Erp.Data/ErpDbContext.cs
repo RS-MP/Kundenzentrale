@@ -59,6 +59,7 @@ public class ErpDbContext(
     public DbSet<ZertifikatEreignis> ZertifikatEreignisse => Set<ZertifikatEreignis>();
     public DbSet<WikiNeuerungLesung> WikiNeuerungLesungen => Set<WikiNeuerungLesung>();
     public DbSet<WikiMeldung> WikiMeldungen => Set<WikiMeldung>();
+    public DbSet<FaqEintrag> FaqEintraege => Set<FaqEintrag>();
 
     // Abos
     public DbSet<Abo> Abos => Set<Abo>();
@@ -533,6 +534,26 @@ public class ErpDbContext(
             e.Property(m => m.Antwort).HasColumnType("nvarchar(max)");
             e.HasOne(m => m.ErstelltVon).WithMany().HasForeignKey(m => m.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(m => m.ErledigtVon).WithMany().HasForeignKey(m => m.ErledigtVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // --- Wiki: FAQ-Datenbank für den Support -----------------------------
+        modelBuilder.Entity<FaqEintrag>(e =>
+        {
+            e.HasIndex(f => new { f.Produkt, f.Kategorie });
+            e.HasIndex(f => f.Status);
+            e.Property(f => f.Titel).HasMaxLength(200);
+            e.Property(f => f.Produkt).HasMaxLength(50);
+            e.Property(f => f.Kategorie).HasMaxLength(50);
+            e.Property(f => f.Symptom).HasColumnType("nvarchar(max)");
+            e.Property(f => f.Ursache).HasColumnType("nvarchar(max)");
+            e.Property(f => f.Loesung).HasColumnType("nvarchar(max)");
+            e.Property(f => f.Schlagwoerter).HasMaxLength(500);
+            e.Property(f => f.TicketId).HasMaxLength(50);
+            e.Property(f => f.RowVersion).IsRowVersion();
+            // Der Kunde ist nur Herkunftshinweis — ein gelöschter Kunde nimmt den Fall nicht mit
+            e.HasOne(f => f.Kunde).WithMany().HasForeignKey(f => f.KundeId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(f => f.ErstelltVon).WithMany().HasForeignKey(f => f.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(f => f.GeaendertVon).WithMany().HasForeignKey(f => f.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<VorlagenVersion>(e =>

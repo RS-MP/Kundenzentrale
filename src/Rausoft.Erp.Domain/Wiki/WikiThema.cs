@@ -11,12 +11,15 @@ public static class WikiThema
 {
     public const string Sanktionslisten = "sanktionslisten";
     public const string Preisliste = "preisliste";
+    /// <summary>FAQ-Datenbank für den Support (Supportfälle Symptom → Ursache → Lösung).</summary>
+    public const string Faq = "faq";
 
     /// <summary>Alle Themen mit Anzeigename und Bereich — Reihenfolge = Anzeige.</summary>
     public static readonly (string Schluessel, string Name, string Bereich)[] Alle =
     [
         (Sanktionslisten, "Sanktionslisten", "Compliance"),
         (Preisliste, "Preisliste", "Vertrieb"),
+        (Faq, "FAQ Support", "Support"),
     ];
 
     public static bool IstBekannt(string schluessel) => Alle.Any(t => t.Schluessel == schluessel);

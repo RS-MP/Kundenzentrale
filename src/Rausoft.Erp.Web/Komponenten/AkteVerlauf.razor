@@ -4,6 +4,7 @@
    lassen sich direkt hier erfassen. *@
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 
 @if (_fehler is not null)
 {
@@ -331,6 +332,7 @@
             </div>
             <label>Betreff<input type="text" @bind="_fBetreff" placeholder="z. B. Abstimmung Schnittstelle mit der IT" maxlength="300" /></label>
             <label>Inhalt<textarea @bind="_fInhalt" rows="4" placeholder="Was wurde besprochen?"></textarea></label>
+            <label class="faq-haken" title="Nach dem Speichern öffnet sich die FAQ-Erfassung im Wiki, vorbelegt mit Kunde, Betreff und Inhalt"><input type="checkbox" @bind="_fAlsFaq" /> als FAQ-Fall übernehmen (Supportfall fürs Wiki)</label>
             <div class="feld">Vereinbart <span class="hinweis-klein">(optional — erscheint unter „Vereinbart &amp; offen")</span>
                 @for (var i = 0; i < _fVereinbarungen.Count; i++)
                 {
@@ -524,6 +526,7 @@
     private DateOnly? _aFaellig;
     private string? _aVorgang;
     private string _fTyp = "Notiz", _fRichtung = "Ausgehend", _fBetreff = "", _fInhalt = "";
+    private bool _fAlsFaq;
     private DateOnly _fDatum = DateOnly.FromDateTime(DateTime.Now);
     private TimeOnly _fZeit = TimeOnly.FromDateTime(DateTime.Now);
     private string? _fVorgang;
@@ -682,7 +685,7 @@
         _formular = art;
         if (art == "eintrag")
         {
-            _fTyp = "Notiz"; _fRichtung = "Ausgehend"; _fBetreff = ""; _fInhalt = ""; _fVorgang = null;
+            _fTyp = "Notiz"; _fRichtung = "Ausgehend"; _fBetreff = ""; _fInhalt = ""; _fVorgang = null; _fAlsFaq = false;
             _fDatum = DateOnly.FromDateTime(DateTime.Now); _fZeit = TimeOnly.FromDateTime(DateTime.Now);
             _fMitarbeiter.Clear(); _fAnsprechpartner.Clear(); _fVereinbarungen = [""];
             if (_auswahl?.IchId is { } ich) _fMitarbeiter.Add(ich);
@@ -714,10 +717,20 @@
     private async Task EintragSpeichernAsync()
     {
         if (string.IsNullOrWhiteSpace(_fBetreff)) { _fehler = "Bitte einen Betreff angeben."; return; }
+        var alsFaq = _fAlsFaq;
+        var betreff = _fBetreff.Trim();
+        var inhalt = _fInhalt;
+        var gespeichert = false;
         await SpeichernAsync($"api/kunden/{KundeId}/eintraege", new EintragAnlegen(
-            _fTyp, _fDatum.ToDateTime(_fZeit), _fTyp == "Anruf" ? _fRichtung : null, _fBetreff.Trim(), _fInhalt,
+            _fTyp, _fDatum.ToDateTime(_fZeit), _fTyp == "Anruf" ? _fRichtung : null, betreff, inhalt,
             _fMitarbeiter.ToList(), _fAnsprechpartner.ToList(),
-            _fVereinbarungen.Where(v => !string.IsNullOrWhiteSpace(v)).ToList(), _fVorgang), neueId => _aufgeklappt.Add(neueId));
+            _fVereinbarungen.Where(v => !string.IsNullOrWhiteSpace(v)).ToList(), _fVorgang), neueId => { _aufgeklappt.Add(neueId); gespeichert = true; });
+        // „als FAQ-Fall übernehmen": Eintrag ist in der Akte, jetzt in die FAQ-Erfassung mit Vorbelegung
+        if (alsFaq && gespeichert)
+        {
+            FaqUebergabe.Ablegen(KundeId, betreff, string.IsNullOrWhiteSpace(inhalt) ? null : inhalt);
+            Nav.NavigateTo("wiki/faq/neu");
+        }
     }
 
     private async Task VereinbarungSpeichernAsync()

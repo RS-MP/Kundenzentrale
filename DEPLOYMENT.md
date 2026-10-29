@@ -18,6 +18,20 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (29.10.2026 abends, Wiki FAQ):** Migration
+  `WikiFaq` läuft automatisch (Tabelle FaqEintraege, legt den ersten Fall
+  „2FA lässt sich nicht einrichten – alter ID.prove-Eintrag in der
+  Authenticator-App" freigegeben an). Wirkung: Wiki → **FAQ Support**
+  (Bereich Support): Supportfälle als Symptom → Ursache → Lösung, Volltextsuche
+  (alle Begriffe müssen vorkommen), Filter nach Produkt/Kategorie/Status,
+  Sortierung nach Änderung/Häufigkeit, „Kam wieder vor", „Lösung kopieren";
+  in der Kundenakte beim Erfassen von Notiz/Telefonat das Häkchen „als
+  FAQ-Fall übernehmen" (öffnet die FAQ-Erfassung vorbelegt). Rechte: lesen und
+  anlegen alle; eigenen Eintrag bearbeiten der Ersteller; freigeben, veraltet
+  setzen, löschen und fremde Einträge ändern Support, Admin, Compliance oder
+  Wiki-Redaktion mit Thema „FAQ Support" (Administration → Benutzer & Rollen,
+  neues Häkchen). Nach dem Update: Browser-Cache leeren / hart neu laden.
+
 - [ ] **Publish aktualisieren (29.10.2026, SICHERHEIT.md Paket 1+2):** Migration
   `VorgangRowVersionUndVerweisIndex` läuft automatisch (RowVersion auf
   Vorgänge, Index auf Aktivitäten-Verweise). Wirkung: schreibende API-Aufrufe

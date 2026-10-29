@@ -1,0 +1,613 @@
+@page "/wiki/faq"
+@page "/wiki/faq/neu"
+@page "/wiki/faq/{Id:int}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IDisposable
+
+@*
+   FAQ-Datenbank für den Support (Wiki-Thema „faq"): Supportfälle als
+   Symptom → Ursache → Lösung. Eine Seite für Liste, Detail und Erfassen —
+   die Route entscheidet (/wiki/faq, /wiki/faq/{id}, /wiki/faq/neu).
+*@
+
+<PageTitle>FAQ Support · Wiki · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>FAQ Support</h1>
+    <span class="untertitel"><a href="wiki">Wiki</a> · Supportfälle: Symptom → Ursache → Lösung</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (_formular)
+{
+    @* ---------- Erfassen / Bearbeiten ---------- *@
+    <div class="karte" style="margin-bottom:16px">
+        <div class="karte-koerper">
+            <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:12px">
+                <b>@(_bearbeiteId is null ? "Neuen Fall erfassen" : "Fall bearbeiten")</b>
+                <span class="neben" style="display:inline">
+                    Kurz und so, wie der nächste Kollege danach suchen würde — der Fall kann später noch geschärft werden.
+                </span>
+            </div>
+            <div class="formular">
+                <label class="breit">
+                    Titel — wie heißt der Fall im Team?
+                    <input type="text" maxlength="200" @bind="_fTitel" placeholder="z. B. 2FA lässt sich nicht einrichten – alter Eintrag in der Authenticator-App" />
+                </label>
+                <label>
+                    Produkt / Bereich
+                    <select @bind="_fProdukt">
+                        @foreach (var p in Produkte) { <option value="@p.Schluessel">@p.Name</option> }
+                    </select>
+                </label>
+                <label>
+                    Kategorie
+                    <select @bind="_fKategorie">
+                        @foreach (var k in Kategorien) { <option value="@k.Schluessel">@k.Name</option> }
+                    </select>
+                </label>
+                <label style="position:relative">
+                    Kunde, bei dem es zuerst auftrat (optional)
+                    @if (_fKunde is { } kw)
+                    {
+                        <span style="display:flex; gap:8px; align-items:center">
+                            <span>@kw.Nummer · @kw.Name</span>
+                            <button type="button" class="mehr" @onclick="() => _fKunde = null">entfernen</button>
+                        </span>
+                    }
+                    else
+                    {
+                        <input type="search" placeholder="Kundennummer oder Firma …" value="@_kundenSuche" @oninput="KundenSuchenAsync" />
+                        @if (_kundenTreffer is { Count: > 0 })
+                        {
+                            <div class="faq-treffer">
+                                @foreach (var k in _kundenTreffer)
+                                {
+                                    <button type="button" @onclick="() => KundeWaehlen(k)">@k.Kundennummer · @k.Firmenname@(k.Ort is not null ? $" ({k.Ort})" : "")</button>
+                                }
+                            </div>
+                        }
+                    }
+                </label>
+                <label class="breit">
+                    Symptom — was meldet der Kunde?
+                    <textarea rows="4" @bind="_fSymptom" @bind:event="oninput" placeholder="Was sieht der Kunde, welche Meldung, wobei?"></textarea>
+                </label>
+                <label class="breit">
+                    Ursache (optional)
+                    <textarea rows="3" @bind="_fUrsache" @bind:event="oninput" placeholder="Warum passiert das?"></textarea>
+                </label>
+                <label class="breit">
+                    Lösung / Schritte
+                    <textarea rows="7" @bind="_fLoesung" @bind:event="oninput" placeholder="Schritt für Schritt: 1. … 2. …"></textarea>
+                    <WikiTextHilfe Text="@_fLoesung" />
+                </label>
+                <label class="breit">
+                    Schlagwörter (Komma-getrennt)
+                    <input type="text" maxlength="500" @bind="_fSchlagwoerter" placeholder="z. B. 2FA, Authenticator, Code ungültig" />
+                </label>
+                @if (_bearbeiteId is null && _liste?.DarfFreigeben == true)
+                {
+                    <label class="breit" style="flex-direction:row; align-items:center; gap:8px">
+                        <input type="checkbox" @bind="_fSofortFreigeben" />
+                        Sofort freigeben (sonst bleibt der Fall als Entwurf sichtbar, bis ihn Support oder Redaktion freigeben)
+                    </label>
+                }
+            </div>
+            <div class="formular-aktionen">
+                <button class="knopf" disabled="@_speichert" @onclick="SpeichernAsync">@(_speichert ? "Speichere …" : "Speichern")</button>
+                <button class="knopf sekundaer" @onclick="FormularSchliessen">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+else if (Id is not null)
+{
+    @* ---------- Detailansicht ---------- *@
+    @if (_gewaehlt is null)
+    {
+        @if (_fehler is null) { <div class="leer-hinweis">Lade Fall …</div> }
+    }
+    else
+    {
+        var f = _gewaehlt;
+        <div class="karte faq-detail" style="margin-bottom:16px">
+            <div class="karte-koerper">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:6px">
+                    <a href="wiki/faq" class="mehr">← zur Liste</a>
+                    <span style="flex:1"></span>
+                    <span class="pill">@f.ProduktName</span>
+                    <span class="pill">@f.KategorieName</span>
+                    <span class="pill @StatusKlasse(f.Status)" title="@StatusHinweis(f.Status)">@StatusText(f.Status)</span>
+                </div>
+                <h2 style="margin:4px 0 8px; font-size:18px">@f.Titel</h2>
+                <div class="faq-meta">
+                    <span title="So oft ist der Fall vorgekommen">@f.Vorkommen× vorgekommen@(f.ZuletztVorgekommenAm is { } z ? $", zuletzt {z.ToLocalTime():dd.MM.yyyy}" : "")</span>
+                    <span class="trenn">·</span>
+                    <span>erfasst @f.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")@(f.ErstelltVon is not null ? $" von {f.ErstelltVon}" : "")</span>
+                    @if (f.GeaendertAm is { } g)
+                    {
+                        <span class="trenn">·</span>
+                        <span>geändert @g.ToLocalTime().ToString("dd.MM.yyyy")@(f.GeaendertVon is not null ? $" von {f.GeaendertVon}" : "")</span>
+                    }
+                    @if (f.KundeId is { } kid)
+                    {
+                        <span class="trenn">·</span>
+                        <span>zuerst bei <a href="kunden/@kid">@f.KundeName</a></span>
+                    }
+                </div>
+                @if (f.Schlagwoerter.Count > 0)
+                {
+                    <div class="chips" style="margin-top:10px">
+                        @foreach (var s in f.Schlagwoerter)
+                        {
+                            <a class="chip" href="wiki/faq?suche=@Uri.EscapeDataString(s)" title="Nach diesem Schlagwort suchen">@s</a>
+                        }
+                    </div>
+                }
+
+                <div class="faq-abschnitt"><div class="faq-label">Symptom</div><WikiText Text="@f.Symptom" /></div>
+                @if (f.Ursache is not null)
+                {
+                    <div class="faq-abschnitt"><div class="faq-label">Ursache</div><WikiText Text="@f.Ursache" /></div>
+                }
+                <div class="faq-abschnitt">
+                    <div class="faq-label" style="display:flex; gap:10px; align-items:center">
+                        Lösung
+                        <button class="knopf sekundaer klein" @onclick="LoesungKopierenAsync" title="Lösungstext als Klartext in die Zwischenablage — z. B. für die Antwort an den Kunden">@(_kopiert ? "kopiert ✓" : "Lösung kopieren")</button>
+                    </div>
+                    <WikiText Text="@f.Loesung" />
+                </div>
+
+                <div class="formular-aktionen" style="flex-wrap:wrap">
+                    <button class="knopf" disabled="@_speichert" @onclick="VorgekommenAsync" title="Zählt den Fall hoch — häufige Fälle stehen oben">Kam wieder vor</button>
+                    @if (f.DarfBearbeiten)
+                    {
+                        <button class="knopf sekundaer" @onclick="() => BearbeitenOeffnen(f)">Bearbeiten</button>
+                    }
+                    @if (_liste?.DarfFreigeben == true || _darfFreigeben)
+                    {
+                        @if (f.Status != "Freigegeben")
+                        {
+                            <button class="knopf sekundaer" disabled="@_speichert" @onclick='() => StatusAsync("Freigegeben")'>Freigeben</button>
+                        }
+                        @if (f.Status != "Veraltet")
+                        {
+                            <button class="knopf sekundaer" disabled="@_speichert" @onclick='() => StatusAsync("Veraltet")' title="Gilt nicht mehr (z. B. nach einem Update behoben) — bleibt zur Historie erhalten">Veraltet</button>
+                        }
+                        @if (f.Status != "Entwurf")
+                        {
+                            <button class="mehr" disabled="@_speichert" @onclick='() => StatusAsync("Entwurf")'>zurück auf Entwurf</button>
+                        }
+                    }
+                    <span style="flex:1"></span>
+                    @if (f.DarfLoeschen)
+                    {
+                        <button class="mehr" disabled="@_speichert" @onclick="LoeschenAsync" title="Endgültig löschen — nur für Fehlanlagen; erledigte Fälle auf „Veraltet“ setzen">Löschen</button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    @* ---------- Liste ---------- *@
+    <div class="werkzeugleiste">
+        <input type="search" placeholder="Suche in Titel, Symptom, Ursache, Lösung, Schlagwörtern …" value="@_suche" @oninput="SucheGeaendertAsync" />
+        <select @bind="_status" @bind:after="LadenAsync" title="Status">
+            <option value="aktuell">Entwürfe + Freigegebene</option>
+            <option value="Freigegeben">nur Freigegebene</option>
+            <option value="Entwurf">nur Entwürfe</option>
+            <option value="Veraltet">Veraltete</option>
+            <option value="alle">alle</option>
+        </select>
+        <select @bind="_sortierung" @bind:after="LadenAsync" title="Sortierung">
+            <option value="aenderung">zuletzt geändert</option>
+            <option value="haeufigkeit">am häufigsten</option>
+            <option value="titel">Titel A–Z</option>
+        </select>
+        <span style="flex:1"></span>
+        <button class="knopf" @onclick="NeuOeffnen">+ Fall</button>
+    </div>
+
+    @if (_liste is not null)
+    {
+        <div class="chips" style="margin-bottom:8px">
+            <button class="chip @(_produkt is null ? "aktiv" : "")" @onclick="() => ProduktWaehlenAsync(null)">alle Produkte</button>
+            @foreach (var p in _liste.Produkte)
+            {
+                <button class="chip @(_produkt == p.Schluessel ? "aktiv" : "")" @onclick="() => ProduktWaehlenAsync(p.Schluessel)">@p.Name <span class="anz">@p.Anzahl</span></button>
+            }
+        </div>
+        <div class="chips" style="margin-bottom:14px">
+            <button class="chip @(_kategorie is null ? "aktiv" : "")" @onclick="() => KategorieWaehlenAsync(null)">alle Kategorien</button>
+            @foreach (var k in _liste.Kategorien.Where(k => k.Anzahl > 0 || _kategorie == k.Schluessel))
+            {
+                <button class="chip @(_kategorie == k.Schluessel ? "aktiv" : "")" @onclick="() => KategorieWaehlenAsync(k.Schluessel)">@k.Name <span class="anz">@k.Anzahl</span></button>
+            }
+        </div>
+    }
+
+    <div class="karte">
+        <div class="karte-koerper eng">
+            @if (_liste is null)
+            {
+                @if (_fehler is null) { <div class="leer-hinweis">Lade Fälle …</div> }
+            }
+            else if (_liste.Eintraege.Count == 0)
+            {
+                <div class="leer-hinweis">
+                    @(string.IsNullOrWhiteSpace(_suche) && _produkt is null && _kategorie is null
+                        ? "Noch keine Fälle erfasst — mit „+ Fall“ den ersten anlegen."
+                        : "Kein Fall passt zu Suche und Filtern. Tipp: weniger Begriffe, oder Status „alle“ wählen.")
+                </div>
+            }
+            else
+            {
+                <table class="liste">
+                    <thead>
+                        <tr><th>Fall</th><th>Produkt</th><th>Kategorie</th><th>Status</th><th style="text-align:right" title="So oft vorgekommen">Häufigkeit</th><th>Geändert</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in _liste.Eintraege)
+                        {
+                            <tr @onclick="() => Oeffnen(f.Id)">
+                                <td>
+                                    <div style="font-weight:600">@f.Titel</div>
+                                    <div class="neben">@Kurz(f.Symptom)</div>
+                                    @if (f.Schlagwoerter.Count > 0)
+                                    {
+                                        <div class="neben" style="margin-top:2px">@string.Join(" · ", f.Schlagwoerter)</div>
+                                    }
+                                </td>
+                                <td>@f.ProduktName</td>
+                                <td>@f.KategorieName</td>
+                                <td><span class="pill @StatusKlasse(f.Status)">@StatusText(f.Status)</span></td>
+                                <td style="text-align:right; font-variant-numeric:tabular-nums">@f.Vorkommen×</td>
+                                <td class="neben">@((f.GeaendertAm ?? f.ErstelltAm).ToLocalTime().ToString("dd.MM.yyyy"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (_liste.Gesamt >= 200)
+                {
+                    <div class="neben" style="padding:8px 16px">Es werden die ersten 200 Treffer gezeigt — bitte die Suche eingrenzen.</div>
+                }
+            }
+        </div>
+    </div>
+
+    @* Meldungen an die Redaktion des Themas — „etwas fehlt oder ist falsch" *@
+    <div style="margin-top:16px">
+        <WikiMeldungen Thema="faq" Bezuege="@(new List<string>())" />
+    </div>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private FaqListe? _liste;
+    private FaqEintragDto? _gewaehlt;
+    private string? _fehler;
+    private bool _speichert, _kopiert, _darfFreigeben;
+
+    // Liste: Suche und Filter
+    private string _suche = "";
+    private string? _produkt, _kategorie;
+    private string _status = "aktuell", _sortierung = "aenderung";
+    private CancellationTokenSource? _sucheAbbruch;
+
+    // Formular
+    private bool _formular;
+    private int? _bearbeiteId;
+    private string _fTitel = "", _fProdukt = "idprove-saas", _fKategorie = "anmeldung-2fa", _fSymptom = "", _fLoesung = "";
+    private string? _fUrsache, _fSchlagwoerter;
+    private bool _fSofortFreigeben;
+    private (int Id, string Nummer, string Name)? _fKunde;
+    private string _kundenSuche = "";
+    private List<KundeListenEintrag>? _kundenTreffer;
+    private CancellationTokenSource? _kundenAbbruch;
+
+    private List<FaqAuswahl> Produkte => _liste?.Produkte ?? [];
+    private List<FaqAuswahl> Kategorien => _liste?.Kategorien ?? [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OrtGeaendert;
+        var abfrage = System.Web.HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        _suche = abfrage["suche"] ?? "";
+        await LadenAsync();
+        if (IstNeu)
+            await NeuOeffnenAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id is { } id && _gewaehlt?.Id != id)
+        {
+            _formular = false;
+            await EinzelnLadenAsync(id);
+        }
+    }
+
+    private bool IstNeu => new Uri(Nav.Uri).AbsolutePath.TrimEnd('/').EndsWith("/wiki/faq/neu", StringComparison.OrdinalIgnoreCase);
+
+    private void OrtGeaendert(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        _ = InvokeAsync(async () =>
+        {
+            if (IstNeu) { await NeuOeffnenAsync(); }
+            else if (Id is null) { _formular = false; _gewaehlt = null; _kopiert = false; await LadenAsync(); }
+            StateHasChanged();
+        });
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OrtGeaendert;
+        _sucheAbbruch?.Cancel();
+        _kundenAbbruch?.Cancel();
+    }
+
+    // --- Laden -----------------------------------------------------------------
+
+    private async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            var url = $"api/wiki/faq?status={_status}&sortierung={_sortierung}"
+                      + (string.IsNullOrWhiteSpace(_suche) ? "" : $"&suche={Uri.EscapeDataString(_suche.Trim())}")
+                      + (_produkt is null ? "" : $"&produkt={_produkt}")
+                      + (_kategorie is null ? "" : $"&kategorie={_kategorie}");
+            _liste = await Http.GetFromJsonAsync<FaqListe>(url);
+            _darfFreigeben = _liste?.DarfFreigeben == true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"FAQ konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task EinzelnLadenAsync(int id)
+    {
+        _fehler = null;
+        _kopiert = false;
+        try
+        {
+            var antwort = await Http.GetAsync($"api/wiki/faq/{id}");
+            if (antwort.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _gewaehlt = null;
+                _fehler = "Diesen Fall gibt es nicht (mehr).";
+                return;
+            }
+            antwort.EnsureSuccessStatusCode();
+            _gewaehlt = await antwort.Content.ReadFromJsonAsync<FaqEintragDto>();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fall konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task SucheGeaendertAsync(ChangeEventArgs e)
+    {
+        _suche = e.Value?.ToString() ?? "";
+        _sucheAbbruch?.Cancel();
+        var abbruch = _sucheAbbruch = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(250, abbruch.Token);
+            await LadenAsync();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private Task ProduktWaehlenAsync(string? p) { _produkt = p; return LadenAsync(); }
+    private Task KategorieWaehlenAsync(string? k) { _kategorie = k; return LadenAsync(); }
+
+    private void Oeffnen(int id) => Nav.NavigateTo($"wiki/faq/{id}");
+
+    // --- Formular --------------------------------------------------------------
+
+    private void NeuOeffnen() => Nav.NavigateTo("wiki/faq/neu");
+
+    private async Task NeuOeffnenAsync()
+    {
+        _liste ??= await Http.GetFromJsonAsync<FaqListe>("api/wiki/faq?status=aktuell");
+        _bearbeiteId = null;
+        _fTitel = ""; _fProdukt = Produkte.FirstOrDefault()?.Schluessel ?? "idprove-saas";
+        _fKategorie = Kategorien.FirstOrDefault()?.Schluessel ?? "anmeldung-2fa";
+        _fSymptom = ""; _fUrsache = null; _fLoesung = ""; _fSchlagwoerter = null; _fSofortFreigeben = false;
+        _fKunde = null; _kundenSuche = ""; _kundenTreffer = null;
+
+        // Vorbelegung aus der Kundenakte („als FAQ-Fall übernehmen")
+        if (FaqUebergabe.Abholen() is { } v)
+        {
+            _fTitel = v.Titel;
+            _fSymptom = v.Symptom ?? "";
+            try
+            {
+                var k = await Http.GetFromJsonAsync<KundeDetail>($"api/kunden/{v.KundeId}");
+                if (k is not null) _fKunde = (k.Id, k.Kundennummer, k.Firmenname);
+            }
+            catch { /* Kunde bleibt dann leer — der Fall lässt sich trotzdem erfassen */ }
+        }
+        _formular = true;
+    }
+
+    private void BearbeitenOeffnen(FaqEintragDto f)
+    {
+        _bearbeiteId = f.Id;
+        _fTitel = f.Titel; _fProdukt = f.Produkt; _fKategorie = f.Kategorie;
+        _fSymptom = f.Symptom; _fUrsache = f.Ursache; _fLoesung = f.Loesung;
+        _fSchlagwoerter = f.Schlagwoerter.Count == 0 ? null : string.Join(", ", f.Schlagwoerter);
+        _fKunde = f.KundeId is { } kid ? (kid, "", f.KundeName ?? "") : null;
+        _kundenSuche = ""; _kundenTreffer = null;
+        _formular = true;
+    }
+
+    private void FormularSchliessen()
+    {
+        _formular = false;
+        if (_bearbeiteId is null)
+            Nav.NavigateTo("wiki/faq");
+    }
+
+    private async Task SpeichernAsync()
+    {
+        _fehler = null;
+        _speichert = true;
+        try
+        {
+            var daten = new FaqSpeichern(_fTitel, _fProdukt, _fKategorie, _fSymptom, _fUrsache, _fLoesung, _fSchlagwoerter,
+                _fKunde?.Id, _fSofortFreigeben);
+            HttpResponseMessage antwort;
+            int id;
+            if (_bearbeiteId is { } bid)
+            {
+                antwort = await Http.PutAsJsonAsync($"api/wiki/faq/{bid}", daten);
+                id = bid;
+            }
+            else
+            {
+                antwort = await Http.PostAsJsonAsync("api/wiki/faq", daten);
+                id = antwort.IsSuccessStatusCode ? await antwort.Content.ReadFromJsonAsync<int>() : 0;
+            }
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _formular = false;
+            _gewaehlt = null;
+            if (Id == id)
+                await EinzelnLadenAsync(id);
+            else
+                Nav.NavigateTo($"wiki/faq/{id}");
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichert = false;
+        }
+    }
+
+    private async Task KundenSuchenAsync(ChangeEventArgs e)
+    {
+        _kundenSuche = e.Value?.ToString() ?? "";
+        _kundenAbbruch?.Cancel();
+        if (_kundenSuche.Trim().Length < 2) { _kundenTreffer = null; return; }
+        var abbruch = _kundenAbbruch = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(250, abbruch.Token);
+            var ergebnis = await Http.GetFromJsonAsync<SeitenErgebnis<KundeListenEintrag>>(
+                $"api/kunden?suche={Uri.EscapeDataString(_kundenSuche.Trim())}&proSeite=8", abbruch.Token);
+            _kundenTreffer = ergebnis?.Eintraege ?? [];
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { _fehler = $"Kundensuche fehlgeschlagen: {ex.Message}"; }
+    }
+
+    private void KundeWaehlen(KundeListenEintrag k)
+    {
+        _fKunde = (k.Id, k.Kundennummer, k.Firmenname);
+        _kundenSuche = "";
+        _kundenTreffer = null;
+    }
+
+    // --- Aktionen am Fall ------------------------------------------------------
+
+    private async Task VorgekommenAsync()
+    {
+        if (_gewaehlt is null) return;
+        await AktionAsync(() => Http.PostAsync($"api/wiki/faq/{_gewaehlt.Id}/vorgekommen", null));
+    }
+
+    private async Task StatusAsync(string status)
+    {
+        if (_gewaehlt is null) return;
+        await AktionAsync(() => Http.PutAsJsonAsync($"api/wiki/faq/{_gewaehlt.Id}/status", new FaqStatusSetzen(status)));
+    }
+
+    private async Task LoeschenAsync()
+    {
+        if (_gewaehlt is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"„{_gewaehlt.Titel}“ endgültig löschen? Erledigte Fälle besser auf „Veraltet“ setzen."))
+            return;
+        _fehler = null;
+        _speichert = true;
+        try
+        {
+            var antwort = await Http.DeleteAsync($"api/wiki/faq/{_gewaehlt.Id}");
+            if (!antwort.IsSuccessStatusCode) { _fehler = await antwort.Content.ReadAsStringAsync(); return; }
+            Nav.NavigateTo("wiki/faq");
+        }
+        catch (Exception ex) { _fehler = $"Löschen fehlgeschlagen: {ex.Message}"; }
+        finally { _speichert = false; }
+    }
+
+    private async Task AktionAsync(Func<Task<HttpResponseMessage>> aktion)
+    {
+        _fehler = null;
+        _speichert = true;
+        try
+        {
+            var antwort = await aktion();
+            if (!antwort.IsSuccessStatusCode) { _fehler = await antwort.Content.ReadAsStringAsync(); return; }
+            if (_gewaehlt is not null)
+                await EinzelnLadenAsync(_gewaehlt.Id);
+        }
+        catch (Exception ex) { _fehler = $"Aktion fehlgeschlagen: {ex.Message}"; }
+        finally { _speichert = false; }
+    }
+
+    /// <summary>Lösung als Klartext (ohne Formatierungszeichen) in die Zwischenablage — für die Antwort an den Kunden.</summary>
+    private async Task LoesungKopierenAsync()
+    {
+        if (_gewaehlt is null) return;
+        var text = _gewaehlt.Loesung.Replace("**", "");
+        _kopiert = await JS.InvokeAsync<bool>("zwischenablage.kopieren", text);
+        if (!_kopiert)
+            await JS.InvokeVoidAsync("zwischenablage.anzeigen", text);
+    }
+
+    // --- Anzeige ---------------------------------------------------------------
+
+    private static string Kurz(string text)
+    {
+        var einzeilig = text.Replace("\r", "").Replace("\n", " ").Replace("**", "");
+        return einzeilig.Length <= 160 ? einzeilig : einzeilig[..157].TrimEnd() + " …";
+    }
+
+    private static string StatusText(string status) => status switch
+    {
+        "Freigegeben" => "freigegeben",
+        "Veraltet" => "veraltet",
+        _ => "Entwurf",
+    };
+
+    private static string StatusKlasse(string status) => status switch
+    {
+        "Freigegeben" => "gut",
+        "Veraltet" => "ruhig",
+        _ => "warnung",
+    };
+
+    private static string StatusHinweis(string status) => status switch
+    {
+        "Freigegeben" => "Von Support oder Redaktion geprüft",
+        "Veraltet" => "Gilt nicht mehr — bleibt zur Historie erhalten",
+        _ => "Erfasst, noch nicht geprüft",
+    };
+}
