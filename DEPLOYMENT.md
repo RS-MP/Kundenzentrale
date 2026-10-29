@@ -324,7 +324,7 @@ vorher sichern):
 
 ## HTTPS im Intranet (Weg A, nachziehbar ohne Code-Änderung)
 
-Ziel: `https://rs-w2019-01/Kundenzentrale` mit einem Zertifikat, dem alle
+Ziel: `https://rs-w2019-01:8443/Kundenzentrale` mit einem Zertifikat, dem alle
 Domänenrechner vertrauen — keine Warnung im Browser, Kerberos/NTLM und
 Kundendaten laufen nicht mehr im Klartext. Reihenfolge, ca. 30–45 Minuten:
 
@@ -352,16 +352,22 @@ Kundendaten laufen nicht mehr im Klartext. Reihenfolge, ca. 30–45 Minuten:
      → Windows-Einstellungen → Sicherheitseinstellungen → Richtlinien für
      öffentliche Schlüssel → **Vertrauenswürdige Stammzertifizierungsstellen**)
      an alle Rechner verteilen. Funktioniert, ist aber Handarbeit bei Ablauf.
-2. **IIS-Binding:** IIS-Manager → Default Web Site → Bindungen → Hinzufügen →
-   Typ `https`, Port 443, SSL-Zertifikat = das neue Zertifikat → OK. Die
-   Unteranwendung `/Kundenzentrale` erbt das Binding.
-3. **Test im Browser:** `https://rs-w2019-01/Kundenzentrale` und
-   `https://kundenzentrale.<domäne>/Kundenzentrale` müssen ohne Warnung laden
-   und die Windows-Anmeldung unsichtbar durchlaufen. Falls ein Anmeldedialog
-   erscheint: beide https-Adressen in der GPO „Lokale Anwendungen"
-   ergänzen (`https://rs-w2019-01` = 1, `https://kundenzentrale.<domäne>` = 1).
-   **Auch den Urlaubsplaner über https aufrufen** — er hängt an derselben
-   Default Web Site und muss dort ebenfalls funktionieren (siehe Schritt 4).
+2. **IIS-Binding — auf rs-w2019-01 Port 8443, nicht 443!** Port 443 gehört
+   dort der IIS-Site **iddproveOnline** (Bindung `192.168.0.203:443`, Zertifikat
+   „IDPServer_RS-W2019-01", gültig bis 9999). Weil die Bindung an die feste IP
+   geht, gewinnt sie gegen jede `*:443`-Bindung der Default Web Site — Folge:
+   altes Zertifikat und „Seite nicht gefunden" (Diagnose 29.10.2026 mit
+   `netsh http show sslcert`). **iddproveOnline nicht anfassen.**
+   IIS-Manager → Default Web Site → Bindungen → https-Eintrag bearbeiten →
+   Port `8443`, IP „Keine zugewiesen", Hostname leer, SSL-Zertifikat
+   „Kundenzentrale HTTPS" (CN `kundenzentrale.rs.local`) → OK. Firewall:
+   `New-NetFirewallRule -DisplayName "Kundenzentrale HTTPS 8443" -Direction Inbound -Protocol TCP -LocalPort 8443 -Action Allow -Profile Domain`.
+   Die Unteranwendung `/Kundenzentrale` erbt das Binding.
+3. **Test im Browser (Edge/Chrome, nicht Firefox):**
+   `https://rs-w2019-01:8443/Kundenzentrale` muss ohne Warnung laden und die
+   Windows-Anmeldung unsichtbar durchlaufen. Die Zoneneinträge in der GPO
+   „Lokale Anwendungen" gelten ohne Portangabe für alle Ports; Kerberos nutzt
+   den SPN ohne Port — beides bleibt unverändert.
    Kerberos unter dem neuen Namen (sonst fällt die Anmeldung still auf NTLM
    zurück, funktioniert aber): einmalig als Domänen-Admin
    `setspn -S HTTP/kundenzentrale.<domäne> RS-W2019-01` — bei
@@ -371,17 +377,20 @@ Kundendaten laufen nicht mehr im Klartext. Reihenfolge, ca. 30–45 Minuten:
    ```json
    "Hosting": { "HttpsErzwingen": true }
    ```
-   → App-Pool neu starten. Ab jetzt leitet die App http auf https um und
-   sendet HSTS; alle Links/Lesezeichen auf http funktionieren weiter.
-   **Achtung HSTS gilt für den ganzen Rechnernamen:** Browser rufen danach
-   auch `http://rs-w2019-01/Urlaubsplaner` nur noch per https auf — deshalb
-   in Schritt 3 den Urlaubsplaner über https testen.
+   → App-Pool neu starten. Ab jetzt leitet die App http auf https (Port 8443,
+   ermittelt das ASP.NET-Core-Modul aus der IIS-Bindung) um; alle
+   Links/Lesezeichen auf http funktionieren weiter.
+   **HSTS bleibt aus** (`Hosting:Hsts` = false, Standard): HSTS gilt für den
+   ganzen Rechnernamen und würde `http://rs-w2019-01/Urlaubsplaner` auf
+   `https://rs-w2019-01` (Port 443 = iddproveOnline) zwingen → kaputt.
+   Hat ein Browser HSTS schon einmal gelernt: `edge://net-internals/#hsts`
+   → „Delete domain security policies" → `rs-w2019-01`.
 5. **Import-Task:** nichts zu tun (spricht nur mit SQL Server und Odoo).
 6. **Ablauf überwachen:** das neue Zertifikat in der Kundenzentrale unter
    Server → SSL-Zertifikate eintragen (Erinnerung vor Ablauf). AD-CS-
    Webserverzertifikate laufen meist nach 1–2 Jahren ab.
 7. **Lesezeichen/Verknüpfungen** im Team auf
-   `https://kundenzentrale.<domäne>/Kundenzentrale` umstellen.
+   `https://rs-w2019-01:8443/Kundenzentrale` umstellen.
 
 Bis Schritt 4 läuft alles wie bisher über http — der Schalter macht die
 Umstellung jederzeit rückgängig (`false` + App-Pool-Neustart).

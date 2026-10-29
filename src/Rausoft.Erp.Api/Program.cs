@@ -173,10 +173,14 @@ if (builder.Configuration["Hosting:PfadBasis"] is { Length: > 0 } pfadBasis)
 // Zertifikat und ein https-Binding an der Site existieren (DEPLOYMENT.md,
 // Abschnitt HTTPS). Vorher würde die Umleitung aufs HTTPS-Binding der Default
 // Web Site mit fremdem Zertifikat laufen und Zertifikatswarnungen erzeugen.
+// HSTS getrennt schalten ("Hosting:Hsts"): Es gilt für den ganzen Rechnernamen
+// und würde http://rs-w2019-01/Urlaubsplaner auf Port 443 zwingen — dort liegt
+// aber die Site iddproveOnline, die Kundenzentrale läuft auf 8443.
 var httpsErzwingen = !windowsAuth || builder.Configuration.GetValue<bool>("Hosting:HttpsErzwingen");
+var hsts = !windowsAuth || builder.Configuration.GetValue<bool>("Hosting:Hsts");
 if (httpsErzwingen)
 {
-    if (!app.Environment.IsDevelopment())
+    if (hsts && !app.Environment.IsDevelopment())
         app.UseHsts();
     app.UseHttpsRedirection();
 }
