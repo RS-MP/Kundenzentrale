@@ -38,7 +38,7 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
             .OrderByDescending(a => a.Zeitpunkt)
             .Select(a => new
             {
-                a.Zeitpunkt, a.Typ, a.Richtung, a.AutorName,
+                a.Id, a.Zeitpunkt, a.Typ, a.Richtung, a.AutorName, a.Betreff,
                 Autor = a.Mitarbeiter == null ? null : new TeilnehmerRoh(TeilnehmerSeite.Rausoft, a.MitarbeiterId, a.Mitarbeiter.Anzeigename,
                     a.Mitarbeiter.Bereich != null ? a.Mitarbeiter.Bereich.Name : null, null, null, null, null, null, null),
                 Ap = a.Ansprechpartner == null ? null : new TeilnehmerRoh(TeilnehmerSeite.Kunde, null, null, null, a.AnsprechpartnerId,
@@ -59,6 +59,8 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
         var kunde = new Dictionary<string, AktePerson>();
         var zellen = new Dictionary<(string, string), (int Anzahl, DateTime Zuletzt)>();
         LetzterKontakt? letzter = null;
+        var letzte = new List<KontaktZeile>();
+        var jePerson = new Dictionary<string, (int Anzahl, DateTime Zuletzt)>();
         var kontakte = 0;
         foreach (var a in roh)
         {
@@ -67,8 +69,17 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
                 continue;
             kontakte++;
             letzter ??= new LetzterKontakt(a.Zeitpunkt, ArtText(a.Typ), r, k);
+            if (letzte.Count < LetzteGespraeche)
+                letzte.Add(new KontaktZeile(a.Id, a.Zeitpunkt, ArtText(a.Typ), Kuerzen(a.Betreff, 160), r, k));
             foreach (var p in r) rausoft.TryAdd(p.Schluessel, p);
-            foreach (var p in k) kunde.TryAdd(p.Schluessel, p);
+            foreach (var p in k)
+            {
+                kunde.TryAdd(p.Schluessel, p);
+                // roh ist absteigend sortiert: der erste Treffer ist der jüngste
+                jePerson[p.Schluessel] = jePerson.TryGetValue(p.Schluessel, out var bisher)
+                    ? (bisher.Anzahl + 1, bisher.Zuletzt)
+                    : (1, a.Zeitpunkt);
+            }
             foreach (var pr in r)
                 foreach (var pk in k)
                 {
@@ -97,8 +108,18 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
             zellen.Select(z => new GespraechsZelle(z.Key.Item1, z.Key.Item2, z.Value.Anzahl, z.Value.Zuletzt)).ToList(),
             offeneAufgaben.Count,
             offeneAufgaben.Count(f => f is not null && f < heute),
-            vereinbarungenOffen));
+            vereinbarungenOffen,
+            letzte,
+            kunde.Values
+                .Select(p => new PersonKontakt(p, jePerson[p.Schluessel].Anzahl, jePerson[p.Schluessel].Zuletzt,
+                    zellen.Where(z => z.Key.Item2 == p.Schluessel)
+                        .OrderByDescending(z => z.Value.Zuletzt).ThenByDescending(z => z.Value.Anzahl)
+                        .Select(z => rausoft[z.Key.Item1]).Take(2).ToList()))
+                .OrderByDescending(p => p.Zuletzt)
+                .ToList()));
     }
+
+    private const int LetzteGespraeche = 3;
 
     private static string ArtText(AktivitaetsTyp typ) => typ switch
     {
@@ -134,16 +155,43 @@ public class AkteController(ErpDbContext db, IAktuellerBenutzer benutzer) : Cont
                 a.ZustaendigName,
             })
             .ToListAsync(ct);
+
+        // Was im Vorgang geschrieben wurde, soll jeder in der Akte sofort sehen:
+        // Hinweis und letzte Nachricht einmal je Vorgang, am ersten offenen Schritt
+        var vorgangIds = liste.Where(a => a.VorgangId != null && a.Status != AufgabenStatus.Erledigt)
+            .Select(a => a.VorgangId!.Value).Distinct().ToList();
+        var hinweise = await db.Vorgaenge.AsNoTracking()
+            .Where(v => vorgangIds.Contains(v.Id) && v.Hinweis != null)
+            .ToDictionaryAsync(v => v.Id, v => v.Hinweis!, ct);
+        var nachrichten = (await db.Aktivitaeten.AsNoTracking()
+                .Where(a => a.VerweisTyp == AktivitaetsVerweisTyp.Vorgang && a.VerweisId != null && vorgangIds.Contains(a.VerweisId.Value)
+                            && a.Inhalt != null && a.MitarbeiterId != null
+                            && (a.Typ == AktivitaetsTyp.Notiz || a.Betreff.StartsWith("Schritt erledigt:")
+                                || a.Betreff.StartsWith("Wartet auf Kunden")))
+                .OrderByDescending(a => a.Zeitpunkt)
+                .Select(a => new { VorgangId = a.VerweisId!.Value, a.Zeitpunkt, Von = a.Mitarbeiter!.Anzeigename, a.Betreff, a.Inhalt })
+                .ToListAsync(ct))
+            .GroupBy(n => n.VorgangId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var gezeigt = new HashSet<int>();
         return Ok(liste
             .OrderBy(a => a.Status == AufgabenStatus.Erledigt)
             .ThenBy(a => a.Faellig ?? DateOnly.MaxValue)
-            .Select(a => new AufgabeEintrag(a.Id, a.Titel, a.Art, a.Beschreibung, a.Faellig,
-                a.Person ?? (a.Pool is not null ? $"Pool {a.Pool}" : a.ZustaendigName),
-                a.Person is not null ? a.PersonBereich : a.Pool,
-                a.Person is null && a.Pool is not null,
-                a.Status == AufgabenStatus.Erledigt, a.Bezug, a.StrangSchluessel,
-                a.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale", a.ErledigtAm,
-                a.VorgangId, a.Status == AufgabenStatus.WartetAufKunden))
+            .Select(a =>
+            {
+                var erster = a.VorgangId is { } vid && a.Status != AufgabenStatus.Erledigt && gezeigt.Add(vid);
+                var n = erster ? nachrichten.GetValueOrDefault(a.VorgangId!.Value) : null;
+                return new AufgabeEintrag(a.Id, a.Titel, a.Art, a.Beschreibung, a.Faellig,
+                    a.Person ?? (a.Pool is not null ? $"Pool {a.Pool}" : a.ZustaendigName),
+                    a.Person is not null ? a.PersonBereich : a.Pool,
+                    a.Person is null && a.Pool is not null,
+                    a.Status == AufgabenStatus.Erledigt, a.Bezug, a.StrangSchluessel,
+                    a.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale", a.ErledigtAm,
+                    a.VorgangId, a.Status == AufgabenStatus.WartetAufKunden,
+                    erster ? hinweise.GetValueOrDefault(a.VorgangId!.Value) : null,
+                    n is null ? null : new VorgangNachricht(n.Zeitpunkt, n.Von, n.Betreff, Kuerzen(n.Inhalt!, 400)));
+            })
             .ToList());
     }
 

@@ -215,7 +215,8 @@ else
                     </label>
                     <label class="breit">
                         Prozess (wie entsteht eine neue Version, wer gibt frei, wo liegt sie?)
-                        <textarea rows="5" @bind="_infoForm.Prozess"></textarea>
+                        <textarea rows="8" @bind="_infoForm.Prozess" @bind:event="oninput"></textarea>
+                        <WikiTextHilfe Text="@_infoForm.Prozess" />
                     </label>
                 </div>
                 <div class="formular-aktionen">
@@ -229,9 +230,13 @@ else
                     @if (_info.Verantwortlich is null) { <span class="warntext">noch nicht festgelegt</span> }
                     else { <span>@_info.Verantwortlich</span><span class="neben" style="display:inline">· Vertretung: @(_info.Vertreter ?? "offen")</span> }
                 </div>
-                <div class="sl-beiuns-zeile" style="align-items:flex-start"><span class="sl-beiuns-label">Prozess</span>
-                    <span style="white-space:pre-wrap">@(_info.Prozess ?? "— noch nicht beschrieben")</span>
+                <div class="sl-beiuns-zeile"><span class="sl-beiuns-label">Prozess</span>
+                    @if (_info.Prozess is null) { <span class="warntext">noch nicht beschrieben</span> }
                 </div>
+                @if (_info.Prozess is not null)
+                {
+                    <WikiText Text="@_info.Prozess" Klasse="sl-prozess" />
+                }
                 @if (_ansicht.DarfBearbeiten)
                 {
                     <button class="knopf sekundaer klein" style="margin-top:8px" @onclick="InfoBearbeitenOeffnen">Bearbeiten</button>

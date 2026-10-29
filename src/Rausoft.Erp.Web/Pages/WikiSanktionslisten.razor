@@ -61,7 +61,14 @@ else
                             <button class="mehr" @onclick="() => StandardOeffnen(prozess)">Bearbeiten</button>
                         }
                     </div>
-                    <div style="white-space:pre-wrap; margin-top:4px; color:@(prozess.Text is null ? "var(--muted)" : "var(--ink)")">@(prozess.Text ?? "— noch nicht beschrieben")</div>
+                    @if (prozess.Text is null)
+                    {
+                        <div class="neben" style="margin-top:4px">— noch nicht beschrieben</div>
+                    }
+                    else
+                    {
+                        <WikiText Text="@prozess.Text" Klasse="sl-prozess" />
+                    }
                     @if (prozess.GeaendertAm is not null)
                     {
                         <div class="neben" style="margin-top:2px">zuletzt geändert @prozess.GeaendertAm.Value.ToLocalTime().ToString("dd.MM.yyyy")@(prozess.GeaendertVon is not null ? $" von {prozess.GeaendertVon}" : "")</div>
@@ -113,14 +120,14 @@ else
                                         {
                                             <div class="sl-block">
                                                 <div class="schritt-titel">Was enthält die Liste?</div>
-                                                <p>@liste.Beschreibung</p>
+                                                <WikiText Text="@liste.Beschreibung" />
                                             </div>
                                         }
                                         @if (liste.Relevanz is not null)
                                         {
                                             <div class="sl-block">
                                                 <div class="schritt-titel">Für wen ist sie relevant?</div>
-                                                <p>@liste.Relevanz</p>
+                                                <WikiText Text="@liste.Relevanz" />
                                             </div>
                                         }
                                         @if (liste.BezeichnungIntern is not null || liste.Aliase is not null)
@@ -186,28 +193,33 @@ else
                                             <span class="neben" style="display:inline">· Vertretung: @(liste.Vertreter ?? "offen")</span>
                                         }
                                     </div>
-                                    <div class="sl-beiuns-zeile" style="align-items:flex-start">
+                                    <div class="sl-beiuns-zeile">
                                         <span class="sl-beiuns-label">Prozess</span>
-                                        <span>
-                                            @if (liste.Prozess is not null)
-                                            {
-                                                <span style="white-space:pre-wrap">@liste.Prozess</span>
-                                                @if (Standard(liste.Import) is not null)
-                                                {
-                                                    <span class="neben">eigener Prozess — weicht vom Standard „@ImportText(liste.Import)" ab</span>
-                                                }
-                                            }
-                                            else if (Standard(liste.Import) is { } standard)
-                                            {
-                                                <span style="white-space:pre-wrap">@standard</span>
-                                                <span class="neben">Standardprozess „@ImportText(liste.Import)"</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="warntext">@(liste.Import == "Offen" ? "Importart noch offen" : "noch nicht beschrieben")</span>
-                                            }
-                                        </span>
+                                        @if (liste.Prozess is not null)
+                                        {
+                                            <span>eigener Prozess@(Standard(liste.Import) is not null ? $" — weicht vom Standard „{ImportText(liste.Import)}“ ab" : "")</span>
+                                        }
+                                        else if (Standard(liste.Import) is not null)
+                                        {
+                                            <span>Standardprozess „@ImportText(liste.Import)“ — gilt für alle Listen dieser Importart</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="warntext">@(liste.Import == "Offen" ? "Importart noch offen" : "noch nicht beschrieben")</span>
+                                        }
                                     </div>
+                                    @if (liste.Prozess is not null)
+                                    {
+                                        <WikiText Text="@liste.Prozess" Klasse="sl-prozess" />
+                                    }
+                                    else if (Standard(liste.Import) is { } standard)
+                                    {
+                                        @* Derselbe Text steht bei jeder Liste dieser Art — deshalb nur aufklappbar *@
+                                        <details class="sl-standard">
+                                            <summary>Standardprozess anzeigen</summary>
+                                            <WikiText Text="@standard" Klasse="sl-prozess" />
+                                        </details>
+                                    }
                                 </div>
 
                                 <div style="display:flex; gap:10px; align-items:center; margin-top:10px">
@@ -252,7 +264,8 @@ else
                 <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
                     Gilt für alle Listen mit dieser Importart, die keinen eigenen Prozess haben. Leer speichern entfernt den Standard.
                 </div>
-                <textarea rows="10" style="width:100%; box-sizing:border-box" @bind="_standardText" placeholder="@ProzessBeispiel"></textarea>
+                <textarea rows="14" style="width:100%; box-sizing:border-box" @bind="_standardText" @bind:event="oninput" placeholder="@ProzessBeispiel"></textarea>
+                <WikiTextHilfe Text="@_standardText" />
             </div>
             <div class="fenster-fuss">
                 <button class="knopf" disabled="@_speichere" @onclick="StandardSpeichernAsync">@(_speichere ? "Speichere …" : "Speichern")</button>
@@ -328,8 +341,9 @@ else
                     </label>
                     <label class="breit">
                         Prozess (leer lassen = Standardprozess der Importart gilt)
-                        <textarea rows="5" @bind="_bearbeitung.Prozess"
+                        <textarea rows="8" @bind="_bearbeitung.Prozess" @bind:event="oninput"
                                   placeholder="@ProzessBeispiel"></textarea>
+                        <WikiTextHilfe Text="@_bearbeitung.Prozess" />
                     </label>
                     <label style="flex-direction:row; align-items:center; gap:6px">
                         <input type="checkbox" @bind="_bearbeitung.Standardumfang" /> Standardumfang sanktionslisten.de

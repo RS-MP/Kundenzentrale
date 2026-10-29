@@ -17,7 +17,16 @@ public record AkteUeberblick(
     List<GespraechsZelle> Zellen,
     int AufgabenOffen,
     int AufgabenUeberfaellig,
-    int VereinbarungenOffen);
+    int VereinbarungenOffen,
+    /// <summary>Die letzten Gespräche mit Betreff — worum ging es zuletzt?</summary>
+    List<KontaktZeile>? Letzte = null,
+    /// <summary>Je Ansprechpartner beim Kunden: wie oft, wann zuletzt, mit wem bei uns.</summary>
+    List<PersonKontakt>? JePerson = null);
+
+public record KontaktZeile(int AktivitaetId, DateTime Zeitpunkt, string Art, string Betreff, List<AktePerson> Rausoft, List<AktePerson> Kunde);
+
+/// <summary><paramref name="Mit"/>: Personen bei uns, häufigste zuerst.</summary>
+public record PersonKontakt(AktePerson Person, int Anzahl, DateTime Zuletzt, List<AktePerson> Mit);
 
 public record LetzterKontakt(DateTime Zeitpunkt, string Art, List<AktePerson> Rausoft, List<AktePerson> Kunde);
 
@@ -40,7 +49,13 @@ public record AufgabeEintrag(
     DateTime? ErledigtAm,
     /// <summary>Gesetzt bei Vorgangsschritten — erledigt wird dann im Vorgang.</summary>
     int? VorgangId = null,
-    bool WartetAufKunden = false);
+    bool WartetAufKunden = false,
+    /// <summary>Hinweis des Vorgangs — nur am ersten offenen Schritt je Vorgang, damit er einmal sichtbar ist.</summary>
+    string? VorgangHinweis = null,
+    /// <summary>Letzte Nachricht im Vorgang (Notiz, Erledigt-/Warte-Notiz) — ebenfalls am ersten offenen Schritt.</summary>
+    VorgangNachricht? Nachricht = null);
+
+public record VorgangNachricht(DateTime Zeitpunkt, string? Von, string Betreff, string Text);
 
 /// <summary>Zuständig ist entweder <paramref name="ZustaendigId"/> (Person) oder <paramref name="ZustaendigBereichId"/> (Pool).</summary>
 public record AufgabeAnlegen(string Titel, string? Art, DateOnly? Faellig, int? ZustaendigId, int? ZustaendigBereichId, string? Vorgang);

@@ -439,6 +439,33 @@ a.wiki-thema:hover { border-color: var(--accent-line); }
 .sl-beiuns-zeile { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; font-size: 13.5px; flex-wrap: wrap; }
 .sl-beiuns-label { color: var(--muted); min-width: 90px; }
 .sl-beiuns .neben { display: block; margin-top: 2px; }
+/* Formatierte Wiki-Texte (WikiFormat): lesbare Zeilenbreite, Code und Tabellen abgesetzt */
+.wiki-text { max-width: 78ch; font-size: 13.5px; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
+.wiki-text > :first-child { margin-top: 0; }
+.wiki-text > :last-child { margin-bottom: 0; }
+.wiki-text p { margin: 0 0 8px; }
+.wiki-text h3, .wiki-text h4, .wiki-text h5 { margin: 14px 0 6px; line-height: 1.3; }
+.wiki-text h3 { font-size: 15px; }
+.wiki-text h4 { font-size: 14px; }
+.wiki-text h5 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.wiki-text ul, .wiki-text ol { margin: 0 0 8px; padding-left: 22px; }
+.wiki-text li { margin: 2px 0; }
+.wiki-text code { font-family: Consolas, monospace; font-size: 12.5px; background: var(--surface2); border-radius: 4px; padding: 1px 4px; }
+.wiki-text pre { margin: 0 0 10px; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; overflow-x: auto; max-width: 100%; }
+.wiki-text pre code { background: none; padding: 0; font-size: 12px; line-height: 1.45; overflow-wrap: normal; }
+.wiki-text table { border-collapse: collapse; margin: 0 0 10px; font-size: 13px; }
+.wiki-text th, .wiki-text td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
+.wiki-text th { background: var(--surface2); font-weight: 600; }
+.wiki-text a { color: var(--accent); }
+.sl-prozess { margin: 6px 0 4px; }
+.sl-standard { margin: 4px 0; font-size: 13px; }
+.sl-standard summary { cursor: pointer; color: var(--accent); width: fit-content; }
+.sl-standard[open] summary { margin-bottom: 6px; }
+.wiki-hilfe { margin-top: 4px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.wiki-hilfe code { font-family: Consolas, monospace; background: var(--surface2); border-radius: 4px; padding: 0 4px; }
+.wiki-vorschau { margin-top: 6px; border: 1px dashed var(--border-strong); border-radius: 7px; padding: 6px 10px; }
+.wiki-vorschau summary { cursor: pointer; font-size: 12.5px; color: var(--accent); }
+.wiki-vorschau .wiki-text { margin-top: 8px; }
 @media (max-width: 860px) { .sl-raster { grid-template-columns: 1fr; } }
 
 /* Wiki Preisliste */
@@ -559,6 +586,31 @@ button.link:hover { text-decoration: underline; }
 .kurzfassung .gross { font-size: 15px; font-weight: 600; }
 .kurzfassung .klein { color: var(--muted); font-size: 13px; }
 .kurzfassung b { color: var(--ink); }
+.kurzfassung .krit { color: var(--crit); }
+.kurzfassung button.link { padding: 0; }
+/* „Was lief zuletzt?" (29.10.2026): letzte Gespräche mit Betreff, Ansprechpartner als Liste */
+.wl-abschnitt { padding: 8px 16px 4px; }
+.wl-abschnitt + .wl-abschnitt { border-top: 1px dashed var(--border); }
+.wl-titel { display: flex; gap: 10px; align-items: baseline; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+.wl-titel .link { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; margin-left: auto; }
+.wl-gespraech, .wl-person { display: grid; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-radius: 7px; padding: 5px 6px; margin: 0 -6px; cursor: pointer; box-sizing: content-box; }
+.wl-gespraech:hover, .wl-person:hover { background: var(--surface2); }
+.wl-gespraech { grid-template-columns: 92px minmax(0, 1fr); gap: 0 10px; align-items: baseline; }
+.wl-gespraech .wann { font-size: 12.5px; color: var(--ink2); grid-row: span 2; }
+.wl-gespraech .betreff { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-gespraech .wer { font-size: 12.5px; color: var(--muted); }
+.wl-person { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; font-size: 13.5px; }
+.wl-person .name { font-weight: 600; }
+.wl-person .name small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.wl-person .zuletzt { font-size: 12.5px; color: var(--muted); text-align: right; }
+.wl-person .anz { color: var(--ink2); font-variant-numeric: tabular-nums; }
+.wl-person.an { background: var(--akte-an-bg); outline: 1px solid var(--akte-an-rand); }
+@media (max-width: 640px) {
+  .wl-gespraech { grid-template-columns: minmax(0, 1fr); }
+  .wl-gespraech .wann { grid-row: auto; }
+  .wl-person { grid-template-columns: minmax(0, 1fr); }
+  .wl-person .zuletzt { text-align: left; }
+}
 .wmw-wrap { overflow-x: auto; padding: 4px 16px 12px; }
 table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
 .wer-mit-wem th, .wer-mit-wem td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
@@ -586,6 +638,11 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 .auf-zeile.erledigt .titel, .vb-zeile.erledigt .txt { color: var(--muted); text-decoration: line-through; }
 .auf-zeile .woher, .vb-zeile .woher { font-size: 12.5px; color: var(--muted); }
 .auf-zeile .beschreibung { font-size: 12.5px; color: var(--ink2); white-space: pre-wrap; margin-top: 2px; }
+.auf-zeile .auf-hinweis { display: block; margin-top: 5px; padding: 4px 8px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.auf-zeile .auf-nachricht { display: block; margin-top: 5px; padding: 4px 8px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 6px 6px 0; color: var(--ink); text-decoration: none; font-size: 12.5px; }
+.auf-zeile .auf-nachricht .kopf { display: block; color: var(--muted); font-size: 11.5px; }
+.auf-zeile .auf-nachricht .text { display: block; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.auf-zeile .auf-hinweis:hover, .auf-zeile .auf-nachricht:hover { outline: 1px solid var(--accent); }
 .pool { font-size: 11.5px; border: 1px dashed var(--border-strong); border-radius: 4px; padding: 0 5px; color: var(--ink2); }
 .vb-zeile { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--border); align-items: start; }
 .vb-zeile .fl { color: var(--akte-flag); line-height: 1.3; }

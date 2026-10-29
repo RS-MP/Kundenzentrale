@@ -1,0 +1,8 @@
+@* Formatierter Wiki-Text (Überschriften, Aufzählungen, fett, Code, Tabellen) — Regeln in WikiFormat.
+   Der Text wird dort vollständig HTML-kodiert, eigenes HTML wirkt nie. *@
+<div class="wiki-text @Klasse">@((MarkupString)WikiFormat.ZuHtml(Text))</div>
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string? Klasse { get; set; }
+}

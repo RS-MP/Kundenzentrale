@@ -23,26 +23,73 @@
     </div>
     @if (_ueberblick is { } u)
     {
+        @* Kurz: wie viele Gespräche mit wie vielen Leuten, wann zuletzt; Nullwerte und die
+           offenen Aufgaben (stehen direkt darunter) bleiben weg — nur Überfälliges warnt *@
         <div class="kurzfassung">
             @if (u.Letzter is { } l)
             {
-                <span class="gross">@u.Kontakte Kontakt@(u.Kontakte == 1 ? "" : "e")</span>
-                <span class="klein">@u.Rausoft.Count bei rausoft · @u.Kunde.Count beim Kunden</span>
-                <span class="klein">
-                    Zuletzt @Wann(l.Zeitpunkt): @PersonenText(l.Rausoft, true) ↔ @PersonenText(l.Kunde, false) · @l.Art
-                </span>
+                <span class="gross">@u.Kontakte Gespräch@(u.Kontakte == 1 ? "" : "e")</span>
+                <span class="klein">mit @u.Kunde.Count @(u.Kunde.Count == 1 ? "Person" : "Personen") beim Kunden · letztes @Wann(l.Zeitpunkt)</span>
             }
             else
             {
                 <span class="klein">Keine Gespräche in diesem Zeitraum.</span>
             }
-            <span class="klein">
-                @u.AufgabenOffen offene Aufgabe@(u.AufgabenOffen == 1 ? "" : "n")@if (u.AufgabenUeberfaellig > 0)
-                {<b class="krit"> · @u.AufgabenUeberfaellig überfällig</b>}
-                · @u.VereinbarungenOffen offene Vereinbarung@(u.VereinbarungenOffen == 1 ? "" : "en")
-            </span>
+            @if (u.AufgabenUeberfaellig > 0)
+            {
+                <b class="krit klein">@u.AufgabenUeberfaellig Aufgabe@(u.AufgabenUeberfaellig == 1 ? "" : "n") überfällig</b>
+            }
+            @if (u.VereinbarungenOffen > 0)
+            {
+                <button type="button" class="link klein" @onclick='() => JS.InvokeVoidAsync("akte.zeige", "akte-vereinbarungen", "start")'>
+                    @u.VereinbarungenOffen offene Vereinbarung@(u.VereinbarungenOffen == 1 ? "" : "en")
+                </button>
+            }
         </div>
-        @if (u.Rausoft.Count > 0 && u.Kunde.Count > 0)
+
+        @if (u.Letzte is { Count: > 0 } letzte)
+        {
+            <div class="wl-abschnitt">
+                <div class="wl-titel">Zuletzt</div>
+                @foreach (var g in letzte)
+                {
+                    <button type="button" class="wl-gespraech" title="Im Verlauf zeigen" @onclick="() => ImVerlaufZeigenAsync(g.AktivitaetId)">
+                        <span class="wann">@Wann(g.Zeitpunkt)</span>
+                        <span class="betreff">@g.Betreff</span>
+                        <span class="wer">@g.Art · @PersonenText(g.Rausoft, true) ↔ @PersonenText(g.Kunde, false)</span>
+                    </button>
+                }
+            </div>
+        }
+
+        @if (u.JePerson is { Count: > 0 } personen)
+        {
+            <div class="wl-abschnitt">
+                <div class="wl-titel">
+                    Ansprechpartner
+                    @if (u.Rausoft.Count > 1 && u.Kunde.Count > 1)
+                    {
+                        <button type="button" class="link" @onclick="() => _matrix = !_matrix">@(_matrix ? "Liste" : "Wer mit wem als Tabelle")</button>
+                    }
+                </div>
+                @if (!_matrix)
+                {
+                    @foreach (var pk in personen)
+                    {
+                        var an = _paar is { R: "" } gewaehlt && gewaehlt.K == pk.Person.Schluessel;
+                        <button type="button" class="wl-person @(an ? "an" : "")" title="Klick zeigt im Verlauf nur Gespräche mit @pk.Person.Name"
+                                @onclick="() => PersonAsync(pk.Person)">
+                            <span class="name">@pk.Person.Name@if (pk.Person.Zusatz is not null) {<small> · @pk.Person.Zusatz</small>}</span>
+                            <span class="zuletzt">
+                                zuletzt @Wann(pk.Zuletzt)@if (pk.Mit.Count > 0) {<text> mit @string.Join(", ", pk.Mit.Select(m => m.Name))</text>}
+                                <span class="anz">@($" · {pk.Anzahl}×")</span>
+                            </span>
+                        </button>
+                    }
+                }
+            </div>
+        }
+        @if (_matrix && u.Rausoft.Count > 0 && u.Kunde.Count > 0)
         {
             <div class="wmw-wrap">
                 <table class="wer-mit-wem">
@@ -155,6 +202,17 @@
                         @if (a.Beschreibung is not null)
                         {
                             <div class="beschreibung">@a.Beschreibung</div>
+                        }
+                        @if (a.VorgangHinweis is not null)
+                        {
+                            <a class="auf-hinweis" href="vorgaenge/@a.VorgangId" title="Hinweis zum Vorgang">⚠ @a.VorgangHinweis</a>
+                        }
+                        @if (a.Nachricht is { } n)
+                        {
+                            <a class="auf-nachricht" href="vorgaenge/@a.VorgangId" title="@n.Betreff">
+                                <span class="kopf">@(n.Von ?? "Unbekannt") · @Wann(n.Zeitpunkt) · @NachrichtArt(n.Betreff)</span>
+                                <span class="text">@n.Text</span>
+                            </a>
                         }
                     </div>
                 </div>
@@ -450,6 +508,7 @@
     /// <summary>Beim Öffnen nur die Kommunikation (Entscheidung 23.10.2026).</summary>
     private readonly HashSet<string> _kategorien = ["Notizen", "EMails"];
     private (string R, string K, string Text)? _paar;
+    private bool _matrix;
     private (string Schluessel, string Name)? _vorgang;
     private readonly HashSet<int> _aufgeklappt = [];
     private bool _alleAuf;
@@ -541,6 +600,14 @@
     private async Task PaarAsync(AktePerson r, AktePerson k)
     {
         _paar = _paar is { } p && p.R == r.Schluessel && p.K == k.Schluessel ? null : (r.Schluessel, k.Schluessel, $"{r.Name} ↔ {k.Name}");
+        await VerlaufLadenAsync();
+        await JS.InvokeVoidAsync("akte.zeige", "akte-verlauf", "start");
+    }
+
+    /// <summary>Nur Gespräche mit einem Ansprechpartner (egal wer bei uns) — erneuter Klick hebt auf.</summary>
+    private async Task PersonAsync(AktePerson k)
+    {
+        _paar = _paar is { R: "" } p && p.K == k.Schluessel ? null : ("", k.Schluessel, k.Name);
         await VerlaufLadenAsync();
         await JS.InvokeVoidAsync("akte.zeige", "akte-verlauf", "start");
     }
@@ -740,6 +807,12 @@
         _ueberblick?.Zellen.FirstOrDefault(z => z.Rausoft == r && z.Kunde == k);
 
     private static int TageHer(DateTime zeitpunkt) => Heute.DayNumber - DateOnly.FromDateTime(zeitpunkt.ToLocalTime()).DayNumber;
+
+    /// <summary>„Notiz zu „Vertrag senden"" → kurz, worauf sich die Nachricht im Vorgang bezieht.</summary>
+    private static string NachrichtArt(string betreff) =>
+        betreff.StartsWith("Schritt erledigt: ") ? $"beim Erledigen von „{betreff["Schritt erledigt: ".Length..]}“"
+        : betreff.StartsWith("Wartet auf Kunden") ? betreff
+        : betreff;
 
     private static string Wann(DateTime zeitpunkt) => TageHer(zeitpunkt) switch
     {

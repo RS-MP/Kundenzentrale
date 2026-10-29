@@ -1,0 +1,16 @@
+@* Kurzhilfe zur Formatierung und Vorschau unter einem Textfeld für Wiki-Texte. *@
+<div class="wiki-hilfe">
+    Formatierung: <code># Überschrift</code> · <code>- Aufzählung</code> · <code>**fett**</code> ·
+    <code>`Code`</code> · Codeblock mit <code>```</code> · Tabelle <code>| a | b |</code>
+</div>
+@if (!string.IsNullOrWhiteSpace(Text))
+{
+    <details class="wiki-vorschau">
+        <summary>Vorschau</summary>
+        <WikiText Text="@Text" />
+    </details>
+}
+
+@code {
+    [Parameter] public string? Text { get; set; }
+}

@@ -315,6 +315,63 @@ Erste Ausbaustufe in der App (Navigation „Vorgänge"):
 - **Noch offen:** Benachrichtigung bei Weitergabe (Einstellung wird gespeichert,
   Versand fehlt); Abhaken bei „Vertrag unterschrieben" (das Vertragsmodul kennt
   diesen Status noch nicht); Ausbaustufe „Bestätigte Odoo-Aufträge ohne Vorgang".
+- **Gesammelt im Testbetrieb** (Punkte 1–3 umgesetzt am 29.10.2026, siehe
+  „Umsetzung" je Punkt):
+  1. *Nachrichten aus dem Vorgang in der Kundenakte sichtbar* (MP, 28.10.2026):
+     Was im Vorgang eingegeben wird (Hinweis zum Vorgang, Notizen zu Schritten),
+     soll auch in der Akte bei „Offene Aufgaben" stehen, damit es jeder sofort
+     sieht. Heute landet es nur im Verlauf (Strang des Vorgangs); die offenen
+     Aufgaben zeigen nur Titel, Frist und Zuständigkeit. Vorschlag: Hinweis des
+     Vorgangs als ⚠-Zeile über dessen Schritten, letzte Notiz je Schritt
+     gekürzt darunter (Klick führt in den Vorgang).
+     **Umsetzung:** Am ersten offenen Schritt je Vorgang stehen der Hinweis (⚠)
+     und die letzte Nachricht aus dem Vorgang (Notiz, Notiz beim Erledigen oder
+     beim „Wartet auf Kunden") mit Verfasser und Zeitpunkt, je mit Link in den
+     Vorgang. Einmal je Vorgang statt je Schritt, weil Notizen am Vorgang hängen.
+  2. *Wiki-Einträge übersichtlicher* (MP, 28.10.2026; Beispiel Sanktionsliste
+     „MEUL"): Der Steckbrief oben ist gut, darunter erschlägt der Abschnitt
+     „Bei uns → Prozess". Befund: (a) Der Standardprozess der Importart
+     („automatisch (Sanction Admin)") wird bei *jeder* Liste dieser Art in voller
+     Länge eingeblendet — derselbe lange Text dutzendfach, mit DEB-Beispiel auf
+     der MEUL-Seite. (b) Alle Wiki-Texte sind reiner Text ohne Formatierung:
+     keine Überschriften, Listen, Hervorhebungen; JSON-Konfiguration steht als
+     Fließtext. (c) Der Text läuft über die volle Breite unter einem kleinen
+     Label. Vorschlag: Standardprozess bei der Liste nur als Verweis/aufklappbar
+     („Standardprozess automatisch (Sanction Admin) ▸"), voll nur einmal oben;
+     bei der Liste nur die Abweichungen bzw. listeneigenen Werte (z. B. URL,
+     Dateiformat) als kleine Tabelle; einfache Formatierung für Wiki-Texte
+     (Markdown: Überschriften, Aufzählungen, **fett**, Codeblöcke für
+     Konfiguration) mit Vorschau beim Bearbeiten; lange Texte auf lesbare
+     Zeilenbreite begrenzen. Prüfen, ob das auch für die übrigen Wiki-Seiten gilt.
+     **Umsetzung:** Standardprozess bei der Liste nur noch als Zeile plus
+     „Standardprozess anzeigen" (aufklappbar), voll einmal oben. Einfache
+     Formatierung (`WikiFormat`: Überschriften, Aufzählungen, fett, Code,
+     Codeblöcke, Tabellen, Links) für Prozesse, Beschreibung/Relevanz der
+     Sanktionslisten und den Prozess der Preisliste, mit Kurzhilfe und Vorschau
+     beim Bearbeiten; ungeformte JSON-Konfiguration wird automatisch Codeblock;
+     Zeilenbreite begrenzt. Text wird vollständig HTML-kodiert (kein eigenes HTML).
+     Offen: listeneigene Werte (URL, Format) als eigene Felder statt Freitext.
+  3. *Kundenakte „Was lief zuletzt?" besser* (MP, 28.10.2026): Befund: (a) Die
+     Kurzfassung mischt Zählungen — „4 Kontakte" sind Gespräche, „2 bei rausoft ·
+     3 beim Kunden" sind Personen; liest sich wie „4 Ansprechpartner". (b) Die
+     Wer-mit-wem-Tabelle braucht viel Platz für wenig Aussage (meist „1×", viele
+     „–"), die Kopfzeile „rausoft ↓ · Kunde →" ist kryptisch, dass Zellen
+     filtern, sieht man nicht. (c) Das Wichtigste fehlt: *worum* es zuletzt ging
+     (Betreff). (d) Nullwerte („0 offene Vereinbarungen") und die offenen
+     Aufgaben, die direkt darunter ohnehin stehen, sind Rauschen. Vorschlag:
+     Kopfzeile „4 Gespräche mit 3 Personen beim Kunden · letztes vor 35 Tagen";
+     darunter die letzten 2–3 Gespräche je eine Zeile (wann · wer ↔ wer · Art ·
+     Betreff, Klick öffnet den Eintrag); statt der Matrix eine kurze Liste je
+     Ansprechpartner beim Kunden („Herr Braun — zuletzt vor 35 Tagen mit Daniel
+     Stauch, 1×"), Klick filtert den Verlauf; Matrix höchstens als Umschalter
+     bei vielen Beteiligten; Nullwerte weglassen. Layout-Entscheidung „Verlauf
+     links, Fakten rechts" bleibt unberührt.
+     **Umsetzung:** wie vorgeschlagen — „N Gespräche mit M Personen beim Kunden
+     · letztes vor …", Überfälliges und offene Vereinbarungen nur wenn > 0;
+     „Zuletzt" mit den letzten 3 Gesprächen (Klick öffnet den Eintrag im
+     Verlauf); „Ansprechpartner" je Person mit letztem Kontakt und Gesprächspartnern
+     bei uns (Klick filtert den Verlauf auf die Person); Tabelle „Wer mit wem"
+     nur noch per Umschalter, wenn auf beiden Seiten mehrere Personen beteiligt sind.
 
 ### Entscheidungen 28.10.2026 (MP)
 
