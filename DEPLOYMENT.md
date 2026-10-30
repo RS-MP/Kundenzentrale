@@ -12,9 +12,14 @@ Option dokumentiert.
 > bei Bedarf internes Zertifikat + https-Binding an der Default Web Site).
 > Update-Ritual: **vorher** `dotnet list Rausoft.Erp.slnx package --vulnerable --include-transitive`
 > (muss für alle Projekte „keine anfälligen Pakete" melden, sonst erst Pakete heben) →
-> App-Pool beenden → Inhalt von `publish` (frisch per
-> `dotnet publish src/Rausoft.Erp.Api -c Release -o publish`) drüberkopieren
-> (`appsettings.Production.json` liegen lassen) → App-Pool starten.
+> App-Pool beenden → `C:\Kundenzentrale\wwwroot\_framework` leeren (der Ordner
+> ist **versteckt**, daher `Remove-Item -Recurse -Force …\wwwroot\_framework`;
+> sonst sammeln sich alte Assembly-Stände) → Inhalt von `publish` (frisch per
+> `rm -rf publish; dotnet publish src/Rausoft.Erp.Api -c Release -o publish`,
+> weil auch `publish -o` nie aufräumt) drüberkopieren
+> (`appsettings.Production.json` liegen lassen) → App-Pool starten → Browser
+> Strg+F5. Kontrolle: `(Get-ChildItem …\wwwroot\_framework -Force -Filter
+> "Rausoft.Erp.Web*.wasm").Count` muss 1 sein.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
