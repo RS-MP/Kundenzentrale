@@ -47,7 +47,7 @@ public class AufgabenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
             .Select(a => new
             {
                 a.Id, a.Titel, a.Art, a.Beschreibung, a.KundeId, a.Faellig, a.Wiedervorlage, a.Status,
-                a.ZustaendigId, a.ZustaendigBereichId, a.VorgangId, a.Pflichtfeld, a.Bezug, a.Quelle, a.ZustaendigName, a.ErstelltVonId,
+                a.ZustaendigId, a.ZustaendigBereichId, a.VorgangId, a.Pflichtfeld, a.Bezug, a.Quelle, a.ZustaendigName, a.ErstelltVonId, a.OdooId,
                 Kunde = a.Kunde != null ? a.Kunde.Firmenname : null,
                 Kundennummer = a.Kunde != null ? a.Kunde.Kundennummer : null,
                 Zustaendig = a.Zustaendig != null ? a.Zustaendig.Anzeigename : null,
@@ -82,7 +82,8 @@ public class AufgabenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
                 a.ZustaendigId is null && a.ZustaendigBereichId is not null,
                 a.VorgangId, a.Vorgang, a.Hinweis, a.Pflichtfeld, a.Bezug,
                 a.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale",
-                a.VorgangId is null && AufgabenRegeln.DarfLoeschen(a.ErstelltVonId, a.ZustaendigId, ich, istAdmin));
+                AufgabenRegeln.DarfAendern(a.VorgangId, a.OdooId),
+                AufgabenRegeln.DarfLoeschen(a.VorgangId, a.OdooId, a.ErstelltVonId, a.ZustaendigId, ich, istAdmin));
         })
             .OrderBy(z => AufgabenGruppen.Reihenfolge(z.Gruppe))
             .ThenBy(z => z.Faellig ?? DateOnly.MaxValue)

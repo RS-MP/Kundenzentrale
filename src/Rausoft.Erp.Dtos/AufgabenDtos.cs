@@ -40,7 +40,9 @@ public record AufgabeZeile(
     string? Pflichtfeld,
     string? Bezug,
     string Quelle,
-    /// <summary>Angelegt von mir, bei mir oder ich bin Admin (AufgabenRegeln) — nur ohne Vorgang.</summary>
+    /// <summary>In der Kundenzentrale angelegt, ohne Vorgang (AufgabenRegeln).</summary>
+    bool DarfBearbeiten = false,
+    /// <summary>Wie <see cref="DarfBearbeiten"/>, dazu angelegt von mir, bei mir oder ich bin Admin.</summary>
     bool DarfLoeschen = false);
 
 /// <summary>Für das Abzeichen in der Navigation: fällig bis heute, bei mir oder unbesetzt in meinem Pool.</summary>

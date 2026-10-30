@@ -148,7 +148,7 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
             .Select(a => new
             {
                 a.Id, a.Titel, a.Art, a.Beschreibung, a.Status, a.Bezug, a.StrangSchluessel, a.Quelle, a.ErledigtAm, a.VorgangId,
-                a.ErstelltVonId, a.ZustaendigId,
+                a.ErstelltVonId, a.ZustaendigId, a.OdooId,
                 Faellig = a.Status == AufgabenStatus.WartetAufKunden ? a.Wiedervorlage : a.Faellig,
                 Person = a.Zustaendig != null ? a.Zustaendig.Anzeigename : null,
                 PersonBereich = a.Zustaendig != null && a.Zustaendig.Bereich != null ? a.Zustaendig.Bereich.Name : null,
@@ -194,7 +194,8 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
                     a.VorgangId, a.Status == AufgabenStatus.WartetAufKunden,
                     erster ? hinweise.GetValueOrDefault(a.VorgangId!.Value) : null,
                     n is null ? null : new VorgangNachricht(n.Zeitpunkt, n.Von, n.Betreff, Kuerzen(n.Inhalt!, 400)),
-                    a.VorgangId is null && AufgabenRegeln.DarfLoeschen(a.ErstelltVonId, a.ZustaendigId, ich, istAdmin));
+                    AufgabenRegeln.DarfAendern(a.VorgangId, a.OdooId),
+                    AufgabenRegeln.DarfLoeschen(a.VorgangId, a.OdooId, a.ErstelltVonId, a.ZustaendigId, ich, istAdmin));
             })
             .ToList());
     }
@@ -276,23 +277,22 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
         return NoContent();
     }
 
-    /// <summary>Eine Aufgabe zum Bearbeiten — Vorgangsschritte pflegt der Vorgang.</summary>
+    /// <summary>Eine in der Kundenzentrale angelegte Aufgabe zum Bearbeiten (<see cref="AufgabenRegeln"/>).</summary>
     [HttpGet("aufgaben/{aufgabeId:int}")]
     public async Task<ActionResult<AufgabeDetail>> AufgabeLesen(int aufgabeId, CancellationToken ct)
     {
         var a = await db.Aufgaben.AsNoTracking()
-            .Where(x => x.Id == aufgabeId && x.VorgangId == null && x.Status != AufgabenStatus.Entfallen)
+            .Where(x => x.Id == aufgabeId && x.VorgangId == null && x.OdooId == null && x.Status != AufgabenStatus.Entfallen)
             .Select(x => new AufgabeDetail(x.Id, x.KundeId, x.Titel, x.Art, x.Beschreibung, x.Faellig,
                 x.ZustaendigId, x.ZustaendigBereichId, x.Zustaendig != null ? x.Zustaendig.Anzeigename : x.ZustaendigName,
-                x.StrangSchluessel, x.Bezug, x.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale"))
+                x.StrangSchluessel, x.Bezug))
             .FirstOrDefaultAsync(ct);
         return a is null ? NotFound() : Ok(a);
     }
 
     /// <summary>
-    /// Aufgabe ändern (nur offene, ohne Vorgang). Eine aus Odoo übernommene Aufgabe gehört danach
-    /// der Kundenzentrale: Der Odoo-Abgleich überschreibt sie nicht mehr, sonst wäre die Änderung
-    /// beim nächsten Lauf wieder weg.
+    /// Aufgabe ändern — nur offene, in der Kundenzentrale angelegte ohne Vorgang. Aus Odoo
+    /// übernommene Aufgaben gleicht der Odoo-Import ab; Änderungen hier würden ihn aushebeln.
     /// </summary>
     [HttpPut("aufgaben/{aufgabeId:int}")]
     public async Task<IActionResult> AufgabeAendern(int aufgabeId, AufgabeAnlegen daten, CancellationToken ct)
@@ -300,8 +300,8 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
         var aufgabe = await db.Aufgaben.FirstOrDefaultAsync(a => a.Id == aufgabeId && a.Status != AufgabenStatus.Entfallen, ct);
         if (aufgabe is null)
             return NotFound();
-        if (aufgabe.VorgangId is not null)
-            return BadRequest("Vorgangsschritte werden im Vorgang bearbeitet.");
+        if (NichtAenderbar(aufgabe) is { } grund)
+            return BadRequest(grund);
         if (aufgabe.Status == AufgabenStatus.Erledigt)
             return BadRequest("Die Aufgabe ist erledigt — zum Ändern bitte erst wieder öffnen.");
         if (await AufgabePruefenAsync(daten, aufgabe.ZustaendigId, aufgabe.ZustaendigBereichId, ct) is { } fehler)
@@ -320,7 +320,7 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
             if (aufgabe.Status == AufgabenStatus.InArbeit)
                 aufgabe.Status = AufgabenStatus.Offen;
         }
-        // Unveränderter Vorgang bleibt stehen, auch wenn er (z. B. aus Odoo) nicht in der Auswahl der Akte vorkommt
+        // Unveränderter Vorgang bleibt stehen, auch wenn er nicht mehr in der Auswahl der Akte vorkommt
         var schluessel = string.IsNullOrWhiteSpace(daten.Vorgang) ? null : daten.Vorgang;
         if (schluessel != aufgabe.StrangSchluessel)
         {
@@ -328,14 +328,12 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
             aufgabe.Bezug = vorgang?.Name;
             aufgabe.StrangSchluessel = vorgang?.Schluessel;
         }
-        aufgabe.Quelle = AktivitaetsQuelle.Kundenzentrale;
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
 
     /// <summary>
-    /// Aufgabe löschen (ohne Vorgang; wer darf: <see cref="AufgabenRegeln"/>). Eine aus Odoo übernommene
-    /// Aufgabe wird nur als entfallen markiert, damit der Odoo-Abgleich sie nicht wieder anlegt.
+    /// Aufgabe löschen — nur in der Kundenzentrale angelegte ohne Vorgang; wer darf: <see cref="AufgabenRegeln"/>.
     /// Ein Verlaufseintrag „Aufgabe erledigt“ bleibt stehen — er hält fest, was passiert ist.
     /// </summary>
     [HttpDelete("aufgaben/{aufgabeId:int}")]
@@ -344,23 +342,22 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
         var aufgabe = await db.Aufgaben.FirstOrDefaultAsync(a => a.Id == aufgabeId && a.Status != AufgabenStatus.Entfallen, ct);
         if (aufgabe is null)
             return NotFound();
-        if (aufgabe.VorgangId is not null)
-            return BadRequest("Vorgangsschritte werden im Vorgang entfernt.");
-        if (!AufgabenRegeln.DarfLoeschen(aufgabe.ErstelltVonId, aufgabe.ZustaendigId, await AktuellerMitarbeiterId(ct),
-                await angemeldet.HatRolleAsync(MitarbeiterRolle.Admin, ct)))
+        if (NichtAenderbar(aufgabe) is { } grund)
+            return BadRequest(grund);
+        if (!AufgabenRegeln.DarfLoeschen(aufgabe.VorgangId, aufgabe.OdooId, aufgabe.ErstelltVonId, aufgabe.ZustaendigId,
+                await AktuellerMitarbeiterId(ct), await angemeldet.HatRolleAsync(MitarbeiterRolle.Admin, ct)))
             return StatusCode(StatusCodes.Status403Forbidden,
                 "Löschen darf, wer die Aufgabe angelegt hat, wer zuständig ist, oder ein Admin.");
 
-        if (aufgabe.OdooId is not null)
-        {
-            aufgabe.Status = AufgabenStatus.Entfallen;
-            aufgabe.EntfallenGrund = AufgabenRegeln.GrundGeloescht;
-        }
-        else
-            db.Aufgaben.Remove(aufgabe);
+        db.Aufgaben.Remove(aufgabe);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
+
+    private static string? NichtAenderbar(Aufgabe aufgabe) =>
+        aufgabe.VorgangId is not null ? "Vorgangsschritte werden im Vorgang bearbeitet."
+        : aufgabe.OdooId is not null ? "Aus Odoo übernommene Aufgaben werden in Odoo geändert; der Import gleicht sie ab."
+        : null;
 
     /// <summary>Gemeinsame Prüfung für Anlegen und Ändern; die bisherige Zuständigkeit darf bleiben, auch wenn sie deaktiviert ist.</summary>
     private async Task<string?> AufgabePruefenAsync(AufgabeAnlegen daten, int? bisherPerson, int? bisherBereich, CancellationToken ct)

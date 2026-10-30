@@ -125,7 +125,7 @@
                         {
                             <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="() => ErledigtAsync(a)">Erledigt</button>
                         }
-                        @if (a.VorgangId is null && a.KundeId is not null)
+                        @if (a.DarfBearbeiten && a.KundeId is not null)
                         {
                             <button class="knopf sekundaer klein" title="Aufgabe bearbeiten" @onclick="() => _bearbeite = _bearbeite == a.Id ? null : a.Id">Bearbeiten</button>
                         }

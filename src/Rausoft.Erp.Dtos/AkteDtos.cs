@@ -54,7 +54,9 @@ public record AufgabeEintrag(
     string? VorgangHinweis = null,
     /// <summary>Letzte Nachricht im Vorgang (Notiz, Erledigt-/Warte-Notiz) — ebenfalls am ersten offenen Schritt.</summary>
     VorgangNachricht? Nachricht = null,
-    /// <summary>Angelegt von mir, bei mir oder ich bin Admin (AufgabenRegeln) — nur ohne Vorgang.</summary>
+    /// <summary>In der Kundenzentrale angelegt, ohne Vorgang (AufgabenRegeln).</summary>
+    bool DarfBearbeiten = false,
+    /// <summary>Wie <see cref="DarfBearbeiten"/>, dazu angelegt von mir, bei mir oder ich bin Admin.</summary>
     bool DarfLoeschen = false);
 
 public record VorgangNachricht(DateTime Zeitpunkt, string? Von, string Betreff, string Text);
@@ -66,7 +68,7 @@ public record VorgangNachricht(DateTime Zeitpunkt, string? Von, string Betreff, 
 public record AufgabeAnlegen(string Titel, string? Art, DateOnly? Faellig, int? ZustaendigId, int? ZustaendigBereichId, string? Vorgang,
     string? Beschreibung = null);
 
-/// <summary>Eine Aufgabe zum Bearbeiten (nur ohne Vorgang).</summary>
+/// <summary>Eine Aufgabe zum Bearbeiten (nur in der Kundenzentrale angelegte, ohne Vorgang).</summary>
 public record AufgabeDetail(
     int Id,
     int? KundeId,
@@ -80,8 +82,7 @@ public record AufgabeDetail(
     string? Zustaendig,
     /// <summary>Strang-Schlüssel und Name des Vorgangs aus dem Verlauf.</summary>
     string? Vorgang,
-    string? Bezug,
-    string Quelle);
+    string? Bezug);
 
 public record ErledigtSetzen(bool Erledigt);
 

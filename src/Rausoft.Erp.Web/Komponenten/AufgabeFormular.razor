@@ -1,5 +1,6 @@
 @* Aufgabe anlegen (AufgabeId leer) oder bearbeiten — in der Akte und unter „Meine Aufgaben“.
-   Vorgangsschritte pflegt der Vorgang, die kommen hier nicht hin. *@
+   Nur in der Kundenzentrale angelegte Aufgaben: Vorgangsschritte pflegt der Vorgang,
+   Odoo-Aufgaben gleicht der Odoo-Import ab. *@
 @inject HttpClient Http
 
 @if (_auswahl is { } aw && _geladen)
@@ -9,7 +10,7 @@
         <div class="reihe">
             <label>Art
                 <select @bind="_art">
-                    @foreach (var art in Arten(_art))
+                    @foreach (var art in Arten)
                     {
                         <option>@art</option>
                     }
@@ -48,10 +49,6 @@
             </label>
         </div>
         <label>Beschreibung<textarea @bind="_beschreibung" rows="3" maxlength="4000" placeholder="optional — was genau zu tun ist"></textarea></label>
-        @if (_ausOdoo)
-        {
-            <div class="neben">Aus Odoo übernommen. Nach dem Speichern gilt die Fassung hier — der Odoo-Abgleich ändert die Aufgabe dann nicht mehr.</div>
-        }
         @if (_fehler is not null)
         {
             <div class="fehler" style="margin:0">@_fehler</div>
@@ -74,10 +71,10 @@ else if (_fehler is not null)
     /// <summary>true = gespeichert, false = abgebrochen.</summary>
     [Parameter] public EventCallback<bool> Fertig { get; set; }
 
-    private static readonly string[] StandardArten = ["To-do", "Anruf", "E-Mail", "Termin"];
+    private static readonly string[] Arten = ["To-do", "Anruf", "E-Mail", "Termin"];
 
     private ErfassungsAuswahl? _auswahl;
-    private bool _geladen, _speichert, _ausOdoo;
+    private bool _geladen, _speichert;
     private string? _fehler;
     private string _titel = "", _art = "To-do", _zustaendig = "", _vorgang = "", _beschreibung = "";
     private DateOnly? _faellig;
@@ -103,7 +100,6 @@ else if (_fehler is not null)
                 _vorgang = a.Vorgang ?? "";
                 if (a.Vorgang is not null)
                     _bisherVorgang = new VorgangAuswahl(a.Vorgang, a.Bezug ?? a.Vorgang);
-                _ausOdoo = a.Quelle == "Odoo";
             }
             else
             {
@@ -117,10 +113,6 @@ else if (_fehler is not null)
             _fehler = $"Aufgabe konnte nicht geladen werden: {ex.Message}";
         }
     }
-
-    /// <summary>Feste Arten, dazu eine abweichende aus Odoo (z. B. „Angebot nachfassen“), damit sie beim Speichern bleibt.</summary>
-    private static IEnumerable<string> Arten(string aktuell) =>
-        StandardArten.Contains(aktuell) ? StandardArten : StandardArten.Prepend(aktuell);
 
     private async Task SpeichernAsync()
     {

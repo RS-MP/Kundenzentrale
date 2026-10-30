@@ -75,10 +75,7 @@ public class Aufgabe
     /// <summary>Wiedervorlage bei „Wartet auf Kunden" — am Stichtag ist der Schritt wieder offen.</summary>
     public DateOnly? Wiedervorlage { get; set; }
 
-    /// <summary>
-    /// Warum der Schritt entfallen ist: „entfernt" (von Hand) oder „bedingung" (nicht bestellt);
-    /// „geloescht" bei einer gelöschten Odoo-Aufgabe (<see cref="AufgabenRegeln.GrundGeloescht"/>).
-    /// </summary>
+    /// <summary>Warum der Schritt entfallen ist: „entfernt" (von Hand) oder „bedingung" (nicht bestellt).</summary>
     public string? EntfallenGrund { get; set; }
 
     /// <summary>Beim Erledigen auszufüllendes Feld (z. B. „Mandanten-ID") und der eingetragene Wert.</summary>
