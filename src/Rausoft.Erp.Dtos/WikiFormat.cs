@@ -5,8 +5,9 @@ namespace Rausoft.Erp.Dtos;
 
 /// <summary>
 /// Einfache Formatierung für Wiki-Texte (Prozessbeschreibungen u. ä.), angelehnt an Markdown:
-/// <c># Überschrift</c>, <c>- Aufzählung</c>, <c>1. Nummeriert</c>, <c>**fett**</c>, <c>`Code`</c>,
-/// Codeblöcke mit <c>```</c>, Tabellen mit <c>| a | b |</c> und Links (http/https).
+/// <c># Überschrift</c>, <c>- Aufzählung</c>, <c>1. Nummeriert</c>, <c>**fett**</c>, <c>*kursiv*</c>, <c>`Code`</c>,
+/// Codeblöcke mit <c>```</c>, Tabellen mit <c>| a | b |</c>, Links (http/https) auch als <c>[Text](https://…)</c>.
+/// Eingegeben wird über den Editor (Komponente WikiEditor) — niemand muss diese Zeichen tippen.
 /// Ungeformte JSON-Konfiguration (mehrere Zeilen mit <c>{</c>, <c>"Schlüssel": …</c>) wird
 /// automatisch als Codeblock gesetzt, damit bestehende Texte ohne Nacharbeit lesbar sind.
 /// Sicherheit: jeder Text wird zuerst HTML-kodiert; eigenes HTML im Text ist nie wirksam.
@@ -151,15 +152,33 @@ public static partial class WikiFormat
             }
             if (i % 2 == 1)
                 html.Append('`');
-            kodiert = FettMuster().Replace(kodiert, "<strong>$1</strong>");
+            // Links mit eigenem Text [Text](https://…) zuerst herauslösen, damit die
+            // automatische Verlinkung nicht die Adresse im href ein zweites Mal trifft
+            var rest = 0;
+            foreach (Match m in TextLinkMuster().Matches(kodiert))
+            {
+                html.Append(Hervorheben(kodiert[rest..m.Index], verlinken: true));
+                html.Append($"<a href=\"{m.Groups[2].Value}\" target=\"_blank\" rel=\"noopener noreferrer\">")
+                    .Append(Hervorheben(m.Groups[1].Value, verlinken: false)).Append("</a>");
+                rest = m.Index + m.Length;
+            }
+            html.Append(Hervorheben(kodiert[rest..], verlinken: true));
+        }
+        return html.ToString();
+    }
+
+    /// <summary>Fett, kursiv und (außerhalb von Link-Texten) nackte Adressen als Link — auf kodiertem Text.</summary>
+    private static string Hervorheben(string kodiert, bool verlinken)
+    {
+        kodiert = FettMuster().Replace(kodiert, "<strong>$1</strong>");
+        kodiert = KursivMuster().Replace(kodiert, "<em>$1</em>");
+        if (verlinken)
             kodiert = LinkMuster().Replace(kodiert, m =>
             {
                 var url = m.Value.TrimEnd('.', ',', ';', ':', ')');
                 return $"<a href=\"{url}\" target=\"_blank\" rel=\"noopener noreferrer\">{url}</a>{m.Value[url.Length..]}";
             });
-            html.Append(kodiert);
-        }
-        return html.ToString();
+        return kodiert;
     }
 
     /// <summary>Kodiert die HTML-Sonderzeichen; Umlaute bleiben lesbar.</summary>
@@ -181,8 +200,17 @@ public static partial class WikiFormat
     [GeneratedRegex(@"^\|?[\s:|-]+\|?$")]
     private static partial Regex TrennzeileMuster();
 
-    [GeneratedRegex(@"\*\*(.+?)\*\*")]
+    // „**fett *und kursiv***": dem schließenden ** darf kein weiteres * folgen
+    [GeneratedRegex(@"\*\*(.+?)\*\*(?!\*)")]
     private static partial Regex FettMuster();
+
+    // *kursiv* — nicht bei „5 * 3" (Leerzeichen innen) und nicht mitten in Wörtern
+    [GeneratedRegex(@"(?<![*\w])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\w])")]
+    private static partial Regex KursivMuster();
+
+    // [Text](https://…) auf kodiertem Text: &amp; gehört zur URL, Klammern und Anführungszeichen nicht
+    [GeneratedRegex(@"\[([^\]\n]+)\]\((https?://(?:[^\s<>()&\]]|&amp;)+)\)")]
+    private static partial Regex TextLinkMuster();
 
     // Auf kodiertem Text: &amp; gehört zur URL, &quot; / &lt; beenden sie
     [GeneratedRegex(@"https?://(?:[^\s<&]|&amp;)+")]

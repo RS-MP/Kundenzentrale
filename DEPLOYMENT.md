@@ -18,6 +18,18 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (30.10.2026, Wiki-Editor):** keine Migration.
+  Wirkung: Alle Wiki-Textfelder (FAQ Symptom/Ursache/Lösung, Prozesse der
+  Preisliste und Sanktionslisten, Standardprozesse, Beschreibung/Relevanz,
+  Neuerungen) haben einen Editor wie in Word: Absatzformat (Überschriften,
+  Code), fett, kursiv, Code, Aufzählung, Nummerierung, Link, Tabelle mit
+  Zeilen-/Spaltenwerkzeugen, Rückgängig. Einfügen aus Word/Outlook übernimmt
+  nur die Formatierung, die das Wiki kennt. Gespeichert wird weiter im
+  bisherigen Textformat — vorhandene Texte bleiben unverändert. Neuerungen
+  werden jetzt ebenfalls formatiert angezeigt. Neues Skript
+  `wwwroot\js\wiki-editor.js` → nach dem Update **Browser-Cache leeren bzw.
+  Strg+F5**, sonst fehlt der Editor.
+
 - [ ] **Publish aktualisieren (29.10.2026 abends, Wiki FAQ):** Migration
   `WikiFaq` läuft automatisch (Tabelle FaqEintraege, legt den ersten Fall
   „2FA lässt sich nicht einrichten – alter ID.prove-Eintrag in der

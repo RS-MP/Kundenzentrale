@@ -70,4 +70,101 @@ public class WikiFormatTests
 
     [Fact]
     public void LeererTextErgibtNichts() => Assert.Equal("", WikiFormat.ZuHtml("  \n "));
+
+    [Fact]
+    public void Kursiv_UndKeinFehlalarmBeiRechenzeichen()
+    {
+        Assert.Equal("<p>das ist <em>wichtig</em> und <strong>fett</strong></p>", WikiFormat.ZuHtml("das ist *wichtig* und **fett**"));
+        Assert.Equal("<p>5 * 3 * 2 und a*b*c</p>", WikiFormat.ZuHtml("5 * 3 * 2 und a*b*c"));
+        Assert.Equal("<p><strong>fett <em>und kursiv</em></strong></p>", WikiFormat.ZuHtml("**fett *und kursiv***"));
+    }
+
+    /// <summary>
+    /// Der Editor (wwwroot/js/wiki-editor.js) liest das HTML von ZuHtml und schreibt beim
+    /// Speichern Text zurück. Das Paar unten ist im Browser erzeugt (30.10.2026): Original →
+    /// Rückwandlung. Beide müssen gleich aussehen, sonst ändert schon das Öffnen und
+    /// Speichern eines Textes dessen Darstellung.
+    /// </summary>
+    [Fact]
+    public void EditorRueckwandlung_SiehtGleichAus()
+    {
+        const string original = """
+            # Ablauf
+            Text mit **fett**, *kursiv* und `code` sowie [Link](https://a.de/x?y=1&z=2) und https://b.de.
+            Zweite Zeile im Absatz.
+
+            ## Unter
+            - eins
+            - **zwei** fett
+
+            1. erstens
+            2. zweitens
+
+            | Name | Wert |
+            | --- | --- |
+            | a | `1` |
+
+            {
+              "Pfad": "C:\\daten",
+              "Aktiv": true
+            }
+
+            ```
+            code block
+              eingerückt
+            ```
+            ### Klein
+            Ende mit **fett *und kursiv***.
+            """;
+        const string ausDemEditor = """
+            # Ablauf
+
+            Text mit **fett**, *kursiv* und `code` sowie [Link](https://a.de/x?y=1&z=2) und https://b.de.
+            Zweite Zeile im Absatz.
+
+            ## Unter
+
+            - eins
+            - **zwei** fett
+
+            1. erstens
+            2. zweitens
+
+            | Name | Wert |
+            | --- | --- |
+            | a | `1` |
+
+            ```
+            {
+              "Pfad": "C:\\daten",
+              "Aktiv": true
+            }
+            ```
+
+            ```
+            code block
+              eingerückt
+            ```
+
+            ### Klein
+
+            Ende mit **fett *und kursiv***.
+            """;
+
+        Assert.Equal(WikiFormat.ZuHtml(original), WikiFormat.ZuHtml(ausDemEditor));
+    }
+
+    [Fact]
+    public void LinkMitText_NurHttpUndOhneDoppelteVerlinkung()
+    {
+        var html = WikiFormat.ZuHtml("Siehe [Liste der **UN**](https://un.org/a?x=1&y=2) und https://b.de.");
+        Assert.Equal(
+            "<p>Siehe <a href=\"https://un.org/a?x=1&amp;y=2\" target=\"_blank\" rel=\"noopener noreferrer\">Liste der <strong>UN</strong></a>" +
+            " und <a href=\"https://b.de\" target=\"_blank\" rel=\"noopener noreferrer\">https://b.de</a>.</p>", html);
+
+        // javascript: und Anführungszeichen im Link bleiben wirkungslos
+        var boese = WikiFormat.ZuHtml("[x](javascript:alert(1)) [y](https://a.de\"onmouseover=\"alert(1))");
+        Assert.DoesNotContain("href=\"javascript", boese);
+        Assert.DoesNotContain("onmouseover=\"", boese);
+    }
 }

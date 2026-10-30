@@ -1,0 +1,68 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@*
+   Editor für Wiki-Texte wie in Word: Werkzeugleiste (Absatzformat, fett, kursiv, Code,
+   Listen, Link, Tabelle, rückgängig) und sichtbare Formatierung — niemand tippt
+   Formatierungszeichen. Gespeichert wird weiterhin das einfache Textformat (WikiFormat);
+   die Umwandlung macht wwwroot/js/wiki-editor.js. Verwendung: @bind-Text="…".
+   Nicht in ein <label> setzen — ein Klick auf das Label würde den ersten Knopf auslösen.
+*@
+<div class="wiki-editor" @ref="_element"></div>
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public EventCallback<string?> TextChanged { get; set; }
+
+    /// <summary>Grauer Hinweis in der leeren Fläche.</summary>
+    [Parameter] public string? Platzhalter { get; set; }
+
+    /// <summary>Mindesthöhe in Textzeilen; die Fläche wächst mit dem Inhalt.</summary>
+    [Parameter] public int Zeilen { get; set; } = 6;
+
+    /// <summary>Name des Feldes für Screenreader (die sichtbare Überschrift steht außerhalb).</summary>
+    [Parameter] public string? Beschriftung { get; set; }
+
+    private ElementReference _element;
+    private DotNetObjectReference<WikiEditor>? _ref;
+    private string _letzter = "";
+    private bool _bereit;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        _ref = DotNetObjectReference.Create(this);
+        _letzter = Text ?? "";
+        await JS.InvokeVoidAsync("wikiEditor.erstellen", _element, WikiFormat.ZuHtml(Text), _ref, Platzhalter, Zeilen, Beschriftung);
+        _bereit = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Von außen gesetzter Text (z. B. Formular zurückgesetzt) — sonst kommt der Text aus dem Editor selbst
+        if (_bereit && (Text ?? "") != _letzter)
+        {
+            _letzter = Text ?? "";
+            await JS.InvokeVoidAsync("wikiEditor.setzen", _element, WikiFormat.ZuHtml(Text));
+        }
+    }
+
+    [JSInvokable]
+    public async Task Geaendert(string text)
+    {
+        _letzter = text;
+        await TextChanged.InvokeAsync(string.IsNullOrWhiteSpace(text) ? "" : text);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_bereit)
+        {
+            try { await JS.InvokeVoidAsync("wikiEditor.entfernen", _element); }
+            catch (JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+        }
+        _ref?.Dispose();
+    }
+}

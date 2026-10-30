@@ -22,10 +22,10 @@
                     Titel
                     <input type="text" maxlength="200" @bind="_formular.Titel" placeholder="z. B. Preisliste Version 23 · zwei neue Add-ons" />
                 </label>
-                <label class="breit">
+                <div class="wiki-feld">
                     Was hat sich geändert? (für alle Leser)
-                    <textarea rows="6" @bind="_formular.Text"></textarea>
-                </label>
+                    <WikiEditor @bind-Text="_formular.Text" Zeilen="5" Beschriftung="Was hat sich geändert" />
+                </div>
                 <label class="breit" style="flex-direction:row; align-items:center; gap:8px">
                     <input type="checkbox" @bind="_formular.BestaetigungErforderlich" />
                     Lesebestätigung erforderlich — jeder Mitarbeiter muss „Gelesen" bestätigen, der Hinweis bleibt bis dahin stehen
@@ -121,7 +121,7 @@ else if (_neuerungen is not null && DarfBearbeiten && _formular is null)
                 <span style="flex:1"></span>
                 <span class="neben" style="display:inline">@n.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")@(n.ErstelltVon is not null ? $" · {n.ErstelltVon}" : "")</span>
             </div>
-            <div class="wiki-neuerung-text">@n.Text</div>
+            <WikiText Text="@n.Text" Klasse="wiki-neuerung-text" />
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px">
                 @if (n.BestaetigungErforderlich && n.VonMirBestaetigtAm is null)
                 {

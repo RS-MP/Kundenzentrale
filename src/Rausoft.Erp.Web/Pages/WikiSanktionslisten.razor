@@ -264,8 +264,7 @@ else
                 <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
                     Gilt für alle Listen mit dieser Importart, die keinen eigenen Prozess haben. Leer speichern entfernt den Standard.
                 </div>
-                <textarea rows="14" style="width:100%; box-sizing:border-box" @bind="_standardText" @bind:event="oninput" placeholder="@ProzessBeispiel"></textarea>
-                <WikiTextHilfe Text="@_standardText" />
+                <WikiEditor @bind-Text="_standardText" Zeilen="12" Beschriftung="Standardprozess" Platzhalter="@ProzessBeispiel" />
             </div>
             <div class="fenster-fuss">
                 <button class="knopf" disabled="@_speichere" @onclick="StandardSpeichernAsync">@(_speichere ? "Speichere …" : "Speichern")</button>
@@ -303,8 +302,8 @@ else
                     <label class="breit">Offizieller Name<input type="text" @bind="_bearbeitung.Name" /></label>
                     <label>Bezeichnung bei uns<input type="text" @bind="_bearbeitung.BezeichnungIntern" placeholder="wie wir die Liste nennen" /></label>
                     <label>Andere Bezeichnungen<input type="text" @bind="_bearbeitung.Aliase" placeholder="Kunden, Wettbewerber — kommagetrennt" /></label>
-                    <label class="breit">Beschreibung (was enthält die Liste?)<textarea rows="3" @bind="_bearbeitung.Beschreibung"></textarea></label>
-                    <label class="breit">Relevanz (für wen ist sie wichtig?)<textarea rows="3" @bind="_bearbeitung.Relevanz"></textarea></label>
+                    <div class="wiki-feld">Beschreibung (was enthält die Liste?)<WikiEditor @bind-Text="_bearbeitung.Beschreibung" Zeilen="3" Beschriftung="Beschreibung" /></div>
+                    <div class="wiki-feld">Relevanz (für wen ist sie wichtig?)<WikiEditor @bind-Text="_bearbeitung.Relevanz" Zeilen="3" Beschriftung="Relevanz" /></div>
                     <label>Art<input type="text" @bind="_bearbeitung.Art" placeholder="Finanzsanktionen, Exportkontrolle …" /></label>
                     <label>Geltungsbereich<input type="text" @bind="_bearbeitung.Geltungsbereich" /></label>
                     <label class="breit">Herausgeber<input type="text" @bind="_bearbeitung.Herausgeber" /></label>
@@ -339,12 +338,10 @@ else
                             }
                         </select>
                     </label>
-                    <label class="breit">
+                    <div class="wiki-feld">
                         Prozess (leer lassen = Standardprozess der Importart gilt)
-                        <textarea rows="8" @bind="_bearbeitung.Prozess" @bind:event="oninput"
-                                  placeholder="@ProzessBeispiel"></textarea>
-                        <WikiTextHilfe Text="@_bearbeitung.Prozess" />
-                    </label>
+                        <WikiEditor @bind-Text="_bearbeitung.Prozess" Zeilen="8" Beschriftung="Prozess" Platzhalter="@ProzessBeispiel" />
+                    </div>
                     <label style="flex-direction:row; align-items:center; gap:6px">
                         <input type="checkbox" @bind="_bearbeitung.Standardumfang" /> Standardumfang sanktionslisten.de
                     </label>

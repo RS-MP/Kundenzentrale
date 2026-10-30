@@ -87,10 +87,10 @@ else
                 @if (_importDatei is not null)
                 {
                     <div class="formular" style="margin-top:10px">
-                        <label class="breit">
+                        <div class="wiki-feld">
                             Was ist neu in dieser Version? (erscheint als Neuerung oben auf der Seite; die Änderungsliste aus dem Export wird angehängt)
-                            <textarea rows="4" @bind="_importNeuerung" placeholder="z. B. Zwei neue Add-ons: … · Preis STARTER 5.000 angepasst"></textarea>
-                        </label>
+                            <WikiEditor @bind-Text="_importNeuerung" Zeilen="3" Beschriftung="Was ist neu" Platzhalter="z. B. Zwei neue Add-ons: … · Preis STARTER angepasst" />
+                        </div>
                         <label class="breit" style="flex-direction:row; align-items:center; gap:8px">
                             <input type="checkbox" @bind="_importBestaetigung" />
                             Lesebestätigung erforderlich — jeder Mitarbeiter muss „Gelesen" bestätigen
@@ -213,11 +213,10 @@ else
                             @foreach (var person in _personen) { <option value="@person.Id">@person.Name</option> }
                         </select>
                     </label>
-                    <label class="breit">
+                    <div class="wiki-feld">
                         Prozess (wie entsteht eine neue Version, wer gibt frei, wo liegt sie?)
-                        <textarea rows="8" @bind="_infoForm.Prozess" @bind:event="oninput"></textarea>
-                        <WikiTextHilfe Text="@_infoForm.Prozess" />
-                    </label>
+                        <WikiEditor @bind-Text="_infoForm.Prozess" Zeilen="8" Beschriftung="Prozess" />
+                    </div>
                 </div>
                 <div class="formular-aktionen">
                     <button class="knopf" @onclick="InfoSpeichernAsync">Speichern</button>

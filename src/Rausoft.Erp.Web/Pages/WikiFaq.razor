@@ -75,19 +75,18 @@
                         }
                     }
                 </label>
-                <label class="breit">
+                <div class="wiki-feld">
                     Symptom — was meldet der Kunde?
-                    <textarea rows="4" @bind="_fSymptom" @bind:event="oninput" placeholder="Was sieht der Kunde, welche Meldung, wobei?"></textarea>
-                </label>
-                <label class="breit">
+                    <WikiEditor @bind-Text="_fSymptom" Zeilen="3" Beschriftung="Symptom" Platzhalter="Was sieht der Kunde, welche Meldung, wobei?" />
+                </div>
+                <div class="wiki-feld">
                     Ursache (optional)
-                    <textarea rows="3" @bind="_fUrsache" @bind:event="oninput" placeholder="Warum passiert das?"></textarea>
-                </label>
-                <label class="breit">
+                    <WikiEditor @bind-Text="_fUrsache" Zeilen="2" Beschriftung="Ursache" Platzhalter="Warum passiert das?" />
+                </div>
+                <div class="wiki-feld">
                     Lösung / Schritte
-                    <textarea rows="7" @bind="_fLoesung" @bind:event="oninput" placeholder="Schritt für Schritt: 1. … 2. …"></textarea>
-                    <WikiTextHilfe Text="@_fLoesung" />
-                </label>
+                    <WikiEditor @bind-Text="_fLoesung" Zeilen="6" Beschriftung="Lösung" Platzhalter="Schritt für Schritt — mit „1. Liste“ in der Leiste nummerieren" />
+                </div>
                 <label class="breit">
                     Schlagwörter (Komma-getrennt)
                     <input type="text" maxlength="500" @bind="_fSchlagwoerter" placeholder="z. B. 2FA, Authenticator, Code ungültig" />
@@ -162,7 +161,7 @@ else if (Id is not null)
                         Lösung
                         <button class="knopf sekundaer klein" @onclick="LoesungKopierenAsync" title="Lösungstext als Klartext in die Zwischenablage — z. B. für die Antwort an den Kunden">@(_kopiert ? "kopiert ✓" : "Lösung kopieren")</button>
                     </div>
-                    <WikiText Text="@f.Loesung" />
+                    <WikiText Text="@f.Loesung" Klasse="faq-loesung" />
                 </div>
 
                 <div class="formular-aktionen" style="flex-wrap:wrap">
@@ -572,11 +571,14 @@ else
         finally { _speichert = false; }
     }
 
-    /// <summary>Lösung als Klartext (ohne Formatierungszeichen) in die Zwischenablage — für die Antwort an den Kunden.</summary>
+    /// <summary>
+    /// Lösung als Klartext in die Zwischenablage — so, wie sie auf der Seite steht
+    /// (Nummerierung, Links als Adresse), für die Antwort an den Kunden.
+    /// </summary>
     private async Task LoesungKopierenAsync()
     {
         if (_gewaehlt is null) return;
-        var text = _gewaehlt.Loesung.Replace("**", "");
+        var text = await JS.InvokeAsync<string?>("wikiEditor.klartext", ".faq-loesung") ?? _gewaehlt.Loesung;
         _kopiert = await JS.InvokeAsync<bool>("zwischenablage.kopieren", text);
         if (!_kopiert)
             await JS.InvokeVoidAsync("zwischenablage.anzeigen", text);
