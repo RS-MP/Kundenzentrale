@@ -629,7 +629,7 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 /* Aufgaben und Vereinbarungen */
 .liste-eng { padding: 2px 16px 10px; }
 .liste-eng .leer-hinweis { padding: 12px 0; text-align: left; }
-.auf-zeile { display: grid; grid-template-columns: 20px 92px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); align-items: start; }
+.auf-zeile { display: grid; grid-template-columns: 20px 92px minmax(0, 1fr) auto; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); align-items: start; }
 .auf-zeile:last-child, .vb-zeile:last-child { border-bottom: 0; }
 .auf-zeile input { margin-top: 3px; }
 .auf-zeile .faellig { font-size: 12.5px; color: var(--ink2); font-variant-numeric: tabular-nums; }
@@ -637,6 +637,10 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 .auf-zeile .titel, .vb-zeile .txt { font-weight: 600; }
 .auf-zeile.erledigt .titel, .vb-zeile.erledigt .txt { color: var(--muted); text-decoration: line-through; }
 .auf-zeile .woher, .vb-zeile .woher { font-size: 12.5px; color: var(--muted); }
+.auf-zeile .auf-akt { display: flex; gap: 10px; font-size: 12.5px; white-space: nowrap; }
+.auf-zeile .auf-akt .leise { color: var(--muted); }
+.auf-zeile .auf-akt .leise:hover { color: var(--crit); }
+.auf-zeile + .erfassen, .ma-zeile + .erfassen { margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; }
 .auf-zeile .beschreibung { font-size: 12.5px; color: var(--ink2); white-space: pre-wrap; margin-top: 2px; }
 .auf-zeile .auf-hinweis { display: block; margin-top: 5px; padding: 4px 8px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
 .auf-zeile .auf-nachricht { display: block; margin-top: 5px; padding: 4px 8px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 6px 6px 0; color: var(--ink); text-decoration: none; font-size: 12.5px; }

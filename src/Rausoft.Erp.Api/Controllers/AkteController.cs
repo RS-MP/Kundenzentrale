@@ -148,6 +148,7 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
             .Select(a => new
             {
                 a.Id, a.Titel, a.Art, a.Beschreibung, a.Status, a.Bezug, a.StrangSchluessel, a.Quelle, a.ErledigtAm, a.VorgangId,
+                a.ErstelltVonId, a.ZustaendigId,
                 Faellig = a.Status == AufgabenStatus.WartetAufKunden ? a.Wiedervorlage : a.Faellig,
                 Person = a.Zustaendig != null ? a.Zustaendig.Anzeigename : null,
                 PersonBereich = a.Zustaendig != null && a.Zustaendig.Bereich != null ? a.Zustaendig.Bereich.Name : null,
@@ -174,6 +175,8 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
             .GroupBy(n => n.VorgangId)
             .ToDictionary(g => g.Key, g => g.First());
 
+        var ich = await AktuellerMitarbeiterId(ct);
+        var istAdmin = await angemeldet.HatRolleAsync(MitarbeiterRolle.Admin, ct);
         var gezeigt = new HashSet<int>();
         return Ok(liste
             .OrderBy(a => a.Status == AufgabenStatus.Erledigt)
@@ -190,7 +193,8 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
                     a.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale", a.ErledigtAm,
                     a.VorgangId, a.Status == AufgabenStatus.WartetAufKunden,
                     erster ? hinweise.GetValueOrDefault(a.VorgangId!.Value) : null,
-                    n is null ? null : new VorgangNachricht(n.Zeitpunkt, n.Von, n.Betreff, Kuerzen(n.Inhalt!, 400)));
+                    n is null ? null : new VorgangNachricht(n.Zeitpunkt, n.Von, n.Betreff, Kuerzen(n.Inhalt!, 400)),
+                    a.VorgangId is null && AufgabenRegeln.DarfLoeschen(a.ErstelltVonId, a.ZustaendigId, ich, istAdmin));
             })
             .ToList());
     }
@@ -200,22 +204,16 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
     {
         if (!await db.Kunden.AnyAsync(k => k.Id == id, ct))
             return NotFound();
-        var titel = anlage.Titel?.Trim() ?? "";
-        if (titel.Length is 0 or > 300)
-            return BadRequest("Die Aufgabe braucht einen Titel (höchstens 300 Zeichen).");
-        if (anlage.ZustaendigId is null == anlage.ZustaendigBereichId is null)
-            return BadRequest("Bitte genau eine zuständige Person oder einen Bereichs-Pool wählen.");
-        if (anlage.ZustaendigId is { } m && !await db.Mitarbeiter.AnyAsync(x => x.Id == m && x.Aktiv, ct))
-            return BadRequest("Der gewählte Mitarbeiter existiert nicht oder ist deaktiviert.");
-        if (anlage.ZustaendigBereichId is { } b && !await db.Bereiche.AnyAsync(x => x.Id == b && x.Aktiv, ct))
-            return BadRequest("Der gewählte Bereich existiert nicht.");
+        if (await AufgabePruefenAsync(anlage, null, null, ct) is { } fehler)
+            return BadRequest(fehler);
         var vorgang = await VorgangPruefenAsync(id, anlage.Vorgang, ct);
 
         var aufgabe = new Aufgabe
         {
             KundeId = id,
-            Titel = titel,
-            Art = string.IsNullOrWhiteSpace(anlage.Art) ? "To-do" : Kuerzen(anlage.Art.Trim(), 50),
+            Titel = anlage.Titel.Trim(),
+            Art = ArtOderStandard(anlage.Art),
+            Beschreibung = BeschreibungOderNull(anlage.Beschreibung),
             Faellig = anlage.Faellig,
             ZustaendigId = anlage.ZustaendigId,
             ZustaendigBereichId = anlage.ZustaendigBereichId,
@@ -277,6 +275,115 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
+
+    /// <summary>Eine Aufgabe zum Bearbeiten — Vorgangsschritte pflegt der Vorgang.</summary>
+    [HttpGet("aufgaben/{aufgabeId:int}")]
+    public async Task<ActionResult<AufgabeDetail>> AufgabeLesen(int aufgabeId, CancellationToken ct)
+    {
+        var a = await db.Aufgaben.AsNoTracking()
+            .Where(x => x.Id == aufgabeId && x.VorgangId == null && x.Status != AufgabenStatus.Entfallen)
+            .Select(x => new AufgabeDetail(x.Id, x.KundeId, x.Titel, x.Art, x.Beschreibung, x.Faellig,
+                x.ZustaendigId, x.ZustaendigBereichId, x.Zustaendig != null ? x.Zustaendig.Anzeigename : x.ZustaendigName,
+                x.StrangSchluessel, x.Bezug, x.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale"))
+            .FirstOrDefaultAsync(ct);
+        return a is null ? NotFound() : Ok(a);
+    }
+
+    /// <summary>
+    /// Aufgabe ändern (nur offene, ohne Vorgang). Eine aus Odoo übernommene Aufgabe gehört danach
+    /// der Kundenzentrale: Der Odoo-Abgleich überschreibt sie nicht mehr, sonst wäre die Änderung
+    /// beim nächsten Lauf wieder weg.
+    /// </summary>
+    [HttpPut("aufgaben/{aufgabeId:int}")]
+    public async Task<IActionResult> AufgabeAendern(int aufgabeId, AufgabeAnlegen daten, CancellationToken ct)
+    {
+        var aufgabe = await db.Aufgaben.FirstOrDefaultAsync(a => a.Id == aufgabeId && a.Status != AufgabenStatus.Entfallen, ct);
+        if (aufgabe is null)
+            return NotFound();
+        if (aufgabe.VorgangId is not null)
+            return BadRequest("Vorgangsschritte werden im Vorgang bearbeitet.");
+        if (aufgabe.Status == AufgabenStatus.Erledigt)
+            return BadRequest("Die Aufgabe ist erledigt — zum Ändern bitte erst wieder öffnen.");
+        if (await AufgabePruefenAsync(daten, aufgabe.ZustaendigId, aufgabe.ZustaendigBereichId, ct) is { } fehler)
+            return BadRequest(fehler);
+
+        aufgabe.Titel = daten.Titel.Trim();
+        aufgabe.Art = ArtOderStandard(daten.Art);
+        aufgabe.Beschreibung = BeschreibungOderNull(daten.Beschreibung);
+        aufgabe.Faellig = daten.Faellig;
+        if (aufgabe.ZustaendigId != daten.ZustaendigId || aufgabe.ZustaendigBereichId != daten.ZustaendigBereichId)
+        {
+            aufgabe.ZustaendigId = daten.ZustaendigId;
+            aufgabe.ZustaendigBereichId = daten.ZustaendigBereichId;
+            aufgabe.ZustaendigName = null;
+            // Wer sie in Arbeit hatte, gibt sie mit dem Wechsel ab
+            if (aufgabe.Status == AufgabenStatus.InArbeit)
+                aufgabe.Status = AufgabenStatus.Offen;
+        }
+        // Unveränderter Vorgang bleibt stehen, auch wenn er (z. B. aus Odoo) nicht in der Auswahl der Akte vorkommt
+        var schluessel = string.IsNullOrWhiteSpace(daten.Vorgang) ? null : daten.Vorgang;
+        if (schluessel != aufgabe.StrangSchluessel)
+        {
+            var vorgang = aufgabe.KundeId is { } kundeId ? await VorgangPruefenAsync(kundeId, schluessel, ct) : null;
+            aufgabe.Bezug = vorgang?.Name;
+            aufgabe.StrangSchluessel = vorgang?.Schluessel;
+        }
+        aufgabe.Quelle = AktivitaetsQuelle.Kundenzentrale;
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Aufgabe löschen (ohne Vorgang; wer darf: <see cref="AufgabenRegeln"/>). Eine aus Odoo übernommene
+    /// Aufgabe wird nur als entfallen markiert, damit der Odoo-Abgleich sie nicht wieder anlegt.
+    /// Ein Verlaufseintrag „Aufgabe erledigt“ bleibt stehen — er hält fest, was passiert ist.
+    /// </summary>
+    [HttpDelete("aufgaben/{aufgabeId:int}")]
+    public async Task<IActionResult> AufgabeLoeschen(int aufgabeId, CancellationToken ct)
+    {
+        var aufgabe = await db.Aufgaben.FirstOrDefaultAsync(a => a.Id == aufgabeId && a.Status != AufgabenStatus.Entfallen, ct);
+        if (aufgabe is null)
+            return NotFound();
+        if (aufgabe.VorgangId is not null)
+            return BadRequest("Vorgangsschritte werden im Vorgang entfernt.");
+        if (!AufgabenRegeln.DarfLoeschen(aufgabe.ErstelltVonId, aufgabe.ZustaendigId, await AktuellerMitarbeiterId(ct),
+                await angemeldet.HatRolleAsync(MitarbeiterRolle.Admin, ct)))
+            return StatusCode(StatusCodes.Status403Forbidden,
+                "Löschen darf, wer die Aufgabe angelegt hat, wer zuständig ist, oder ein Admin.");
+
+        if (aufgabe.OdooId is not null)
+        {
+            aufgabe.Status = AufgabenStatus.Entfallen;
+            aufgabe.EntfallenGrund = AufgabenRegeln.GrundGeloescht;
+        }
+        else
+            db.Aufgaben.Remove(aufgabe);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>Gemeinsame Prüfung für Anlegen und Ändern; die bisherige Zuständigkeit darf bleiben, auch wenn sie deaktiviert ist.</summary>
+    private async Task<string?> AufgabePruefenAsync(AufgabeAnlegen daten, int? bisherPerson, int? bisherBereich, CancellationToken ct)
+    {
+        var titel = daten.Titel?.Trim() ?? "";
+        if (titel.Length is 0 or > 300)
+            return "Die Aufgabe braucht einen Titel (höchstens 300 Zeichen).";
+        if (daten.Beschreibung is { Length: > MaxBeschreibung })
+            return $"Die Beschreibung ist zu lang (höchstens {MaxBeschreibung} Zeichen).";
+        if (daten.ZustaendigId is null == daten.ZustaendigBereichId is null)
+            return "Bitte genau eine zuständige Person oder einen Bereichs-Pool wählen.";
+        if (daten.ZustaendigId is { } m && m != bisherPerson && !await db.Mitarbeiter.AnyAsync(x => x.Id == m && x.Aktiv, ct))
+            return "Der gewählte Mitarbeiter existiert nicht oder ist deaktiviert.";
+        if (daten.ZustaendigBereichId is { } b && b != bisherBereich && !await db.Bereiche.AnyAsync(x => x.Id == b && x.Aktiv, ct))
+            return "Der gewählte Bereich existiert nicht.";
+        return null;
+    }
+
+    private const int MaxBeschreibung = 4000;
+
+    private static string ArtOderStandard(string? art) => string.IsNullOrWhiteSpace(art) ? "To-do" : Kuerzen(art.Trim(), 50);
+
+    private static string? BeschreibungOderNull(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
     // --- Vereinbarungen ---------------------------------------------------------------
 

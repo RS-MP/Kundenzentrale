@@ -39,7 +39,9 @@ public record AufgabeZeile(
     string? VorgangHinweis,
     string? Pflichtfeld,
     string? Bezug,
-    string Quelle);
+    string Quelle,
+    /// <summary>Angelegt von mir, bei mir oder ich bin Admin (AufgabenRegeln) — nur ohne Vorgang.</summary>
+    bool DarfLoeschen = false);
 
 /// <summary>Für das Abzeichen in der Navigation: fällig bis heute, bei mir oder unbesetzt in meinem Pool.</summary>
 public record AufgabenZaehler(int FaelligBisHeute, int Ueberfaellig);

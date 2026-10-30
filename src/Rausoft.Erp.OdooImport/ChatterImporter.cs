@@ -323,7 +323,10 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
             var zustaendig = userId is { } u && _benutzerNachUserId.TryGetValue(u, out var benutzer)
                 ? MitarbeiterZu(benutzer, mitarbeiter) : null;
 
-            if (!vorhanden.TryGetValue(id, out var aufgabe))
+            // In der Kundenzentrale bearbeitet oder gelöscht: gehört nicht mehr dem Abgleich
+            if (vorhanden.TryGetValue(id, out var aufgabe) && Uebernommen(aufgabe))
+                continue;
+            if (aufgabe is null)
             {
                 _stat.AufgabenNeu++;
                 if (dryRun)
@@ -348,7 +351,7 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
 
         foreach (var (odooId, aufgabe) in vorhanden)
         {
-            if (gesehen.Contains(odooId) || aufgabe.Status == AufgabenStatus.Erledigt)
+            if (gesehen.Contains(odooId) || aufgabe.Status == AufgabenStatus.Erledigt || Uebernommen(aufgabe))
                 continue;
             _stat.AufgabenErledigt++;
             if (!dryRun)
@@ -360,6 +363,10 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         if (!dryRun)
             await db.SaveChangesAsync();
     }
+
+    /// <summary>Bearbeitete Odoo-Aufgaben tragen die Quelle Kundenzentrale, gelöschte stehen auf Entfallen.</summary>
+    private static bool Uebernommen(Aufgabe aufgabe) =>
+        aufgabe.Quelle != AktivitaetsQuelle.OdooImport || aufgabe.Status == AufgabenStatus.Entfallen;
 
     // --- Eintrag bauen und abgleichen -------------------------------------------------
 

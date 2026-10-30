@@ -53,12 +53,35 @@ public record AufgabeEintrag(
     /// <summary>Hinweis des Vorgangs — nur am ersten offenen Schritt je Vorgang, damit er einmal sichtbar ist.</summary>
     string? VorgangHinweis = null,
     /// <summary>Letzte Nachricht im Vorgang (Notiz, Erledigt-/Warte-Notiz) — ebenfalls am ersten offenen Schritt.</summary>
-    VorgangNachricht? Nachricht = null);
+    VorgangNachricht? Nachricht = null,
+    /// <summary>Angelegt von mir, bei mir oder ich bin Admin (AufgabenRegeln) — nur ohne Vorgang.</summary>
+    bool DarfLoeschen = false);
 
 public record VorgangNachricht(DateTime Zeitpunkt, string? Von, string Betreff, string Text);
 
-/// <summary>Zuständig ist entweder <paramref name="ZustaendigId"/> (Person) oder <paramref name="ZustaendigBereichId"/> (Pool).</summary>
-public record AufgabeAnlegen(string Titel, string? Art, DateOnly? Faellig, int? ZustaendigId, int? ZustaendigBereichId, string? Vorgang);
+/// <summary>
+/// Anlegen und Ändern einer Aufgabe. Zuständig ist entweder <paramref name="ZustaendigId"/> (Person)
+/// oder <paramref name="ZustaendigBereichId"/> (Pool).
+/// </summary>
+public record AufgabeAnlegen(string Titel, string? Art, DateOnly? Faellig, int? ZustaendigId, int? ZustaendigBereichId, string? Vorgang,
+    string? Beschreibung = null);
+
+/// <summary>Eine Aufgabe zum Bearbeiten (nur ohne Vorgang).</summary>
+public record AufgabeDetail(
+    int Id,
+    int? KundeId,
+    string Titel,
+    string? Art,
+    string? Beschreibung,
+    DateOnly? Faellig,
+    int? ZustaendigId,
+    int? ZustaendigBereichId,
+    /// <summary>Anzeigename der zuständigen Person — falls sie inzwischen deaktiviert ist und in der Auswahl fehlt.</summary>
+    string? Zustaendig,
+    /// <summary>Strang-Schlüssel und Name des Vorgangs aus dem Verlauf.</summary>
+    string? Vorgang,
+    string? Bezug,
+    string Quelle);
 
 public record ErledigtSetzen(bool Erledigt);
 

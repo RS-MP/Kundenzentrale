@@ -1,5 +1,6 @@
 @page "/aufgaben"
 @inject HttpClient Http
+@inject IJSRuntime JS
 
 <PageTitle>Meine Aufgaben · Kundenzentrale</PageTitle>
 
@@ -124,8 +125,20 @@
                         {
                             <button class="knopf klein" style="color:var(--knopf-text)" disabled="@_sende" @onclick="() => ErledigtAsync(a)">Erledigt</button>
                         }
+                        @if (a.VorgangId is null && a.KundeId is not null)
+                        {
+                            <button class="knopf sekundaer klein" title="Aufgabe bearbeiten" @onclick="() => _bearbeite = _bearbeite == a.Id ? null : a.Id">Bearbeiten</button>
+                        }
+                        @if (a.DarfLoeschen)
+                        {
+                            <button class="textknopf leise" title="Aufgabe löschen" disabled="@_sende" @onclick="() => LoeschenAsync(a)">Löschen</button>
+                        }
                     </div>
                 </div>
+                @if (_bearbeite == a.Id && a.KundeId is { } kid)
+                {
+                    <AufgabeFormular @key="a.Id" KundeId="kid" AufgabeId="a.Id" Fertig="BearbeitetAsync" />
+                }
             }
         </div>
     }
@@ -149,6 +162,7 @@ else if (_fehler is null)
     private bool _sende;
     private int? _offenId;
     private string? _meldung;
+    private int? _bearbeite;
 
     protected override Task OnInitializedAsync() => LadenAsync();
 
@@ -185,6 +199,21 @@ else if (_fehler is null)
     private Task ErledigtAsync(AufgabeZeile a) => SendenAsync(a, a.VorgangId is not null
         ? Http.PostAsJsonAsync($"api/vorgaenge/schritte/{a.Id}/erledigt", new SchrittErledigen(null, null))
         : Http.PutAsJsonAsync($"api/kunden/aufgaben/{a.Id}/erledigt", new ErledigtSetzen(true)));
+
+    private async Task LoeschenAsync(AufgabeZeile a)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Aufgabe „{a.Titel}“ löschen?"))
+            return;
+        _bearbeite = null;
+        await SendenAsync(a, Http.DeleteAsync($"api/kunden/aufgaben/{a.Id}"));
+    }
+
+    private async Task BearbeitetAsync(bool gespeichert)
+    {
+        _bearbeite = null;
+        if (gespeichert)
+            await LadenAsync();
+    }
 
     private async Task SendenAsync(AufgabeZeile a, Task<HttpResponseMessage> aufruf)
     {

@@ -142,33 +142,9 @@
         <a class="knopf sekundaer klein rechts" href="vorgaenge/neu?kunde=@KundeId" title="Bestellung mit Schritten je Bereich anlegen">+ Vorgang</a>
         <button type="button" class="knopf sekundaer klein" @onclick='() => FormularAsync("aufgabe")'>+ Aufgabe</button>
     </div>
-    @if (_formular == "aufgabe" && _auswahl is { } aw)
+    @if (_formular == "aufgabe")
     {
-        <div class="erfassen">
-            <label>Aufgabe<input type="text" @bind="_aTitel" placeholder="z. B. Testzugang einrichten" maxlength="300" /></label>
-            <div class="reihe">
-                <label>Art<select @bind="_aArt"><option>To-do</option><option>Anruf</option><option>E-Mail</option><option>Termin</option></select></label>
-                <label>Fällig<input type="date" @bind="_aFaellig" /></label>
-                <label>Zuständig
-                    <select @bind="_aZustaendig">
-                        <option value="">— bitte wählen —</option>
-                        @foreach (var m in aw.Mitarbeiter)
-                        {
-                            <option value="m:@m.Id">@m.Name@(m.Zusatz is not null ? $" ({m.Zusatz})" : "")</option>
-                        }
-                        @foreach (var b in aw.Bereiche)
-                        {
-                            <option value="b:@b.Id">Pool @b.Name</option>
-                        }
-                    </select>
-                </label>
-                @VorgangAuswahlFeld(aw, v => _aVorgang = v, _aVorgang)
-            </div>
-            <div class="reihe knoepfe">
-                <button type="button" class="knopf sekundaer" @onclick="() => _formular = null">Abbrechen</button>
-                <button type="button" class="knopf" disabled="@_speichert" @onclick="AufgabeSpeichernAsync">Speichern</button>
-            </div>
-        </div>
+        <AufgabeFormular KundeId="KundeId" Fertig="AufgabeFertigAsync" />
     }
     <div class="liste-eng">
         @if (_aufgaben is { Count: > 0 })
@@ -216,7 +192,24 @@
                             </a>
                         }
                     </div>
+                    @if (a.VorgangId is null)
+                    {
+                        <div class="auf-akt">
+                            @if (!a.Erledigt)
+                            {
+                                <button type="button" class="link" title="Aufgabe bearbeiten" @onclick="() => AufgabeBearbeiten(a.Id)">Bearbeiten</button>
+                            }
+                            @if (a.DarfLoeschen)
+                            {
+                                <button type="button" class="link leise" title="Aufgabe löschen" @onclick="() => AufgabeLoeschenAsync(a)">Löschen</button>
+                            }
+                        </div>
+                    }
                 </div>
+                @if (_bearbeiteAufgabe == a.Id)
+                {
+                    <AufgabeFormular @key="a.Id" KundeId="KundeId" AufgabeId="a.Id" Fertig="AufgabeFertigAsync" />
+                }
             }
         }
         else
@@ -522,9 +515,7 @@
     private bool _speichert;
     private VerlaufEintrag? _vbQuelle;
     private string _vText = "";
-    private string _aTitel = "", _aArt = "To-do", _aZustaendig = "";
-    private DateOnly? _aFaellig;
-    private string? _aVorgang;
+    private int? _bearbeiteAufgabe;
     private string _fTyp = "Notiz", _fRichtung = "Ausgehend", _fBetreff = "", _fInhalt = "";
     private bool _fAlsFaq;
     private DateOnly _fDatum = DateOnly.FromDateTime(DateTime.Now);
@@ -546,7 +537,7 @@
         if (neuerKunde)
         {
             _tage = 30; _paar = null; _vorgang = null; _formular = null; _auswahl = null;
-            _aufgeklappt.Clear(); _alleAuf = false;
+            _aufgeklappt.Clear(); _alleAuf = false; _bearbeiteAufgabe = null;
         }
         await AllesLadenAsync();
         // Kein Gespräch in 30 Tagen: gleich alles zeigen, statt eine leere Akte
@@ -691,10 +682,7 @@
             if (_auswahl?.IchId is { } ich) _fMitarbeiter.Add(ich);
         }
         else if (art == "aufgabe")
-        {
-            _aTitel = ""; _aArt = "To-do"; _aFaellig = Heute.AddDays(7); _aVorgang = null;
-            _aZustaendig = _auswahl?.IchId is { } ich ? $"m:{ich}" : "";
-        }
+            _bearbeiteAufgabe = null;
     }
 
     private async Task VereinbarungFormularAsync(VerlaufEintrag? quelle)
@@ -740,13 +728,35 @@
         _vbQuelle = null;
     }
 
-    private async Task AufgabeSpeichernAsync()
+    private void AufgabeBearbeiten(int id)
     {
-        if (string.IsNullOrWhiteSpace(_aTitel)) { _fehler = "Bitte einen Titel angeben."; return; }
-        if (_aZustaendig.Length < 3) { _fehler = "Bitte eine zuständige Person oder einen Pool wählen."; return; }
-        var id = int.Parse(_aZustaendig[2..]);
-        await SpeichernAsync($"api/kunden/{KundeId}/aufgaben", new AufgabeAnlegen(_aTitel.Trim(), _aArt, _aFaellig,
-            _aZustaendig.StartsWith("m:") ? id : null, _aZustaendig.StartsWith("b:") ? id : null, _aVorgang), _ => { });
+        _bearbeiteAufgabe = _bearbeiteAufgabe == id ? null : id;
+        if (_formular == "aufgabe")
+            _formular = null;
+    }
+
+    /// <summary>Formular (neu oder bearbeiten) geschlossen; nach dem Speichern neu laden.</summary>
+    private async Task AufgabeFertigAsync(bool gespeichert)
+    {
+        _bearbeiteAufgabe = null;
+        if (_formular == "aufgabe")
+            _formular = null;
+        if (gespeichert)
+            await AllesLadenAsync();
+    }
+
+    private async Task AufgabeLoeschenAsync(AufgabeEintrag aufgabe)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Aufgabe „{aufgabe.Titel}“ löschen?"))
+            return;
+        _fehler = null;
+        var antwort = await Http.DeleteAsync($"api/kunden/aufgaben/{aufgabe.Id}");
+        if (!antwort.IsSuccessStatusCode)
+            _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+        if (_bearbeiteAufgabe == aufgabe.Id)
+            _bearbeiteAufgabe = null;
+        await AllesLadenAsync();
+        AufgabenSignal.Melden();
     }
 
     private async Task SpeichernAsync<T>(string url, T daten, Action<int> danach)

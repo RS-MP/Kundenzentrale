@@ -1,0 +1,160 @@
+@* Aufgabe anlegen (AufgabeId leer) oder bearbeiten — in der Akte und unter „Meine Aufgaben“.
+   Vorgangsschritte pflegt der Vorgang, die kommen hier nicht hin. *@
+@inject HttpClient Http
+
+@if (_auswahl is { } aw && _geladen)
+{
+    <div class="erfassen">
+        <label>Aufgabe<input type="text" @bind="_titel" placeholder="z. B. Testzugang einrichten" maxlength="300" /></label>
+        <div class="reihe">
+            <label>Art
+                <select @bind="_art">
+                    @foreach (var art in Arten(_art))
+                    {
+                        <option>@art</option>
+                    }
+                </select>
+            </label>
+            <label>Fällig<input type="date" @bind="_faellig" /></label>
+            <label>Zuständig
+                <select @bind="_zustaendig">
+                    <option value="">— bitte wählen —</option>
+                    @if (_bisherPerson is { } bp && aw.Mitarbeiter.All(m => m.Id != bp.Id))
+                    {
+                        <option value="m:@bp.Id">@bp.Name (deaktiviert)</option>
+                    }
+                    @foreach (var m in aw.Mitarbeiter)
+                    {
+                        <option value="m:@m.Id">@m.Name@(m.Zusatz is not null ? $" ({m.Zusatz})" : "")</option>
+                    }
+                    @foreach (var b in aw.Bereiche)
+                    {
+                        <option value="b:@b.Id">Pool @b.Name</option>
+                    }
+                </select>
+            </label>
+            <label>Vorgang
+                <select @bind="_vorgang">
+                    <option value="">allgemein</option>
+                    @if (_bisherVorgang is { } bv && aw.Vorgaenge.All(v => v.Schluessel != bv.Schluessel))
+                    {
+                        <option value="@bv.Schluessel">@bv.Name</option>
+                    }
+                    @foreach (var v in aw.Vorgaenge)
+                    {
+                        <option value="@v.Schluessel">@v.Name</option>
+                    }
+                </select>
+            </label>
+        </div>
+        <label>Beschreibung<textarea @bind="_beschreibung" rows="3" maxlength="4000" placeholder="optional — was genau zu tun ist"></textarea></label>
+        @if (_ausOdoo)
+        {
+            <div class="neben">Aus Odoo übernommen. Nach dem Speichern gilt die Fassung hier — der Odoo-Abgleich ändert die Aufgabe dann nicht mehr.</div>
+        }
+        @if (_fehler is not null)
+        {
+            <div class="fehler" style="margin:0">@_fehler</div>
+        }
+        <div class="reihe knoepfe">
+            <button type="button" class="knopf sekundaer" @onclick="() => Fertig.InvokeAsync(false)">Abbrechen</button>
+            <button type="button" class="knopf" disabled="@_speichert" @onclick="SpeichernAsync">Speichern</button>
+        </div>
+    </div>
+}
+else if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int KundeId { get; set; }
+    /// <summary>Leer = neue Aufgabe anlegen.</summary>
+    [Parameter] public int? AufgabeId { get; set; }
+    /// <summary>true = gespeichert, false = abgebrochen.</summary>
+    [Parameter] public EventCallback<bool> Fertig { get; set; }
+
+    private static readonly string[] StandardArten = ["To-do", "Anruf", "E-Mail", "Termin"];
+
+    private ErfassungsAuswahl? _auswahl;
+    private bool _geladen, _speichert, _ausOdoo;
+    private string? _fehler;
+    private string _titel = "", _art = "To-do", _zustaendig = "", _vorgang = "", _beschreibung = "";
+    private DateOnly? _faellig;
+    private AuswahlEintrag? _bisherPerson;
+    private VorgangAuswahl? _bisherVorgang;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _auswahl = await Http.GetFromJsonAsync<ErfassungsAuswahl>($"api/kunden/{KundeId}/erfassung");
+            if (AufgabeId is { } id)
+            {
+                var a = await Http.GetFromJsonAsync<AufgabeDetail>($"api/kunden/aufgaben/{id}");
+                if (a is null) { _fehler = "Die Aufgabe gibt es nicht mehr."; return; }
+                _titel = a.Titel;
+                _art = string.IsNullOrWhiteSpace(a.Art) ? "To-do" : a.Art;
+                _faellig = a.Faellig;
+                _beschreibung = a.Beschreibung ?? "";
+                _zustaendig = a.ZustaendigId is { } m ? $"m:{m}" : a.ZustaendigBereichId is { } b ? $"b:{b}" : "";
+                if (a.ZustaendigId is { } p)
+                    _bisherPerson = new AuswahlEintrag(p, a.Zustaendig ?? "unbekannt", null);
+                _vorgang = a.Vorgang ?? "";
+                if (a.Vorgang is not null)
+                    _bisherVorgang = new VorgangAuswahl(a.Vorgang, a.Bezug ?? a.Vorgang);
+                _ausOdoo = a.Quelle == "Odoo";
+            }
+            else
+            {
+                _faellig = DateOnly.FromDateTime(DateTime.Now).AddDays(7);
+                _zustaendig = _auswahl?.IchId is { } ich ? $"m:{ich}" : "";
+            }
+            _geladen = true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Aufgabe konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    /// <summary>Feste Arten, dazu eine abweichende aus Odoo (z. B. „Angebot nachfassen“), damit sie beim Speichern bleibt.</summary>
+    private static IEnumerable<string> Arten(string aktuell) =>
+        StandardArten.Contains(aktuell) ? StandardArten : StandardArten.Prepend(aktuell);
+
+    private async Task SpeichernAsync()
+    {
+        _fehler = null;
+        if (string.IsNullOrWhiteSpace(_titel)) { _fehler = "Bitte einen Titel angeben."; return; }
+        if (_zustaendig.Length < 3 || !int.TryParse(_zustaendig[2..], out var zid))
+        {
+            _fehler = "Bitte eine zuständige Person oder einen Pool wählen.";
+            return;
+        }
+        var daten = new AufgabeAnlegen(_titel.Trim(), _art, _faellig,
+            _zustaendig.StartsWith("m:") ? zid : null, _zustaendig.StartsWith("b:") ? zid : null,
+            string.IsNullOrEmpty(_vorgang) ? null : _vorgang, _beschreibung);
+        _speichert = true;
+        try
+        {
+            var antwort = AufgabeId is { } id
+                ? await Http.PutAsJsonAsync($"api/kunden/aufgaben/{id}", daten)
+                : await Http.PostAsJsonAsync($"api/kunden/{KundeId}/aufgaben", daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            AufgabenSignal.Melden();
+            await Fertig.InvokeAsync(true);
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichert = false;
+        }
+    }
+}

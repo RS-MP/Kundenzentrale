@@ -23,6 +23,19 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (30.10.2026, Aufgaben bearbeiten/löschen):**
+  keine Migration. Wirkung: In der Akte und unter „Meine Aufgaben“ lassen
+  sich Aufgaben (ohne Vorgang) bearbeiten — Titel, Art, Fälligkeit,
+  Zuständig, Vorgang und neu eine Beschreibung — und löschen. Löschen darf,
+  wer die Aufgabe angelegt hat, wer zuständig ist, oder ein Admin.
+  Aus Odoo übernommene Aufgaben: Nach dem Bearbeiten gehören sie der
+  Kundenzentrale, der Odoo-Import überschreibt sie nicht mehr; gelöschte
+  bleiben als „entfallen“ stehen, damit der Import sie nicht wieder anlegt.
+  **Deshalb auch den Odoo-Import mit aktualisieren:** Inhalt von
+  `publish-import` nach `C:\Kundenzentrale-Import` kopieren (nicht während
+  der geplante Lauf aktiv ist). Vorgangsschritte
+  bearbeitet man weiter im Vorgang. Strg+F5 im Browser.
+
 - [ ] **Publish aktualisieren (30.10.2026, Wiki-Editor):** keine Migration.
   Wirkung: Alle Wiki-Textfelder (FAQ Symptom/Ursache/Lösung, Prozesse der
   Preisliste und Sanktionslisten, Standardprozesse, Beschreibung/Relevanz,
