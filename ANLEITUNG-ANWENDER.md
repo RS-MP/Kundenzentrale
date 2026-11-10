@@ -186,6 +186,22 @@ Themas Preisliste wählt die JSON unter „Neue Version importieren" aus. Nur
 neuere Versionsnummern werden angenommen; ältere Versionen bleiben als
 Historie einsehbar.
 
+**Kommunikationsleitlinien (Bereich Vertrieb):** wie wir mit Kunden sprechen —
+in den Bereichen „So sagen wir es", „Besser vermeiden" (mit der Formulierung,
+die wir stattdessen wählen), „Niemals", Pflichthinweise und Grundsätze. Oben
+lässt sich nach Zielgruppe (Vertrieb, Support, KI) und Thema filtern und
+suchen; ein Klick auf eine Regel zeigt Begründung und Beispiele. **Vorschlagen**
+darf jeder („+ Regel vorschlagen") — der Vorschlag ist ein Entwurf und gilt
+erst, wenn Compliance oder ein Admin ihn freigibt. **Bestätigen:** Neue Regeln
+unter „Niemals" und neue Pflichthinweise stehen für Vertrieb bzw. Support oben
+auf der Seite, bis sie mit „Gelesen und verstanden" bestätigt sind (Abzeichen
+am Wiki-Eintrag). **Ändern:** Eine freigegebene Regel wird nicht überschrieben —
+„Neu fassen" legt einen Entwurf an, der die alte Regel mit seiner Freigabe
+ablöst. **Für Claude:** Compliance und Admin kopieren mit „Als Vorgabe für
+Claude kopieren" den fertigen Textblock für den Systemprompt bzw. die
+Projektanweisungen; interne Begründungen sind ausgenommen. Kundennamen und
+Preise gehören nicht in Leitlinien.
+
 ## Wer darf was
 
 Alle Mitarbeiter können mit Kunden und Verträgen arbeiten. Der Bereich
@@ -193,7 +209,8 @@ Alle Mitarbeiter können mit Kunden und Verträgen arbeiten. Der Bereich
 Verträge löschen) ist Admins vorbehalten — Rollen vergibt ein Admin unter
 Administration → Benutzer & Rollen. Vertrauliche Verträge sieht vollständig nur,
 wer die Rolle „Vertrauliche Verträge" hat. Das Wiki pflegen Admin, Compliance
-und Wiki-Redakteure (nur ihre freigegebenen Themen).
+und Wiki-Redakteure (nur ihre freigegebenen Themen). Kommunikationsleitlinien
+geben ausschließlich Compliance und Admin frei.
 
 ## Bei Problemen
 

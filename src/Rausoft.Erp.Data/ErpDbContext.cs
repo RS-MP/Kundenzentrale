@@ -60,6 +60,7 @@ public class ErpDbContext(
     public DbSet<WikiNeuerungLesung> WikiNeuerungLesungen => Set<WikiNeuerungLesung>();
     public DbSet<WikiMeldung> WikiMeldungen => Set<WikiMeldung>();
     public DbSet<FaqEintrag> FaqEintraege => Set<FaqEintrag>();
+    public DbSet<Sprachregel> Sprachregeln => Set<Sprachregel>();
 
     // Abos
     public DbSet<Abo> Abos => Set<Abo>();
@@ -518,6 +519,8 @@ public class ErpDbContext(
             e.Property(n => n.Text).HasColumnType("nvarchar(max)");
             e.HasOne(n => n.PreislistenVersion).WithMany().HasForeignKey(n => n.PreislistenVersionId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(n => n.ErstelltVon).WithMany().HasForeignKey(n => n.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
+            // Wird die (zurückgezogene) Leitlinie gelöscht, bleibt die Neuerung mit ihren Lesebestätigungen als Nachweis stehen
+            e.HasOne(n => n.Sprachregel).WithMany().HasForeignKey(n => n.SprachregelId).OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<WikiNeuerungLesung>(e =>
         {
@@ -554,6 +557,28 @@ public class ErpDbContext(
             e.HasOne(f => f.Kunde).WithMany().HasForeignKey(f => f.KundeId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(f => f.ErstelltVon).WithMany().HasForeignKey(f => f.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(f => f.GeaendertVon).WithMany().HasForeignKey(f => f.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // --- Wiki: Kommunikationsleitlinien (Sprachregeln) ---------------------
+        modelBuilder.Entity<Sprachregel>(e =>
+        {
+            e.ToTable("Sprachregeln");
+            e.HasIndex(r => new { r.Status, r.Art });
+            e.Property(r => r.Aussage).HasMaxLength(500);
+            e.Property(r => r.Stattdessen).HasMaxLength(500);
+            e.Property(r => r.Anlass).HasMaxLength(500);
+            e.Property(r => r.Begruendung).HasColumnType("nvarchar(max)");
+            e.Property(r => r.BeispielGut).HasMaxLength(1000);
+            e.Property(r => r.BeispielSchlecht).HasMaxLength(1000);
+            e.Property(r => r.Varianten).HasMaxLength(500);
+            e.Property(r => r.Thema).HasMaxLength(50);
+            e.Property(r => r.Produkt).HasMaxLength(50);
+            e.Property(r => r.KiHinweis).HasMaxLength(500);
+            e.Property(r => r.RowVersion).IsRowVersion();
+            e.HasOne(r => r.ErstelltVon).WithMany().HasForeignKey(r => r.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(r => r.GeaendertVon).WithMany().HasForeignKey(r => r.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(r => r.FreigegebenVon).WithMany().HasForeignKey(r => r.FreigegebenVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(r => r.ZurueckgezogenVon).WithMany().HasForeignKey(r => r.ZurueckgezogenVonId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<VorlagenVersion>(e =>

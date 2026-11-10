@@ -23,6 +23,29 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (10.11.2026, Wiki Kommunikationsleitlinien):**
+  Migration `WikiLeitlinien` läuft automatisch (neue Tabelle `Sprachregeln`;
+  `WikiNeuerungen` bekommt die Spalten `Zielrollen` und `SprachregelId`;
+  legt drei **Entwürfe** mit dem Präfix „Beispiel:" an — nichts ist vorab
+  freigegeben). Wirkung: Wiki → **Kommunikationsleitlinien** (Bereich
+  Vertrieb) mit den Bereichen „So sagen wir es", „Besser vermeiden",
+  „Niemals", Pflichthinweise und Grundsätze; Filter nach Zielgruppe
+  (Vertrieb/Support/KI) und Thema, Suche. Vorschlagen darf jeder (Entwurf);
+  **freigeben, zurückziehen, fremde Entwürfe ändern/löschen nur Compliance
+  und Admin** — nicht die Wiki-Redaktion. Freigegebene Regeln werden nicht
+  überschrieben („Neu fassen" → neuer Entwurf, löst die alte Regel bei
+  Freigabe ab). Freigabe von „Niemals"/Pflichthinweis verlangt eine
+  **Lesebestätigung** von den Mitarbeitern mit Rolle Vertrieb bzw. Support
+  (je nach Zielgruppe der Regel; Abzeichen am Wiki-Eintrag); Compliance/Admin
+  sehen je Regel, wer bestätigt hat. „Als Vorgabe für Claude kopieren"
+  (Compliance/Admin) liefert den Textblock für den Systemprompt; interne
+  Begründungen sind ausgenommen. Neuerungen der anderen Themen verhalten sich
+  wie bisher (ohne Zielrollen = alle Mitarbeiter). **Nach dem Update:** prüfen,
+  dass die richtigen Personen die Rollen Vertrieb/Support/Compliance tragen
+  (Administration → Benutzer & Rollen) — danach richtet sich, wer bestätigen
+  muss und wer freigeben darf; die drei Beispiel-Entwürfe anpassen oder
+  löschen. Strg+F5 im Browser.
+
 - [ ] **Publish aktualisieren (30.10.2026, Aufgaben bearbeiten/löschen):**
   keine Migration, Odoo-Import unverändert. Wirkung: In der Akte und unter
   „Meine Aufgaben“ lassen sich in der Kundenzentrale angelegte Aufgaben

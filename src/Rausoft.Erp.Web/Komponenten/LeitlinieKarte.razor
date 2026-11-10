@@ -1,0 +1,210 @@
+@*
+   Eine Sprachregel der Kommunikationsleitlinien: Kopfzeile mit Aussage und
+   Kennzeichen, darunter Alternative bzw. Anlass; aufgeklappt Begründung,
+   Beispiele, Varianten, Hinweis für Claude, Bestätigungsstand und Aktionen.
+   Die Rechte kommen fertig aus der API (DarfBearbeiten, DarfLoeschen) — hier
+   wird nur ein- und ausgeblendet, geprüft wird serverseitig.
+*@
+
+<div class="ll-regel @(Regel.Status == "Entwurf" ? "entwurf" : "") @(Regel.Status == "Zurueckgezogen" ? "zurueckgezogen" : "")">
+    <button type="button" class="ll-kopf" aria-expanded="@(_offen ? "true" : "false")" @onclick="() => _offen = !_offen"
+            title="@(_offen ? "Einzelheiten ausblenden" : "Begründung, Beispiele und Einzelheiten zeigen")">
+        <span class="ll-aussage">@Regel.Aussage</span>
+        <span class="ll-marken">
+            @if (Regel.Status == "Entwurf")
+            {
+                <span class="pill warntext" title="Vorschlag — gilt noch nicht. Freigeben können Compliance und Admin.">Entwurf – gilt noch nicht</span>
+            }
+            else if (Regel.Status == "Zurueckgezogen")
+            {
+                <span class="pill" title="Gilt nicht mehr — bleibt zur Nachvollziehbarkeit erhalten">zurückgezogen</span>
+            }
+            else if (Regel.GueltigAb is { } ab && ab > DateOnly.FromDateTime(DateTime.Today))
+            {
+                <span class="pill" title="Freigegeben, gilt aber erst ab diesem Tag">gilt ab @ab.ToString("dd.MM.yyyy")</span>
+            }
+            @if (Regel.VorgaengerId is not null && Regel.Status == "Entwurf")
+            {
+                <span class="pill" title="Löst bei Freigabe die bisherige Regel ab">Neufassung</span>
+            }
+            <span class="pill">@Regel.ThemaName</span>
+            @if (Regel.ProduktName is not null)
+            {
+                <span class="pill">@Regel.ProduktName</span>
+            }
+            @foreach (var z in Regel.Zielgruppen)
+            {
+                <span class="pill" title="Zielgruppe">@LeitlinienTexte.Zielgruppe(z)</span>
+            }
+            <span class="ll-pfeil" aria-hidden="true">@(_offen ? "▾" : "▸")</span>
+        </span>
+    </button>
+
+    @if (Regel.Anlass is not null)
+    {
+        <div class="ll-zeile"><span class="ll-label">Anlass</span>@Regel.Anlass</div>
+    }
+    @if (Regel.Stattdessen is not null)
+    {
+        <div class="ll-zeile"><span class="ll-label">Stattdessen</span>@Regel.Stattdessen</div>
+    }
+    @if (!_offen && Regel.Begruendung is not null)
+    {
+        <div class="ll-kurz">@LeitlinienTexte.Kurz(Regel.Begruendung)</div>
+    }
+
+    @if (Regel.MeineBestaetigung is { } meine)
+    {
+        <div class="ll-zeile">
+            @if (meine.BestaetigtAm is { } bestaetigt)
+            {
+                <span class="neben" style="display:inline">von mir bestätigt am @bestaetigt.ToLocalTime().ToString("dd.MM.yyyy")</span>
+            }
+            else
+            {
+                <button class="knopf" disabled="@Gesperrt" @onclick="() => Bestaetigen.InvokeAsync(Regel)">Gelesen und verstanden</button>
+            }
+        </div>
+    }
+
+    @if (_offen)
+    {
+        <div class="ll-detail">
+            @if (Regel.Begruendung is not null)
+            {
+                <div>
+                    <div class="faq-label">
+                        Warum
+                        @if (Regel.BegruendungIntern)
+                        {
+                            <span class="pl-intern" title="Diese Begründung geht in keinen Export">intern</span>
+                        }
+                    </div>
+                    <WikiText Text="@Regel.Begruendung" />
+                </div>
+            }
+            @if (Regel.BeispielGut is not null)
+            {
+                <div class="ll-zeile"><span class="ll-label">Gut</span>@Regel.BeispielGut</div>
+            }
+            @if (Regel.BeispielSchlecht is not null)
+            {
+                <div class="ll-zeile"><span class="ll-label">Nicht so</span>@Regel.BeispielSchlecht</div>
+            }
+            @if (Regel.Varianten.Count > 0)
+            {
+                <div class="ll-zeile"><span class="ll-label">Varianten</span>@string.Join(", ", Regel.Varianten)</div>
+            }
+            @if (Regel.Kanaele.Count > 0)
+            {
+                <div class="ll-zeile"><span class="ll-label">Kanäle</span>@string.Join(", ", Regel.Kanaele.Select(LeitlinienTexte.Kanal))</div>
+            }
+            @if (Regel.KiHinweis is not null)
+            {
+                <div class="ll-zeile"><span class="ll-label">Für Claude</span>@Regel.KiHinweis</div>
+            }
+
+            <div class="faq-meta">
+                <span>Regel @Regel.Id</span>
+                <span class="trenn">·</span>
+                <span>vorgeschlagen @Regel.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")@(Regel.ErstelltVon is not null ? $" von {Regel.ErstelltVon}" : "")</span>
+                @if (Regel.GeaendertAm is { } g)
+                {
+                    <span class="trenn">·</span>
+                    <span>geändert @g.ToLocalTime().ToString("dd.MM.yyyy")@(Regel.GeaendertVon is not null ? $" von {Regel.GeaendertVon}" : "")</span>
+                }
+                @if (Regel.FreigegebenAm is { } f)
+                {
+                    <span class="trenn">·</span>
+                    <span>freigegeben @f.ToLocalTime().ToString("dd.MM.yyyy")@(Regel.FreigegebenVon is not null ? $" von {Regel.FreigegebenVon}" : "")</span>
+                }
+                @if (Regel.ZurueckgezogenAm is { } z)
+                {
+                    <span class="trenn">·</span>
+                    <span>zurückgezogen @z.ToLocalTime().ToString("dd.MM.yyyy")@(Regel.ZurueckgezogenVon is not null ? $" von {Regel.ZurueckgezogenVon}" : "")</span>
+                }
+                @if (Regel.VorgaengerId is { } vorgaenger)
+                {
+                    <span class="trenn">·</span>
+                    <span>Neufassung von <a href="wiki/leitlinien/@vorgaenger">Regel @vorgaenger</a></span>
+                }
+            </div>
+
+            @if (Regel.Bestaetigungsstand is { } stand)
+            {
+                <div>
+                    <button class="mehr" @onclick="() => _standOffen = !_standOffen">
+                        Lesebestätigung: @stand.Bestaetigt von @stand.Gesamt @(_standOffen ? "▾" : "▸")
+                    </button>
+                    @if (_standOffen)
+                    {
+                        <table class="liste wiki-leser" style="margin-top:6px; max-width:560px">
+                            <thead><tr><th>Mitarbeiter</th><th style="width:150px">Gesehen</th><th style="width:150px">Bestätigt</th></tr></thead>
+                            <tbody>
+                                @foreach (var l in stand.Lesungen)
+                                {
+                                    <tr style="cursor:default" class="@(l.BestaetigtAm is null ? "fehlt" : "")">
+                                        <td>@l.Name</td>
+                                        <td>@(l.GesehenAm?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
+                                        <td>@(l.BestaetigtAm?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "noch offen")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            }
+
+            <div class="formular-aktionen" style="flex-wrap:wrap; margin-top:2px">
+                @if (DarfFreigeben && Regel.Status == "Entwurf")
+                {
+                    <button class="knopf" disabled="@Gesperrt" @onclick="() => Freigeben.InvokeAsync(Regel)"
+                            title="Die Regel gilt ab der Freigabe und lässt sich danach nicht mehr ändern, nur neu fassen">Freigeben</button>
+                }
+                @if (Regel.DarfBearbeiten)
+                {
+                    <button class="knopf sekundaer" disabled="@Gesperrt" @onclick="() => Bearbeiten.InvokeAsync(Regel)">Bearbeiten</button>
+                }
+                @if (Regel.Status != "Entwurf")
+                {
+                    <button class="knopf sekundaer" disabled="@Gesperrt" @onclick="() => NeuFassen.InvokeAsync(Regel)"
+                            title="Legt einen neuen Entwurf mit diesem Wortlaut an — die freigegebene Fassung bleibt unverändert erhalten">Neu fassen</button>
+                }
+                @if (DarfFreigeben && Regel.Status == "Freigegeben")
+                {
+                    <button class="knopf sekundaer" disabled="@Gesperrt" @onclick="() => Zurueckziehen.InvokeAsync(Regel)"
+                            title="Die Regel gilt dann nicht mehr; die Betroffenen sehen einen Hinweis">Zurückziehen</button>
+                }
+                <span style="flex:1"></span>
+                @if (Regel.DarfLoeschen)
+                {
+                    <button class="mehr" disabled="@Gesperrt" @onclick="() => Loeschen.InvokeAsync(Regel)">Löschen</button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public LeitlinieDto Regel { get; set; } = default!;
+
+    /// <summary>Admin oder Compliance: Freigeben und Zurückziehen anbieten.</summary>
+    [Parameter] public bool DarfFreigeben { get; set; }
+
+    /// <summary>Von Anfang an aufgeklappt (z. B. bei offenen Bestätigungen oder dem Direktaufruf einer Regel).</summary>
+    [Parameter] public bool Aufgeklappt { get; set; }
+
+    /// <summary>Knöpfe sperren, solange eine Aktion läuft.</summary>
+    [Parameter] public bool Gesperrt { get; set; }
+
+    [Parameter] public EventCallback<LeitlinieDto> Bestaetigen { get; set; }
+    [Parameter] public EventCallback<LeitlinieDto> Freigeben { get; set; }
+    [Parameter] public EventCallback<LeitlinieDto> Zurueckziehen { get; set; }
+    [Parameter] public EventCallback<LeitlinieDto> Bearbeiten { get; set; }
+    [Parameter] public EventCallback<LeitlinieDto> NeuFassen { get; set; }
+    [Parameter] public EventCallback<LeitlinieDto> Loeschen { get; set; }
+
+    private bool _offen, _standOffen;
+
+    protected override void OnInitialized() => _offen = Aufgeklappt;
+}

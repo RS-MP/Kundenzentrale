@@ -25,11 +25,27 @@ public class WikiNeuerung
     public PreislistenVersion? PreislistenVersion { get; set; }
 
     /// <summary>
-    /// true: jeder Mitarbeiter muss das Lesen ausdrücklich bestätigen (Hinweis
-    /// bleibt stehen, bis bestätigt). false: es wird nur festgehalten, wer die
+    /// true: jeder betroffene Mitarbeiter (<see cref="Zielrollen"/>) muss das Lesen
+    /// ausdrücklich bestätigen (Hinweis bleibt stehen, bis bestätigt). false: es wird nur festgehalten, wer die
     /// Neuerung gesehen hat.
     /// </summary>
     public bool BestaetigungErforderlich { get; set; }
+
+    /// <summary>
+    /// Wen die Neuerung betrifft: <see cref="MitarbeiterRolle.Keine"/> = alle aktiven
+    /// Mitarbeiter (bisheriges Verhalten), sonst nur Mitarbeiter mit mindestens
+    /// einer dieser Rollen. Bestimmt den Kreis der Bestätigungspflichtigen
+    /// (<see cref="Betrifft"/>).
+    /// </summary>
+    public MitarbeiterRolle Zielrollen { get; set; }
+
+    /// <summary>
+    /// Kommunikationsleitlinie, deren Freigabe oder Rücknahme diese Neuerung
+    /// automatisch erzeugt hat — solche Neuerungen verwaltet die Leitlinie,
+    /// nicht die Redaktion.
+    /// </summary>
+    public int? SprachregelId { get; set; }
+    public Sprachregel? Sprachregel { get; set; }
 
     public DateTime ErstelltAm { get; set; }
     public int? ErstelltVonId { get; set; }
@@ -38,6 +54,21 @@ public class WikiNeuerung
     public DateTime? GeaendertAm { get; set; }
 
     public List<WikiNeuerungLesung> Lesungen { get; set; } = [];
+
+    /// <summary>Gehört ein Mitarbeiter mit diesen Rollen zum Kreis der Neuerung?</summary>
+    public static bool Betrifft(MitarbeiterRolle zielrollen, MitarbeiterRolle rollen) =>
+        zielrollen == MitarbeiterRolle.Keine || (zielrollen & rollen) != MitarbeiterRolle.Keine;
+
+    /// <summary>
+    /// Filter „diese Neuerung muss der Mitarbeiter noch bestätigen": Bestätigungs-
+    /// pflicht, er gehört zum Kreis, und es gibt keine Bestätigung von ihm.
+    /// Eine Stelle für Navigation, Wiki-Startseite und Themenseiten.
+    /// </summary>
+    public static System.Linq.Expressions.Expression<Func<WikiNeuerung, bool>> OffeneBestaetigung(
+        int mitarbeiterId, MitarbeiterRolle rollen) =>
+        n => n.BestaetigungErforderlich
+             && (n.Zielrollen == MitarbeiterRolle.Keine || (n.Zielrollen & rollen) != MitarbeiterRolle.Keine)
+             && !n.Lesungen.Any(l => l.MitarbeiterId == mitarbeiterId && l.BestaetigtAm != null);
 }
 
 /// <summary>Wer hat eine Neuerung wann gesehen bzw. bestätigt — eine Zeile je Mitarbeiter.</summary>

@@ -392,6 +392,55 @@ Erste Ausbaustufe in der App (Navigation „Vorgänge"):
 8. **Vorgangstypen pflegbar:** neue anlegen, ändern, kopieren; deaktivieren
    statt löschen.
 
+## Wiki
+
+„Wie bei uns was funktioniert und wie wir es nennen." Themen stehen in
+`Domain/Wiki/WikiThema.cs` (Sanktionslisten, Preisliste, Kommunikationsleitlinien,
+FAQ Support); Entstehung und Einzelheiten der ersten Themen in `FEEDBACK.md`
+Nr. 22. Gemeinsame Bausteine: Neuerungen mit Lese-/Bestätigungsprotokoll,
+Meldungen an die Zuständigen, Editor (`WikiEditor`/`WikiFormat`).
+
+### Kommunikationsleitlinien (Entscheidungen 10.11.2026, MP)
+
+Sprachregeln für die Kommunikation mit Kunden: welche Wörter wir verwenden,
+was wir besser vermeiden, welche Aussagen nie getroffen werden dürfen und
+welche Hinweise in bestimmten Situationen fallen müssen — für die Mitarbeiter
+in Vertrieb und Support und als Vorgabe für die KI.
+
+1. **Ein gemeinsamer Regelbestand.** Mitarbeiter und KI bekommen dieselben
+   Regeln; jede Regel trägt Zielgruppen-Kennzeichen (Vertrieb, Support, KI).
+   Keine getrennten Listen, die auseinanderlaufen.
+2. **Freigabe ausschließlich durch Compliance und Admin** — für alle Arten.
+   Die Wiki-Redaktion gibt hier nicht frei. Vorschlagen (als Entwurf) darf
+   jeder Mitarbeiter.
+3. **Das KI-System ist Claude.** Stufe 1: Die Regeln gehen als kopierbarer
+   Textblock in den Systemprompt bzw. die Projektanweisungen (Export, nur
+   Admin/Compliance). Automatischer Abruf mit Maschinenzugang folgt später.
+4. **Lesebestätigung ist Pflicht** für verbotene Aussagen und Pflichthinweise:
+   Mit der Freigabe müssen die Mitarbeiter der betroffenen Rollen „Gelesen und
+   verstanden" bestätigen; Admin/Compliance sehen je Regel, wer fehlt.
+
+Umsetzung (10.11.2026): Entität `Sprachregel` mit den Arten Verwenden,
+Vermeiden, Verboten, Pflichthinweis, Grundsatz; festes Themen-Raster
+(`SprachregelKatalog`), optional Produkt und Kanäle; Rechte in
+`SprachregelRegeln`. **Freigegebene Regeln werden nie überschrieben:** Ändern
+heißt „Neu fassen" (neuer Entwurf mit Verweis auf den Vorgänger); mit dessen
+Freigabe wird die alte Regel zurückgezogen. Eine geltende Regel lässt sich
+nicht löschen, nur zurückziehen. Freigabe/Rücknahme erzeugen in derselben
+Transaktion eine Wiki-Neuerung; dafür kennen Neuerungen jetzt **Zielrollen**
+(leer = alle Mitarbeiter wie bisher) — betroffen sind Rolle Vertrieb bei
+Zielgruppe Vertrieb und Rolle Support bei Zielgruppe Support, ist nur KI
+gewählt, entsteht keine Neuerung. **Export** (`SprachregelExport`,
+`GET api/wiki/leitlinien/export?zielgruppe=ki|vertrieb|support&format=prompt|json`):
+nur freigegebene Regeln mit erreichtem „gültig ab"; interne Begründungen
+bleiben im Haus; der Text ist byte-stabil (feste Sortierung, keine
+Erzeugungszeit), damit er als Prompt-Cache-Präfix gültig bleibt, solange sich
+keine Regel ändert. Kundennamen und Preise gehören nicht in Leitlinien.
+
+**Bewusst noch nicht gebaut:** Textprüfer für Mail-Entwürfe (dafür gibt es je
+Regel `Varianten`), Druckansicht, automatischer Abruf mit API-Key (der
+JSON-Export ist dafür vorbereitet).
+
 ## Rechnungen & Offene Posten
 
 - Versand nur per E-Mail als **ZUGFeRD**; Postversand = drucken + manuell.

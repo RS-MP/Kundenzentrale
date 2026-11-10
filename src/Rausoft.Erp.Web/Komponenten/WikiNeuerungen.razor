@@ -108,14 +108,16 @@ else if (_neuerungen is not null && DarfBearbeiten && _formular is null)
         }
     }
 
-    private RenderFragment NeuerungKarte(WikiNeuerungEintrag n, bool hervorheben) => @<div class="karte wiki-neuerung @(hervorheben ? "aktuell" : "") @(n.BestaetigungErforderlich && n.VonMirBestaetigtAm is null ? "offen" : "")">
+    private RenderFragment NeuerungKarte(WikiNeuerungEintrag n, bool hervorheben) => @<div class="karte wiki-neuerung @(hervorheben ? "aktuell" : "") @(n.VonMirZuBestaetigen ? "offen" : "")">
         <div class="karte-koerper">
             <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap">
                 <b style="font-size:14.5px">@n.Titel</b>
                 @if (n.BestaetigungErforderlich)
                 {
-                    <span class="pill @(n.VonMirBestaetigtAm is null ? "warntext" : "")" title="Jeder Mitarbeiter muss das Lesen bestätigen">
-                        @(n.VonMirBestaetigtAm is null ? "Lesebestätigung erforderlich" : $"von mir bestätigt am {n.VonMirBestaetigtAm.Value.ToLocalTime():dd.MM.yyyy}")
+                    <span class="pill @(n.VonMirZuBestaetigen ? "warntext" : "")" title="@(n.Zielkreis is null ? "Jeder Mitarbeiter muss das Lesen bestätigen" : $"Lesebestätigung für: {n.Zielkreis}")">
+                        @(n.VonMirBestaetigtAm is { } bestaetigt
+                            ? $"von mir bestätigt am {bestaetigt.ToLocalTime():dd.MM.yyyy}"
+                            : n.VonMirZuBestaetigen ? "Lesebestätigung erforderlich" : $"Lesebestätigung für {n.Zielkreis ?? "alle"}")
                     </span>
                 }
                 <span style="flex:1"></span>
@@ -123,7 +125,7 @@ else if (_neuerungen is not null && DarfBearbeiten && _formular is null)
             </div>
             <WikiText Text="@n.Text" Klasse="wiki-neuerung-text" />
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px">
-                @if (n.BestaetigungErforderlich && n.VonMirBestaetigtAm is null)
+                @if (n.VonMirZuBestaetigen)
                 {
                     <button class="knopf" @onclick="() => BestaetigenAsync(n.Id)">Gelesen — bestätigen</button>
                 }
@@ -138,7 +140,12 @@ else if (_neuerungen is not null && DarfBearbeiten && _formular is null)
                 {
                     <span class="neben" style="display:inline">@(n.BestaetigungErforderlich ? $"bestätigt {n.Bestaetigt} von {n.LeserGesamt}" : $"gesehen {n.Gesehen} von {n.LeserGesamt}")</span>
                 }
-                @if (DarfBearbeiten)
+                @if (n.SprachregelId is { } regelId)
+                {
+                    <span style="flex:1"></span>
+                    <a class="mehr" href="wiki/leitlinien/@regelId">zur Regel</a>
+                }
+                else if (DarfBearbeiten)
                 {
                     <span style="flex:1"></span>
                     <button class="knopf sekundaer klein" @onclick="() => Bearbeiten(n)">Bearbeiten</button>

@@ -16,12 +16,18 @@ public record WikiNeuerungEintrag(
     string? ErstelltVon,
     DateTime? VonMirGesehenAm,
     DateTime? VonMirBestaetigtAm,
-    // Anzahl aktiver Mitarbeiter, die die Neuerung lesen sollen
+    // Anzahl aktiver Mitarbeiter, die die Neuerung lesen sollen (Kreis der Neuerung)
     int LeserGesamt,
     int Gesehen,
     int Bestaetigt,
     // Nur für Redaktion/Verantwortliche gefüllt: wer hat gelesen/bestätigt, wer fehlt
-    List<WikiLesung>? Lesungen);
+    List<WikiLesung>? Lesungen,
+    // Bestätigungspflicht, der Benutzer gehört zum Kreis und hat noch nicht bestätigt
+    bool VonMirZuBestaetigen = false,
+    // Kreis der Neuerung als Text (z. B. „Vertrieb, Support") — null = alle Mitarbeiter
+    string? Zielkreis = null,
+    // Kommunikationsleitlinie, deren Freigabe/Rücknahme die Neuerung erzeugt hat (nicht von Hand änderbar)
+    int? SprachregelId = null);
 
 public record WikiLesung(string Name, DateTime? GesehenAm, DateTime? BestaetigtAm);
 

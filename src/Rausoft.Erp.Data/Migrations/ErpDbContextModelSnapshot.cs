@@ -1958,6 +1958,121 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("SanktionslistenStandardprozesse");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.Sprachregel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Anlass")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Art")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Aussage")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Begruendung")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("BegruendungIntern")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("BeispielGut")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("BeispielSchlecht")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("ErstelltAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErstelltVonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("FreigegebenAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("FreigegebenVonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeaendertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("GueltigAb")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Kanaele")
+                        .HasColumnType("int");
+
+                    b.Property<string>("KiHinweis")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Produkt")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Stattdessen")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Thema")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Varianten")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("VorgaengerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Zielgruppen")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ZurueckgezogenAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ZurueckgezogenVonId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErstelltVonId");
+
+                    b.HasIndex("FreigegebenVonId");
+
+                    b.HasIndex("GeaendertVonId");
+
+                    b.HasIndex("ZurueckgezogenVonId");
+
+                    b.HasIndex("Status", "Art");
+
+                    b.ToTable("Sprachregeln", (string)null);
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiMeldung", b =>
                 {
                     b.Property<int>("Id")
@@ -2030,6 +2145,9 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int?>("PreislistenVersionId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("SprachregelId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -2045,11 +2163,16 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("Zielrollen")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ErstelltVonId");
 
                     b.HasIndex("PreislistenVersionId");
+
+                    b.HasIndex("SprachregelId");
 
                     b.HasIndex("Thema");
 
@@ -2600,6 +2723,37 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("GeaendertVon");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.Sprachregel", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErstelltVon")
+                        .WithMany()
+                        .HasForeignKey("ErstelltVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "FreigegebenVon")
+                        .WithMany()
+                        .HasForeignKey("FreigegebenVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
+                        .WithMany()
+                        .HasForeignKey("GeaendertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ZurueckgezogenVon")
+                        .WithMany()
+                        .HasForeignKey("ZurueckgezogenVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ErstelltVon");
+
+                    b.Navigation("FreigegebenVon");
+
+                    b.Navigation("GeaendertVon");
+
+                    b.Navigation("ZurueckgezogenVon");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiMeldung", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErledigtVon")
@@ -2629,9 +2783,16 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasForeignKey("PreislistenVersionId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Rausoft.Erp.Domain.Wiki.Sprachregel", "Sprachregel")
+                        .WithMany()
+                        .HasForeignKey("SprachregelId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("ErstelltVon");
 
                     b.Navigation("PreislistenVersion");
+
+                    b.Navigation("Sprachregel");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Wiki.WikiNeuerungLesung", b =>

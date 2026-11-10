@@ -14,7 +14,8 @@ namespace Rausoft.Erp.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/wiki")]
-public class WikiNeuerungenController(ErpDbContext db, Dienste.WikiBerechtigung berechtigung) : ControllerBase
+public class WikiNeuerungenController(ErpDbContext db, Dienste.WikiBerechtigung berechtigung,
+    Dienste.AngemeldeterMitarbeiter angemeldet) : ControllerBase
 {
     // --- Neuerungen ------------------------------------------------------------
 
@@ -31,26 +32,24 @@ public class WikiNeuerungenController(ErpDbContext db, Dienste.WikiBerechtigung 
             .Where(n => n.Thema == thema)
             .OrderByDescending(n => n.ErstelltAm)
             .ToListAsync(ct);
-        var leser = await db.Mitarbeiter.AsNoTracking()
-            .Where(m => m.Aktiv).OrderBy(m => m.Anzeigename)
-            .Select(m => new { m.Id, m.Anzeigename }).ToListAsync(ct);
+        var leser = await Dienste.WikiLesestand.LeserLadenAsync(db, ct);
+        var rollen = await angemeldet.RollenAsync(ct);
 
         return Ok(neuerungen.Select(n =>
         {
             var meine = n.Lesungen.FirstOrDefault(l => l.MitarbeiterId == eigeneId);
-            var aktiv = n.Lesungen.Where(l => leser.Any(m => m.Id == l.MitarbeiterId)).ToList();
+            // Kreis der Neuerung: alle aktiven Mitarbeiter oder nur die Zielrollen (z. B. Vertrieb bei einer Leitlinie)
+            var stand = Dienste.WikiLesestand.Auswerten(n, leser);
             return new WikiNeuerungEintrag(
                 n.Id, n.Thema, n.Titel, n.Text, n.PreislistenVersionId is null ? null : n.PreislistenVersion?.Version,
                 n.BestaetigungErforderlich, n.ErstelltAm, n.ErstelltVon?.Anzeigename,
                 meine?.GesehenAm, meine?.BestaetigtAm,
-                leser.Count, aktiv.Count, aktiv.Count(l => l.BestaetigtAm != null),
-                zustaendig
-                    ? leser.Select(m =>
-                    {
-                        var l = n.Lesungen.FirstOrDefault(x => x.MitarbeiterId == m.Id);
-                        return new WikiLesung(m.Anzeigename, l?.GesehenAm, l?.BestaetigtAm);
-                    }).ToList()
-                    : null);
+                stand.Gesamt, stand.Gesehen, stand.Bestaetigt,
+                zustaendig ? stand.Lesungen : null,
+                VonMirZuBestaetigen: n.BestaetigungErforderlich && eigeneId is not null && meine?.BestaetigtAm is null
+                                     && WikiNeuerung.Betrifft(n.Zielrollen, rollen),
+                Zielkreis: Dienste.WikiLesestand.Zielkreis(n.Zielrollen),
+                SprachregelId: n.SprachregelId);
         }).ToList());
     }
 
@@ -88,6 +87,8 @@ public class WikiNeuerungenController(ErpDbContext db, Dienste.WikiBerechtigung 
         var n = await db.WikiNeuerungen.FirstOrDefaultAsync(x => x.Id == id && x.Thema == thema, ct);
         if (n is null)
             return NotFound();
+        if (n.SprachregelId is not null)
+            return VonLeitlinieVerwaltet();
         n.Titel = daten.Titel.Trim();
         n.Text = daten.Text.Trim();
         n.BestaetigungErforderlich = daten.BestaetigungErforderlich;
@@ -104,6 +105,8 @@ public class WikiNeuerungenController(ErpDbContext db, Dienste.WikiBerechtigung 
         var n = await db.WikiNeuerungen.FirstOrDefaultAsync(x => x.Id == id && x.Thema == thema, ct);
         if (n is null)
             return NotFound();
+        if (n.SprachregelId is not null)
+            return VonLeitlinieVerwaltet();
         db.WikiNeuerungen.Remove(n);
         await db.SaveChangesAsync(ct);
         return NoContent();
@@ -136,6 +139,13 @@ public class WikiNeuerungenController(ErpDbContext db, Dienste.WikiBerechtigung 
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// Neuerungen, die Freigabe oder Rücknahme einer Kommunikationsleitlinie erzeugt hat, tragen die
+    /// Lesebestätigungen zu dieser Regel — sie lassen sich nicht von Hand ändern oder löschen.
+    /// </summary>
+    private ObjectResult VonLeitlinieVerwaltet() => StatusCode(StatusCodes.Status409Conflict,
+        "Diese Neuerung gehört zu einer Kommunikationsleitlinie und wird dort verwaltet (Regel zurückziehen statt Neuerung ändern).");
 
     private static string? Pruefen(WikiNeuerungSpeichern d)
     {
@@ -236,8 +246,7 @@ public class WikiNeuerungenController(ErpDbContext db, Dienste.WikiBerechtigung 
             return Ok(new WikiHinweise(0, 0));
 
         var unbestaetigt = await db.WikiNeuerungen.AsNoTracking()
-            .CountAsync(n => n.BestaetigungErforderlich
-                             && !n.Lesungen.Any(l => l.MitarbeiterId == eigeneId && l.BestaetigtAm != null), ct);
+            .CountAsync(WikiNeuerung.OffeneBestaetigung(eigeneId.Value, await angemeldet.RollenAsync(ct)), ct);
         var themen = await berechtigung.ZustaendigeThemenAsync(ct);
         var offen = themen.Count == 0 ? 0 : await db.WikiMeldungen.AsNoTracking()
             .CountAsync(m => m.ErledigtAm == null && themen.Contains(m.Thema), ct);

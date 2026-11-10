@@ -1,0 +1,733 @@
+@page "/wiki/leitlinien"
+@page "/wiki/leitlinien/{Id:int}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IDisposable
+
+@*
+   Kommunikationsleitlinien (Wiki-Thema „leitlinien“): Sprachregeln für Vertrieb,
+   Support und Claude. Eine Seite für Lesen, Bestätigen, Vorschlagen, Freigeben
+   und den Export als Vorgabe für Claude. /wiki/leitlinien/{id} zeigt eine Regel
+   direkt (z. B. aus einer Neuerung heraus), auch wenn sie zurückgezogen ist.
+*@
+
+<PageTitle>Kommunikationsleitlinien · Wiki · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Kommunikationsleitlinien</h1>
+    <span class="untertitel"><a href="wiki">Wiki</a> · Wie wir mit Kunden sprechen — für Vertrieb, Support und Claude</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@* ---------- Offene eigene Bestätigungen ---------- *@
+@if (_liste is { ZuBestaetigen.Count: > 0 })
+{
+    <div class="karte wiki-neuerung offen">
+        <div class="karte-koerper">
+            <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-bottom:4px">
+                <b style="font-size:14.5px">Bitte lesen und bestätigen</b>
+                <span class="pill warntext">@_liste.ZuBestaetigen.Count offen</span>
+                <span class="neben" style="display:inline">Diese Regeln sind verbindlich. Mit „Gelesen und verstanden“ bestätigen Sie, dass Sie sie kennen.</span>
+            </div>
+            <div class="ll-liste">
+                @foreach (var r in _liste.ZuBestaetigen)
+                {
+                    <div class="ll-art-zeile">@BereichTitel(r.Art)</div>
+                    <LeitlinieKarte @key="@($"offen-{r.Id}")" Regel="r" Aufgeklappt="true" Gesperrt="_speichert"
+                                    DarfFreigeben="_liste.DarfFreigeben" Bestaetigen="BestaetigenAsync"
+                                    Zurueckziehen="ZurueckziehenAsync" NeuFassen="NeuFassenAsync" />
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@* ---------- Direkt aufgerufene Regel ---------- *@
+@if (Id is not null && _einzeln is not null)
+{
+    <div class="karte" style="margin-bottom:16px">
+        <div class="karte-koerper">
+            <div style="display:flex; gap:10px; align-items:baseline; margin-bottom:4px">
+                <a href="wiki/leitlinien" class="mehr">← alle Leitlinien</a>
+                <span class="neben" style="display:inline">@BereichTitel(_einzeln.Art)</span>
+            </div>
+            <LeitlinieKarte @key="@($"einzeln-{_einzeln.Id}-{_einzeln.Version}")" Regel="_einzeln" Aufgeklappt="true" Gesperrt="_speichert"
+                            DarfFreigeben="_liste?.DarfFreigeben == true" Bestaetigen="BestaetigenAsync"
+                            Freigeben="FreigebenAsync" Zurueckziehen="ZurueckziehenAsync" Bearbeiten="BearbeitenOeffnen"
+                            NeuFassen="NeuFassenAsync" Loeschen="LoeschenAsync" />
+        </div>
+    </div>
+}
+
+@* ---------- Vorschlagen / Bearbeiten ---------- *@
+@if (_formular)
+{
+    <div class="karte" style="margin-bottom:16px" id="ll-formular">
+        <div class="karte-koerper">
+            <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:12px">
+                <b>@(_bearbeiteId is null ? "Regel vorschlagen" : "Entwurf bearbeiten")</b>
+                <span class="neben" style="display:inline">
+                    Der Vorschlag wird als Entwurf gespeichert und gilt erst nach Freigabe durch Compliance oder Admin.
+                    Kundennamen und Preise gehören nicht in Leitlinien.
+                </span>
+            </div>
+            <div class="formular">
+                <label>
+                    Art
+                    <select @bind="_fArt">
+                        @foreach (var b in LeitlinienTexte.Bereiche) { <option value="@b.Art">@b.Titel</option> }
+                    </select>
+                </label>
+                <label>
+                    Thema
+                    <select @bind="_fThema">
+                        @foreach (var t in Themen) { <option value="@t.Schluessel">@t.Name</option> }
+                    </select>
+                </label>
+                <label>
+                    Produkt (optional)
+                    <select @bind="_fProdukt">
+                        <option value="">— produktübergreifend —</option>
+                        @foreach (var p in Produkte) { <option value="@p.Schluessel">@p.Name</option> }
+                    </select>
+                </label>
+                <label class="breit">
+                    @LeitlinienTexte.AussageLabel(_fArt)
+                    <textarea rows="2" maxlength="500" @bind="_fAussage" placeholder="@AussagePlatzhalter"></textarea>
+                </label>
+                @if (_fArt == "Pflichthinweis")
+                {
+                    <label class="breit">
+                        Anlass — in welcher Situation muss der Hinweis fallen?
+                        <input type="text" maxlength="500" @bind="_fAnlass" placeholder="z. B. sobald ein Interessent nach … fragt" />
+                    </label>
+                }
+                @if (_fArt is "Vermeiden" or "Verboten")
+                {
+                    <label class="breit">
+                        @(_fArt == "Vermeiden" ? "Stattdessen sagen wir" : "Stattdessen (optional) — was sich sagen lässt")
+                        <input type="text" maxlength="500" @bind="_fStattdessen" />
+                    </label>
+                }
+                <div class="wiki-feld">
+                    @(_fArt == "Verboten" ? "Begründung — warum darf das nie gesagt werden?" : "Begründung (empfohlen) — warum gilt die Regel?")
+                    <WikiEditor @bind-Text="_fBegruendung" Zeilen="3" Beschriftung="Begründung"
+                                Platzhalter="Mit Begründung wird eine Regel besser verstanden und auch von Claude sinngemäß angewendet." />
+                    <label class="ll-haken">
+                        <input type="checkbox" @bind="_fBegruendungIntern" />
+                        Begründung ist intern — sie geht nicht in den Export für Claude
+                    </label>
+                </div>
+                <label class="breit">
+                    Beispiel, so ist es gut (optional)
+                    <textarea rows="2" maxlength="1000" @bind="_fBeispielGut"></textarea>
+                </label>
+                <label class="breit">
+                    Beispiel, so nicht (optional)
+                    <textarea rows="2" maxlength="1000" @bind="_fBeispielSchlecht"></textarea>
+                </label>
+                <label class="breit">
+                    Varianten — weitere Schreibweisen und Wortformen, Komma-getrennt (optional)
+                    <input type="text" maxlength="500" @bind="_fVarianten" placeholder="z. B. garantieren, Garantie" />
+                </label>
+                <div class="wiki-feld">
+                    Zielgruppen — für wen gilt die Regel?
+                    <div class="ll-haken-reihe">
+                        @foreach (var z in LeitlinienTexte.Zielgruppen)
+                        {
+                            <label class="ll-haken">
+                                <input type="checkbox" checked="@_fZielgruppen.Contains(z.Schluessel)"
+                                       @onchange="e => Umschalten(_fZielgruppen, z.Schluessel, e.Value is true)" />
+                                @z.Name
+                            </label>
+                        }
+                    </div>
+                </div>
+                <div class="wiki-feld">
+                    Kanäle (optional) — ohne Auswahl gilt die Regel überall
+                    <div class="ll-haken-reihe">
+                        @foreach (var k in LeitlinienTexte.Kanaele)
+                        {
+                            <label class="ll-haken">
+                                <input type="checkbox" checked="@_fKanaele.Contains(k.Schluessel)"
+                                       @onchange="e => Umschalten(_fKanaele, k.Schluessel, e.Value is true)" />
+                                @k.Name
+                            </label>
+                        }
+                    </div>
+                </div>
+                <label class="breit">
+                    Hinweis für Claude (optional) — was soll Claude tun, wenn das Thema aufkommt?
+                    <input type="text" maxlength="500" @bind="_fKiHinweis" placeholder="z. B. an den Vertrieb verweisen" />
+                </label>
+                <label>
+                    Gültig ab (optional)
+                    <input type="date" @bind="_fGueltigAb" />
+                </label>
+            </div>
+            <div class="formular-aktionen">
+                <button class="knopf" disabled="@_speichert" @onclick="SpeichernAsync">@(_speichert ? "Speichere …" : "Als Entwurf speichern")</button>
+                <button class="knopf sekundaer" @onclick="() => _formular = false">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ---------- Suche und Filter ---------- *@
+<div class="werkzeugleiste">
+    <input type="search" placeholder="Suche in Aussage, Alternative, Begründung, Beispielen, Varianten …" value="@_suche" @oninput="SucheGeaendertAsync" />
+    <select @bind="_status" @bind:after="LadenAsync" title="Status">
+        <option value="aktuell">geltende Regeln + Entwürfe</option>
+        <option value="Freigegeben">nur geltende Regeln</option>
+        <option value="Entwurf">nur Entwürfe</option>
+        <option value="Zurueckgezogen">zurückgezogene</option>
+        <option value="alle">alle</option>
+    </select>
+    <span style="flex:1"></span>
+    @if (!_formular)
+    {
+        <button class="knopf" @onclick="NeuOeffnen">+ Regel vorschlagen</button>
+    }
+</div>
+
+<div class="chips" style="margin-bottom:8px" role="group" aria-label="Zielgruppe">
+    <button class="chip @(_zielgruppe is null ? "aktiv" : "")" @onclick="() => ZielgruppeWaehlenAsync(null)">alle Zielgruppen</button>
+    @foreach (var z in LeitlinienTexte.Zielgruppen)
+    {
+        <button class="chip @(_zielgruppe == z.Schluessel ? "aktiv" : "")" @onclick="() => ZielgruppeWaehlenAsync(z.Schluessel)">@z.Name</button>
+    }
+</div>
+@if (_liste is not null)
+{
+    <div class="chips" style="margin-bottom:14px" role="group" aria-label="Thema">
+        <button class="chip @(_thema is null ? "aktiv" : "")" @onclick="() => ThemaWaehlenAsync(null)">alle Themen</button>
+        @foreach (var t in _liste.Themen.Where(t => t.Anzahl > 0 || _thema == t.Schluessel))
+        {
+            <button class="chip @(_thema == t.Schluessel ? "aktiv" : "")" @onclick="() => ThemaWaehlenAsync(t.Schluessel)">@t.Name <span class="anz">@t.Anzahl</span></button>
+        }
+    </div>
+}
+
+@* ---------- Bereiche ---------- *@
+@if (_liste is null)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade Leitlinien …</div> }
+}
+else if (_liste.Eintraege.Count == 0)
+{
+    <div class="karte">
+        <div class="karte-koerper">
+            <div class="leer-hinweis">
+                @(string.IsNullOrWhiteSpace(_suche) && _thema is null && _zielgruppe is null && _status == "aktuell"
+                    ? "Noch keine Leitlinien erfasst — mit „+ Regel vorschlagen“ die erste anlegen."
+                    : "Keine Regel passt zu Suche und Filtern.")
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    @foreach (var b in LeitlinienTexte.Bereiche)
+    {
+        var regeln = _liste.Eintraege.Where(r => r.Art == b.Art).ToList();
+        if (regeln.Count == 0)
+            continue;
+        <section class="ll-bereich @b.Art.ToLowerInvariant()">
+            <h2>
+                <span class="zeichen" aria-hidden="true">@b.Zeichen</span>
+                @b.Titel
+                <span class="erklaerung">@b.Erklaerung</span>
+                <span class="zahl">@regeln.Count</span>
+            </h2>
+            @foreach (var r in regeln)
+            {
+                <LeitlinieKarte @key="@($"{r.Id}-{r.Version}")" Regel="r" Gesperrt="_speichert" DarfFreigeben="_liste.DarfFreigeben"
+                                Bestaetigen="BestaetigenAsync" Freigeben="FreigebenAsync" Zurueckziehen="ZurueckziehenAsync"
+                                Bearbeiten="BearbeitenOeffnen" NeuFassen="NeuFassenAsync" Loeschen="LoeschenAsync" />
+            }
+        </section>
+    }
+    @if (_liste.Eintraege.Count >= 500)
+    {
+        <div class="neben" style="padding:0 0 12px">Es werden die ersten 500 Regeln gezeigt — bitte die Suche eingrenzen.</div>
+    }
+}
+
+@* ---------- Vorgabe für Claude (Export) ---------- *@
+@if (_liste is { ExportZielgruppen.Count: > 0 })
+{
+    <div class="karte ll-export" style="margin-top:16px">
+        <div class="karte-koerper">
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+                <b>Vorgabe für Claude</b>
+                <span class="neben" style="display:inline">
+                    Fertiger Textblock für den Systemprompt bzw. die Projektanweisungen in claude.ai — nur freigegebene, gültige Regeln.
+                </span>
+            </div>
+            <div class="ll-hinweis">
+                Der Text verlässt damit das Haus – interne Begründungen sind ausgenommen, Kundennamen und Preise gehören nicht in Leitlinien.
+            </div>
+            <div class="formular-aktionen" style="flex-wrap:wrap">
+                @if (_liste.ExportZielgruppen.Count > 1)
+                {
+                    <label style="display:flex; gap:6px; align-items:center; font-size:13px; color:var(--ink2)">
+                        Regeln für
+                        <select @bind="_exportZielgruppe" @bind:after="ExportZuruecksetzen">
+                            @foreach (var z in _liste.ExportZielgruppen) { <option value="@z">@LeitlinienTexte.Zielgruppe(z)</option> }
+                        </select>
+                    </label>
+                }
+                <button class="knopf" disabled="@_exportLaeuft" @onclick="ExportKopierenAsync">
+                    @(_exportLaeuft ? "Hole Text …" : "Als Vorgabe für Claude kopieren")
+                </button>
+                @if (_exportKopf is not null)
+                {
+                    <span class="@(_exportKopiert ? "status gut" : "status warnung")">
+                        @(_exportKopiert ? "In die Zwischenablage kopiert" : "Kopieren blockiert — Text unten markieren und kopieren") · @_exportKopf
+                    </span>
+                }
+            </div>
+            @if (_exportText is not null)
+            {
+                <details class="wiki-vorschau" open="@(!_exportKopiert)">
+                    <summary>Text ansehen</summary>
+                    <pre class="ll-export-text">@_exportText</pre>
+                </details>
+            }
+        </div>
+    </div>
+}
+
+@* ---------- Verlauf: Freigaben und Rücknahmen ---------- *@
+<details class="gruppe" style="margin-top:16px" @ontoggle="VerlaufLadenAsync">
+    <summary>Verlauf — Freigaben und Rücknahmen</summary>
+    <div class="gruppe-inhalt">
+        @if (_verlauf is null)
+        {
+            <div class="neben">Lade Verlauf …</div>
+        }
+        else if (_verlauf.Count == 0)
+        {
+            <div class="neben">Noch keine Freigabe mit Lesebestätigung und keine Rücknahme.</div>
+        }
+        else
+        {
+            <table class="liste">
+                <thead><tr><th style="width:110px">Datum</th><th>Ereignis</th><th>Für</th><th>Lesestand</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var n in _verlauf)
+                    {
+                        <tr style="cursor:default">
+                            <td class="neben">@n.ErstelltAm.ToLocalTime().ToString("dd.MM.yyyy")</td>
+                            <td>@n.Titel@(n.ErstelltVon is not null ? $" · {n.ErstelltVon}" : "")</td>
+                            <td>@(n.Zielkreis ?? "alle")</td>
+                            <td>@(n.BestaetigungErforderlich ? $"bestätigt {n.Bestaetigt} von {n.LeserGesamt}" : $"gesehen {n.Gesehen} von {n.LeserGesamt}")</td>
+                            <td>@if (n.SprachregelId is { } rid) { <a href="wiki/leitlinien/@rid">zur Regel</a> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</details>
+
+@* Meldungen an die Zuständigen — „etwas fehlt oder ist falsch“ *@
+<div style="margin-top:16px">
+    <WikiMeldungen Thema="leitlinien" Bezuege="@(new List<string>())" />
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private LeitlinienListe? _liste;
+    private LeitlinieDto? _einzeln;
+    private List<WikiNeuerungEintrag>? _verlauf;
+    private string? _fehler;
+    private bool _speichert, _vorauswahlErledigt;
+
+    // Suche und Filter
+    private string _suche = "";
+    private string? _zielgruppe, _thema;
+    private string _status = "aktuell";
+    private CancellationTokenSource? _sucheAbbruch;
+
+    // Formular
+    private bool _formular;
+    private int? _bearbeiteId;
+    private string? _bearbeiteVersion;
+    private string _fArt = "Verwenden", _fThema = "produktleistung", _fProdukt = "", _fAussage = "";
+    private string? _fStattdessen, _fAnlass, _fBegruendung, _fBeispielGut, _fBeispielSchlecht, _fVarianten, _fKiHinweis;
+    private bool _fBegruendungIntern;
+    private DateOnly? _fGueltigAb;
+    private HashSet<string> _fZielgruppen = [], _fKanaele = [];
+
+    // Export
+    private string _exportZielgruppe = "ki";
+    private string? _exportText, _exportKopf;
+    private bool _exportKopiert, _exportLaeuft;
+
+    private List<LeitlinienAuswahl> Themen => _liste?.Themen ?? [];
+    private List<LeitlinienAuswahl> Produkte => _liste?.Produkte ?? [];
+
+    private string AussagePlatzhalter => _fArt switch
+    {
+        "Verboten" => "Die Aussage so beschreiben, dass sie auch in anderer Wortwahl erkannt wird",
+        "Pflichthinweis" => "Der Hinweis im Wortlaut",
+        "Grundsatz" => "z. B. Anrede, Tonfall, Stil",
+        _ => "Begriff oder Formulierung",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OrtGeaendert;
+        await LadenAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id is { } id && _einzeln?.Id != id)
+            await EinzelnLadenAsync(id);
+        else if (Id is null)
+            _einzeln = null;
+    }
+
+    private void OrtGeaendert(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OrtGeaendert;
+        _sucheAbbruch?.Cancel();
+    }
+
+    // --- Laden -----------------------------------------------------------------
+
+    private async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _liste = await Http.GetFromJsonAsync<LeitlinienListe>(ListenUrl());
+            if (_liste is null)
+                return;
+
+            // Beim ersten Aufruf die Zielgruppe der eigenen Rolle vorwählen (Vertrieb bzw. Support)
+            if (!_vorauswahlErledigt)
+            {
+                _vorauswahlErledigt = true;
+                _exportZielgruppe = _liste.ExportZielgruppen.Contains("ki") ? "ki" : _liste.ExportZielgruppen.FirstOrDefault() ?? "ki";
+                if (_liste.MeineZielgruppe is { } meine)
+                {
+                    _zielgruppe = meine;
+                    _liste = await Http.GetFromJsonAsync<LeitlinienListe>(ListenUrl()) ?? _liste;
+                }
+            }
+            await GesehenMeldenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Leitlinien konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private string ListenUrl() =>
+        $"api/wiki/leitlinien?status={_status}"
+        + (string.IsNullOrWhiteSpace(_suche) ? "" : $"&suche={Uri.EscapeDataString(_suche.Trim())}")
+        + (_zielgruppe is null ? "" : $"&zielgruppe={_zielgruppe}")
+        + (_thema is null ? "" : $"&thema={_thema}");
+
+    /// <summary>Offene Bestätigungen stehen oben auf der Seite — beim ersten Anzeigen „gesehen“ festhalten.</summary>
+    private async Task GesehenMeldenAsync()
+    {
+        foreach (var r in _liste?.ZuBestaetigen ?? [])
+        {
+            if (r.MeineBestaetigung is { GesehenAm: null } m)
+            {
+                try { await Http.PostAsync($"api/wiki/themen/leitlinien/neuerungen/{m.NeuerungId}/gesehen", null); }
+                catch { /* der Lesestand ist nachrangig — die Seite bleibt nutzbar */ }
+            }
+        }
+    }
+
+    private async Task EinzelnLadenAsync(int id)
+    {
+        try
+        {
+            var antwort = await Http.GetAsync($"api/wiki/leitlinien/{id}");
+            if (antwort.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _einzeln = null;
+                _fehler = "Diese Regel gibt es nicht (mehr).";
+                return;
+            }
+            antwort.EnsureSuccessStatusCode();
+            _einzeln = await antwort.Content.ReadFromJsonAsync<LeitlinieDto>();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Regel konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task AllesNeuLadenAsync()
+    {
+        await LadenAsync();
+        if (Id is { } id)
+            await EinzelnLadenAsync(id);
+        if (_verlauf is not null)
+            await VerlaufHolenAsync();
+        ExportZuruecksetzen();
+    }
+
+    private async Task SucheGeaendertAsync(ChangeEventArgs e)
+    {
+        _suche = e.Value?.ToString() ?? "";
+        _sucheAbbruch?.Cancel();
+        var abbruch = _sucheAbbruch = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(250, abbruch.Token);
+            await LadenAsync();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private Task ZielgruppeWaehlenAsync(string? z) { _zielgruppe = z; return LadenAsync(); }
+    private Task ThemaWaehlenAsync(string? t) { _thema = t; return LadenAsync(); }
+
+    private async Task VerlaufLadenAsync()
+    {
+        if (_verlauf is null)
+            await VerlaufHolenAsync();
+    }
+
+    private async Task VerlaufHolenAsync()
+    {
+        try
+        {
+            _verlauf = await Http.GetFromJsonAsync<List<WikiNeuerungEintrag>>("api/wiki/themen/leitlinien/neuerungen") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _verlauf = [];
+            _fehler = $"Verlauf konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    // --- Formular --------------------------------------------------------------
+
+    private void NeuOeffnen()
+    {
+        _bearbeiteId = null;
+        _bearbeiteVersion = null;
+        _fArt = "Verwenden";
+        _fThema = Themen.FirstOrDefault()?.Schluessel ?? "produktleistung";
+        _fProdukt = "";
+        _fAussage = "";
+        _fStattdessen = _fAnlass = _fBegruendung = _fBeispielGut = _fBeispielSchlecht = _fVarianten = _fKiHinweis = null;
+        _fBegruendungIntern = false;
+        _fGueltigAb = null;
+        _fZielgruppen = ["vertrieb", "support", "ki"];
+        _fKanaele = [];
+        _formular = true;
+    }
+
+    private void BearbeitenOeffnen(LeitlinieDto r)
+    {
+        _bearbeiteId = r.Id;
+        _bearbeiteVersion = r.Version;
+        _fArt = r.Art;
+        _fThema = r.Thema;
+        _fProdukt = r.Produkt ?? "";
+        _fAussage = r.Aussage;
+        _fStattdessen = r.Stattdessen;
+        _fAnlass = r.Anlass;
+        _fBegruendung = r.Begruendung;
+        _fBegruendungIntern = r.BegruendungIntern;
+        _fBeispielGut = r.BeispielGut;
+        _fBeispielSchlecht = r.BeispielSchlecht;
+        _fVarianten = r.Varianten.Count == 0 ? null : string.Join(", ", r.Varianten);
+        _fKiHinweis = r.KiHinweis;
+        _fGueltigAb = r.GueltigAb;
+        _fZielgruppen = r.Zielgruppen.ToHashSet();
+        _fKanaele = r.Kanaele.ToHashSet();
+        _formular = true;
+        _ = JS.InvokeVoidAsync("scrollTo", 0, 0);
+    }
+
+    private static void Umschalten(HashSet<string> menge, string schluessel, bool an)
+    {
+        if (an) menge.Add(schluessel);
+        else menge.Remove(schluessel);
+    }
+
+    private async Task SpeichernAsync()
+    {
+        _fehler = null;
+        _speichert = true;
+        try
+        {
+            var daten = new LeitlinieSpeichern(_fArt, _fAussage, _fStattdessen, _fAnlass, _fBegruendung, _fBegruendungIntern,
+                _fBeispielGut, _fBeispielSchlecht, _fVarianten, _fZielgruppen.ToList(), _fThema,
+                string.IsNullOrEmpty(_fProdukt) ? null : _fProdukt, _fKanaele.ToList(), _fKiHinweis, _fGueltigAb, _bearbeiteVersion);
+            var antwort = _bearbeiteId is { } bid
+                ? await Http.PutAsJsonAsync($"api/wiki/leitlinien/{bid}", daten)
+                : await Http.PostAsJsonAsync("api/wiki/leitlinien", daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _formular = false;
+            // Der neue Entwurf soll sichtbar sein, auch wenn gerade nur geltende Regeln gefiltert sind
+            if (_status is "Freigegeben" or "Zurueckgezogen")
+                _status = "aktuell";
+            await AllesNeuLadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichert = false;
+        }
+    }
+
+    // --- Aktionen an der Regel ---------------------------------------------------
+
+    private async Task BestaetigenAsync(LeitlinieDto r)
+    {
+        if (r.MeineBestaetigung is not { } m)
+            return;
+        await AktionAsync(() => Http.PostAsync($"api/wiki/themen/leitlinien/neuerungen/{m.NeuerungId}/bestaetigt", null));
+        WikiHinweisSignal.Melden();
+    }
+
+    private async Task FreigebenAsync(LeitlinieDto r)
+    {
+        var pflicht = r.Art is "Verboten" or "Pflichthinweis";
+        var betroffen = r.Zielgruppen.Where(z => z != "ki").Select(LeitlinienTexte.Zielgruppe).ToList();
+        var folge = pflicht && betroffen.Count > 0
+            ? $" {string.Join(" und ", betroffen)} müssen das Lesen bestätigen."
+            : "";
+        if (!await JS.InvokeAsync<bool>("confirm",
+                $"„{LeitlinienTexte.Kurz(r.Aussage)}“ freigeben? Die Regel gilt dann und lässt sich nicht mehr ändern, nur neu fassen.{folge}"))
+            return;
+        await AktionAsync(() => Http.PutAsJsonAsync($"api/wiki/leitlinien/{r.Id}/status", new LeitlinieStatusSetzen("Freigegeben", r.Version)));
+        WikiHinweisSignal.Melden();
+    }
+
+    private async Task ZurueckziehenAsync(LeitlinieDto r)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm",
+                $"„{LeitlinienTexte.Kurz(r.Aussage)}“ zurückziehen? Die Regel gilt dann nicht mehr; zum Ändern stattdessen „Neu fassen“ wählen."))
+            return;
+        await AktionAsync(() => Http.PutAsJsonAsync($"api/wiki/leitlinien/{r.Id}/status", new LeitlinieStatusSetzen("Zurueckgezogen", r.Version)));
+        WikiHinweisSignal.Melden();
+    }
+
+    private async Task NeuFassenAsync(LeitlinieDto r)
+    {
+        _fehler = null;
+        _speichert = true;
+        try
+        {
+            var antwort = await Http.PostAsync($"api/wiki/leitlinien/{r.Id}/neufassung", null);
+            if (!antwort.IsSuccessStatusCode) { _fehler = await antwort.Content.ReadAsStringAsync(); return; }
+            var id = await antwort.Content.ReadFromJsonAsync<int>();
+            if (_status is "Freigegeben" or "Zurueckgezogen")
+                _status = "aktuell";
+            await AllesNeuLadenAsync();
+            // Den neuen Entwurf gleich zum Bearbeiten öffnen
+            var neu = await Http.GetFromJsonAsync<LeitlinieDto>($"api/wiki/leitlinien/{id}");
+            if (neu is not null)
+                BearbeitenOeffnen(neu);
+        }
+        catch (Exception ex) { _fehler = $"Neufassung fehlgeschlagen: {ex.Message}"; }
+        finally { _speichert = false; }
+    }
+
+    private async Task LoeschenAsync(LeitlinieDto r)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"„{LeitlinienTexte.Kurz(r.Aussage)}“ endgültig löschen?"))
+            return;
+        await AktionAsync(() => Http.DeleteAsync($"api/wiki/leitlinien/{r.Id}"));
+        if (Id == r.Id && _fehler is null)
+            Nav.NavigateTo("wiki/leitlinien");
+    }
+
+    private async Task AktionAsync(Func<Task<HttpResponseMessage>> aktion)
+    {
+        _fehler = null;
+        _speichert = true;
+        try
+        {
+            var antwort = await aktion();
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                // Bei einem Konflikt (zwischenzeitlich geändert) zeigt die Seite sofort den aktuellen Stand
+                if (antwort.StatusCode == System.Net.HttpStatusCode.Conflict)
+                {
+                    var text = _fehler;
+                    await AllesNeuLadenAsync();
+                    _fehler = text;
+                }
+                return;
+            }
+            await AllesNeuLadenAsync();
+        }
+        catch (Exception ex) { _fehler = $"Aktion fehlgeschlagen: {ex.Message}"; }
+        finally { _speichert = false; }
+    }
+
+    // --- Export ------------------------------------------------------------------
+
+    private void ExportZuruecksetzen()
+    {
+        _exportText = null;
+        _exportKopf = null;
+        _exportKopiert = false;
+    }
+
+    /// <summary>
+    /// Holt den Prompt-Text, kopiert ihn in die Zwischenablage und zeigt die
+    /// Kopfzeile des Blocks (Stand, Anzahl, Version) — sie steht im Text selbst.
+    /// </summary>
+    private async Task ExportKopierenAsync()
+    {
+        _fehler = null;
+        _exportLaeuft = true;
+        try
+        {
+            var antwort = await Http.GetAsync($"api/wiki/leitlinien/export?zielgruppe={_exportZielgruppe}&format=prompt");
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _exportText = await antwort.Content.ReadAsStringAsync();
+            _exportKopf = _exportText.Split('\n').FirstOrDefault(z => z.StartsWith("Stand ", StringComparison.Ordinal));
+            _exportKopiert = await JS.InvokeAsync<bool>("zwischenablage.kopieren", _exportText);
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Export fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _exportLaeuft = false;
+        }
+    }
+
+    // --- Anzeige -----------------------------------------------------------------
+
+    private static string BereichTitel(string art) =>
+        LeitlinienTexte.Bereiche.FirstOrDefault(b => b.Art == art).Titel ?? art;
+}

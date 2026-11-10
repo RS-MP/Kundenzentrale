@@ -13,12 +13,15 @@ public static class WikiThema
     public const string Preisliste = "preisliste";
     /// <summary>FAQ-Datenbank für den Support (Supportfälle Symptom → Ursache → Lösung).</summary>
     public const string Faq = "faq";
+    /// <summary>Kommunikationsleitlinien: Sprachregeln für Vertrieb, Support und Claude.</summary>
+    public const string Leitlinien = "leitlinien";
 
     /// <summary>Alle Themen mit Anzeigename und Bereich — Reihenfolge = Anzeige.</summary>
     public static readonly (string Schluessel, string Name, string Bereich)[] Alle =
     [
         (Sanktionslisten, "Sanktionslisten", "Compliance"),
         (Preisliste, "Preisliste", "Vertrieb"),
+        (Leitlinien, "Kommunikationsleitlinien", "Vertrieb"),
         (Faq, "FAQ Support", "Support"),
     ];
 

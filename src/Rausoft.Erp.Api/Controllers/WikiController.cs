@@ -53,8 +53,7 @@ public class WikiController(ErpDbContext db, Dienste.WikiBerechtigung berechtigu
         var unbestaetigt = eigeneId is null
             ? new Dictionary<string, int>()
             : await db.WikiNeuerungen.AsNoTracking()
-                .Where(n => n.BestaetigungErforderlich
-                            && !n.Lesungen.Any(l => l.MitarbeiterId == eigeneId && l.BestaetigtAm != null))
+                .Where(WikiNeuerung.OffeneBestaetigung(eigeneId.Value, await angemeldet.RollenAsync(ct)))
                 .GroupBy(n => n.Thema).Select(g => new { g.Key, Anzahl = g.Count() })
                 .ToDictionaryAsync(x => x.Key, x => x.Anzahl, ct);
         var offen = await db.WikiMeldungen.AsNoTracking()
