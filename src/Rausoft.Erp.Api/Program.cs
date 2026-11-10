@@ -228,7 +228,14 @@ if (httpsErzwingen)
 // Die API liefert auch das Blazor-Frontend aus (ein IIS-Site, kein CORS nötig);
 // in der Entwicklung läuft das Frontend weiterhin auf dem eigenen Dev-Port.
 app.UseBlazorFrameworkFiles();
-app.UseStaticFiles();
+// app.css, wiki-editor.js und Bilder tragen keinen Fingerabdruck im Namen. Ohne
+// Vorgabe schätzt der Browser die Haltbarkeit aus dem Änderungsdatum und zeigt
+// nach einem Update tagelang das alte Stylesheet zu neuen Seiten. "no-cache"
+// heißt: behalten, aber vor jeder Verwendung nachfragen (ETag → 304, wenn gleich).
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = antwort => antwort.Context.Response.Headers.CacheControl = "no-cache",
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -289,6 +296,7 @@ app.MapFallback(async context =>
     var html = (await File.ReadAllTextAsync(datei, context.RequestAborted))
         .Replace("<base href=\"/\" />", $"<base href=\"{basis}\" />");
     context.Response.ContentType = "text/html; charset=utf-8";
+    context.Response.Headers.CacheControl = "no-cache";
     await context.Response.WriteAsync(html, context.RequestAborted);
 });
 

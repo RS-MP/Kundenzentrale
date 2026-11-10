@@ -44,7 +44,12 @@ Option dokumentiert.
   dass die richtigen Personen die Rollen Vertrieb/Support/Compliance tragen
   (Administration → Benutzer & Rollen) — danach richtet sich, wer bestätigen
   muss und wer freigeben darf; die drei Beispiel-Entwürfe anpassen oder
-  löschen. Strg+F5 im Browser.
+  löschen. **Strg+F5 im Browser ist hier Pflicht:** mit dem alten `app.css`
+  aus dem Browser-Cache erscheint die Seite ungestaltet (Regeln als graue
+  Kästen, Überschriften als Fließtext). Ab diesem Stand liefert die API
+  `app.css`, `wiki-editor.js` und die Startseite mit `Cache-Control: no-cache`
+  aus — der Browser fragt dann bei jedem Laden nach, ob sich die Datei
+  geändert hat; künftige Updates brauchen dafür kein Strg+F5 mehr.
 
 - [ ] **Publish aktualisieren (30.10.2026, Aufgaben bearbeiten/löschen):**
   keine Migration, Odoo-Import unverändert. Wirkung: In der Akte und unter
