@@ -460,6 +460,51 @@ JSON-Export ist dafür vorbereitet).
   automatisch auf die **IONOS-Limits (pro Minute/Stunde/Tag, konfigurierbar)**.
 - Wiederholversuche mit Wartezeit-Staffelung; nach letztem Fehlversuch →
   Aufgabe. Übersicht der versendeten Mails; jede Mail auch in der Timeline.
+- Die Warteschlange gilt für **automatische** Mails (Erinnerungen, später
+  Rechnungen/Mahnungen). Persönliche Mails an Kunden laufen über den
+  folgenden Weg.
+
+### E-Mail aus der Akte: Entwurf in Outlook (Entscheidung 10.11.2026, MP)
+
+Mitarbeiter verschicken Kundenmails weiter aus ihrem eigenen Postfach — die
+Kundenzentrale **bereitet die Mail fertig vor**, der Mitarbeiter drückt in
+Outlook nur noch auf Senden. Kein eigener Sendekanal für persönliche
+Korrespondenz.
+
+- **Ablauf:** In der Akte (Kunde, Vertrag, Vorgang) „E-Mail vorbereiten" →
+  Empfänger aus den Ansprechpartnern, Betreff, Text (aus Textbaustein) und
+  **Anhänge** (z. B. das erzeugte Vertrags-PDF, Dateien aus der Ablage) →
+  die Kundenzentrale legt über **Microsoft Graph einen Entwurf im Postfach
+  des Mitarbeiters** an. Der Entwurf öffnet sich in Outlook im Web und liegt
+  zugleich im Entwürfe-Ordner des Desktop-Outlook. Der Mitarbeiter kann noch
+  ändern und sendet selbst — Absender, Signatur, gesendete Elemente und
+  Antworten bleiben in seinem Postfach.
+- **Ablage des tatsächlich Gesendeten:** Die Kundenzentrale merkt sich den
+  Entwurf (Graph-Id) und übernimmt nach dem Versand die **wirklich gesendete
+  Fassung** (Text inkl. letzter Änderungen, Empfänger, Anhänge, Message-ID)
+  in die Timeline der Akte, Quelle „Outlook", im passenden Strang. Bis dahin
+  steht dort nur „E-Mail vorbereitet"; ein nie gesendeter Entwurf erscheint
+  nicht als gesendet. Die gespeicherte Message-ID lässt Antworten des Kunden
+  später über den Outlook-Knopf im selben Gesprächsfaden landen.
+- **Voraussetzung:** App-Registrierung in Entra ID mit delegiertem Zugriff
+  auf das **eigene** Postfach (Mail.ReadWrite) — dieselbe Registrierung wie
+  für den Outlook-Knopf, daher zusammen umsetzen. Die Kundenzentrale bleibt
+  bei Windows-Auth; das Graph-Token holt das Frontend per Single Sign-on.
+- **Datenschutz-Leitplanke:** Die Kundenzentrale fasst im Postfach nur die
+  von ihr selbst angelegten Entwürfe und deren gesendete Fassung an — kein
+  Lesen oder Abgleichen anderer Mails. Graph-Tokens werden nicht gespeichert.
+- **Textbausteine:** freigegebene Formulierungen aus den
+  Kommunikationsleitlinien als Grundlage; Pflichthinweise werden eingefügt.
+- **Testsystem:** legt Entwürfe nur mit der Umleitungsadresse als Empfänger an.
+- **Nicht gewählt:** Entwurfsdatei (`.eml`) zum Öffnen — die Kundenzentrale
+  erführe nicht, ob und was gesendet wurde, und das neue Outlook öffnet solche
+  Dateien nicht verlässlich als Entwurf. Eigener Versand durch die
+  Kundenzentrale — Mail läge nicht im Postfach des Mitarbeiters, eigener
+  Editor nötig.
+- **Offen:** Sammelpostfächer (z. B. Vertrieb/Support als Absender),
+  Zeitpunkt der Übernahme (sofort nach dem Senden per Abfrage oder
+  Benachrichtigung von Graph).
+- Zeitpunkt: zusammen mit dem Outlook-Knopf, nach dem Produktivstart.
 
 ### Erfassung aus Outlook (BCC-Postfach)
 
