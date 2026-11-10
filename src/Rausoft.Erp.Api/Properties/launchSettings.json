@@ -21,6 +21,19 @@
         "Authentifizierung__ErstAdminKonto": "RS\\mp"
       }
     },
+    "http-testsystem": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5407",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Instanz__Testsystem": "true",
+        "Instanz__SchluesselOrdner": "D:\\Claude\\Code\\Kundenzentrale\\.dev-testsystem\\Schluessel",
+        "Instanz__AblageWurzel": "D:\\Claude\\Code\\Kundenzentrale\\.dev-testsystem\\Ablage",
+        "ConnectionStrings__Kundenzentrale": "Server=(localdb)\\MSSQLLocalDB;Database=Kundenzentrale_Testsystem;Trusted_Connection=True;Encrypt=False"
+      }
+    },
     "https": {
       "commandName": "Project",
       "dotnetRunMessages": true,

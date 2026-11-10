@@ -42,4 +42,14 @@ public static class GeheimnisAblage
     public static string SchluesselOrdner => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "Rausoft", "Kundenzentrale", "Schluessel");
+
+    /// <summary>
+    /// Schlüsselbund-Ordner einer Instanz: der konfigurierte Ordner
+    /// (Instanz:SchluesselOrdner bzw. --schluessel beim Import-Tool), sonst der
+    /// Standard. Test- und Produktivsystem auf demselben Server MÜSSEN getrennte
+    /// Ordner haben — sonst könnte das Testsystem die Geheimnisse einer
+    /// Produktiv-Kopie entschlüsseln (DEPLOYMENT.md, Test- und Produktivsystem).
+    /// </summary>
+    public static string Ordner(string? konfiguriert) =>
+        string.IsNullOrWhiteSpace(konfiguriert) ? SchluesselOrdner : konfiguriert.Trim();
 }

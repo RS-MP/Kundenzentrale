@@ -1,6 +1,21 @@
 using System.Text.Json;
 using Rausoft.Erp.OdooImport;
 
+// Ziel-Instanz: --db "<Connection String>" und --schluessel "<Ordner>" richten das
+// Tool auf eine bestimmte Instanz (z. B. das Testsystem); ohne Optionen gelten die
+// Umgebungsvariablen KUNDENZENTRALE_DB / KUNDENZENTRALE_SCHLUESSEL bzw. der Standard.
+ImportUmgebung.DbOption = Option("--db");
+ImportUmgebung.SchluesselOption = Option("--schluessel");
+Console.WriteLine($"Kundenzentrale-Datenbank: {ImportUmgebung.ZielText()}");
+
+// Modus "produktiv-reset": Geschäftsdaten der Testphase löschen, Administration und
+// Wiki bleiben (DEPLOYMENT.md). Ohne --ausfuehren nur Vorschau; das Löschen verlangt
+// zusätzlich --bestaetigen <Datenbankname>. Braucht kein Odoo.
+if (args.Contains("produktiv-reset"))
+{
+    return await new ProduktivReset(args.Contains("--ausfuehren"), Option("--bestaetigen")).AusfuehrenAsync();
+}
+
 // Modus "vertragsscan": Bestand der Vertragsdateien aus dem Ablageverzeichnis
 // erfassen (braucht kein Odoo, nur DB + Dateizugriff). --dry-run = nur Bericht.
 if (args.Contains("vertragsscan"))

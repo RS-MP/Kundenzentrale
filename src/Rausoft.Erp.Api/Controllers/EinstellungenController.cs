@@ -13,7 +13,7 @@ namespace Rausoft.Erp.Api.Controllers;
 [ApiController]
 [Route("api/einstellungen")]
 [Authorize(Policy = "Admin")]
-public class EinstellungenController(ErpDbContext db) : ControllerBase
+public class EinstellungenController(ErpDbContext db, Dienste.InstanzOptionen instanz) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<EinstellungEintrag>>> Liste(CancellationToken ct)
@@ -40,6 +40,12 @@ public class EinstellungenController(ErpDbContext db) : ControllerBase
             && wert.Length > 0
             && !(Uri.TryCreate(wert, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps))
             return BadRequest("Die Adresse muss eine vollständige https://-URL sein (Zugangsdaten gehen an dieses Ziel).");
+
+        // Testsystem: Ablagen nur unterhalb der Test-Ablage — nie das Kunden Archiv
+        if (instanz.Testsystem && wert.Length > 0
+            && Rausoft.Erp.Domain.Shared.TestsystemSchutz.IstPfadEinstellung(schluessel)
+            && !Rausoft.Erp.Domain.Shared.TestsystemSchutz.LiegtUnter(wert, instanz.AblageWurzel))
+            return BadRequest($"Testsystem: Der Pfad muss unterhalb von {instanz.AblageWurzel} liegen.");
 
         einstellung.Wert = wert;
         await db.SaveChangesAsync(ct);

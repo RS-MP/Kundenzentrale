@@ -20,6 +20,12 @@
       "port": 5307
     },
     {
+      "name": "api-testsystem",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Rausoft.Erp.Api", "--launch-profile", "http-testsystem"],
+      "port": 5407
+    },
+    {
       "name": "web",
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "src/Rausoft.Erp.Web", "--launch-profile", "http"],

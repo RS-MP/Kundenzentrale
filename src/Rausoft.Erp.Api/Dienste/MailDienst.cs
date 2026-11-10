@@ -12,7 +12,7 @@ namespace Rausoft.Erp.Api.Dienste;
 /// Geheimnis Mail.SmtpPasswort). Erster Nutzer: Zertifikats-Erinnerungen.
 /// Ohne Host gilt der Versand als nicht eingerichtet.
 /// </summary>
-public class MailDienst(ErpDbContext db, GeheimnisDienst geheimnisse, ILogger<MailDienst> log)
+public class MailDienst(ErpDbContext db, GeheimnisDienst geheimnisse, InstanzOptionen instanz, ILogger<MailDienst> log)
 {
     public record Konfiguration(string Host, int Port, string? Benutzer, bool Ssl, string Absender);
 
@@ -42,6 +42,21 @@ public class MailDienst(ErpDbContext db, GeheimnisDienst geheimnisse, ILogger<Ma
         var ziele = empfaenger.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (ziele.Count == 0)
             throw new InvalidOperationException("Kein Empfänger angegeben.");
+
+        // Testsystem: nie an echte Empfänger. Mit Umleitungsadresse geht die Mail
+        // gekennzeichnet nur dorthin, ohne wird sie verworfen (der Aufrufer sieht
+        // „gesendet", damit sich Abläufe wie Erinnerungen durchspielen lassen).
+        if (instanz.Testsystem)
+        {
+            if (string.IsNullOrWhiteSpace(instanz.MailUmleitung))
+            {
+                log.LogWarning("TESTSYSTEM: E-Mail nicht gesendet: {Betreff} ({Anzahl} Empfänger)", betreff, ziele.Count);
+                return;
+            }
+            text = $"[Testsystem — ursprüngliche Empfänger: {string.Join(", ", ziele)}]\n\n{text}";
+            betreff = "[TEST] " + betreff;
+            ziele = [instanz.MailUmleitung.Trim()];
+        }
 
         using var client = new SmtpClient(konfig.Host, konfig.Port)
         {

@@ -27,8 +27,7 @@ public static class OdooZugang
 
         if (url is null || db is null || benutzer is null || apiKey is null)
         {
-            var verbindung = Umgebungsvariable("KUNDENZENTRALE_DB")
-                ?? @"Server=(localdb)\MSSQLLocalDB;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=False";
+            var verbindung = ImportUmgebung.Verbindung();
             var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(verbindung).Options;
             await using var kontext = new ErpDbContext(options);
 
@@ -72,7 +71,7 @@ public static class OdooZugang
         {
 #pragma warning disable CA1416 // DPAPI ist Windows-only — Betrieb ausschließlich auf Windows Server
             var schutz = DataProtectionProvider.Create(
-                new DirectoryInfo(GeheimnisAblage.SchluesselOrdner),
+                new DirectoryInfo(ImportUmgebung.SchluesselOrdner),
                 b => b.SetApplicationName(GeheimnisAblage.Anwendungsname)
                       .ProtectKeysWithDpapi(protectToLocalMachine: true));
 #pragma warning restore CA1416

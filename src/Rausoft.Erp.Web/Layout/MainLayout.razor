@@ -3,7 +3,14 @@
 @inject HttpClient Http
 @implements IDisposable
 
-<div class="app-rahmen">
+@if (_instanz is { Testsystem: true } test)
+{
+    <div class="testband" role="status">
+        <strong>@test.Bezeichnung</strong>
+        <span>Keine echten Vorgänge erfassen — hier wird nur ausprobiert. Es gehen keine E-Mails und keine Meldungen nach außen.</span>
+    </div>
+}
+<div class="app-rahmen @(_instanz is { Testsystem: true } ? "mit-testband" : "")">
     <aside class="seitennav">
         <div class="marke"><span class="firma">rausoft</span> Kundenzentrale</div>
         <nav class="seitennav-links">
@@ -77,9 +84,12 @@
 @code {
     private string? _thema; // null = Automatisch (Systemeinstellung), "light", "dark"
     private WikiHinweise? _wikiHinweise;
+    private InstanzInfo? _instanz;
 
     protected override async Task OnInitializedAsync()
     {
+        try { _instanz = await Http.GetFromJsonAsync<InstanzInfo>("api/instanz"); }
+        catch { _instanz = null; /* ohne Antwort kein Band — die Sperren greifen serverseitig */ }
         WikiHinweisSignal.Geaendert += WikiHinweiseNachladen;
         AufgabenSignal.Geaendert += AufgabenNachladen;
         await WikiHinweiseLadenAsync();

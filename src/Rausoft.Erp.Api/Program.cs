@@ -86,7 +86,12 @@ builder.Services.AddScoped<NummernkreisDienst>();
 // maschinenweit unter ProgramData und ist DPAPI-geschützt (Machine-Scope), damit
 // Web-App UND Odoo-Import-Aufgabe (anderes Konto) dieselben Geheimnisse lesen.
 // Zugriff auf den Ordner per NTFS-ACL einschränken (DEPLOYMENT.md).
-var schluesselOrdner = new DirectoryInfo(GeheimnisAblage.SchluesselOrdner);
+// Test- und Produktivsystem haben getrennte Schlüsselbunde (Instanz:SchluesselOrdner):
+// Geheimnisse aus einer Produktiv-Kopie sind im Testsystem damit unlesbar.
+var instanz = builder.Configuration.GetSection("Instanz").Get<InstanzOptionen>() ?? new InstanzOptionen();
+instanz.Pruefen();
+builder.Services.AddSingleton(instanz);
+var schluesselOrdner = new DirectoryInfo(GeheimnisAblage.Ordner(instanz.SchluesselOrdner));
 schluesselOrdner.Create();
 #pragma warning disable CA1416 // DPAPI ist Windows-only — Betrieb ausschließlich auf Windows Server
 builder.Services.AddDataProtection()
@@ -100,13 +105,18 @@ builder.Services.AddScoped<ServerStatusDienst>();
 builder.Services.AddSingleton<OdooImportDienst>();
 builder.Services.AddSingleton<ChatterImportDienst>();
 builder.Services.AddScoped<PdfDienst>();
-builder.Services.AddHostedService<ServerStatusHintergrund>();
 builder.Services.AddScoped<MailDienst>();
 builder.Services.AddScoped<ZertifikatDienst>();
-builder.Services.AddHostedService<ZertifikatHintergrund>();
-// Vorgänge: Odoo-Strang nachziehen, „Rechnung in Odoo stellen" abhaken (stündlich, nur lesend)
 builder.Services.AddScoped<VorgangsAbgleichDienst>();
-builder.Services.AddHostedService<VorgangsAbgleichHintergrund>();
+// Hintergrund-Takte nur im Produktivsystem: Server-Status-Meldung ans Portal,
+// Zertifikats-Erinnerungen per Mail, Vorgangs-Abgleich mit Odoo (stündlich, nur
+// lesend). Im Testsystem läuft nichts von selbst — alles nur auf Knopfdruck.
+if (!instanz.Testsystem)
+{
+    builder.Services.AddHostedService<ServerStatusHintergrund>();
+    builder.Services.AddHostedService<ZertifikatHintergrund>();
+    builder.Services.AddHostedService<VorgangsAbgleichHintergrund>();
+}
 
 // Datenbankkonflikte (RowVersion, Unique-Index) als 409 mit Text statt 500 (SICHERHEIT.md Q5)
 builder.Services.AddExceptionHandler<DatenbankFehlerHandler>();
@@ -128,6 +138,27 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ErpDbContext>();
     db.Database.Migrate();
+
+    if (instanz.Testsystem)
+    {
+        // Eine Testdatenbank aus einer Produktiv-Sicherung zeigt zunächst auf die
+        // echten Ablagen — vor dem ersten Request auf die Test-Ablage umstellen.
+        app.Logger.LogWarning(
+            "TESTSYSTEM: keine Hintergrund-Takte, kein Portal-Push, E-Mails {Mail}, Ablagen nur unter {Wurzel}",
+            string.IsNullOrWhiteSpace(instanz.MailUmleitung) ? "abgeschaltet" : "nur an die Umleitungsadresse",
+            instanz.AblageWurzel);
+        foreach (var einstellung in db.Einstellungen.ToList())
+        {
+            if (TestsystemSchutz.Ersatz(einstellung.Schluessel, einstellung.Wert, instanz.AblageWurzel) is not { } ersatz)
+                continue;
+            app.Logger.LogWarning("TESTSYSTEM: Einstellung {Schluessel} zeigte aus der Test-Ablage heraus und wurde umgestellt",
+                einstellung.Schluessel);
+            einstellung.Wert = ersatz;
+            if (ersatz.Length > 0)
+                Directory.CreateDirectory(ersatz);
+        }
+        db.SaveChanges();
+    }
 
     if (entwicklungsAuth)
     {

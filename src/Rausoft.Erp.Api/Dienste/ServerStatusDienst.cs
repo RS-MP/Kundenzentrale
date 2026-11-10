@@ -18,6 +18,7 @@ public class ServerStatusDienst(
     ErpDbContext db,
     IHttpClientFactory httpFactory,
     GeheimnisDienst geheimnisse,
+    InstanzOptionen instanz,
     ILogger<ServerStatusDienst> log)
 {
     /// <summary>Fragt die Healthchecks aller aktiven Server ab und speichert die Ergebnisse.</summary>
@@ -70,6 +71,10 @@ public class ServerStatusDienst(
     /// <summary>Pusht die zuletzt ermittelten Status ALLER aktiven Server als Batch ans Portal.</summary>
     public async Task<(List<string> Verarbeitet, List<string> Unbekannt)> PushAsync(CancellationToken ct = default)
     {
+        if (instanz.Testsystem)
+            throw new InvalidOperationException(
+                "Testsystem: Die Meldung ans Service Portal ist abgeschaltet (die Healthchecks wurden trotzdem abgefragt).");
+
         var token = await geheimnisse.HolenAsync(GeheimnisSchluessel.ServicePortalPushToken, ct)
             ?? throw new InvalidOperationException(
                 "Der Push-Token des Service Portals ist nicht gesetzt (Administration → Geheimnisse). " +

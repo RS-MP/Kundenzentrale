@@ -260,6 +260,9 @@ App-Pool, eigener Datenbank, eigenen Ablageordnern (nie das Kunden-Archiv),
 eigenem Data-Protection-Schlüsselring und abgeschaltetem Mailversand, Odoo-
 Import und Portal-Push. Release-Weg: Publish zuerst nach Test, dann nach Prod.
 Konzept gehört in DEPLOYMENT.md neben den Produktiv-Reset.
+**Code umgesetzt 10.11.2026** (Schalter `Instanz:Testsystem`, eigener
+Schlüsselbund, Ablage-Schutz, Mail-Umleitung, Band im Frontend); Einrichtung
+auf dem Server steht aus — DEPLOYMENT.md, „Test- und Produktivsystem".
 
 ### Offen aus dem 15.10.2026 (Kurzform)
 

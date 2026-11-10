@@ -23,9 +23,7 @@ public class AboImporter(OdooClient odoo, bool dryRun, string? verbindung = null
             ? "=== ABO-IMPORT (DRY-RUN — es wird nichts gespeichert) ==="
             : "=== ABO-IMPORT ===");
 
-        var verbindungsZeichenfolge = verbindung
-            ?? Environment.GetEnvironmentVariable("KUNDENZENTRALE_DB")
-            ?? @"Server=(localdb)\MSSQLLocalDB;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=False";
+        var verbindungsZeichenfolge = ImportUmgebung.Verbindung(verbindung);
         var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(verbindungsZeichenfolge).Options;
         await using var db = new ErpDbContext(options);
 

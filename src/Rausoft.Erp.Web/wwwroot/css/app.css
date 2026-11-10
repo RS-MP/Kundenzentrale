@@ -98,6 +98,20 @@ button { font: inherit; cursor: pointer; }
 .thema-segment button:hover { background: var(--surface2); }
 .thema-segment button.an { background: var(--accent); color: var(--knopf-text); font-weight: 600; }
 
+/* Testsystem: Band über der ganzen Breite, bleibt beim Scrollen stehen */
+.testband {
+  position: sticky; top: 0; z-index: 30; min-height: 30px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
+  padding: 5px 14px; font-size: 13px;
+  background: repeating-linear-gradient(135deg, var(--warn-bg) 0 14px, var(--surface) 14px 28px);
+  color: var(--warn); border-bottom: 2px solid var(--warn);
+}
+.testband strong { text-transform: uppercase; letter-spacing: .08em; }
+.app-rahmen.mit-testband { min-height: calc(100vh - 30px); }
+@media (min-width: 821px) {
+  .app-rahmen.mit-testband .seitennav { top: 30px; height: calc(100vh - 30px); }
+}
+@media (max-width: 820px) { .testband { position: static; } }
 .inhalt { max-width: 1280px; margin: 0 auto; padding: 24px 26px 60px; min-width: 0; width: 100%; }
 
 /* Schmale Fenster: Navigation als Leiste oben */

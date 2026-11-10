@@ -49,8 +49,7 @@ public partial class VertragsBestandScanner(bool dryRun)
             ? "=== VERTRAGSBESTAND-SCAN (DRY-RUN — es wird nichts gespeichert) ==="
             : "=== VERTRAGSBESTAND-SCAN ===");
 
-        var verbindung = Environment.GetEnvironmentVariable("KUNDENZENTRALE_DB")
-            ?? @"Server=(localdb)\MSSQLLocalDB;Database=Kundenzentrale;Trusted_Connection=True;Encrypt=False";
+        var verbindung = ImportUmgebung.Verbindung();
         var options = new DbContextOptionsBuilder<ErpDbContext>().UseSqlServer(verbindung).Options;
         await using var db = new ErpDbContext(options);
 

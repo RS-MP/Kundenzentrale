@@ -607,33 +607,202 @@ und Import teilen sich dafür den Data-Protection-Schlüsselbund unter
 ProgramData-Ordner um — zuvor gesetzte Geheimnisse (Portal-Push-Token) sind
 danach ungültig und müssen einmal neu eingetragen werden.
 
-## Produktiv-Reset zum Zeitpunkt X (beschlossen 10.09.2026)
+## Test- und Produktivsystem auf RS-W2019-01 (SICHERHEIT.md E4, Code seit 10.11.2026)
+
+Zwei getrennte Instanzen auf demselben Server. Die heutige Instanz
+`/Kundenzentrale` wird mit dem Produktiv-Reset zum **Produktivsystem**
+(Adresse, Zertifikat und Lesezeichen bleiben); das **Testsystem** kommt neu
+daneben.
+
+| | Produktiv | Test |
+|---|---|---|
+| Adresse | `https://rs-w2019-01:8443/Kundenzentrale` | `https://rs-w2019-01:8443/Kundenzentrale-Test` |
+| Ordner | `C:\Kundenzentrale` | `C:\Kundenzentrale-Test` |
+| App-Pool | „Kundenzentrale" | „Kundenzentrale-Test" |
+| Datenbank | `Kundenzentrale` | `Kundenzentrale_Test` |
+| Schlüsselbund | `C:\ProgramData\Rausoft\Kundenzentrale\Schluessel` | `C:\ProgramData\Rausoft\Kundenzentrale-Test\Schluessel` |
+| Ablagen | Kunden Archiv | nur unter `D:\Kundenzentrale-Test\Ablage` |
+| Hintergrund-Takte, Portal-Push | an | aus |
+| E-Mails | an | nur an die Umleitungsadresse (oder keine) |
+| Nächtlicher Odoo-Import | geplante Aufgabe | keine Aufgabe (Import nur manuell) |
+
+**Was der Schalter `Instanz:Testsystem` = true im Code bewirkt** (unabhängig
+davon, was in der Datenbank eingestellt ist):
+
+- Die drei Hintergrund-Takte laufen nicht (Server-Status-Meldung,
+  Zertifikats-Erinnerungen, Vorgangs-Abgleich) — alles nur auf Knopfdruck.
+- Die Meldung ans Service Portal ist gesperrt (Knopf meldet „abgeschaltet").
+- E-Mails gehen ausschließlich an `Instanz:MailUmleitung`, Betreff mit
+  „[TEST]", ursprüngliche Empfänger stehen im Text. Ohne Umleitungsadresse
+  wird nichts versendet (nur Log-Eintrag).
+- Alle Ablage-Verzeichnisse müssen unter `Instanz:AblageWurzel` liegen. Beim
+  Start werden Einstellungen, die herauszeigen, auf Unterordner der Wurzel
+  umgestellt (`Vertragsablage`, `Dokumentablage`, `Vorlagen`, `Erzeugt`,
+  `Vertraulich`, `Preisliste`), das Signatur-Zertifikat wird geleert; die
+  Administration lehnt Pfade außerhalb ab. Damit ist eine Testdatenbank aus
+  einer Produktiv-Sicherung sofort ungefährlich.
+- Das Frontend zeigt ein Band „TESTSYSTEM" über der ganzen Breite.
+- Ohne `SchluesselOrdner` oder `AblageWurzel` startet ein Testsystem nicht
+  (500.30, Meldung im Ereignisprotokoll) — Absicht.
+
+Der getrennte Schlüsselbund sorgt außerdem dafür, dass Geheimnisse aus einer
+Produktiv-Kopie (Odoo-Key, SMTP-Passwort, Portal-Token, PFX-Passwort) im
+Testsystem **nicht entschlüsselbar** sind; wer im Test gegen Odoo importieren
+will, trägt den Key dort neu ein (der Import liest Odoo nur).
+
+### T1 · Testsystem einmalig einrichten
+
+1. Ordner `C:\Kundenzentrale-Test` und `D:\Kundenzentrale-Test\Ablage` anlegen.
+2. Leere Datenbank `Kundenzentrale_Test` anlegen (SSMS), Login
+   `IIS APPPOOL\Kundenzentrale-Test` mit `db_datareader`, `db_datawriter`,
+   `db_ddladmin` **nur auf dieser Datenbank** — das Test-Konto bekommt kein
+   Recht auf `Kundenzentrale`, das Produktiv-Konto keines auf die Test-DB.
+3. IIS: App-Pool „Kundenzentrale-Test" (No Managed Code), unter der Default
+   Web Site **Anwendung hinzufügen** → Alias `Kundenzentrale-Test`, Pfad
+   `C:\Kundenzentrale-Test`, Windows-Authentifizierung an, Anonym aus.
+   Binding, Zertifikat und Intranet-Zone erbt die Anwendung.
+4. NTFS:
+   ```powershell
+   icacls "D:\Kundenzentrale-Test\Ablage" /grant "IIS APPPOOL\Kundenzentrale-Test:(OI)(CI)M"
+   ```
+   Der Schlüsselbund-Ordner entsteht beim ersten Start; danach absichern:
+   ```powershell
+   icacls "C:\ProgramData\Rausoft\Kundenzentrale-Test" /inheritance:r /grant "Administratoren:(OI)(CI)F" "IIS APPPOOL\Kundenzentrale-Test:(OI)(CI)M"
+   ```
+   Das Test-Konto bekommt **kein** Recht auf das Kunden Archiv und auf den
+   Produktiv-Schlüsselbund (dessen ACL nennt nur das Produktiv-Konto).
+5. Publish-Inhalt nach `C:\Kundenzentrale-Test` kopieren und dort
+   `appsettings.Production.json` anlegen:
+   ```json
+   {
+     "Instanz": {
+       "Testsystem": true,
+       "Bezeichnung": "Testsystem",
+       "SchluesselOrdner": "C:\\ProgramData\\Rausoft\\Kundenzentrale-Test\\Schluessel",
+       "AblageWurzel": "D:\\Kundenzentrale-Test\\Ablage",
+       "MailUmleitung": ""
+     },
+     "Hosting": { "HttpsErzwingen": true },
+     "Authentifizierung": { "Modus": "Windows", "ErstAdminKonto": "RS\\mp" },
+     "ConnectionStrings": {
+       "Kundenzentrale": "Server=RS-W2019-01;Database=Kundenzentrale_Test;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True"
+     }
+   }
+   ```
+6. App-Pool starten, `https://rs-w2019-01:8443/Kundenzentrale-Test` öffnen:
+   das Band „TESTSYSTEM" muss sichtbar sein. Kontrolle unter Administration →
+   Verzeichnisse: alle Pfade liegen unter `D:\Kundenzentrale-Test\Ablage`.
+7. Vorlagen zum Ausprobieren der Vertragserzeugung nach
+   `D:\Kundenzentrale-Test\Ablage\Vorlagen` kopieren.
+
+Die Produktiv-Instanz braucht **keine** Änderung an ihrer
+`appsettings.Production.json` (ohne Sektion `Instanz` gilt: kein Testsystem,
+Standard-Schlüsselbund).
+
+### T2 · Release-Weg (ersetzt das bisherige Update-Ritual)
+
+1. Vorab wie bisher: Schwachstellen-Scan, `publish` frisch bauen.
+2. **Test:** App-Pool „Kundenzentrale-Test" beenden → `wwwroot\_framework`
+   leeren → `publish` nach `C:\Kundenzentrale-Test` kopieren → starten →
+   prüfen (Migration lief durch, neue Funktion, Strg+F5).
+3. **Produktiv:** erst danach **denselben** `publish`-Ordner nach
+   `C:\Kundenzentrale` — nicht neu bauen. Eine Migration ist dann schon einmal
+   gegen eine Datenbank gelaufen; vor Migrationen, die Daten umbauen, vorher
+   eine Vollsicherung der Produktiv-DB ziehen.
+
+### T3 · Testdatenbank aus einer Produktiv-Sicherung auffrischen
+
+```sql
+ALTER DATABASE Kundenzentrale_Test SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+RESTORE DATABASE Kundenzentrale_Test FROM DISK = N'<Sicherung>.bak'
+  WITH REPLACE,
+       MOVE N'Kundenzentrale'     TO N'<Datenpfad>\Kundenzentrale_Test.mdf',
+       MOVE N'Kundenzentrale_log' TO N'<Datenpfad>\Kundenzentrale_Test_log.ldf';
+ALTER DATABASE Kundenzentrale_Test SET MULTI_USER;
+```
+
+(App-Pool „Kundenzentrale-Test" vorher beenden; logische Dateinamen mit
+`RESTORE FILELISTONLY` prüfen; danach den DB-Benutzer des Test-App-Pools neu
+zuordnen.) Beim nächsten Start stellt das Testsystem die Verzeichnisse um; die
+Geheimnisse sind unlesbar. Die Kopie enthält **echte Kundendaten** — das
+Testsystem ist deshalb genauso zugriffsgeschützt wie das Produktivsystem
+(Rollen kommen aus der Kopie mit).
+
+### T4 · Import-Tool gegen eine bestimmte Instanz
+
+Die maschinenweite Variable `KUNDENZENTRALE_DB` zeigt auf **Produktiv**. Für
+das Testsystem das Ziel am Aufruf angeben — das Tool nennt in der ersten Zeile,
+gegen welche Datenbank es läuft:
+
+```powershell
+C:\Kundenzentrale-Import\Rausoft.Erp.OdooImport.exe zugangstest --db "Server=RS-W2019-01;Database=Kundenzentrale_Test;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True" --schluessel "C:\ProgramData\Rausoft\Kundenzentrale-Test\Schluessel"
+```
+
+Lokal lässt sich der Testmodus mit dem Startprofil `http-testsystem`
+(Vorschau `api-testsystem`, Port 5407) ausprobieren: eigene LocalDB
+`Kundenzentrale_Testsystem`, Ablage und Schlüsselbund unter `.dev-testsystem`.
+
+## Produktiv-Reset zum Zeitpunkt X (beschlossen 10.09.2026, neu gefasst 10.11.2026)
 
 Das Live-System läuft zunächst als **offener Testbetrieb für alle** —
 zum Zeitpunkt X wird einmal sauber resettet und dann produktiv gearbeitet.
-Doppelarbeit ist einkalkuliert. Ablauf (macht Claude zusammen mit MP):
+Ein Stichtag steht noch nicht fest.
 
-1. **Vorher sichern:** DB-Vollbackup + Export der übernehmenswerten manuellen
-   Pflege per Skript (Schlüssel = Kundennummer/Vertragsnummer): Merkmale,
-   Archiv-Status, Server-Zuordnung + Mandanten-Kennung, Individualentwicklung,
-   manuell korrigierte Vertragsstatus (Kündigungs-Klärungen), Mitarbeiter-Rollen
-   (inkl. Compliance / Vertrauliche Verträge). Seit 28.09.2026 zusätzlich:
-   Verknüpfung „Partner ist auch Kunde" (Schlüssel Partnername → Kundennummer),
-   manuell korrigierte Dokumentdaten/Dokumentarten (Quelle „Manuell"),
-   Vertraulich-Kennzeichen + Kurzinfos an Bestandteilen, Vorlagen-Einstellungen
-   (Dokumentart, Rollen-Freigabe). Vorlagen-Versionen selbst NICHT übernehmen —
-   produktiv neu freigeben, damit die Versionshistorie sauber bei v1 beginnt.
-   Partnerverträge aus der Testphase nur, wenn sie echte Verträge abbilden.
-2. App-Pool stoppen, Datenbank neu anlegen (DROP/CREATE) — der nächste
-   App-Start erzeugt Schema + Seeds (Nummernkreise, Einstellungen,
-   Merkmal-Stammliste) automatisch.
-3. **Importe neu laufen lassen:** Odoo-Kontakte (`import`), Abos (`abos`),
-   Vertragsbestand (`vertragsscan`) — inklusive Kündigungsautomatik.
-4. Gesicherte manuelle Pflege zurückspielen (Skript aus Schritt 1).
-5. Nacharbeiten: Portal-Token neu setzen (Geheimnisse überleben den Reset
-   nicht), echte Server anlegen (keine Test-Server mehr), Einstellungen prüfen.
-6. Testdateien aufräumen, die die Vertragserzeugung während der Testphase
-   erzeugt hat (siehe Empfehlung unten).
+**Entscheidung MP 10.11.2026:** Beim Reset wird **alles gelöscht außer
+Administration und Wiki**. Die manuelle Pflege an Kunden und Verträgen aus der
+Testphase wird bewusst **nicht** gerettet (das Rettungsskript vom 10.09./28.09.
+entfällt). Die Datenbank wird deshalb nicht mehr neu angelegt, sondern
+bereinigt — Modus `produktiv-reset` des Import-Tools.
+
+| Bleibt | Wird gelöscht |
+|---|---|
+| Mitarbeiter mit Rollen und Wiki-Themen, Bereiche | Kunden, Ansprechpartner, Adressen |
+| Einstellungen (Verzeichnisse, Odoo, Mail, Zertifikate) | Partner und Partnerverträge |
+| Geheimnisse (Odoo-Key, SMTP, Portal-Token, PFX) | Verträge, Bestandteile, Dokument-Einträge |
+| Serverliste, SSL-Zertifikate mit Verlauf | Abos und Positionen |
+| Merkmal-Stammliste | Verlauf (Odoo-Chatter und manuell), Vereinbarungen |
+| Vorgangsvorlagen (Typen und Schritte) | Aufgaben, Vorgänge mit ihren Schritten |
+| Vertragsvorlagen mit Dokumentart und Rollen-Freigabe | Vorlagen-Versionen (Historie beginnt wieder bei v1) |
+| Wiki komplett: Sanktionslisten, Standardprozesse, Preisliste, FAQ, Kommunikationsleitlinien, Neuerungen, Lesebestätigungen, Meldungen | Audit-Log; Nummernkreise beginnen wieder bei 1 |
+
+Verloren geht damit ausdrücklich auch: Merkmale am Kunden, Archiv-Status,
+Individualentwicklung, Server-Zuordnung und Mandanten-Kennung, manuell geklärte
+Vertragsstatus, Position/Funktion der Ansprechpartner, korrigierte
+Dokumentdaten, Vertraulich-Kennzeichen, „Partner ist auch Kunde". Der
+Kundenbezug von FAQ-Einträgen wird geleert (die Vorschau listet die
+betroffenen Einträge mit Kundennummer zum Nachtragen).
+
+Ablauf (macht Claude zusammen mit MP):
+
+0. **Probe im Testsystem:** Testdatenbank aus einer Produktiv-Sicherung
+   auffrischen (T3), dort Schritt 2 bis 4 einmal komplett durchspielen.
+1. **Sichern:** Vollsicherung der Produktiv-DB (bleibt als Rückweg liegen).
+   App-Pool „Kundenzentrale" beenden.
+2. **Vorschau**, dann **Reset** (läuft in einer Transaktion — alles oder nichts):
+   ```powershell
+   C:\Kundenzentrale-Import\Rausoft.Erp.OdooImport.exe produktiv-reset
+   ```
+   ```powershell
+   C:\Kundenzentrale-Import\Rausoft.Erp.OdooImport.exe produktiv-reset --ausfuehren --bestaetigen Kundenzentrale
+   ```
+   `--bestaetigen` muss den Namen der Datenbank nennen, die das Tool in der
+   ersten Zeile ausgibt; sonst wird nichts gelöscht. Fürs Testsystem zusätzlich
+   `--db "…Kundenzentrale_Test…"` (T4).
+3. App-Pool starten. **Importe neu laufen lassen:** Odoo-Kontakte (`import`),
+   Abos (`abos`), Vertragsbestand (`vertragsscan`), Chatter (`chatter-import`).
+4. **Nacharbeiten in der Anwendung:**
+   - Test-Server (Test-01/02/03) löschen, echte Server prüfen.
+   - Administration → Verzeichnisse: `Vertragserzeugung.Zielverzeichnis` vom
+     Testordner zurück auf `2_Wartungsverträge`.
+   - Vorlagen neu freigeben (v1), vorher ist in der Akte keine wählbar.
+   - Die drei „Beispiel:"-Entwürfe der Kommunikationsleitlinien anpassen oder löschen.
+   - Benutzer & Rollen durchsehen (automatisch angelegte Konten ohne Rollen; V3b entscheiden).
+   - Administration → Dokumentdaten nachtragen (nach dem `vertragsscan`).
+5. **Dateien aufräumen** (der Reset fasst keine Dateien an): Testordner der
+   Vertragserzeugung, `<KundenNr>\Odoo-Chatter\` in der Dokumentablage,
+   eingefrorene Vorlagen-Kopien im Unterordner `Freigegeben`.
+6. **Produktivbetrieb einschalten:** nächtliche Aufgabe mit `import`, `abos`,
+   `chatter-import`; Backups (V10); `ServicePortal.IntervallMinuten` setzen.
 
 **Empfehlung für die Testphase (am besten sofort):** In der Administration
 das `Vertragserzeugung.Zielverzeichnis` auf einen Testordner umstellen
