@@ -621,7 +621,7 @@ daneben.
 | App-Pool | „Kundenzentrale" | „Kundenzentrale-Test" |
 | Datenbank | `Kundenzentrale` | `Kundenzentrale_Test` |
 | Schlüsselbund | `C:\ProgramData\Rausoft\Kundenzentrale\Schluessel` | `C:\ProgramData\Rausoft\Kundenzentrale-Test\Schluessel` |
-| Ablagen | Kunden Archiv | nur unter `D:\Kundenzentrale-Test\Ablage` |
+| Ablagen | Kunden Archiv | nur unter `E:\Kundenzentrale-Test-Daten\Ablage` |
 | Hintergrund-Takte, Portal-Push | an | aus |
 | E-Mails | an | nur an die Umleitungsadresse (oder keine) |
 | Nächtlicher Odoo-Import | geplante Aufgabe | keine Aufgabe (Import nur manuell) |
@@ -652,18 +652,44 @@ will, trägt den Key dort neu ein (der Import liest Odoo nur).
 
 ### T1 · Testsystem einmalig einrichten
 
-1. Ordner `C:\Kundenzentrale-Test` und `D:\Kundenzentrale-Test\Ablage` anlegen.
+1. Ordner `C:\Kundenzentrale-Test` und `E:\Kundenzentrale-Test-Daten\Ablage` anlegen.
 2. Leere Datenbank `Kundenzentrale_Test` anlegen (SSMS), Login
    `IIS APPPOOL\Kundenzentrale-Test` mit `db_datareader`, `db_datawriter`,
    `db_ddladmin` **nur auf dieser Datenbank** — das Test-Konto bekommt kein
    Recht auf `Kundenzentrale`, das Produktiv-Konto keines auf die Test-DB.
+   Der App-Pool muss vorher existieren, sonst kennt Windows das Konto nicht.
+   ```sql
+   CREATE LOGIN [IIS APPPOOL\Kundenzentrale-Test] FROM WINDOWS;
+   GO
+   USE Kundenzentrale_Test;
+   GO
+   CREATE USER [IIS APPPOOL\Kundenzentrale-Test] FOR LOGIN [IIS APPPOOL\Kundenzentrale-Test];
+   ALTER ROLE db_datareader ADD MEMBER [IIS APPPOOL\Kundenzentrale-Test];
+   ALTER ROLE db_datawriter ADD MEMBER [IIS APPPOOL\Kundenzentrale-Test];
+   ALTER ROLE db_ddladmin   ADD MEMBER [IIS APPPOOL\Kundenzentrale-Test];
+   ```
+   Tabellen legt die App beim ersten Start selbst an; Sortierung = Server-Standard
+   (wie die Produktiv-DB).
 3. IIS: App-Pool „Kundenzentrale-Test" (No Managed Code), unter der Default
    Web Site **Anwendung hinzufügen** → Alias `Kundenzentrale-Test`, Pfad
    `C:\Kundenzentrale-Test`, Windows-Authentifizierung an, Anonym aus.
-   Binding, Zertifikat und Intranet-Zone erbt die Anwendung.
+   Binding, Zertifikat und Intranet-Zone erbt die Anwendung. **Nicht**
+   „Website hinzufügen" (eigene Site kollidiert mit Port 8443). Im Dialog den
+   Pool ausdrücklich wählen — Vorgabe ist `DefaultAppPool`. Kontrolle:
+   ```powershell
+   Get-WebApplication -Site "Default Web Site" | Format-List path, applicationPool
+   ```
+
+   **Stolperfallen der Ersteinrichtung (10.11.2026):** Läuft die Anwendung im
+   falschen Pool oder fehlt das SQL-Login, meldet der Start 500.30 mit
+   „Fehler bei der Anmeldung für den Benutzer RS\RS-W2019-01$" — SQL Server
+   nennt ersatzweise das Computerkonto. Dem Computerkonto **keine** Rechte
+   geben. Nach einem gescheiterten Start wiederholt der Prozess die
+   Fehlerseite, bis der **richtige** Pool neu gestartet wird. Laufwerk `D:`
+   ist auf dem Server kein Datenlaufwerk (Ablage liegt auf `E:`).
 4. NTFS:
    ```powershell
-   icacls "D:\Kundenzentrale-Test\Ablage" /grant "IIS APPPOOL\Kundenzentrale-Test:(OI)(CI)M"
+   icacls "E:\Kundenzentrale-Test-Daten\Ablage" /grant "IIS APPPOOL\Kundenzentrale-Test:(OI)(CI)M"
    ```
    Der Schlüsselbund-Ordner entsteht beim ersten Start; danach absichern:
    ```powershell
@@ -679,7 +705,7 @@ will, trägt den Key dort neu ein (der Import liest Odoo nur).
        "Testsystem": true,
        "Bezeichnung": "Testsystem",
        "SchluesselOrdner": "C:\\ProgramData\\Rausoft\\Kundenzentrale-Test\\Schluessel",
-       "AblageWurzel": "D:\\Kundenzentrale-Test\\Ablage",
+       "AblageWurzel": "E:\\Kundenzentrale-Test-Daten\\Ablage",
        "MailUmleitung": ""
      },
      "Hosting": { "HttpsErzwingen": true },
@@ -691,9 +717,9 @@ will, trägt den Key dort neu ein (der Import liest Odoo nur).
    ```
 6. App-Pool starten, `https://rs-w2019-01:8443/Kundenzentrale-Test` öffnen:
    das Band „TESTSYSTEM" muss sichtbar sein. Kontrolle unter Administration →
-   Verzeichnisse: alle Pfade liegen unter `D:\Kundenzentrale-Test\Ablage`.
+   Verzeichnisse: alle Pfade liegen unter `E:\Kundenzentrale-Test-Daten\Ablage`.
 7. Vorlagen zum Ausprobieren der Vertragserzeugung nach
-   `D:\Kundenzentrale-Test\Ablage\Vorlagen` kopieren.
+   `E:\Kundenzentrale-Test-Daten\Ablage\Vorlagen` kopieren.
 
 Die Produktiv-Instanz braucht **keine** Änderung an ihrer
 `appsettings.Production.json` (ohne Sektion `Instanz` gilt: kein Testsystem,
