@@ -23,6 +23,13 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (11.11.2026, Chatter: Umbrüche wie im Browser):** keine
+  Migration. Wirkung: Der Chatter-Import bricht Mailtexte so um, wie Odoo sie anzeigt —
+  Zeilenumbrüche aus dem HTML-Quelltext zählen nicht mehr (Sätze zerfielen an jedem
+  fetten Wort oder Link), leere Absätze bleiben als eine Leerzeile, Aufzählungen
+  bekommen „•" bzw. Nummern, Tabellenzellen einen Abstand. Nach dem Update:
+  **Chatter-Import erneut ausführen** — die Texte fast aller übernommenen Mails ändern
+  sich dabei einmalig (Leerzeilen), der Lauf meldet entsprechend viele Aktualisierungen.
 - [ ] **Publish aktualisieren (11.11.2026, Chatter: unsichtbare Füllzeichen):** keine
   Migration. Wirkung: Der Chatter-Import entfernt unsichtbare Zeichen aus Mailtexten
   (U+034F, weiche Trennzeichen, Null-Breite-Zeichen) — sie stammen aus dem Vorschautext

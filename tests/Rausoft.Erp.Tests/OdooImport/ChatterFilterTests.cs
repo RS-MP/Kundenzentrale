@@ -199,7 +199,8 @@ public class ChatterFilterTests
         var html = "<p>Der Rechnungsbetrag [...]</p>" + fuellung + "<p>Rechnung ansehen</p>"
                    + "<p>&shy;&shy;&shy;____</p><p>Dermapharm&#8203; AG&#65279;</p>";
         var text = ChatterFilter.Klartext(html);
-        Assert.Equal("Der Rechnungsbetrag [...]\nRechnung ansehen\n____\nDermapharm AG", text);
+        // Die 140 Füllzeilen schrumpfen auf eine einzige Leerzeile
+        Assert.Equal("Der Rechnungsbetrag [...]\n\nRechnung ansehen\n____\nDermapharm AG", text);
         Assert.DoesNotContain('͏', text);
         Assert.DoesNotContain('­', text);
     }
@@ -211,6 +212,97 @@ public class ChatterFilterTests
         var familie = "\U0001F468‍\U0001F469‍\U0001F467";
         var text = ChatterFilter.Klartext($"<p>Hallo​ Welt {familie}</p><p>͏</p><p>‍</p><p>‎⁠</p><p>Ende</p>");
         Assert.Equal($"Hallo Welt {familie}\nEnde", text);
+    }
+
+    /// <summary>
+    /// Standardmail aus dem CRM (15.07.2026): Der Quelltext ist eingerückt und umbrochen,
+    /// fette Wörter und Links stehen auf eigenen Quelltextzeilen. Im Browser sind das
+    /// keine Umbrüche — früher zerfiel der Satz an jedem fetten Wort (11.11.2026).
+    /// </summary>
+    [Fact]
+    public void Klartext_QuelltextUmbruecheSindKeineZeilenumbrueche_AbsaetzeUndListenBleiben()
+    {
+        var html = """
+            <div>
+              <p>Sehr geehrte Frau Muster,</p>
+              <p><br></p>
+              <p>Anbei erhalten Sie wie gewünscht unsere
+                 <strong>Infomappe</strong>
+                 sowie unsere
+                 <strong>Broschüre</strong>
+                 mit kompakten Informationen.</p>
+              <p><br></p>
+              <p><strong>Ihre Vorteile auf einen Blick:</strong></p>
+              <ul>
+                <li>Beweissichere Dokumentation</li>
+                <li><p>Keine Limitierung</p></li>
+              </ul>
+              <p>Die
+                 <strong>Rausoft GmbH</strong>
+                 ist spezialisiert.</p>
+              <p><br></p>
+              <p>Möchten Sie ID.prove live sehen?<br>
+                 Gerne im Rahmen einer kurzen
+                 <strong>Online-Präsentation</strong>
+                 durch unsere Experten vor:
+                 <a href="https://example.invalid/termin">Jetzt Präsentation buchen</a></p>
+              <p>&nbsp;</p>
+              <p>Mit freundlichen Grüßen<br></p>
+            </div>
+            """;
+        var text = ChatterFilter.Klartext(html);
+        Assert.Equal(
+            "Sehr geehrte Frau Muster,\n\n" +
+            "Anbei erhalten Sie wie gewünscht unsere Infomappe sowie unsere Broschüre mit kompakten Informationen.\n\n" +
+            "Ihre Vorteile auf einen Blick:\n" +
+            "• Beweissichere Dokumentation\n" +
+            "• Keine Limitierung\n\n" +
+            "Die Rausoft GmbH ist spezialisiert.\n\n" +
+            "Möchten Sie ID.prove live sehen?\n" +
+            "Gerne im Rahmen einer kurzen Online-Präsentation durch unsere Experten vor: Jetzt Präsentation buchen\n\n" +
+            "Mit freundlichen Grüßen",
+            text);
+    }
+
+    [Fact]
+    public void Klartext_Listen_NummeriertUndVerschachtelt_LeererPunktFaerbtNichtAb()
+    {
+        var text = ChatterFilter.Klartext(
+            "<ol><li>Eins<ul><li>Unterpunkt</li></ul></li><li>Zwei</li><li><br></li></ol><p>Danach</p>");
+        Assert.Equal("1. Eins\n  • Unterpunkt\n2. Zwei\n\nDanach", text);
+    }
+
+    [Fact]
+    public void Klartext_OutlookAbsaetze_BleibenEinzeilig_LeererAbsatzIstLeerzeile()
+    {
+        // Outlook: jede Zeile ein Absatz, Leerzeile als Absatz mit geschütztem Leerzeichen,
+        // der Quelltext ist mitten im Satz umbrochen
+        var html = "<html><head><style>p.MsoNormal {margin:0cm;}</style></head><body>" +
+                   "<p class=MsoNormal>Hallo Herr Muster,<o:p></o:p></p>" +
+                   "<p class=MsoNormal><o:p>&nbsp;</o:p></p>" +
+                   "<p class=MsoNormal>vielen Dank für Ihre\r\nNachricht.<o:p></o:p></p>" +
+                   "<p class=MsoNormal><o:p>&nbsp;</o:p></p><p class=MsoNormal><o:p>&nbsp;</o:p></p>" +
+                   "<p class=MsoNormal>Viele Grüße<o:p></o:p></p></body></html>";
+        var text = ChatterFilter.Klartext(html);
+        Assert.Equal("Hallo Herr Muster,\n\nvielen Dank für Ihre Nachricht.\n\nViele Grüße", text);
+    }
+
+    [Fact]
+    public void Klartext_Tabellenzellen_Vorformatiertes_UndReinerText()
+    {
+        Assert.Equal("Artikel Menge\nLizenz 5",
+            ChatterFilter.Klartext("<table><tr><th>Artikel</th><th>Menge</th></tr><tr><td>Lizenz</td><td>5</td></tr></table>"));
+        Assert.Equal("Zeile 1\nZeile 2", ChatterFilter.Klartext("<pre>Zeile 1\nZeile 2</pre>"));
+        // Ohne HTML bleiben die Umbrüche, wie sie sind (höchstens eine Leerzeile)
+        Assert.Equal("Zeile 1\nZeile 2\n\nZeile 3", ChatterFilter.Klartext("Zeile 1\r\nZeile 2\r\n\r\n\r\n\r\nZeile 3"));
+    }
+
+    [Fact]
+    public void Klartext_MaskiertPasswort_AuchNachLeerzeile()
+    {
+        var text = ChatterFilter.Klartext("<p>Ihr Passwort:</p><p><br></p><p>Geheim123!</p><p>Viele Grüße</p>");
+        Assert.DoesNotContain("Geheim123", text);
+        Assert.Contains("Viele Grüße", text);
     }
 
     [Fact]

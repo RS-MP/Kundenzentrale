@@ -215,10 +215,30 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
     private static bool BeginntMit(string? text, string[] anfaenge) =>
         text is not null && anfaenge.Any(a => text.StartsWith(a, StringComparison.OrdinalIgnoreCase));
 
-    private static readonly Regex ZeilenumbruchTags = new(@"<\s*(br|/p|/div|/li|/tr|/h[1-6])\s*/?\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex AlleTags = new(@"<[^>]+>", RegexOptions.Compiled);
+    // Was der Browser nicht anzeigt: Kommentare sowie Kopf-, Stil- und Skriptbereiche samt Inhalt
+    private static readonly Regex NichtAngezeigt = new(
+        @"<!--.*?-->|<\s*(head|style|script|title)\b[^>]*>.*?<\s*/\s*\1\s*>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex Vorformatiert = new(
+        @"(<\s*pre\b[^>]*>)(.*?)(<\s*/\s*pre\s*>)",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex QuelltextLeerraum = new(@"[ \t\r\n\f]+", RegexOptions.Compiled);
+    private static readonly Regex HtmlTag = new(@"<\s*(?<zu>/)?\s*(?<name>[a-zA-Z][a-zA-Z0-9]*)?[^>]*>", RegexOptions.Compiled);
+    private static readonly Regex EnthaeltTag = new(@"<\s*/?\s*[a-zA-Z][^>]*>", RegexOptions.Compiled);
+
+    // Marken für die Umwandlung (kommen in echten Texten nicht vor, werden vorab entfernt)
+    private const char Blockgrenze = '\u0001';
+    private const char Listenmarke = '\u0002';
+    private static readonly Regex Steuerzeichen = new(@"[\u0001\u0002]", RegexOptions.Compiled);
+
+    /// <summary>Elemente, die im Browser eine eigene Zeile bilden.</summary>
+    private static readonly HashSet<string> BlockElemente = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "table", "blockquote", "pre", "hr",
+        "section", "article", "header", "footer", "address", "dl", "dt", "dd", "center", "form",
+    };
     private static readonly Regex MehrfachLeerzeichen = new(@"[ \t ]+", RegexOptions.Compiled);
-    private static readonly Regex MehrfachUmbrueche = new(@"(\r?\n\s*){2,}", RegexOptions.Compiled);
+    private static readonly Regex MehrfachUmbrueche = new(@"\n{3,}", RegexOptions.Compiled);
 
     // Unsichtbare Zeichen, die nach dem Entfernen der Tags als „Text" übrig bleiben und
     // Leerzeilen am Zusammenfassen hindern. Mailvorlagen (auch die Odoo-Rechnungsmail)
@@ -232,7 +252,7 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
         RegexOptions.Compiled);
 
     // U+200D ohne sichtbaren Nachbarn auf einer Seite ist ebenfalls nur Füllung
-    private static readonly Regex VerwaisterVerbinder = new(@"(?<=^|\s)‍+|‍+(?=\s|$)", RegexOptions.Compiled | RegexOptions.Multiline);
+    private static readonly Regex VerwaisterVerbinder = new(@"(?<=^|[\s\u0001\u0002])‍+|‍+(?=[\s\u0001\u0002]|$)", RegexOptions.Compiled | RegexOptions.Multiline);
 
     /// <summary>
     /// Kennzeile für Zugangsdaten: „Passwort: …", „Kennwort = …", „PW: …",
@@ -265,29 +285,137 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
                 continue;
             if (treffer.Groups["v"].Value.Trim().Length > 0)
                 zeilen[i] = treffer.Groups["k"].Value + " " + Maske;
-            else if (i + 1 < zeilen.Length && zeilen[i + 1].Trim().Length > 0)
-                zeilen[++i] = Maske;
+            else
+            {
+                // Wert in der nächsten Zeile mit Inhalt — eine Leerzeile dazwischen ändert daran nichts
+                var naechste = i + 1;
+                while (naechste < zeilen.Length && naechste <= i + 2 && zeilen[naechste].Trim().Length == 0)
+                    naechste++;
+                if (naechste < zeilen.Length && naechste <= i + 2)
+                {
+                    zeilen[naechste] = Maske;
+                    i = naechste;
+                }
+            }
         }
         return EinmalLink.Replace(string.Join('\n', zeilen), Maske + " (Einmal-Link entfernt)");
     }
 
     /// <summary>
-    /// HTML-Body aus Odoo → lesbarer Klartext (Absätze bleiben als Zeilen
-    /// erhalten), Zugangsdaten maskiert.
+    /// HTML-Body aus Odoo → lesbarer Klartext, so wie der Browser ihn umbricht:
+    /// Zeilenumbrüche im Quelltext zählen nicht (nur Absätze, &lt;br&gt; und Listen),
+    /// leere Absätze bleiben als eine Leerzeile, Aufzählungen bekommen ihr Zeichen.
+    /// Zugangsdaten werden maskiert.
     /// </summary>
     public static string Klartext(string? html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
-        var text = ZeilenumbruchTags.Replace(html, "\n");
-        text = AlleTags.Replace(text, string.Empty);
+        var text = Steuerzeichen.Replace(html, string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
+        if (EnthaeltTag.IsMatch(text))
+        {
+            text = NichtAngezeigt.Replace(text, string.Empty);
+            // In <pre> sind die Umbrüche des Quelltexts echte Umbrüche, überall sonst nur Leerraum
+            text = Vorformatiert.Replace(text,
+                m => m.Groups[1].Value + m.Groups[2].Value.Replace("\n", "<br>") + m.Groups[3].Value);
+            text = QuelltextLeerraum.Replace(text, " ");
+            text = TagsUmwandeln(text);
+        }
         text = WebUtility.HtmlDecode(text);
         // Erst nach dem Dekodieren: die Füllzeichen stehen im HTML meist als &#847; / &zwnj; / &shy;
         text = UnsichtbareZeichen.Replace(text, string.Empty);
         text = VerwaisterVerbinder.Replace(text, string.Empty);
-        text = MehrfachLeerzeichen.Replace(text, " ");
-        text = MehrfachUmbrueche.Replace(text, "\n");
-        return ZugangsdatenMaskieren(text.Trim());
+        text = MehrfachUmbrueche.Replace(BloeckeZusammensetzen(text), "\n\n");
+        return ZugangsdatenMaskieren(text.Trim('\n'));
+    }
+
+    /// <summary>
+    /// Ersetzt Tags durch Marken: Blockgrenze für Absätze und andere Blockelemente,
+    /// „\n" für &lt;br&gt;, Listenmarke samt Aufzählungszeichen für &lt;li&gt;. Alles andere fällt weg.
+    /// </summary>
+    private static string TagsUmwandeln(string html)
+    {
+        // Je offener Liste: 0 = Aufzählung, sonst die nächste Nummer
+        var listen = new Stack<int>();
+        return HtmlTag.Replace(html, m =>
+        {
+            var name = m.Groups["name"].Value.ToLowerInvariant();
+            var zu = m.Groups["zu"].Success;
+            switch (name)
+            {
+                case "br":
+                    return "\n";
+                case "ul" or "ol":
+                    if (!zu)
+                    {
+                        listen.Push(name == "ol" ? 1 : 0);
+                        return Blockgrenze.ToString();
+                    }
+                    if (listen.Count > 0)
+                        listen.Pop();
+                    // Nach der äußersten Liste eine Leerzeile, wie der Abstand im Browser
+                    return listen.Count == 0 ? $"{Blockgrenze}\n{Blockgrenze}" : Blockgrenze.ToString();
+                case "li":
+                    if (zu) // leere Marke: ein nicht verbrauchtes Zeichen gilt nicht für den Text danach
+                        return $"{Blockgrenze}{Listenmarke}{Listenmarke}";
+                    var einzug = new string(' ', 2 * Math.Max(0, listen.Count - 1));
+                    var zeichen = "• ";
+                    if (listen.Count > 0 && listen.Peek() > 0)
+                    {
+                        var nummer = listen.Pop();
+                        listen.Push(nummer + 1);
+                        zeichen = $"{nummer}. ";
+                    }
+                    return $"{Blockgrenze}{Listenmarke}{einzug}{zeichen}{Listenmarke}";
+                case "td" or "th":
+                    return zu ? " " : string.Empty;
+                default:
+                    return BlockElemente.Contains(name) ? Blockgrenze.ToString() : string.Empty;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Setzt die Blöcke zu Zeilen zusammen. Ein Block ohne Inhalt erzeugt keine Zeile;
+    /// ein Block, der nur aus einem Umbruch oder geschützten Leerzeichen besteht
+    /// (leerer Absatz in Odoo bzw. Outlook), ergibt eine Leerzeile. Ein Umbruch am
+    /// Blockende zählt wie im Browser nicht.
+    /// </summary>
+    private static string BloeckeZusammensetzen(string text)
+    {
+        var zeilen = new List<string>();
+        string? listenzeichen = null;
+        foreach (var block in text.Split(Blockgrenze))
+        {
+            var inhalt = block;
+            if (inhalt.Length > 0 && inhalt[0] == Listenmarke && inhalt.IndexOf(Listenmarke, 1) is > 0 and var ende)
+            {
+                listenzeichen = ende > 1 ? inhalt[1..ende] : null;
+                inhalt = inhalt[(ende + 1)..];
+            }
+            inhalt = inhalt.Replace(Listenmarke.ToString(), string.Empty);
+            if (inhalt.Trim(' ', '\t').Length == 0)
+                continue;
+            if (inhalt.Trim(' ', '\t', ' ', '\n').Length == 0)
+            {
+                if (listenzeichen is null)
+                    zeilen.Add(string.Empty);
+                continue;
+            }
+            if (inhalt.TrimEnd(' ', '\t', ' ').EndsWith('\n'))
+                inhalt = inhalt[..inhalt.LastIndexOf('\n')];
+            foreach (var roh in inhalt.Split('\n'))
+            {
+                var zeile = MehrfachLeerzeichen.Replace(roh, " ").Trim();
+                if (zeile.Length > 0 && listenzeichen is not null)
+                {
+                    zeile = listenzeichen + zeile;
+                    listenzeichen = null;
+                }
+                zeilen.Add(zeile);
+            }
+        }
+        return string.Join('\n', zeilen);
     }
 
     /// <summary>
