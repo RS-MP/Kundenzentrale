@@ -23,6 +23,14 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (11.11.2026, Chatter: unsichtbare Füllzeichen):** keine
+  Migration. Wirkung: Der Chatter-Import entfernt unsichtbare Zeichen aus Mailtexten
+  (U+034F, weiche Trennzeichen, Null-Breite-Zeichen) — sie stammen aus dem Vorschautext
+  von Mailvorlagen (z. B. der Odoo-Rechnungsmail) und ließen in zitierten Mails über
+  hundert scheinbar leere Zeilen stehen. Nach dem Update: **Chatter-Import erneut
+  ausführen** (Administration → Odoo); er gleicht die Texte bereits übernommener
+  Nachrichten ab und korrigiert sie damit.
+
 - [ ] **Publish aktualisieren (10.11.2026, Wiki Kommunikationsleitlinien):**
   Migration `WikiLeitlinien` läuft automatisch (neue Tabelle `Sprachregeln`;
   `WikiNeuerungen` bekommt die Spalten `Zielrollen` und `SprachregelId`;

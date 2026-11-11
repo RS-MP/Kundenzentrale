@@ -220,6 +220,20 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
     private static readonly Regex MehrfachLeerzeichen = new(@"[ \t ]+", RegexOptions.Compiled);
     private static readonly Regex MehrfachUmbrueche = new(@"(\r?\n\s*){2,}", RegexOptions.Compiled);
 
+    // Unsichtbare Zeichen, die nach dem Entfernen der Tags als „Text" übrig bleiben und
+    // Leerzeilen am Zusammenfassen hindern. Mailvorlagen (auch die Odoo-Rechnungsmail)
+    // füllen damit den Vorschautext auf: je Zeile ein U+034F, dazu Null-Breite-Zeichen.
+    // Enthalten: weiches Trennzeichen, Combining Grapheme Joiner, arabische Schriftmarke,
+    // Hangul-Füllzeichen, mongolische Variantenwähler, Null-Breite-Leerzeichen/-Nichtverbinder,
+    // Richtungsmarken und -einbettungen, Wortverbinder und unsichtbare Operatoren, BOM.
+    // Der Null-Breite-Verbinder U+200D fehlt bewusst — er hält zusammengesetzte Emoji zusammen.
+    private static readonly Regex UnsichtbareZeichen = new(
+        @"[­͏؜ᅟᅠ᠋-᠎​‌‎‏‪-‮⁠-⁤⁦-⁯ㅤ﻿ﾠ]",
+        RegexOptions.Compiled);
+
+    // U+200D ohne sichtbaren Nachbarn auf einer Seite ist ebenfalls nur Füllung
+    private static readonly Regex VerwaisterVerbinder = new(@"(?<=^|\s)‍+|‍+(?=\s|$)", RegexOptions.Compiled | RegexOptions.Multiline);
+
     /// <summary>
     /// Kennzeile für Zugangsdaten: „Passwort: …", „Kennwort = …", „PW: …",
     /// auch zusammengesetzt wie „Passwort-Einmal-Link:" oder „Initialpasswort:".
@@ -268,6 +282,9 @@ public class ChatterFilter(IReadOnlySet<int> internePartnerIds, int? odooBotPart
         var text = ZeilenumbruchTags.Replace(html, "\n");
         text = AlleTags.Replace(text, string.Empty);
         text = WebUtility.HtmlDecode(text);
+        // Erst nach dem Dekodieren: die Füllzeichen stehen im HTML meist als &#847; / &zwnj; / &shy;
+        text = UnsichtbareZeichen.Replace(text, string.Empty);
+        text = VerwaisterVerbinder.Replace(text, string.Empty);
         text = MehrfachLeerzeichen.Replace(text, " ");
         text = MehrfachUmbrueche.Replace(text, "\n");
         return ZugangsdatenMaskieren(text.Trim());

@@ -187,6 +187,32 @@ public class ChatterFilterTests
         Assert.Equal(ChatterEntscheidung.Behalten, Filter.Bewerten(Nachricht(klartext: "", anhaenge: 1)).Entscheidung);
     }
 
+    /// <summary>
+    /// Mailvorlagen füllen den Vorschautext mit unsichtbaren Zeichen auf (je Zeile ein
+    /// U+034F, dazu Null-Breite-Zeichen). Ohne Bereinigung blieben daraus über hundert
+    /// scheinbar leere Zeilen in der Akte stehen (Kundenantwort auf RE/2026/00826, 11.11.2026).
+    /// </summary>
+    [Fact]
+    public void Klartext_EntferntUnsichtbareFuellzeichen_UndFasstLeerzeilenZusammen()
+    {
+        var fuellung = string.Concat(Enumerable.Repeat("<div>&#847; &zwnj; &nbsp;</div>", 140));
+        var html = "<p>Der Rechnungsbetrag [...]</p>" + fuellung + "<p>Rechnung ansehen</p>"
+                   + "<p>&shy;&shy;&shy;____</p><p>Dermapharm&#8203; AG&#65279;</p>";
+        var text = ChatterFilter.Klartext(html);
+        Assert.Equal("Der Rechnungsbetrag [...]\nRechnung ansehen\n____\nDermapharm AG", text);
+        Assert.DoesNotContain('͏', text);
+        Assert.DoesNotContain('­', text);
+    }
+
+    [Fact]
+    public void Klartext_UnsichtbareZeichen_WerdenAuchRohEntfernt_EmojiBleibenGanz()
+    {
+        // Zeichen direkt im Text (nicht als Entity) und ein zusammengesetztes Emoji mit U+200D
+        var familie = "\U0001F468‍\U0001F469‍\U0001F467";
+        var text = ChatterFilter.Klartext($"<p>Hallo​ Welt {familie}</p><p>͏</p><p>‍</p><p>‎⁠</p><p>Ende</p>");
+        Assert.Equal($"Hallo Welt {familie}\nEnde", text);
+    }
+
     [Fact]
     public void Klartext_EntferntHtml_UndMaskiertPasswoerter()
     {
