@@ -108,6 +108,7 @@ builder.Services.AddScoped<PdfDienst>();
 builder.Services.AddScoped<MailDienst>();
 builder.Services.AddScoped<ZertifikatDienst>();
 builder.Services.AddScoped<VorgangsAbgleichDienst>();
+builder.Services.AddScoped<OdooSchreibZugang>();
 // Hintergrund-Takte nur im Produktivsystem: Server-Status-Meldung ans Portal,
 // Zertifikats-Erinnerungen per Mail, Vorgangs-Abgleich mit Odoo (stündlich, nur
 // lesend). Im Testsystem läuft nichts von selbst — alles nur auf Knopfdruck.
@@ -117,6 +118,8 @@ if (!instanz.Testsystem)
     builder.Services.AddHostedService<ZertifikatHintergrund>();
     builder.Services.AddHostedService<VorgangsAbgleichHintergrund>();
 }
+// Löschfrist der Klick-Kennungen von Website-Anfragen — gilt auch im Testsystem
+builder.Services.AddHostedService<AnfragenAufraeumen>();
 
 // Datenbankkonflikte (RowVersion, Unique-Index) als 409 mit Text statt 500 (SICHERHEIT.md Q5)
 builder.Services.AddExceptionHandler<DatenbankFehlerHandler>();

@@ -10,6 +10,8 @@
     {
         <span class="untertitel">@_ergebnis.Gesamt @(_filter switch { "kunden" => "Kunden", "ehemalige" => "gekündigte/ehemalige Kunden", "interessenten" => "Interessenten", "zuklaeren" => "zu klären", "einmalbestellung" => "Einmalbestellungen", "archiv" => "im Archiv", "partner" => "über Partner", _ => "Kontakte" })</span>
     }
+    <span style="flex:1"></span>
+    <button class="knopf sekundaer" @onclick="@(() => Navigation.NavigateTo("anfragen"))">Anfragen</button>
 </div>
 
 @if (_fehler is not null)

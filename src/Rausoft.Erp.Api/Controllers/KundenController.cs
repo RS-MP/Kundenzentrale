@@ -604,7 +604,7 @@ public class KundenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter a
     /// aktiver Vertrag MIT gepflegter Laufzeit — aktive Verträge ohne Laufzeit
     /// gelten als ungeklärt (oft unerkannte Kündigungen im Bestand).
     /// </summary>
-    private static System.Linq.Expressions.Expression<Func<Kunde, bool>> KundenRegel(ErpDbContext db) =>
+    internal static System.Linq.Expressions.Expression<Func<Kunde, bool>> KundenRegel(ErpDbContext db) =>
         k => db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
              || db.Vertraege.Any(v => v.KundeId == k.Id
                  && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null);

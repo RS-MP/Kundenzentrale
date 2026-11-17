@@ -202,4 +202,6 @@ public enum AktivitaetsVerweisTyp
     Aufgabe = 4,
     EMail = 5,
     Vorgang = 6,
+    /// <summary>Anfrage aus einem Website-Formular (<see cref="Customers.Anfrage"/>).</summary>
+    Anfrage = 7,
 }

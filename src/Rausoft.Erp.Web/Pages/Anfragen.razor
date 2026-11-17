@@ -1,0 +1,470 @@
+@page "/anfragen"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+@*
+   Anfragen aus Website-Formularen: Der Mitarbeiter fügt den Text der
+   Benachrichtigungsmail ein, die API liest ihn aus und liefert einen Vorschlag
+   mit Auffälligkeiten und möglichen Dubletten. Gespeichert wird die Anfrage mit
+   ihrer Herkunft (nicht der Mailtext); darunter die gespeicherten Anfragen des
+   Jahres mit Zählung je Kanal.
+*@
+
+<PageTitle>Anfragen · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Anfragen</h1>
+    <span class="untertitel"><a href="kunden">Kunden</a> · Mails der Website-Formulare auslesen, prüfen und mit ihrer Herkunft speichern</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_hinweis is not null)
+{
+    <div class="zert-hinweis">@_hinweis</div>
+}
+
+<div class="karte" style="margin-bottom:16px">
+    <div class="karte-koerper">
+        <div class="formular">
+            <label class="breit">
+                Text der Mail — in Outlook alles markieren (Strg+A), kopieren und hier einfügen
+                <textarea class="anfrage-text" rows="@(_vorschlag is null ? 8 : 3)" maxlength="20000" @bind="_text" @bind:event="oninput"
+                          placeholder="@Platzhalter"></textarea>
+            </label>
+        </div>
+        <div class="formular-aktionen">
+            <button class="knopf" disabled="@(_sende || string.IsNullOrWhiteSpace(_text))" @onclick="AuslesenAsync">Auslesen</button>
+            @if (_vorschlag is not null || !string.IsNullOrEmpty(_text))
+            {
+                <button class="knopf sekundaer" @onclick="Leeren">Leeren</button>
+            }
+            <span class="neben" style="display:inline">Der Mailtext selbst wird nicht gespeichert, auch nicht IP-Adresse und Browser-Kennung.</span>
+        </div>
+    </div>
+</div>
+
+@if (_vorschlag is { } v)
+{
+    <div class="karte" style="margin-bottom:16px">
+        <div class="karte-koerper">
+            <div class="anfrage-kopf">
+                <b>@v.Formular</b>
+                @if (v.Website is not null)
+                {
+                    <span class="neben" style="display:inline">von @v.Website</span>
+                }
+                @if (v.Eingang is { } eingang)
+                {
+                    <span class="neben" style="display:inline">· eingegangen @eingang.ToString("dd.MM.yyyy HH:mm")</span>
+                }
+            </div>
+
+            @if (v.BereitsGespeichert)
+            {
+                <div class="anfrage-hinweis">Diese Anfrage ist bereits gespeichert.</div>
+            }
+            @foreach (var hinweis in v.Hinweise)
+            {
+                <div class="anfrage-hinweis">@hinweis</div>
+            }
+
+            <dl class="anfrage-felder">
+                <dt>Firma</dt>
+                <dd>@Oder(v.Firma)</dd>
+                <dt>Ansprechpartner</dt>
+                <dd>@Oder($"{v.Vorname} {v.Nachname}".Trim())</dd>
+                <dt>E-Mail</dt>
+                <dd>@Oder(v.EMail)</dd>
+                <dt>Telefon</dt>
+                <dd>@Oder(v.Telefon)</dd>
+                @if (v.Nachricht is not null)
+                {
+                    <dt>Nachricht</dt>
+                    <dd style="white-space:pre-wrap">@v.Nachricht</dd>
+                }
+                <dt>Datenschutz</dt>
+                <dd>@(v.DatenschutzBestaetigt ? "zugestimmt" : "keine Zustimmung im Text")</dd>
+                <dt>Herkunft</dt>
+                <dd>@v.HerkunftText</dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="karte" style="margin-bottom:16px">
+        <div class="karte-koerper @(v.Dubletten.Count > 0 ? "eng" : "")">
+            @if (v.Dubletten.Count == 0)
+            {
+                <b>Kein passender Kunde im Bestand</b>
+                <div class="neben">Geprüft wurden E-Mail-Adresse, E-Mail-Domäne und Firmenname. Die Anfrage lässt sich später zuordnen, sobald der Kunde angelegt ist.</div>
+            }
+            else
+            {
+                <div class="anfrage-listenkopf">
+                    <b>@(v.Dubletten.Count == 1 ? "1 möglicher Treffer im Bestand" : $"{v.Dubletten.Count} mögliche Treffer im Bestand")</b>
+                    <span class="neben" style="display:inline">Zeile anklicken wählt den Kunden für die Zuordnung.</span>
+                </div>
+                <table class="liste">
+                    <thead>
+                        <tr><th></th><th>Kunde</th><th>Nr.</th><th>Erkannt an</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in v.Dubletten)
+                        {
+                            <tr class="@(_gewaehlt == d.KundeId ? "anfrage-gewaehlt" : "")" @onclick="@(() => _gewaehlt = _gewaehlt == d.KundeId ? null : d.KundeId)">
+                                <td class="anfrage-wahl">@(_gewaehlt == d.KundeId ? "●" : "○")</td>
+                                <td>
+                                    @d.Firmenname
+                                    @if (d.Archiviert)
+                                    {
+                                        <span class="neben" style="display:inline"> · archiviert</span>
+                                    }
+                                </td>
+                                <td>@d.Kundennummer</td>
+                                <td class="@(d.Uebereinstimmung >= 90 ? "warntext" : "")">@d.Grund</td>
+                                <td><a href="kunden/@d.KundeId" target="_blank" @onclick:stopPropagation="true">Akte ↗</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="formular-aktionen @(v.Dubletten.Count > 0 ? "anfrage-speichern" : "")">
+                <button class="knopf" disabled="@(_sende || v.BereitsGespeichert)" @onclick="SpeichernAsync">
+                    @(_gewaehlt is null ? "Ohne Kunde speichern" : "Speichern und zuordnen")
+                </button>
+                @if (_gewaehlt is { } gewaehlt && v.Dubletten.FirstOrDefault(d => d.KundeId == gewaehlt) is { } kunde)
+                {
+                    <span class="neben" style="display:inline">Die Anfrage erscheint im Verlauf von „@kunde.Firmenname“.</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (v.Herkunft.Count > 0)
+    {
+        <details class="karte anfrage-rohfelder" style="margin-bottom:16px">
+            <summary>Felder aus der Mail (@v.Herkunft.Count)</summary>
+            <div class="karte-koerper">
+                <dl class="anfrage-felder herkunft">
+                    @foreach (var h in v.Herkunft)
+                    {
+                        <dt>@h.Name</dt>
+                        <dd>@h.Wert</dd>
+                    }
+                </dl>
+                <div class="neben" style="margin-top:10px">
+                    Gespeichert werden Kanal, Kampagne, Suchbegriff und die Seiten ohne Abfrageteil. Die Klick-Kennungen
+                    (gclid, gbraid, wbraid) werden nach @KlickKennungTage Tagen automatisch gelöscht.
+                </div>
+            </div>
+        </details>
+    }
+}
+
+@* ---------- Gespeicherte Anfragen ---------- *@
+<div class="karte">
+    <div class="karte-koerper eng">
+        <div class="anfrage-listenkopf">
+            <b>Gespeicherte Anfragen</b>
+            @if (_uebersicht is { } u)
+            {
+                <select value="@u.Jahr" @onchange="JahrWaehlenAsync" aria-label="Jahr">
+                    @foreach (var jahr in u.Jahre)
+                    {
+                        <option value="@jahr">@jahr</option>
+                    }
+                </select>
+                <span class="neben" style="display:inline">
+                    @u.Gesamt @(u.Gesamt == 1 ? "Anfrage" : "Anfragen")@(u.DavonKunden > 0 ? $", davon {u.DavonKunden} heute Kunde" : "")
+                </span>
+            }
+        </div>
+
+        @if (_uebersicht is null)
+        {
+            <div class="leer-hinweis">Lädt …</div>
+        }
+        else if (_uebersicht.Eintraege.Count == 0)
+        {
+            <div class="leer-hinweis">Für @_uebersicht.Jahr ist noch keine Anfrage gespeichert.</div>
+        }
+        else
+        {
+            <div class="anfrage-kanaele">
+                @foreach (var k in _uebersicht.Kanaele)
+                {
+                    <span class="anfrage-kanal">
+                        <b>@k.Anzahl</b> @k.Kanal@(k.DavonKunden > 0 ? $" · {k.DavonKunden} Kunde{(k.DavonKunden == 1 ? "" : "n")}" : "")
+                    </span>
+                }
+            </div>
+            <table class="liste">
+                <thead>
+                    <tr><th>Eingang</th><th>Formular</th><th>Firma</th><th>Herkunft</th><th>Kunde</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in _uebersicht.Eintraege)
+                    {
+                        <tr @onclick="@(() => OeffnenAsync(e))">
+                            <td>@e.Eingang.ToString("dd.MM.yyyy")</td>
+                            <td>@e.Formular</td>
+                            <td>
+                                @Oder(e.Firma)
+                                @if (e.Kontakt is not null)
+                                {
+                                    <div class="neben">@e.Kontakt</div>
+                                }
+                            </td>
+                            <td>@e.Herkunft</td>
+                            <td>
+                                @if (e.KundeId is not null)
+                                {
+                                    <a href="kunden/@e.KundeId" @onclick:stopPropagation="true">@e.Kundenname</a>
+                                }
+                                else
+                                {
+                                    <span class="neben" style="display:inline">nicht zugeordnet</span>
+                                }
+                            </td>
+                        </tr>
+                        @if (_offen == e.Id)
+                        {
+                            <tr class="anfrage-detail">
+                                <td colspan="5">
+                                    <dl class="anfrage-felder">
+                                        <dt>Eingang</dt>
+                                        <dd>@e.Eingang.ToString("dd.MM.yyyy HH:mm")@(e.Website is not null ? $" · {e.Website}" : "")</dd>
+                                        <dt>Kontakt</dt>
+                                        <dd>@string.Join(" · ", new[] { e.Kontakt, e.EMail, e.Telefon }.Where(t => !string.IsNullOrWhiteSpace(t)))</dd>
+                                        @if (e.Nachricht is not null)
+                                        {
+                                            <dt>Nachricht</dt>
+                                            <dd style="white-space:pre-wrap">@e.Nachricht</dd>
+                                        }
+                                        @if (e.Einstiegsseite is not null)
+                                        {
+                                            <dt>Einstiegsseite</dt>
+                                            <dd>@e.Einstiegsseite</dd>
+                                        }
+                                        @if (e.LetzteSeite is not null)
+                                        {
+                                            <dt>Letzte Seite</dt>
+                                            <dd>@e.LetzteSeite</dd>
+                                        }
+                                        @if (e.MinutenBisAnfrage is { } minuten)
+                                        {
+                                            <dt>Entscheidung</dt>
+                                            <dd>@Dauer(minuten) nach dem ersten Besuch</dd>
+                                        }
+                                        <dt>Klick-Kennung</dt>
+                                        <dd>@(e.KlickKennungBis is { } bis ? $"gespeichert, wird am {bis:dd.MM.yyyy} gelöscht" : "keine gespeichert")</dd>
+                                        @if (e.ErfasstVon is not null)
+                                        {
+                                            <dt>Erfasst von</dt>
+                                            <dd>@e.ErfasstVon</dd>
+                                        }
+                                    </dl>
+
+                                    @if (e.KundeId is null)
+                                    {
+                                        <div class="anfrage-zuordnen">
+                                            @if (_treffer is null)
+                                            {
+                                                <span class="neben" style="display:inline">Suche passende Kunden …</span>
+                                            }
+                                            else if (_treffer.Count == 0)
+                                            {
+                                                <span class="neben" style="display:inline">Kein passender Kunde im Bestand — nach dem nächsten Odoo-Import erneut prüfen.</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="neben" style="display:inline">Zuordnen zu:</span>
+                                                @foreach (var t in _treffer)
+                                                {
+                                                    <button class="knopf klein" disabled="@_sende" title="@t.Grund" @onclick="@(() => ZuordnenAsync(e, t.KundeId))">
+                                                        @t.Firmenname (@t.Kundennummer)
+                                                    </button>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                    <div class="formular-aktionen">
+                                        @if (e.KundeId is not null)
+                                        {
+                                            <button class="knopf sekundaer" disabled="@_sende" @onclick="@(() => ZuordnenAsync(e, null))">Zuordnung lösen</button>
+                                        }
+                                        <button class="knopf sekundaer" disabled="@_sende" @onclick="@(() => LoeschenAsync(e))">Anfrage löschen</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private const string Platzhalter = "Name: …\nFirmen E-Mail: …\nFirma: …\nTelefon: …";
+    private const int KlickKennungTage = 90;
+
+    private string? _text;
+    private string? _fehler;
+    private string? _hinweis;
+    private bool _sende;
+    private AnfrageVorschlag? _vorschlag;
+    private int? _gewaehlt;
+
+    private AnfragenUebersicht? _uebersicht;
+    private int? _offen;
+    private List<AnfrageDublette>? _treffer;
+
+    protected override Task OnInitializedAsync() => LadenAsync(null);
+
+    private static string Oder(string? wert) => string.IsNullOrWhiteSpace(wert) ? "—" : wert;
+
+    private static string Dauer(int minuten) => minuten switch
+    {
+        < 1 => "sofort",
+        < 60 => $"{minuten} Min.",
+        < 60 * 48 => $"{minuten / 60} Std.",
+        _ => $"{minuten / (60 * 24)} Tage",
+    };
+
+    private async Task LadenAsync(int? jahr)
+    {
+        try
+        {
+            var antwort = await Http.GetAsync(jahr is null ? "api/anfragen" : $"api/anfragen?jahr={jahr}");
+            if (antwort.IsSuccessStatusCode)
+                _uebersicht = await antwort.Content.ReadFromJsonAsync<AnfragenUebersicht>();
+            else
+                _fehler = await FehlerTextAsync(antwort);
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private Task JahrWaehlenAsync(ChangeEventArgs e)
+    {
+        _offen = null;
+        return LadenAsync(int.TryParse(e.Value?.ToString(), out var jahr) ? jahr : null);
+    }
+
+    private static async Task<string> FehlerTextAsync(HttpResponseMessage antwort) =>
+        antwort.StatusCode == System.Net.HttpStatusCode.Forbidden
+            ? "Anfragen dürfen nur Vertrieb und Administration bearbeiten."
+            : await antwort.Content.ReadAsStringAsync() is { Length: > 0 } text ? text : $"Fehler {(int)antwort.StatusCode}";
+
+    private async Task AusfuehrenAsync(Func<Task<HttpResponseMessage>> aufruf, Func<HttpResponseMessage, Task> beiErfolg)
+    {
+        _fehler = null;
+        _hinweis = null;
+        _sende = true;
+        try
+        {
+            var antwort = await aufruf();
+            if (antwort.IsSuccessStatusCode)
+                await beiErfolg(antwort);
+            else
+                _fehler = await FehlerTextAsync(antwort);
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private Task AuslesenAsync()
+    {
+        _vorschlag = null;
+        _gewaehlt = null;
+        return AusfuehrenAsync(
+            () => Http.PostAsJsonAsync("api/anfragen/auslesen", new AnfrageAuslesen(_text)),
+            async antwort =>
+            {
+                _vorschlag = await antwort.Content.ReadFromJsonAsync<AnfrageVorschlag>();
+                // Ein sicherer Treffer (gleiche Adresse oder Domäne) ist vorgewählt
+                if (_vorschlag?.Dubletten is [{ Uebereinstimmung: >= 90 } sicher, ..])
+                    _gewaehlt = sicher.KundeId;
+            });
+    }
+
+    private Task SpeichernAsync() => AusfuehrenAsync(
+        () => Http.PostAsJsonAsync("api/anfragen", new AnfrageSpeichern(_text, _gewaehlt)),
+        async antwort =>
+        {
+            var eintrag = await antwort.Content.ReadFromJsonAsync<AnfrageEintrag>();
+            _hinweis = eintrag?.KundeId is not null
+                ? $"Anfrage gespeichert und „{eintrag.Kundenname}“ zugeordnet."
+                : "Anfrage gespeichert. Sie ist noch keinem Kunden zugeordnet.";
+            Leeren(behalteHinweis: true);
+            await LadenAsync(null);
+        });
+
+    private void Leeren() => Leeren(behalteHinweis: false);
+
+    private void Leeren(bool behalteHinweis)
+    {
+        _text = null;
+        _vorschlag = null;
+        _gewaehlt = null;
+        _fehler = null;
+        if (!behalteHinweis)
+            _hinweis = null;
+    }
+
+    private async Task OeffnenAsync(AnfrageEintrag e)
+    {
+        if (_offen == e.Id)
+        {
+            _offen = null;
+            return;
+        }
+        _offen = e.Id;
+        _treffer = null;
+        if (e.KundeId is not null)
+            return;
+        try
+        {
+            _treffer = await Http.GetFromJsonAsync<List<AnfrageDublette>>($"api/anfragen/{e.Id}/treffer") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _treffer = [];
+            _fehler = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private Task ZuordnenAsync(AnfrageEintrag e, int? kundeId) => AusfuehrenAsync(
+        () => Http.PutAsJsonAsync($"api/anfragen/{e.Id}/kunde", new AnfrageKundeSetzen(kundeId)),
+        async _ =>
+        {
+            _hinweis = kundeId is null ? "Zuordnung gelöst." : "Anfrage zugeordnet — sie steht jetzt im Verlauf der Kundenakte.";
+            _offen = null;
+            await LadenAsync(_uebersicht?.Jahr);
+        });
+
+    private async Task LoeschenAsync(AnfrageEintrag e)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Anfrage von {Oder(e.Firma)} vom {e.Eingang:dd.MM.yyyy} endgültig löschen?"))
+            return;
+        await AusfuehrenAsync(
+            () => Http.DeleteAsync($"api/anfragen/{e.Id}"),
+            async _ =>
+            {
+                _hinweis = "Anfrage gelöscht.";
+                _offen = null;
+                await LadenAsync(_uebersicht?.Jahr);
+            });
+    }
+}

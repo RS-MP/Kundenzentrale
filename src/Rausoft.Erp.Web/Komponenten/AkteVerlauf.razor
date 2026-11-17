@@ -462,6 +462,10 @@
                             {
                                 <a href="vertraege/@e.VerweisId">zum Vertrag</a>
                             }
+                            @if (e.VerweisTyp == "Anfrage")
+                            {
+                                <a href="anfragen">zu den Anfragen</a>
+                            }
                             @if (e.OdooLink is not null)
                             {
                                 <a href="@e.OdooLink" target="_blank" rel="noopener noreferrer"

@@ -41,6 +41,7 @@ public class ErpDbContext(
     public DbSet<Ansprechpartner> Ansprechpartner => Set<Ansprechpartner>();
     public DbSet<Adresse> Adressen => Set<Adresse>();
     public DbSet<Merkmal> Merkmale => Set<Merkmal>();
+    public DbSet<Anfrage> Anfragen => Set<Anfrage>();
 
     // Verträge
     public DbSet<Vertrag> Vertraege => Set<Vertrag>();
@@ -337,6 +338,35 @@ public class ErpDbContext(
             e.Property(a => a.TelefonFestnetz).HasMaxLength(50);
             e.Property(a => a.TelefonMobil).HasMaxLength(50);
             e.Property(a => a.Notiz).HasColumnType("nvarchar(max)");
+            e.Property(a => a.RowVersion).IsRowVersion();
+        });
+
+        modelBuilder.Entity<Anfrage>(e =>
+        {
+            e.HasOne(a => a.Kunde).WithMany().HasForeignKey(a => a.KundeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.ErfasstVon).WithMany().HasForeignKey(a => a.ErfasstVonId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(a => a.EingegangenAm);
+            e.HasIndex(a => a.Email);
+            e.Property(a => a.Formular).HasMaxLength(100);
+            e.Property(a => a.Website).HasMaxLength(200);
+            e.Property(a => a.Firma).HasMaxLength(300);
+            e.Property(a => a.Vorname).HasMaxLength(100);
+            e.Property(a => a.Nachname).HasMaxLength(100);
+            e.Property(a => a.Email).HasMaxLength(320);
+            e.Property(a => a.Telefon).HasMaxLength(50);
+            e.Property(a => a.Nachricht).HasMaxLength(500);
+            e.Property(a => a.Quelle).HasMaxLength(100);
+            e.Property(a => a.Medium).HasMaxLength(100);
+            e.Property(a => a.Kampagne).HasMaxLength(200);
+            e.Property(a => a.KampagnenNr).HasMaxLength(50);
+            e.Property(a => a.Suchbegriff).HasMaxLength(200);
+            e.Property(a => a.Anzeigenvariante).HasMaxLength(200);
+            e.Property(a => a.Verweis).HasMaxLength(500);
+            e.Property(a => a.Einstiegsseite).HasMaxLength(500);
+            e.Property(a => a.LetzteSeite).HasMaxLength(500);
+            e.Property(a => a.Gclid).HasMaxLength(500);
+            e.Property(a => a.Gbraid).HasMaxLength(500);
+            e.Property(a => a.Wbraid).HasMaxLength(500);
             e.Property(a => a.RowVersion).IsRowVersion();
         });
 
@@ -664,6 +694,9 @@ public class ErpDbContext(
              nameof(Domain.Servers.Zertifikat.LetzterMailFehler)],
         // Der Preislisten-JSON (bis 5 MB) liegt in der Tabelle selbst; Version, Stand und Hash reichen im Audit.
         [typeof(Domain.Wiki.PreislistenVersion)] = [nameof(Domain.Wiki.PreislistenVersion.Daten)],
+        // Klick-Kennungen werden nach 90 Tagen gelöscht — im Audit-Log dürfen sie nicht überleben.
+        [typeof(Anfrage)] =
+            [nameof(Anfrage.Gclid), nameof(Anfrage.Gbraid), nameof(Anfrage.Wbraid), nameof(Anfrage.KlickKennungenGeloeschtAm)],
     };
 
     // Einstellungen, die Hintergrundläufe als Zeitstempel fortschreiben (kein Admin-Handeln)

@@ -332,6 +332,9 @@
     </div>
 </details>
 
+@* ---------- Odoo-Testdatenbank und Schreibziel ---------- *@
+<OdooTestdatenbank />
+
 @* ---------- E-Mail-Versand (SMTP) & Zertifikats-Erinnerungen ---------- *@
 <details class="gruppe">
     <summary>E-Mail-Versand und Zertifikats-Erinnerungen<span class="zahl">SMTP</span></summary>
@@ -524,7 +527,7 @@
 
     private IEnumerable<EinstellungEintrag> VerzeichnisEinstellungen() =>
         (_einstellungen ?? []).Where(e => !e.Schluessel.StartsWith("ServicePortal.")
-            && !e.Schluessel.StartsWith("Odoo.") && !e.Schluessel.StartsWith("Mail.") && !e.Schluessel.StartsWith("Zertifikate."));
+            && !e.Schluessel.StartsWith("Odoo.") && !e.Schluessel.StartsWith("OdooTest.") && !e.Schluessel.StartsWith("Mail.") && !e.Schluessel.StartsWith("Zertifikate."));
 
     private string LetzterPushText()
     {
@@ -539,6 +542,7 @@
         "Odoo.Url" => "Odoo-URL",
         "Odoo.Datenbank" => "Datenbank",
         "Odoo.Benutzer" => "API-Benutzer (Login)",
+        "Anfragen.Kampagnen" => "Kampagnennamen für Website-Anfragen (Nummer = Name; …)",
         "Vertragsablage.Verzeichnis" => "Vertragsablage",
         "Dokumentablage.Verzeichnis" => "Dokumentablage",
         "Vorlagen.Verzeichnis" => "Word-Vorlagen",

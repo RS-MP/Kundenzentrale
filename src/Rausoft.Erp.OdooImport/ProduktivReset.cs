@@ -15,7 +15,7 @@ namespace Rausoft.Erp.OdooImport;
 /// Vertragsvorlagen (ohne Versionen) und das gesamte Wiki.
 /// Gelöscht: Kunden mit Ansprechpartnern und Adressen, Partner, Verträge mit
 /// Bestandteilen und Dokument-Einträgen, Abos, Verlauf, Vereinbarungen,
-/// Aufgaben, Vorgänge, Vorlagen-Versionen (Historie beginnt wieder bei v1),
+/// Aufgaben, Vorgänge, Website-Anfragen, Vorlagen-Versionen (Historie beginnt wieder bei v1),
 /// Audit-Log; die Nummernkreise beginnen wieder bei 1.
 ///
 /// Ohne --ausfuehren wird nur gezählt. Dateien in den Ablagen fasst der Reset
@@ -52,6 +52,7 @@ public class ProduktivReset(bool ausfuehren, string? bestaetigung)
         Zeile("Vereinbarungen", await db.Vereinbarungen.CountAsync());
         Zeile("Aufgaben und Vorgangsschritte", await db.Aufgaben.CountAsync());
         Zeile("Vorgänge", await db.Vorgaenge.CountAsync());
+        Zeile("Website-Anfragen", await db.Anfragen.CountAsync());
         Zeile("Audit-Log", await db.AuditLog.CountAsync());
 
         Console.WriteLine();
@@ -123,6 +124,7 @@ public class ProduktivReset(bool ausfuehren, string? bestaetigung)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(k => k.VermitteltDurchPartnerId, (int?)null)
                 .SetProperty(k => k.RechnungsempfaengerPartnerId, (int?)null));
+        await db.Anfragen.ExecuteDeleteAsync();                // verweisen auf Kunden
         await db.Partner.ExecuteDeleteAsync();
         await db.Kunden.ExecuteDeleteAsync();                  // Ansprechpartner, Adressen per Cascade; FAQ-Bezug wird geleert
 

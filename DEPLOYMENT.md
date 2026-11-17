@@ -23,6 +23,25 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (17.11.2026, Website-Anfragen):** Migration `Anfragen`
+  (neue Tabelle, Einstellung `Anfragen.Kampagnen`) läuft beim Start von selbst. Wirkung:
+  Unter Kunden → „Anfragen“ fügt ein Mitarbeiter (Vertrieb/Admin) den Text einer
+  Website-Formular-Mail ein; die Kundenzentrale liest ihn aus, prüft Freemailer und
+  Dubletten und speichert die Anfrage mit ihrer Herkunft (Kanal, Kampagne, Seiten) —
+  nicht den Mailtext, nicht IP/Browser. Zugeordnete Anfragen stehen im Verlauf der
+  Kundenakte. Die Klick-Kennungen (gclid, gbraid, wbraid) löscht ein täglicher Lauf nach
+  90 Tagen. Nach Odoo wird nichts geschrieben. Optional in der Administration:
+  `Anfragen.Kampagnen` mit „Nummer = Name; Nummer = Name“ füllen, dann zeigt die
+  Herkunft den Kampagnennamen statt der Nummer.
+- [ ] **Odoo-Testdatenbank eintragen (17.11.2026):** Migration `OdooTestdatenbank` (nur
+  Einstellungen) läuft beim Start von selbst. Unter Administration → „Odoo-Testdatenbank“
+  Adresse, Datenbank, API-Benutzer, API-Key und „gültig bis“ der Odoo-Testdatenbank
+  eintragen, „Speichern und prüfen“. Odoo stellt Testdatenbanken nur 14 Tage bereit —
+  danach denselben Schritt mit der neuen wiederholen. Die Produktiv-Anbindung (Abschnitt
+  „Odoo-Anbindung“) bleibt unberührt; Import und alles Lesen nutzen weiter sie.
+  „Schreiben nach Odoo geht an“ steht auf **Aus** und wird erst umgestellt, wenn die
+  erste schreibende Funktion (Anfrage in Odoo anlegen) gebaut ist: zuerst „Odoo-Testdatenbank“,
+  später „Produktiv“. Im Testsystem der Kundenzentrale ist „Produktiv“ nicht wählbar.
 - [ ] **Publish aktualisieren (11.11.2026, Chatter: Umbrüche wie im Browser):** keine
   Migration. Wirkung: Der Chatter-Import bricht Mailtexte so um, wie Odoo sie anzeigt —
   Zeilenumbrüche aus dem HTML-Quelltext zählen nicht mehr (Sätze zerfielen an jedem

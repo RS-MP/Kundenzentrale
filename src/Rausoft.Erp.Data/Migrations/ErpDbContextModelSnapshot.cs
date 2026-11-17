@@ -329,6 +329,138 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Adressen");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Anfrage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Anzeigenvariante")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("DatenschutzBestaetigt")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("EingegangenAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Einstiegsseite")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<DateTime>("ErfasstAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErfasstVonId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ErsterBesuch")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Firma")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Formular")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Gbraid")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Gclid")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Kampagne")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("KampagnenNr")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("KlickKennungenGeloeschtAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("KundeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LetzteSeite")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Medium")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Nachname")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Nachricht")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Quelle")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Suchbegriff")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Telefon")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("UeberAnzeige")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Verweis")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Vorname")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Wbraid")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EingegangenAm");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("ErfasstVonId");
+
+                    b.HasIndex("KundeId");
+
+                    b.ToTable("Anfragen");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Ansprechpartner", b =>
                 {
                     b.Property<int>("Id")
@@ -2329,6 +2461,23 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasForeignKey("KundeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Kunde");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Anfrage", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErfasstVon")
+                        .WithMany()
+                        .HasForeignKey("ErfasstVonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
+                        .WithMany()
+                        .HasForeignKey("KundeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ErfasstVon");
 
                     b.Navigation("Kunde");
                 });

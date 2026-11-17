@@ -33,6 +33,11 @@ public class EinstellungenController(ErpDbContext db, Dienste.InstanzOptionen in
         if (einstellung is null)
             return NotFound();
 
+        // Die Odoo-Testdatenbank wird als ganzer Satz gepflegt und geprüft (nie die Produktiv-Datenbank,
+        // nur https) — nicht einzeln über diesen allgemeinen Weg
+        if (schluessel.StartsWith(Rausoft.Erp.Domain.Shared.EinstellungsSchluessel.OdooTestPraefix, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Diese Einstellung wird unter Administration → Odoo-Testdatenbank gepflegt.");
+
         var wert = aenderung.Wert.Trim();
         // Zu diesen Zielen gehen API-Key bzw. Bearer-Token — nur über https (SICHERHEIT.md N5)
         if (schluessel is Rausoft.Erp.Domain.Shared.EinstellungsSchluessel.OdooUrl

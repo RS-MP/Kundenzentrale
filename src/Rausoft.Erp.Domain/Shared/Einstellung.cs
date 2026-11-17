@@ -57,4 +57,16 @@ public static class EinstellungsSchluessel
     // Schutz der Live-Prüfung (SICHERHEIT.md N1): nur diese Ports, Statusmails nur an diese Domänen
     public const string ZertifikateErlaubtePorts = "Zertifikate.ErlaubtePorts";
     public const string ZertifikateEmpfaengerDomaenen = "Zertifikate.EmpfaengerDomaenen";
+
+    // Website-Anfragen: lesbare Namen zu den Nummern der Google-Ads-Kampagnen („Nummer = Name; …")
+    public const string AnfragenKampagnen = "Anfragen.Kampagnen";
+
+    // Odoo-Testdatenbank (läuft nach 14 Tagen ab, eigener API-Key als Geheimnis OdooTest.ApiKey)
+    // und das Ziel schreibender Odoo-Funktionen — gepflegt über Administration → Odoo-Testdatenbank
+    public const string OdooTestUrl = "OdooTest.Url";
+    public const string OdooTestDatenbank = "OdooTest.Datenbank";
+    public const string OdooTestBenutzer = "OdooTest.Benutzer";
+    public const string OdooTestGueltigBis = "OdooTest.GueltigBis";
+    public const string OdooSchreibZiel = "OdooTest.SchreibZiel";
+    public const string OdooTestPraefix = "OdooTest.";
 }

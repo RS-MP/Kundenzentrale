@@ -256,11 +256,11 @@ pre.bericht { margin: 8px 0 0; padding: 10px 12px; max-height: 520px; overflow: 
 .umschalter { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
 
 /* Formulare */
-input[type=text], input[type=search], input[type=url] {
+input[type=text], input[type=search], input[type=url], input[type=password] {
   font: inherit; color: var(--ink); background: var(--surface);
   border: 1px solid var(--border-strong); border-radius: 7px; padding: 7px 10px;
 }
-input[type=text]:focus, input[type=search]:focus, input[type=url]:focus {
+input[type=text]:focus, input[type=search]:focus, input[type=url]:focus, input[type=password]:focus {
   outline: 2px solid var(--accent-line); border-color: var(--accent);
 }
 .knopf {
@@ -1010,3 +1010,24 @@ a.chip { text-decoration: none; }
 .formular label.ll-haken, .ll-haken { display: flex; flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--ink2); }
 .ll-hinweis { margin: 10px 0 0; padding: 8px 12px; border: 1px solid var(--warn); border-radius: 8px; background: var(--warn-bg); font-size: 13px; line-height: 1.5; max-width: 90ch; }
 .ll-export-text { margin: 8px 0 0; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; font-family: Consolas, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow-y: auto; }
+
+/* Anfrage einfügen (Website-Formular-Mail auslesen) */
+.anfrage-text { width: 100%; box-sizing: border-box; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.45; resize: vertical; }
+.anfrage-kopf { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.anfrage-hinweis { color: var(--warn); border: 1px solid var(--warn); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 13.5px; }
+.anfrage-felder { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 10px 0 0; font-size: 13.5px; }
+.anfrage-felder dt { color: var(--ink2); }
+.anfrage-felder dd { margin: 0; overflow-wrap: anywhere; }
+.anfrage-felder.herkunft dt { font-family: Consolas, monospace; font-size: 12.5px; }
+.anfrage-felder.herkunft dd { font-family: Consolas, monospace; font-size: 12.5px; }
+.anfrage-listenkopf { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 14px 16px 8px; }
+@media (max-width: 560px) { .anfrage-felder { grid-template-columns: minmax(0, 1fr); gap: 2px; } .anfrage-felder dd { margin-bottom: 8px; } }
+.anfrage-wahl { width: 1%; color: var(--accent-strong); padding-right: 0 !important; }
+tr.anfrage-gewaehlt { background: var(--accent-soft); }
+.formular-aktionen.anfrage-speichern { padding: 0 16px 14px; }
+.anfrage-rohfelder > summary { padding: 12px 16px; cursor: pointer; font-size: 13.5px; color: var(--ink2); }
+.anfrage-kanaele { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 0 16px 12px; font-size: 13px; color: var(--ink2); }
+.anfrage-kanal { border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
+table.liste tr.anfrage-detail, table.liste tr.anfrage-detail:hover { cursor: default; background: var(--surface2); }
+.anfrage-detail .anfrage-felder { margin-top: 0; }
+.anfrage-zuordnen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }

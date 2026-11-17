@@ -23,6 +23,7 @@ public static class GeheimnisSchluessel
 {
     public const string ServicePortalPushToken = "ServicePortal.PushToken";
     public const string OdooApiKey = "Odoo.ApiKey";
+    public const string OdooTestApiKey = "OdooTest.ApiKey";
     public const string SignaturPfxPasswort = "Signatur.PfxPasswort";
     public const string MailSmtpPasswort = "Mail.SmtpPasswort";
 }

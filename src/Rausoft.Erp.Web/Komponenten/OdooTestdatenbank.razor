@@ -1,0 +1,256 @@
+@* Odoo-Testdatenbank (Administration). Odoo stellt Testdatenbanken nur für 14 Tage
+   bereit — danach wechseln Adresse, Datenbank und API-Key. Hier wird der ganze Satz in
+   einem Schritt neu eingetragen und geprüft; dazu das Ziel schreibender Odoo-Funktionen.
+   Die Produktiv-Anbindung (Abschnitt „Odoo-Anbindung") bleibt davon unberührt. *@
+@inject HttpClient Http
+
+<details class="gruppe">
+    <summary>Odoo-Testdatenbank<span class="zahl">@Kurzstatus()</span></summary>
+    <div class="gruppe-inhalt">
+        <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
+            Zum Erproben schreibender Funktionen (z. B. Website-Anfrage in Odoo anlegen). Eine Odoo-Testdatenbank
+            läuft nach @GueltigkeitTage Tagen ab — dann hier Adresse, Datenbank und API-Key der neuen eintragen.
+            Import und alles Lesen nutzen weiter die Produktiv-Anbindung oben.
+        </div>
+        @if (_fehler is not null)
+        {
+            <div class="fehler">@_fehler</div>
+        }
+        @if (_status is null)
+        {
+            <div style="color:var(--muted)">Lade …</div>
+        }
+        else
+        {
+            <div class="zeile2">
+                <span class="l">Stand</span>
+                <span class="status @StandKlasse()" style="font-size:13px">@StandText()</span>
+            </div>
+            <div class="zeile2">
+                <span class="l">Adresse</span>
+                <input type="url" style="flex:1; max-width:420px; text-align:right" maxlength="300" @bind="_url"
+                       placeholder="https://…odoo.com" />
+            </div>
+            <div class="zeile2">
+                <span class="l">Datenbank</span>
+                <input type="text" style="flex:1; max-width:420px; text-align:right" maxlength="100" @bind="_datenbank" />
+            </div>
+            <div class="zeile2">
+                <span class="l">API-Benutzer (Login)</span>
+                <input type="text" style="flex:1; max-width:420px; text-align:right" maxlength="200" @bind="_benutzer" />
+            </div>
+            <div class="zeile2">
+                <span class="l">API-Key</span>
+                <input type="password" style="flex:1; max-width:420px; text-align:right" maxlength="500" autocomplete="off" @bind="_apiKey"
+                       placeholder="@(_status.ApiKeyGesetztAm is { } am ? $"gesetzt {am.ToLocalTime():dd.MM.yyyy} — leer lassen = behalten" : "API-Key der Testdatenbank")" />
+            </div>
+            <div class="zeile2">
+                <span class="l">Gültig bis</span>
+                <input type="date" @bind="_gueltigBis" />
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px">
+                <button class="knopf" disabled="@_sende" @onclick="SpeichernAsync">Speichern und prüfen</button>
+                <button class="knopf sekundaer" disabled="@(_sende || _status.ApiKeyGesetztAm is null)" @onclick="PruefenAsync">Nur prüfen</button>
+                @if (_pruefung is not null)
+                {
+                    <span class="status @(_pruefung.Erfolg ? "gut" : "kritisch")" style="font-size:13px; white-space:normal">@_pruefung.Meldung</span>
+                }
+            </div>
+            <div style="color:var(--muted); font-size:12.5px; margin-top:6px">
+                Der API-Key wird verschlüsselt gespeichert und nie wieder angezeigt. Als Testdatenbank wird die
+                Produktiv-Datenbank nicht angenommen.
+            </div>
+
+            <div style="border-top:1px dashed var(--border); margin-top:12px; padding-top:10px">
+                <div class="zeile2" style="align-items:center">
+                    <span class="l">Schreiben nach Odoo geht an</span>
+                    <span style="display:flex; gap:6px; align-items:center">
+                        <select @bind="_ziel">
+                            <option value="Aus">Aus — es wird nichts geschrieben</option>
+                            <option value="Test">Odoo-Testdatenbank</option>
+                            @if (!_status.KundenzentraleTestsystem)
+                            {
+                                <option value="Produktiv">Odoo-Produktiv-Datenbank</option>
+                            }
+                        </select>
+                        <button class="knopf sekundaer" disabled="@(_sende || _ziel == _status.SchreibZiel)" @onclick="ZielSpeichernAsync">
+                            @(_zielGespeichert ? "✓" : "Speichern")
+                        </button>
+                    </span>
+                </div>
+                @if (_ziel == "Produktiv" && _status.SchreibZiel != "Produktiv")
+                {
+                    <div class="krittext" style="font-size:13px">
+                        Achtung: Danach legen schreibende Funktionen echte Datensätze in der Produktiv-Datenbank von Odoo an.
+                    </div>
+                }
+                @if (_status.SchreibSperre is not null && _status.SchreibZiel != "Aus")
+                {
+                    <div class="krittext" style="font-size:13px">@_status.SchreibSperre</div>
+                }
+                @if (_status.KundenzentraleTestsystem)
+                {
+                    <div style="color:var(--muted); font-size:12.5px">
+                        Diese Kundenzentrale ist ein Testsystem — in die Produktiv-Datenbank von Odoo schreibt sie nie.
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</details>
+
+@code {
+    private const int GueltigkeitTage = 14;
+
+    private OdooTestStatus? _status;
+    private OdooTestPruefung? _pruefung;
+    private string? _fehler;
+    private bool _sende;
+    private bool _zielGespeichert;
+
+    private string _url = "";
+    private string _datenbank = "";
+    private string _benutzer = "";
+    private string _apiKey = "";
+    private DateOnly? _gueltigBis;
+    private string _ziel = "Aus";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Uebernehmen(await Http.GetFromJsonAsync<OdooTestStatus>("api/odoo-test"));
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private void Uebernehmen(OdooTestStatus? status)
+    {
+        if (status is null)
+            return;
+        _status = status;
+        _url = status.Url;
+        _datenbank = status.Datenbank;
+        _benutzer = status.Benutzer;
+        _apiKey = "";
+        _gueltigBis = status.GueltigBis;
+        _ziel = status.SchreibZiel;
+    }
+
+    private bool Eingerichtet => _status is { Url.Length: > 0, ApiKeyGesetztAm: not null };
+
+    private string Kurzstatus() => _status switch
+    {
+        null => "…",
+        _ when !Eingerichtet => "nicht eingerichtet",
+        { Abgelaufen: true } => "abgelaufen",
+        { TageRest: { } tage } => tage == 0 ? "läuft heute ab" : $"noch {tage} {(tage == 1 ? "Tag" : "Tage")}",
+        _ => "eingerichtet",
+    };
+
+    private string StandKlasse() => _status switch
+    {
+        _ when !Eingerichtet => "",
+        { Abgelaufen: true } => "kritisch",
+        { TageRest: <= 3 } => "warnung",
+        _ => "gut",
+    };
+
+    private string StandText() => _status switch
+    {
+        _ when !Eingerichtet => "noch nicht eingerichtet",
+        { Abgelaufen: true, GueltigBis: { } bis } => $"abgelaufen seit {bis:dd.MM.yyyy} — bitte die neue Testdatenbank eintragen",
+        { GueltigBis: { } bis, TageRest: { } tage } =>
+            $"gültig bis {bis:dd.MM.yyyy} ({(tage == 0 ? "läuft heute ab" : $"noch {tage} {(tage == 1 ? "Tag" : "Tage")}")})",
+        _ => "eingerichtet, ohne Ablaufdatum",
+    };
+
+    private async Task SpeichernAsync()
+    {
+        _fehler = null;
+        _pruefung = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync("api/odoo-test",
+                new OdooTestSpeichern(_url, _datenbank, _benutzer, _apiKey, _gueltigBis));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            Uebernehmen(await antwort.Content.ReadFromJsonAsync<OdooTestStatus>());
+            await PruefungHolenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private async Task PruefenAsync()
+    {
+        _fehler = null;
+        _pruefung = null;
+        _sende = true;
+        try
+        {
+            await PruefungHolenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private async Task PruefungHolenAsync()
+    {
+        var antwort = await Http.PostAsync("api/odoo-test/pruefen", null);
+        if (antwort.IsSuccessStatusCode)
+            _pruefung = await antwort.Content.ReadFromJsonAsync<OdooTestPruefung>();
+        else
+            _fehler = await antwort.Content.ReadAsStringAsync();
+    }
+
+    private async Task ZielSpeichernAsync()
+    {
+        _fehler = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync("api/odoo-test/schreibziel", new OdooSchreibZielSetzen(_ziel));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            var status = await antwort.Content.ReadFromJsonAsync<OdooTestStatus>();
+            if (status is not null)
+            {
+                // Nur das Ziel übernehmen — ungespeicherte Eingaben im Formular bleiben stehen
+                _status = status;
+                _ziel = status.SchreibZiel;
+            }
+            _zielGespeichert = true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+}
