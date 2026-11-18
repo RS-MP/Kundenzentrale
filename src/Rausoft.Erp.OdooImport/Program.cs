@@ -89,6 +89,13 @@ if (args.Contains("anhangtest"))
         return 1;
     }
 }
+// Modus "anfragen-analyse": zählt, was Odoo zu früheren Website-Anfragen enthält
+// (Verkaufschancen mit Formular- und Herkunftsfeldern) — nur lesen.
+if (args.Contains("anfragen-analyse"))
+{
+    await new AnfragenAnalyse(odoo).AusfuehrenAsync();
+    return 0;
+}
 if (args.Contains("chatter-import"))
 {
     await new ChatterImporter(odoo, dryRun: args.Contains("--dry-run"), nurKunde: Option("--kunde"),

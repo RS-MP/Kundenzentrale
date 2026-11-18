@@ -33,6 +33,12 @@ Option dokumentiert.
   90 Tagen. Nach Odoo wird nichts geschrieben. Optional in der Administration:
   `Anfragen.Kampagnen` mit „Nummer = Name; Nummer = Name“ füllen, dann zeigt die
   Herkunft den Kampagnennamen statt der Nummer.
+- [ ] **Website-Anfragen in Odoo auswerten (18.11.2026):** keine Migration. Unter
+  Administration → Odoo-Anbindung → „Website-Anfragen auswerten“ starten (nur lesen,
+  Produktiv-Anbindung). Der Bericht zählt je Jahr, wie viele Verkaufschancen ein Formular
+  und Herkunftsfelder tragen, und nennt fehlende bzw. unbekannte eigene Felder — er enthält
+  keine Namen. Bericht an Claude geben: danach wird entschieden, ob und ab wann die alten
+  Anfragen übernommen werden. Konsole: `Rausoft.Erp.OdooImport.exe anfragen-analyse`.
 - [ ] **Odoo-Testdatenbank eintragen (17.11.2026):** Migration `OdooTestdatenbank` (nur
   Einstellungen) läuft beim Start von selbst. Unter Administration → „Odoo-Testdatenbank“
   Adresse, Datenbank, API-Benutzer, API-Key und „gültig bis“ der Odoo-Testdatenbank

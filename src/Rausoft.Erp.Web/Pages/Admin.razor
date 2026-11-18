@@ -320,6 +320,13 @@
                 <input type="checkbox" @bind="_chatterAnhaengeLaden" disabled="@(_chatter?.Laeuft == true)" />
                 Anhänge zusätzlich herunterladen (Archiv vor der Odoo-Abschaltung)
             </label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px">
+                <button class="knopf sekundaer" disabled="@(_chatter?.Laeuft == true)" @onclick='() => ChatterStartenAsync("anfragen")'>Website-Anfragen auswerten</button>
+                <span style="color:var(--muted); font-size:12.5px">
+                    Zählt, wie viele Verkaufschancen in Odoo ein Formular und Herkunftsfelder tragen (nur lesen) —
+                    Grundlage für die Übernahme alter Anfragen.
+                </span>
+            </div>
             @if (_chatter?.Fehler is not null)
             {
                 <div class="krittext" style="margin-top:6px; font-size:13px">@_chatter.Fehler</div>
@@ -823,6 +830,7 @@
             "analyse" => "Analyse",
             "dryrun" => "Dry-Run",
             "import" => "Import",
+            "anfragen" => "Auswertung der Website-Anfragen",
             _ => "Lauf",
         };
         var kunde = _chatter.Kunde is { Length: > 0 } k ? $" für {k}" : "";
