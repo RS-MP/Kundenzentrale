@@ -128,6 +128,68 @@ public class VertragsGruppeTests
         Assert.True(VertragsGruppe.IstVertraulich([true, true]));
     }
 
+    // --- Dokumente innerhalb einer Akte: Anlage zu einem anderen Bestandteil ----
+
+    private static Vertragsbestandteil Dokument(int id, int vertragId = 1, int? gehoertZuId = null) => new()
+    {
+        Id = id,
+        VertragId = vertragId,
+        Typ = BestandteilTyp.Nachtrag,
+        Titel = $"Dokument {id}",
+        GehoertZuId = gehoertZuId,
+    };
+
+    [Fact]
+    public void Anlage_GleicheAkte_Erlaubt()
+    {
+        Assert.Null(VertragsGruppe.AnlageFehler(Dokument(2), Dokument(1), anlageHatAnlagen: false));
+    }
+
+    [Fact]
+    public void Anlage_AnSichSelbst_Abgelehnt()
+    {
+        var dokument = Dokument(1);
+        Assert.Contains("eigene Anlage", VertragsGruppe.AnlageFehler(dokument, dokument, anlageHatAnlagen: false));
+    }
+
+    [Fact]
+    public void Anlage_AndereAkte_Abgelehnt()
+    {
+        var fehler = VertragsGruppe.AnlageFehler(
+            Dokument(2, vertragId: 7), Dokument(1, vertragId: 8), anlageHatAnlagen: false);
+        Assert.Contains("selben Vertragsakte", fehler);
+    }
+
+    [Fact]
+    public void Anlage_HauptdokumentIstSelbstAnlage_KeineKette()
+    {
+        var fehler = VertragsGruppe.AnlageFehler(Dokument(3), Dokument(2, gehoertZuId: 1), anlageHatAnlagen: false);
+        Assert.Contains("selbst eine Anlage", fehler);
+    }
+
+    [Fact]
+    public void Anlage_HatEigeneAnlagen_KeineKette()
+    {
+        var fehler = VertragsGruppe.AnlageFehler(Dokument(1), Dokument(9), anlageHatAnlagen: true);
+        Assert.Contains("hat selbst Anlagen", fehler);
+    }
+
+    [Fact]
+    public void Anlage_Kreis_Abgelehnt()
+    {
+        // 2 ist Anlage zu 1 — umgekehrt ergäbe einen Kreis
+        var haupt = Dokument(1);
+        var anlage = Dokument(2, gehoertZuId: 1);
+        Assert.NotNull(VertragsGruppe.AnlageFehler(haupt, anlage, anlageHatAnlagen: true));
+        Assert.NotNull(VertragsGruppe.AnlageFehler(haupt, anlage, anlageHatAnlagen: false));
+    }
+
+    [Fact]
+    public void Anlage_Umhaengen_AnAnderesHauptdokument_Erlaubt()
+    {
+        Assert.Null(VertragsGruppe.AnlageFehler(Dokument(2, gehoertZuId: 1), Dokument(3), anlageHatAnlagen: false));
+    }
+
     // --- Handpflege übersteht den erneuten Bestandsscan ------------------------
 
     [Fact]
@@ -140,6 +202,7 @@ public class VertragsGruppeTests
         var umbenannt = new Vertragsbestandteil
         {
             Id = 10, Typ = BestandteilTyp.Nachtrag, Titel = "Preisanpassung 2024", Vertrag = vertrag,
+            GehoertZuId = 5, // von Hand als Anlage zugeordnet
         };
         vertrag.Bestandteile.Add(umbenannt);
 
@@ -148,6 +211,8 @@ public class VertragsGruppeTests
 
         Assert.NotSame(umbenannt, neu);
         Assert.Equal("Preisanpassung 2024", umbenannt.Titel);
+        Assert.Equal(5, umbenannt.GehoertZuId);
+        Assert.Null(neu.GehoertZuId); // neue Dateien kommen eigenständig dazu
         Assert.Equal(2, vertrag.Bestandteile.Count);
         // Bezeichnung und Zuordnung der Akte fasst der Scan nicht an
         Assert.Equal("Wartungsvertrag ID.prove", vertrag.Bezeichnung);

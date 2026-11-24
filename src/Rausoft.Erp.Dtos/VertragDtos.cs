@@ -29,8 +29,13 @@ public record BestandteilKurz(string Kuerzel, string Name, int Anzahl);
 /// <summary>
 /// Ein Dokument (Bestandteil) in Listen: „NT · Nachtrag 2 · Preisanpassung 2024 · 12.03.2024".
 /// Titel ist leer, wenn der Bestandteil vertraulich ist und die Rolle fehlt.
+/// IstAnlage: steht eingerückt unter dem Dokument davor, dem es als Anlage zugeordnet ist.
 /// </summary>
-public record VertragDokumentKurz(string Kuerzel, string Art, string Titel, DateOnly? Stand, bool Vertraulich);
+public record VertragDokumentKurz(
+    string Kuerzel, string Art, string Titel, DateOnly? Stand, bool Vertraulich, bool IstAnlage);
+
+/// <summary>Bestandteil einem anderen derselben Akte als Anlage zuordnen — null löst die Zuordnung.</summary>
+public record BestandteilZuordnen(int? GehoertZuId);
 
 /// <summary>Anhang eines Hauptvertrags in Listen — eigener Vertrag mit eigener Nummer und eigenen Dokumenten.</summary>
 public record VertragAnhangEintrag(
@@ -106,7 +111,9 @@ public record BestandteilDetail(
     bool Vertraulich,
     bool Gesperrt,
     string? Kurzinfo,
-    List<DokumentEintrag> Dokumente);
+    List<DokumentEintrag> Dokumente,
+    // Anlage zu diesem Bestandteil derselben Akte (11/2026) — steht in der Liste direkt darunter
+    int? GehoertZuId);
 
 /// <summary>Bestandteil korrigieren — z. B. falsch erkanntes Dokumentdatum (Quelle wird „Manuell").</summary>
 public record BestandteilAendern(

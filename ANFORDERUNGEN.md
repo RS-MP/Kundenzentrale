@@ -127,8 +127,15 @@ Anhang zusammengehören — bisher musste jeder geöffnet werden.
 - **Rechte:** wie das übrige Vertragsbearbeiten. Besteht ein Vertrag nur aus
   vertraulichen Bestandteilen, brauchen Umbenennen und Zuordnen die Rolle
   „Vertrauliche Verträge“. Die Bezeichnung selbst sehen alle (wie die Kurzinfo).
-- **Offen:** Dokumente innerhalb einer Akte untereinander gruppieren (z. B. Anlage zu
-  einem bestimmten Nachtrag) ist nicht gebaut — bisher ordnet die Akte nach Dokumentart.
+- **Dokumente innerhalb einer Akte gruppieren (ergänzt 24.11.2026, MP: „Ja, bauen“):**
+  Ein Dokument lässt sich einem anderen derselben Akte als **Anlage** zuordnen (z. B.
+  das Preisblatt zu einem bestimmten Nachtrag) — im Formular „Umbenennen · Zuordnen“
+  über „Anlage zu“, dort auch wieder lösbar. Anlagen stehen in Vertragsansicht, Listen
+  und Kundenakte eingerückt unter ihrem Hauptdokument. Gleiche Regeln wie bei Verträgen:
+  nicht an sich selbst, nur innerhalb derselben Akte, genau eine Ebene. Dokumentart,
+  Datum und Dateien bleiben unverändert. Ist eines der beiden Dokumente vertraulich,
+  braucht es die Rolle „Vertrauliche Verträge“. Der Bestandsscan ordnet nichts von
+  selbst zu und ändert keine Zuordnung.
 
 ## Aufgabenverwaltung (Muster: rausoft-Service-Portal)
 

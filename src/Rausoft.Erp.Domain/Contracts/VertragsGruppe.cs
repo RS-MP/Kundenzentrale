@@ -32,6 +32,26 @@ public static class VertragsGruppe
         return null;
     }
 
+    /// <summary>
+    /// Dokumente innerhalb einer Akte gruppieren: Prüft, ob der Bestandteil
+    /// <paramref name="anlage"/> dem Bestandteil <paramref name="haupt"/> als Anlage
+    /// zugeordnet werden darf. Gleiche Regeln wie bei Verträgen — nicht an sich
+    /// selbst, nur innerhalb derselben Vertragsakte, genau eine Ebene.
+    /// </summary>
+    /// <param name="anlageHatAnlagen">Der künftigen Anlage sind selbst schon Anlagen zugeordnet.</param>
+    public static string? AnlageFehler(Vertragsbestandteil anlage, Vertragsbestandteil haupt, bool anlageHatAnlagen)
+    {
+        if (anlage.Id == haupt.Id)
+            return "Ein Dokument kann nicht seine eigene Anlage sein.";
+        if (anlage.VertragId != haupt.VertragId)
+            return "Anlage und Hauptdokument müssen zur selben Vertragsakte gehören.";
+        if (haupt.GehoertZuId is not null)
+            return $"„{haupt.Titel}“ ist selbst eine Anlage — bitte das Hauptdokument wählen.";
+        if (anlageHatAnlagen)
+            return $"„{anlage.Titel}“ hat selbst Anlagen — diese zuerst lösen oder direkt dem neuen Hauptdokument zuordnen.";
+        return null;
+    }
+
     /// <summary>Dieselbe Vertragspartei: derselbe Kunde oder derselbe Partner.</summary>
     public static bool GleichePartei(Vertrag a, Vertrag b) =>
         (a.KundeId is not null && a.KundeId == b.KundeId)

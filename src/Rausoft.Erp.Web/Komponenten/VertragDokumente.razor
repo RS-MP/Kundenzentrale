@@ -27,7 +27,11 @@
     private RenderFragment Zeilen => @<text>
         @foreach (var dokument in Dokumente!)
         {
-            <div class="vdok-zeile">
+            <div class="vdok-zeile @(dokument.IstAnlage ? "vdok-anlage" : "")">
+                @if (dokument.IstAnlage)
+                {
+                    <span class="vanhang-pfeil" title="Anlage zum Dokument darüber">↳</span>
+                }
                 <span class="typ" title="@dokument.Art">@dokument.Kuerzel</span>
                 <span class="vdok-text">
                     @dokument.Art

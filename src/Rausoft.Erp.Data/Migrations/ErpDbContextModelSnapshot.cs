@@ -123,6 +123,9 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int>("Folge")
                         .HasColumnType("int");
 
+                    b.Property<int?>("GehoertZuId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Kurzinfo")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
@@ -146,9 +149,14 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("GehoertZuId");
+
                     b.HasIndex("VertragId");
 
-                    b.ToTable("Vertragsbestandteile");
+                    b.ToTable("Vertragsbestandteile", t =>
+                        {
+                            t.HasCheckConstraint("CK_Vertragsbestandteile_KeineSelbstanlage", "[GehoertZuId] IS NULL OR [GehoertZuId] <> [Id]");
+                        });
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertragsdokument", b =>
@@ -2518,11 +2526,18 @@ namespace Rausoft.Erp.Data.Migrations
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertragsbestandteil", b =>
                 {
+                    b.HasOne("Rausoft.Erp.Domain.Contracts.Vertragsbestandteil", "GehoertZu")
+                        .WithMany("Anlagen")
+                        .HasForeignKey("GehoertZuId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Rausoft.Erp.Domain.Contracts.Vertrag", "Vertrag")
                         .WithMany("Bestandteile")
                         .HasForeignKey("VertragId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("GehoertZu");
 
                     b.Navigation("Vertrag");
                 });
@@ -3131,6 +3146,8 @@ namespace Rausoft.Erp.Data.Migrations
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertragsbestandteil", b =>
                 {
+                    b.Navigation("Anlagen");
+
                     b.Navigation("Dokumente");
                 });
 

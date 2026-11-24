@@ -454,6 +454,11 @@ public class ErpDbContext(
             e.Property(b => b.Titel).HasMaxLength(200);
             e.Property(b => b.Beschreibung).HasColumnType("nvarchar(max)");
             e.Property(b => b.Kurzinfo).HasMaxLength(300);
+            // Anlage → Hauptdokument innerhalb derselben Akte (Regeln: VertragsGruppe.AnlageFehler)
+            e.HasOne(b => b.GehoertZu).WithMany(b => b.Anlagen)
+                .HasForeignKey(b => b.GehoertZuId).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint("CK_Vertragsbestandteile_KeineSelbstanlage",
+                "[GehoertZuId] IS NULL OR [GehoertZuId] <> [Id]"));
             // Bestandteile mit Dokumenten sind nicht löschbar (Unveränderlichkeit).
             e.HasMany(b => b.Dokumente).WithOne(d => d.Vertragsbestandteil!)
                 .HasForeignKey(d => d.VertragsbestandteilId).OnDelete(DeleteBehavior.Restrict);

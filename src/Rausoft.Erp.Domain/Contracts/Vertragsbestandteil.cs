@@ -43,6 +43,18 @@ public class Vertragsbestandteil
     /// <summary>Für alle sichtbare Kurzbeschreibung, z. B. „Sonderpreis 10 % auf Wartung bis 2027".</summary>
     public string? Kurzinfo { get; set; }
 
+    /// <summary>
+    /// Anlage zu einem anderen Bestandteil derselben Vertragsakte (11/2026), z. B.
+    /// das Preisblatt zu einem bestimmten Nachtrag. Reine Anzeige-Gruppierung:
+    /// Dokumentart, Datum und Dokumente bleiben eigenständig. Genau eine Ebene,
+    /// Regeln in <see cref="VertragsGruppe.AnlageFehler"/>. Reine Handpflege —
+    /// der Bestandsscan setzt und ändert die Zuordnung nie.
+    /// </summary>
+    public int? GehoertZuId { get; set; }
+    public Vertragsbestandteil? GehoertZu { get; set; }
+
+    public List<Vertragsbestandteil> Anlagen { get; set; } = [];
+
     /// <summary>Maßgebliches Datum für Reihenfolge und Anzeige.</summary>
     public DateOnly? Stand => UnterzeichnetAm ?? Dokumentdatum;
 

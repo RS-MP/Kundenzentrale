@@ -82,6 +82,14 @@ Option dokumentiert.
   „Google organisch“ → „gewonnen“. Der Chip „Alle“ filtert kanalübergreifend. Ein zweiter
   Klick oder „Filter aufheben“ zeigt wieder alles. Keine Migration.
 
+- [ ] **Publish aktualisieren (24.11.2026, Dokumente in einer Akte gruppieren):**
+  Migration `VertragsbestandteilAnlagen` (eine neue Spalte an `Vertragsbestandteile`)
+  läuft beim Start von selbst, ändert keine vorhandenen Daten. Wirkung: In der
+  Vertragsansicht heißt der Knopf am Dokument „Umbenennen · Zuordnen“; im Formular gibt
+  es „Anlage zu“ — damit hängt ein Dokument unter einem anderen derselben Akte (z. B.
+  Preisblatt unter dem Nachtrag) und steht in Vertragsansicht, Vertragsliste und
+  Kundenakte eingerückt darunter. „— eigenständiges Dokument —“ löst die Zuordnung wieder.
+
 - [ ] **Publish aktualisieren (24.11.2026, Verträge umbenennen und zusammenfassen):**
   Migration `VertragBezeichnungUndAnhaenge` (zwei neue Spalten an `Vertraege`) läuft beim
   Start von selbst; sie trägt bei Verträgen aus einer Vorlage einmalig den Vorlagennamen

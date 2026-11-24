@@ -152,6 +152,10 @@ in Phase 3 dazu (Kette Angebot → Vertrag).
 Typisiert (explizite Anforderung: „Wer hat eine Sondervereinbarung?"):
 `VertragId`, `Typ` (Enum: Lizenzvertrag / Avv / Nda / Sondervereinbarung /
 Nachtrag / Sonstiges), `Titel`, `Beschreibung?`, `UnterzeichnetAm?`.
+`GehoertZuId?` (FK → Vertragsbestandteil, Migration `VertragsbestandteilAnlagen`,
+24.11.2026): Anlage zu einem anderen Bestandteil **derselben Akte** — reine
+Anzeige-Gruppierung, genau eine Ebene (Regeln: `VertragsGruppe.AnlageFehler`),
+reine Handpflege.
 
 ### Vertragsdokument
 Unveränderliche Versionen (Leitplanke) — Dateien bleiben im bestehenden

@@ -204,6 +204,9 @@ h1 .vname { margin-left: 8px; }
 .vanhang-info { color: var(--ink2); font-size: 12.5px; margin-left: 20px; }
 .vanhang-dokumente { margin-left: 20px; }
 .vgruppe-hinweis { color: var(--muted); font-size: 12.5px; margin: 6px 0; }
+/* Dokumente innerhalb einer Akte: Anlage eingerückt unter ihrem Hauptdokument */
+.vdok-anlage { padding-left: 14px; }
+.banlage { margin-left: 18px; padding-left: 12px; border-left: 2px solid var(--border-strong); }
 
 /* Status-Punkt: der einzige Farbtupfer */
 .status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }

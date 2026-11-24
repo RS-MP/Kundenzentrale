@@ -145,18 +145,27 @@ else
                             optional NDA und Sondervereinbarungen.
                         </div>
                     }
-                    @{ var mehrereArten = _vertrag.Bestandteile.Select(b => b.Typ).Distinct().Count() > 1; string? letzteArt = null; }
+                    @{ var mehrereArten = _vertrag.Bestandteile.Where(b => b.GehoertZuId is null).Select(b => b.Typ).Distinct().Count() > 1; string? letzteArt = null; }
                     @foreach (var bestandteil in _vertrag.Bestandteile)
                     {
-                        @* Gruppiert nach Dokumentart (API-Reihenfolge), innerhalb neuestes oben *@
-                        @if (mehrereArten && bestandteil.Typ != letzteArt)
+                        @* Gruppiert nach Dokumentart (API-Reihenfolge), innerhalb neuestes oben;
+                           Anlagen stehen eingerückt direkt unter ihrem Hauptdokument *@
+                        var istAnlage = bestandteil.GehoertZuId is not null;
+                        @if (mehrereArten && !istAnlage && bestandteil.Typ != letzteArt)
                         {
                             <div class="dokart-gruppe">@Dokumentarten.Mehrzahl(bestandteil.Typ)</div>
                         }
-                        letzteArt = bestandteil.Typ;
-                        <div style="margin-bottom:18px">
+                        if (!istAnlage)
+                        {
+                            letzteArt = bestandteil.Typ;
+                        }
+                        <div class="@(istAnlage ? "banlage" : "")" style="margin-bottom:18px">
                             @* Einheitlich: Kürzel + Typ (ggf. mit laufender Nummer) fett, Titel dezent dahinter *@
                             <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap">
+                                @if (istAnlage)
+                                {
+                                    <span class="vanhang-pfeil" title="Anlage zum Dokument darüber">↳ Anlage</span>
+                                }
                                 <span class="typ" title="@bestandteil.Typ">@bestandteil.Kuerzel</span>
                                 <strong>@bestandteil.Typ@(bestandteil.LaufendeNummer is { } nr ? $" {nr}" : "")</strong>
                                 @if (!bestandteil.Gesperrt && !string.Equals(bestandteil.Titel, bestandteil.Typ, StringComparison.OrdinalIgnoreCase))
@@ -184,7 +193,7 @@ else
                                 @if (!bestandteil.Gesperrt)
                                 {
                                     <button class="mehr" style="margin-left:auto" @onclick="() => BearbeitenOeffnen(bestandteil)"
-                                            title="Titel, Dokumentart, Datum und Kurzinfo dieses Dokuments ändern">Umbenennen · Korrigieren</button>
+                                            title="Titel, Dokumentart, Datum und Kurzinfo dieses Dokuments ändern oder es als Anlage einem anderen Dokument zuordnen">Umbenennen · Zuordnen</button>
                                 }
                             </div>
                             @if (bestandteil.Kurzinfo is not null)
@@ -224,6 +233,26 @@ else
                                         Kurzinfo für alle
                                         <input type="text" maxlength="300" @bind="_bestandteilAenderung.Kurzinfo" />
                                     </label>
+                                    @* Dokumente gruppieren: Anlage zu einem anderen Dokument dieser Akte *@
+                                    @if (_vertrag.Bestandteile.Any(b => b.GehoertZuId == bestandteil.Id))
+                                    {
+                                        <div class="vgruppe-hinweis breit">
+                                            Diesem Dokument sind Anlagen zugeordnet — es kann deshalb nicht selbst Anlage sein.
+                                        </div>
+                                    }
+                                    else if (MoeglicheHauptdokumente(bestandteil).Count > 0 || _bestandteilAenderung.GehoertZuId != 0)
+                                    {
+                                        <label class="breit">
+                                            Anlage zu
+                                            <select @bind="_bestandteilAenderung.GehoertZuId">
+                                                <option value="0">— eigenständiges Dokument —</option>
+                                                @foreach (var anderes in MoeglicheHauptdokumente(bestandteil))
+                                                {
+                                                    <option value="@anderes.Id">@DokumentText(anderes)</option>
+                                                }
+                                            </select>
+                                        </label>
+                                    }
                                     @if (_vertrag.DarfVertrauliche)
                                     {
                                         <label class="breit" style="flex-direction:row; align-items:center; gap:6px">
@@ -723,6 +752,24 @@ else
         _bestandteilAenderung.Dokumentdatum = bestandteil.Dokumentdatum;
         _bestandteilAenderung.Vertraulich = bestandteil.Vertraulich;
         _bestandteilAenderung.Kurzinfo = bestandteil.Kurzinfo;
+        _bestandteilAenderung.GehoertZuId = bestandteil.GehoertZuId ?? 0;
+    }
+
+    /// <summary>
+    /// Als Hauptdokument kommen die übrigen eigenständigen Dokumente der Akte in Frage —
+    /// keine Anlagen (genau eine Ebene) und nichts, was für den Benutzer gesperrt ist.
+    /// </summary>
+    private List<BestandteilDetail> MoeglicheHauptdokumente(BestandteilDetail bestandteil) =>
+        _vertrag!.Bestandteile
+            .Where(b => b.Id != bestandteil.Id && b.GehoertZuId is null && !b.Gesperrt)
+            .ToList();
+
+    private static string DokumentText(BestandteilDetail b)
+    {
+        var art = b.LaufendeNummer is { } nr ? $"{b.Typ} {nr}" : b.Typ;
+        var titel = string.Equals(b.Titel, b.Typ, StringComparison.OrdinalIgnoreCase) ? "" : $" · {b.Titel}";
+        var datum = (b.UnterzeichnetAm ?? b.Dokumentdatum) is { } d ? $" ({d:dd.MM.yyyy})" : "";
+        return art + titel + datum;
     }
 
     private async Task BestandteilSpeichernAsync()
@@ -743,6 +790,20 @@ else
             {
                 _fehler = await antwort.Content.ReadAsStringAsync();
                 return;
+            }
+            // Zuordnung als Anlage nur schicken, wenn sie sich geändert hat (0 = eigenständig)
+            int? gehoertZu = _bestandteilAenderung.GehoertZuId == 0 ? null : _bestandteilAenderung.GehoertZuId;
+            if (gehoertZu != _bearbeiteterBestandteil.GehoertZuId)
+            {
+                var zuordnung = await Http.PutAsJsonAsync(
+                    $"api/vertraege/bestandteile/{_bearbeiteterBestandteil.Id}/gehoert-zu",
+                    new BestandteilZuordnen(gehoertZu));
+                if (!zuordnung.IsSuccessStatusCode)
+                {
+                    _fehler = await zuordnung.Content.ReadAsStringAsync();
+                    await LadenAsync();
+                    return;
+                }
             }
             _bearbeiteterBestandteil = null;
             await LadenAsync();
@@ -850,5 +911,7 @@ else
         public DateOnly? Dokumentdatum { get; set; }
         public bool Vertraulich { get; set; }
         public string? Kurzinfo { get; set; }
+        /// <summary>Anlage zu diesem Bestandteil; 0 = eigenständiges Dokument.</summary>
+        public int GehoertZuId { get; set; }
     }
 }

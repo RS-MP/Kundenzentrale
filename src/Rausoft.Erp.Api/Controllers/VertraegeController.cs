@@ -118,7 +118,7 @@ public class VertraegeController(
     // --- Zeilen für Liste, Anhänge und Auswahl ---------------------------------
 
     private sealed record BestandteilZeile(
-        int Id, BestandteilTyp Typ, DateOnly? Stand, int Folge, string Titel, bool Vertraulich);
+        int Id, BestandteilTyp Typ, DateOnly? Stand, int Folge, string Titel, bool Vertraulich, int? GehoertZuId);
 
     /// <summary>Was Liste, Anhang-Anzeige und Zuordnungs-Auswahl von einem Vertrag brauchen.</summary>
     private sealed record VertragZeile(
@@ -140,7 +140,7 @@ public class VertraegeController(
             v.Bestandteile.Where(b => b.Kurzinfo != null).Select(b => b.Kurzinfo!).ToList(),
             v.Bestandteile
                 .Select(b => new BestandteilZeile(
-                    b.Id, b.Typ, b.UnterzeichnetAm ?? b.Dokumentdatum, b.Folge, b.Titel, b.Vertraulich))
+                    b.Id, b.Typ, b.UnterzeichnetAm ?? b.Dokumentdatum, b.Folge, b.Titel, b.Vertraulich, b.GehoertZuId))
                 .ToList());
 
     private static DateOnly? Ende(VertragZeile v, DateOnly heute) => new Vertrag
@@ -154,22 +154,19 @@ public class VertraegeController(
     }.NaechstesVertragsende(heute);
 
     private static List<BestandteilRang> Raenge(IEnumerable<BestandteilZeile> teile) =>
-        teile.Select(t => new BestandteilRang(t.Id, t.Typ, t.Stand, t.Folge)).ToList();
+        teile.Select(t => new BestandteilRang(t.Id, t.Typ, t.Stand, t.Folge, t.GehoertZuId)).ToList();
 
     /// <summary>
     /// Dokumente einer Akte für Listen — gleiche Reihenfolge wie in der Vertragsansicht
-    /// (nach Dokumentart, innerhalb neuestes oben). Vertrauliche Titel verlassen den
-    /// Server nur mit der Rolle „Vertrauliche Verträge".
+    /// (nach Dokumentart, innerhalb neuestes oben, Anlagen unter ihrem Hauptdokument).
+    /// Vertrauliche Titel verlassen den Server nur mit der Rolle „Vertrauliche Verträge".
     /// </summary>
     private static List<VertragDokumentKurz> DokumenteKurz(List<BestandteilZeile> teile, bool darfVertrauliche)
     {
         var raenge = Raenge(teile);
         var nummern = LaufendeNummern(raenge);
         var nachId = teile.ToDictionary(t => t.Id);
-        return raenge
-            .GroupBy(r => Dienste.Dokumentarten.Rang(r.Typ))
-            .OrderBy(g => g.Key)
-            .SelectMany(g => Chronologisch(g).AsEnumerable().Reverse())
+        return Anzeigereihenfolge(raenge)
             .Select(r =>
             {
                 var teil = nachId[r.Id];
@@ -177,7 +174,8 @@ public class VertraegeController(
                     Dienste.Dokumentarten.Kuerzel(r.Typ),
                     Dienste.Dokumentarten.Name(r.Typ) + (nummern.TryGetValue(r.Id, out var n) ? $" {n}" : ""),
                     teil.Vertraulich && !darfVertrauliche ? "" : teil.Titel,
-                    r.Stand, teil.Vertraulich);
+                    r.Stand, teil.Vertraulich,
+                    r.GehoertZuId is { } haupt && nachId.ContainsKey(haupt));
             })
             .ToList();
     }
@@ -243,7 +241,26 @@ public class VertraegeController(
 
     // --- Reihenfolge der Dokumente (FEEDBACK Nr. 18) ---------------------------
 
-    private record BestandteilRang(int Id, BestandteilTyp Typ, DateOnly? Stand, int Folge);
+    private record BestandteilRang(int Id, BestandteilTyp Typ, DateOnly? Stand, int Folge, int? GehoertZuId = null);
+
+    /// <summary>
+    /// Reihenfolge der Dokumente in Vertragsansicht und Listen: gruppiert nach Dokumentart
+    /// (Hauptverträge zuerst), innerhalb neuestes oben. Anlagen (11/2026) stehen direkt
+    /// unter ihrem Hauptdokument — dort in zeitlicher Folge (Anlage 1, 2, 3 …), unabhängig
+    /// von ihrer eigenen Dokumentart.
+    /// </summary>
+    private static List<BestandteilRang> Anzeigereihenfolge(List<BestandteilRang> teile)
+    {
+        var vorhanden = teile.Select(t => t.Id).ToHashSet();
+        bool IstAnlage(BestandteilRang t) => t.GehoertZuId is { } haupt && vorhanden.Contains(haupt);
+        var anlagenVon = teile.Where(IstAnlage).ToLookup(t => t.GehoertZuId!.Value);
+        return teile.Where(t => !IstAnlage(t))
+            .GroupBy(t => Dienste.Dokumentarten.Rang(t.Typ))
+            .OrderBy(g => g.Key)
+            .SelectMany(g => Chronologisch(g).AsEnumerable().Reverse())
+            .SelectMany(t => Chronologisch(anlagenVon[t.Id]).Prepend(t))
+            .ToList();
+    }
 
     /// <summary>
     /// Zeitliche Reihenfolge, älteste zuerst: Stand (unterzeichnet bzw.
@@ -538,6 +555,56 @@ public class VertraegeController(
                 // Den Verlauf sehen alle — vertrauliche Titel gehören nicht hinein
                 $"Vertrag {bestandteil.Vertrag.Vertragsnummer}: {VerlaufsName(bestandteil)} — {string.Join(", ", aenderungen)}",
                 null, bestandteil.VertragId, ct);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Dokumente innerhalb einer Akte gruppieren (11/2026): Bestandteil einem anderen
+    /// derselben Akte als Anlage zuordnen — oder mit <c>null</c> wieder lösen. Es ändert
+    /// sich nur die Anzeige; Dokumentart, Daten und Dokumentversionen bleiben unberührt.
+    /// Regeln: <see cref="VertragsGruppe.AnlageFehler"/>.
+    /// </summary>
+    [HttpPut("bestandteile/{bestandteilId:int}/gehoert-zu")]
+    public async Task<IActionResult> BestandteilZuordnen(
+        int bestandteilId, BestandteilZuordnen eingabe, CancellationToken ct)
+    {
+        var bestandteil = await db.Vertragsbestandteile
+            .Include(b => b.Vertrag).Include(b => b.GehoertZu)
+            .FirstOrDefaultAsync(b => b.Id == bestandteilId, ct);
+        if (bestandteil is null)
+            return NotFound();
+        if (eingabe.GehoertZuId == bestandteil.GehoertZuId)
+            return NoContent();
+        var darfVertrauliche = await DarfVertraulicheAsync(ct);
+        // Vertrauliches umhängen (auch: an oder von Vertraulichem) nur mit Berechtigung
+        if (!darfVertrauliche && (bestandteil.Vertraulich || bestandteil.GehoertZu is { Vertraulich: true }))
+            return KeinZugriffVertraulich();
+
+        if (eingabe.GehoertZuId is not { } hauptId)
+        {
+            await VerlaufAsync(bestandteil.Vertrag!.KundeId,
+                $"Vertrag {bestandteil.Vertrag.Vertragsnummer}: {VerlaufsName(bestandteil)} ist keine Anlage mehr zu {VerlaufsName(bestandteil.GehoertZu!)}",
+                null, bestandteil.VertragId, ct);
+            bestandteil.GehoertZuId = null;
+            await db.SaveChangesAsync(ct);
+            return NoContent();
+        }
+
+        var haupt = await db.Vertragsbestandteile.FirstOrDefaultAsync(b => b.Id == hauptId, ct);
+        if (haupt is null)
+            return BadRequest("Das angegebene Hauptdokument existiert nicht.");
+        if (haupt.Vertraulich && !darfVertrauliche)
+            return KeinZugriffVertraulich();
+        var hatAnlagen = await db.Vertragsbestandteile.AnyAsync(b => b.GehoertZuId == bestandteilId, ct);
+        if (VertragsGruppe.AnlageFehler(bestandteil, haupt, hatAnlagen) is { } fehler)
+            return BadRequest(fehler);
+
+        bestandteil.GehoertZuId = haupt.Id;
+        await VerlaufAsync(bestandteil.Vertrag!.KundeId,
+            // Den Verlauf sehen alle — vertrauliche Titel gehören nicht hinein
+            $"Vertrag {bestandteil.Vertrag.Vertragsnummer}: {VerlaufsName(bestandteil)} als Anlage zu {VerlaufsName(haupt)} zugeordnet",
+            null, bestandteil.VertragId, ct);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -1120,15 +1187,11 @@ public class VertraegeController(
     {
         andere ??= [];
         var raenge = vertrag.Bestandteile
-            .Select(b => new BestandteilRang(b.Id, b.Typ, b.Stand, b.Folge)).ToList();
+            .Select(b => new BestandteilRang(b.Id, b.Typ, b.Stand, b.Folge, b.GehoertZuId)).ToList();
         var nummern = LaufendeNummern(raenge);
         var stand = AktuellerStand(raenge);
         var juengsterId = Chronologisch(raenge.Where(r => r.Stand is not null)).LastOrDefault()?.Id;
-        // Gruppiert nach Dokumentart (Hauptverträge zuerst), innerhalb neuestes oben
-        var reihenfolge = raenge
-            .GroupBy(r => Dienste.Dokumentarten.Rang(r.Typ))
-            .OrderBy(g => g.Key)
-            .SelectMany(g => Chronologisch(g).AsEnumerable().Reverse())
+        var reihenfolge = Anzeigereihenfolge(raenge)
             .Select((r, i) => (r.Id, Position: i))
             .ToDictionary(x => x.Id, x => x.Position);
 
@@ -1191,7 +1254,8 @@ public class VertraegeController(
                         string.IsNullOrEmpty(ablage) ? null : Path.GetDirectoryName(Path.Combine(ablage, d.Dateipfad)),
                         d.VorlagenVersion?.Vorlage is null ? null
                             : $"{d.VorlagenVersion.Vorlage.Name} v{d.VorlagenVersion.Nummer}"))
-                    .ToList());
+                    .ToList(),
+            b.GehoertZuId);
     }
 
     internal static string StatusText(VertragsStatus status) => status switch
