@@ -62,6 +62,8 @@ public static class EinstellungsSchluessel
     public const string AnfragenKampagnen = "Anfragen.Kampagnen";
     // Nummern der Odoo-Verkaufschancen, die die Übernahme auslässt (ihre Anfrage wurde hier gelöscht)
     public const string AnfragenOdooUebersprungen = "Anfragen.OdooUebersprungen";
+    // Zuletzt gewählte Phase, Aktivitätsart, Zuweisung, Quelle und Medium beim Anlegen in Odoo (als Namen)
+    public const string AnfragenOdooVorbelegung = "Anfragen.OdooVorbelegung";
 
     // Odoo-Testdatenbank (läuft nach 14 Tagen ab, eigener API-Key als Geheimnis OdooTest.ApiKey)
     // und das Ziel schreibender Odoo-Funktionen — gepflegt über Administration → Odoo-Testdatenbank

@@ -69,7 +69,13 @@ public record AnfrageEintrag(
     int? OdooLeadId = null,
     /// <summary>Ausgang laut Odoo: „offen“, „gewonnen“ oder „verloren“; fehlt ohne Verkaufschance.</summary>
     string? Ergebnis = null,
-    string? VerlustGrund = null);
+    string? VerlustGrund = null,
+    /// <summary>Stand des Anlegens in Odoo aus der Kundenzentrale; fehlt, solange nichts versucht wurde.</summary>
+    AnfrageOdooAnlageInfo? OdooAnlage = null,
+    /// <summary>Warum diese Anfrage (jetzt) nicht in Odoo angelegt werden kann; fehlt, wenn es geht.</summary>
+    string? OdooSperre = null,
+    /// <summary>Der zugeordnete Kunde hat heute ein laufendes Abo oder einen aktiven Vertrag (nur in der Liste gefüllt).</summary>
+    bool HeuteKunde = false);
 
 public record AnfrageKanalZahl(string Kanal, int Anzahl, int DavonKunden, int Gewonnen = 0, int Verloren = 0);
 
@@ -81,4 +87,131 @@ public record AnfragenUebersicht(
     /// <summary>Anfragen, deren zugeordneter Kunde heute ein laufendes Abo oder einen aktiven Vertrag hat.</summary>
     int DavonKunden,
     List<AnfrageKanalZahl> Kanaele,
-    List<AnfrageEintrag> Eintraege);
+    List<AnfrageEintrag> Eintraege,
+    /// <summary>Wohin „In Odoo anlegen“ schreibt: „Aus“, „Test“ oder „Produktiv“.</summary>
+    string OdooZiel = "Aus",
+    /// <summary>Warum gerade gar nicht nach Odoo geschrieben wird (ausgeschaltet, Testdatenbank abgelaufen …).</summary>
+    string? OdooSperre = null);
+
+// ---------- Anlegen in Odoo (Stufe 2) ----------
+
+/// <summary>Stand des Anlegens einer Anfrage in Odoo. Die Nummern gelten nur in der genannten Datenbank.</summary>
+public record AnfrageOdooAnlageInfo(
+    /// <summary>„Test“ oder „Produktiv“.</summary>
+    string Ziel,
+    bool Fertig,
+    /// <summary>Abschluss bzw. Beginn in deutscher Ortszeit.</summary>
+    DateTime Am,
+    int? LeadNr,
+    /// <summary>Verweis auf die Verkaufschance in Odoo; fehlt für eine inzwischen ersetzte Testdatenbank.</summary>
+    string? LeadLink,
+    /// <summary>Fester Text zum letzten fehlgeschlagenen Schritt.</summary>
+    string? Fehler,
+    /// <summary>Der Stand gehört zur Datenbank, in die gerade geschrieben würde.</summary>
+    bool AktuelleDatenbank);
+
+public record OdooAuswahl(int Id, string Name);
+
+public record AnfrageOdooLead(int Id, string Name, string? Phase, string? Zustaendig, string Link);
+
+/// <summary>Firma in Odoo, die zur Anfrage passen könnte.</summary>
+public record AnfrageOdooFirma(
+    int Id,
+    string Name,
+    int Uebereinstimmung,
+    string Grund,
+    /// <summary>Bisheriger Hauptansprechpartner der Firma, wenn es einen gibt.</summary>
+    string? Hauptansprechpartner,
+    /// <summary>Der bisherige Hauptansprechpartner ist die anfragende Person.</summary>
+    bool HauptansprechpartnerIstKontakt,
+    string Link,
+    List<AnfrageOdooLead> OffeneVerkaufschancen);
+
+/// <summary>Der Ansprechpartner: vorhandener Kontakt in Odoo (mit <see cref="Id"/>) oder der neu anzulegende.</summary>
+public record AnfrageOdooKontakt(
+    int? Id,
+    /// <summary>Odoo-Feld „Name“ (Titel + Nachname).</summary>
+    string Name,
+    string? Vorname,
+    string EMail,
+    string? Telefon,
+    /// <summary>Firma, zu der ein vorhandener Kontakt in Odoo gehört.</summary>
+    string? Firma,
+    bool HatAnrede,
+    string? Link);
+
+/// <summary>
+/// Vorschau: was „In Odoo anlegen“ anlegen oder wiederverwenden würde. Gelesen aus Odoo,
+/// geschrieben wurde noch nichts.
+/// </summary>
+public record AnfrageOdooVorschau(
+    /// <summary>„Test“ oder „Produktiv“.</summary>
+    string Ziel,
+    /// <summary>Rechner und Datenbank, z. B. „firma-test.odoo.com/firma-test“.</summary>
+    string Datenbank,
+    /// <summary>Schritte, die ein früherer, abgebrochener Lauf schon erledigt hat.</summary>
+    List<string> Erledigt,
+    string? LetzterFehler,
+    List<AnfrageOdooFirma> Firmen,
+    int? FirmaVorschlag,
+    /// <summary>Die Firma steht aus einem früheren Lauf fest und ist nicht mehr wählbar.</summary>
+    bool FirmaFest,
+    /// <summary>Name der Firma, die neu angelegt würde; fehlt, wenn die Anfrage keinen Firmennamen hat.</summary>
+    string? NeueFirma,
+    AnfrageOdooKontakt Kontakt,
+    /// <summary>„Herr“ oder „Frau“ bei eindeutigem Vornamen, sonst leer.</summary>
+    string? AnredeVorschlag,
+    /// <summary>Die Anrede muss gewählt werden (neuer Kontakt oder vorhandener ohne Anrede).</summary>
+    bool AnredeWaehlbar,
+    List<AnfrageOdooLead> VerkaufschancenZumKontakt,
+    string LeadTitel,
+    /// <summary>Verkaufschance aus einem früheren Lauf; dann wird nur noch die Aktivität nachgezogen.</summary>
+    int? LeadFest,
+    List<OdooAuswahl> Phasen,
+    int? PhaseVorschlag,
+    List<OdooAuswahl> Stichwoerter,
+    List<OdooAuswahl> Benutzer,
+    int? BenutzerVorschlag,
+    List<OdooAuswahl> Aktivitaetsarten,
+    int? AktivitaetsartVorschlag,
+    string AktivitaetsText,
+    DateOnly Faellig,
+    List<OdooAuswahl> Quellen,
+    int? QuelleVorschlag,
+    List<OdooAuswahl> Medien,
+    int? MediumVorschlag,
+    /// <summary>Felder der Verkaufschance, die gefüllt würden (Feldname in Odoo und Wert).</summary>
+    List<AnfrageHerkunftsFeld> Uebertragen,
+    List<string> Beschreibung,
+    List<string> NichtUebertragen,
+    List<string> Hinweise,
+    /// <summary>
+    /// Domäne, über die Odoo eine neue Firma anreichern kann (Adresse, USt-ID); fehlt bei
+    /// Freemailern — dann gibt es nichts anzureichern.
+    /// </summary>
+    string? AnreicherungDomaene = null);
+
+/// <summary>Bestätigung der Vorschau mit der Wahl des Mitarbeiters.</summary>
+public record AnfrageOdooAnlegen(
+    /// <summary>Vorhandene Firma; leer = neue Firma anlegen.</summary>
+    int? FirmaId,
+    /// <summary>„Herr“, „Frau“ oder „Keine“.</summary>
+    string? Anrede,
+    bool HauptansprechpartnerUmstellen,
+    /// <summary>Offene Verkaufschance, die ergänzt wird; leer = neue anlegen.</summary>
+    int? LeadId,
+    int? PhaseId,
+    List<int>? StichwortIds,
+    int? BenutzerId,
+    int? AktivitaetsartId,
+    int? QuelleId,
+    int? MediumId,
+    /// <summary>Eine neue Firma von Odoo über die E-Mail-Domäne anreichern lassen.</summary>
+    bool FirmaAnreichern = false);
+
+public record AnfrageOdooErgebnis(
+    bool Fertig,
+    List<string> Schritte,
+    /// <summary>Fester Text, wenn ein Schritt fehlschlug — die erledigten Schritte bleiben stehen.</summary>
+    string? Fehler,
+    AnfrageEintrag Eintrag);

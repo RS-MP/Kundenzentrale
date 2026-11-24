@@ -13,11 +13,14 @@ namespace Rausoft.Erp.Api.Controllers;
 /// Vorschlag mit möglichen Dubletten (Entscheidung MP 15.11.2026: Einfügen von Hand
 /// statt Postfachüberwachung — der Mitarbeiter hat die Mail vorher gesehen).
 /// Gespeichert wird die Anfrage mit ihrer Herkunft (Entscheidung MP 17.11.2026), nicht
-/// der Mailtext; nach Odoo wird hier nichts geschrieben.
+/// der Mailtext. Das Anlegen einer gespeicherten Anfrage in Odoo (Stufe 2) steht in
+/// <c>AnfragenController.Odoo.cs</c>.
 /// </summary>
 [ApiController]
 [Route("api/anfragen")]
-public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter angemeldet) : ControllerBase
+public partial class AnfragenController(
+    ErpDbContext db, Dienste.AngemeldeterMitarbeiter angemeldet, Dienste.OdooSchreibZugang zugang,
+    ILogger<AnfragenController> log) : ControllerBase
 {
     private const int MaxDubletten = 10;
     private const int MaxEintraege = 500;
@@ -106,7 +109,8 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
 
         var imJahr = db.Anfragen.AsNoTracking().Where(a => a.EingegangenAm >= von && a.EingegangenAm < bis);
         var namen = await KampagnenNamenAsync(ct);
-        var eintraege = await EintraegeAsync(imJahr.OrderByDescending(a => a.EingegangenAm).Take(MaxEintraege), namen, ct);
+        var odooStand = await zugang.StandAsync(ct);
+        var eintraege = await EintraegeAsync(imJahr.OrderByDescending(a => a.EingegangenAm).Take(MaxEintraege), namen, ct, odooStand);
 
         // „Wurde Kunde": der zugeordnete Kunde hat heute ein laufendes Abo oder einen aktiven Vertrag
         var kundenIds = eintraege.Where(e => e.KundeId is not null).Select(e => e.KundeId!.Value).Distinct().ToList();
@@ -115,6 +119,8 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
             : (await db.Kunden.AsNoTracking().Where(k => kundenIds.Contains(k.Id))
                 .Where(KundenController.KundenRegel(db)).Select(k => k.Id).ToListAsync(ct)).ToHashSet();
         bool IstKunde(AnfrageEintrag e) => e.KundeId is { } id && echteKunden.Contains(id);
+        // Je Anfrage mitliefern — die Seite filtert die Liste damit nach „heute Kunde“
+        eintraege = eintraege.Select(e => e with { HeuteKunde = IstKunde(e) }).ToList();
 
         return new AnfragenUebersicht(
             gewaehlt, jahre.Reverse().ToList(), eintraege.Count, eintraege.Count(IstKunde),
@@ -122,7 +128,8 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
                 .Select(g => new AnfrageKanalZahl(g.Key, g.Count(), g.Count(IstKunde),
                     g.Count(e => e.Ergebnis == ErgebnisGewonnen), g.Count(e => e.Ergebnis == ErgebnisVerloren)))
                 .OrderByDescending(k => k.Anzahl).ThenBy(k => k.Kanal).ToList(),
-            eintraege);
+            eintraege,
+            odooStand.Ziel.ToString(), zugang.SchreibSperre(odooStand));
     }
 
     /// <summary>Mögliche Kunden zu einer gespeicherten Anfrage — für die spätere Zuordnung.</summary>
@@ -203,8 +210,9 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
             .Where(e => e.Schluessel == EinstellungsSchluessel.AnfragenKampagnen)
             .Select(e => e.Wert).FirstOrDefaultAsync(ct));
 
-    private static async Task<List<AnfrageEintrag>> EintraegeAsync(
-        IQueryable<Anfrage> anfragen, IReadOnlyDictionary<string, string> namen, CancellationToken ct)
+    private async Task<List<AnfrageEintrag>> EintraegeAsync(
+        IQueryable<Anfrage> anfragen, IReadOnlyDictionary<string, string> namen, CancellationToken ct,
+        Dienste.OdooSchreibZugang.Stand? odooStand = null)
     {
         var roh = await anfragen.AsNoTracking()
             .Select(a => new
@@ -215,9 +223,20 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
                 ErfasstVon = a.ErfasstVon != null ? a.ErfasstVon.Anzeigename : null,
             })
             .ToListAsync(ct);
+
+        // Stand des Anlegens in Odoo — die Nummern gelten nur in der Datenbank, in der sie vergeben wurden
+        var stand = odooStand ?? await zugang.StandAsync(ct);
+        var kennung = Dienste.OdooSchreibZugang.ZielKennung(stand);
+        var schreibenGesperrt = zugang.SchreibSperre(stand) is not null;
+        var ids = roh.Select(r => r.Anfrage.Id).ToList();
+        var anlagen = (await db.AnfrageOdooAnlagen.AsNoTracking().Where(x => ids.Contains(x.AnfrageId)).ToListAsync(ct))
+            .ToLookup(x => x.AnfrageId);
+        var jetzt = DateTime.UtcNow;
+
         return roh.Select(r =>
         {
             var a = r.Anfrage;
+            var eigene = anlagen[a.Id].ToList();
             return new AnfrageEintrag(
                 a.Id, Ortszeit.VonUtc(a.EingegangenAm), a.Formular, a.Website, a.Firma, a.Kontaktname(),
                 a.Email, a.Telefon, a.Nachricht,
@@ -235,7 +254,9 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
                     AnfrageErgebnis.Verloren => ErgebnisVerloren,
                     _ => "offen",
                 },
-                a.OdooLeadId is null ? null : a.VerlustGrund);
+                a.OdooLeadId is null ? null : a.VerlustGrund,
+                OdooAnlageInfo(eigene, stand, kennung),
+                schreibenGesperrt || kennung is null ? null : OdooAnlageRegeln.Sperre(a, eigene, kennung, jetzt));
         }).ToList();
     }
 

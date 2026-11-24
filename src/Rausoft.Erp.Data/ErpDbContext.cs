@@ -42,6 +42,7 @@ public class ErpDbContext(
     public DbSet<Adresse> Adressen => Set<Adresse>();
     public DbSet<Merkmal> Merkmale => Set<Merkmal>();
     public DbSet<Anfrage> Anfragen => Set<Anfrage>();
+    public DbSet<AnfrageOdooAnlage> AnfrageOdooAnlagen => Set<AnfrageOdooAnlage>();
 
     // Verträge
     public DbSet<Vertrag> Vertraege => Set<Vertrag>();
@@ -371,6 +372,19 @@ public class ErpDbContext(
             e.Property(a => a.VerlustGrund).HasMaxLength(200);
             e.HasIndex(a => a.OdooLeadId).IsUnique().HasFilter("[OdooLeadId] IS NOT NULL");
             e.Property(a => a.RowVersion).IsRowVersion();
+        });
+
+        modelBuilder.Entity<AnfrageOdooAnlage>(e =>
+        {
+            e.ToTable("AnfrageOdooAnlagen");
+            // Mit der Anfrage verschwindet auch ihr Anlage-Stand
+            e.HasOne(x => x.Anfrage).WithMany().HasForeignKey(x => x.AnfrageId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.BegonnenVon).WithMany().HasForeignKey(x => x.BegonnenVonId).OnDelete(DeleteBehavior.Restrict);
+            // Je Anfrage und Odoo-Datenbank genau ein Stand — das verhindert auch zwei gleichzeitige Läufe
+            e.HasIndex(x => new { x.AnfrageId, x.Datenbank }).IsUnique();
+            e.Property(x => x.Datenbank).HasMaxLength(300);
+            e.Property(x => x.LetzterFehler).HasMaxLength(300);
+            e.Property(x => x.RowVersion).IsRowVersion();
         });
 
         modelBuilder.Entity<Adresse>(e =>
@@ -711,12 +725,15 @@ public class ErpDbContext(
         // Klick-Kennungen werden nach 90 Tagen gelöscht — im Audit-Log dürfen sie nicht überleben.
         [typeof(Anfrage)] =
             [nameof(Anfrage.Gclid), nameof(Anfrage.Gbraid), nameof(Anfrage.Wbraid), nameof(Anfrage.Msclkid), nameof(Anfrage.KlickKennungenGeloeschtAm)],
+        // Die Lauf-Sperre wird je Anlegen gesetzt und wieder gelöscht — die Schritte selbst stehen im Audit.
+        [typeof(AnfrageOdooAnlage)] = [nameof(AnfrageOdooAnlage.LaeuftSeit)],
     };
 
-    // Einstellungen, die Hintergrundläufe als Zeitstempel fortschreiben (kein Admin-Handeln)
+    // Einstellungen, die Hintergrundläufe als Zeitstempel fortschreiben (kein Admin-Handeln),
+    // und die gemerkte letzte Auswahl beim Anlegen in Odoo
     private static readonly HashSet<string> AutomatischGepflegteEinstellungen =
         [EinstellungsSchluessel.ServicePortalLetzterPush, EinstellungsSchluessel.OdooLetzterImport,
-         EinstellungsSchluessel.ZertifikateLetzterWochenbericht];
+         EinstellungsSchluessel.ZertifikateLetzterWochenbericht, EinstellungsSchluessel.AnfragenOdooVorbelegung];
 
     private static bool Auditieren(EntityEntry entry) =>
         !NichtAuditieren.Contains(entry.Entity.GetType())

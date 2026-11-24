@@ -1049,9 +1049,41 @@ tr.anfrage-gewaehlt { background: var(--accent-soft); }
 .formular-aktionen.anfrage-speichern { padding: 0 16px 14px; }
 .anfrage-rohfelder > summary { padding: 12px 16px; cursor: pointer; font-size: 13.5px; color: var(--ink2); }
 .anfrage-kanaele { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 0 16px 12px; font-size: 13px; color: var(--ink2); }
-.anfrage-kanal { border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
+.anfrage-kanal { border: 1px solid var(--border); border-radius: 999px; padding: 2px 6px; display: inline-flex; flex-wrap: wrap; align-items: center; }
+/* Die Zählung filtert die Liste: der Kanal und jede seiner Zahlen sind eigene Schaltflächen */
+.anfrage-kanal button { font: inherit; color: inherit; background: none; border: none; border-radius: 999px; padding: 1px 6px; cursor: pointer; }
+.anfrage-kanal button + button::before { content: "·"; color: var(--muted); font-weight: 400; margin-right: 6px; }
+.anfrage-kanal button:hover { background: var(--accent-soft); }
+.anfrage-kanal button:focus-visible { outline: 2px solid var(--accent-line); }
+.anfrage-kanal.aktiv { border-color: var(--accent); }
+.anfrage-kanal button.aktiv { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.anfrage-filterzeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 10px; font-size: 13px; color: var(--ink2); }
 .anfrage-gewonnen { color: var(--good); font-weight: 600; }
 .anfrage-verloren { color: var(--ink2); }
 table.liste tr.anfrage-detail, table.liste tr.anfrage-detail:hover { cursor: default; background: var(--surface2); }
 .anfrage-detail .anfrage-felder { margin-top: 0; }
 .anfrage-zuordnen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
+
+/* Anfrage in Odoo anlegen: Vorschau mit Auswahl, dann Bestätigung */
+.odoo-anlage { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-strong); font-size: 13.5px; }
+.odoo-kopf { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.odoo-vorschau { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; max-width: 100ch; }
+.odoo-vorschau .anfrage-hinweis { margin-bottom: 0; }
+.odoo-ziel { padding: 8px 12px; border: 1px solid var(--accent-line); border-radius: 8px; }
+.odoo-ziel.produktiv { border-color: var(--crit); color: var(--crit); font-weight: 600; }
+.odoo-block { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.odoo-block > summary { cursor: pointer; color: var(--ink2); }
+.odoo-titel { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+.odoo-wahl { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; cursor: pointer; }
+.odoo-wahl input { margin-top: 3px; flex: none; }
+.odoo-anlage span.neben { display: block; }
+.odoo-unterwahl { margin-left: 24px; }
+.odoo-raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 8px; }
+.odoo-raster label, .odoo-feld label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink2); }
+.odoo-raster select { min-width: 0; }
+.odoo-feld { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.odoo-beschriftung { font-size: 13px; color: var(--ink2); align-self: flex-start; }
+.odoo-stichwoerter { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.odoo-stichwoerter label { flex-direction: row; align-items: center; gap: 5px; color: var(--ink); cursor: pointer; }
+.odoo-beschreibung { margin-top: 10px; padding: 8px 12px; background: var(--surface2); border-radius: 7px; font-size: 13px; overflow-wrap: anywhere; }
+.odoo-schritte { margin: 6px 0 0; padding-left: 20px; }

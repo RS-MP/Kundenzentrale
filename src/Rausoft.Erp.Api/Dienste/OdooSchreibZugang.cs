@@ -70,18 +70,33 @@ public class OdooSchreibZugang(ErpDbContext db, GeheimnisDienst geheimnisse, Ins
     /// <see cref="InvalidOperationException"/> mit Klartext, wenn nicht geschrieben werden darf
     /// (ausgeschaltet, Testdatenbank abgelaufen, Testsystem → Produktiv).
     /// </summary>
-    public async Task<(OdooClient Odoo, OdooSchreibZiel Ziel)> SchreibClientAsync(CancellationToken ct = default)
+    public async Task<SchreibVerbindung> SchreibClientAsync(CancellationToken ct = default)
     {
         var stand = await StandAsync(ct);
         if (SchreibSperre(stand) is { } sperre)
             throw new InvalidOperationException(sperre);
         if (stand.Ziel == OdooSchreibZiel.Test)
-            return (await TestClientAsync(ct), OdooSchreibZiel.Test);
+            return new(await TestClientAsync(ct), OdooSchreibZiel.Test, stand.TestUrl, ZielKennung(stand)!);
 
         var key = (await geheimnisse.HolenAsync(GeheimnisSchluessel.OdooApiKey, ct))?.Trim();
         if (stand.ProdUrl == "" || stand.ProdDatenbank == "" || stand.ProdBenutzer == "" || string.IsNullOrEmpty(key))
             throw new InvalidOperationException(
                 "Odoo-Zugangsdaten unvollständig — bitte unter Administration → Odoo-Anbindung pflegen.");
-        return (new OdooClient(stand.ProdUrl, stand.ProdDatenbank, stand.ProdBenutzer, key), OdooSchreibZiel.Produktiv);
+        return new(new OdooClient(stand.ProdUrl, stand.ProdDatenbank, stand.ProdBenutzer, key),
+            OdooSchreibZiel.Produktiv, stand.ProdUrl, ZielKennung(stand)!);
     }
+
+    /// <summary>Client für das Schreibziel samt Adresse (für Verweise) und Kennung der Datenbank.</summary>
+    public record SchreibVerbindung(OdooClient Odoo, OdooSchreibZiel Ziel, string Url, string Kennung);
+
+    /// <summary>
+    /// Kennung der Datenbank, in die gerade geschrieben würde; <c>null</c>, wenn das Schreiben aus ist.
+    /// An ihr hängen die in Odoo vergebenen Nummern — Test- und Produktiv-Datenbank nie vermischen.
+    /// </summary>
+    public static string? ZielKennung(Stand stand) => stand.Ziel switch
+    {
+        OdooSchreibZiel.Test => OdooAnlageRegeln.Kennung(stand.TestUrl, stand.TestDatenbank),
+        OdooSchreibZiel.Produktiv => OdooAnlageRegeln.Kennung(stand.ProdUrl, stand.ProdDatenbank),
+        _ => null,
+    };
 }

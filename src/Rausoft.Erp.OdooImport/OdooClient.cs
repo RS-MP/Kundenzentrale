@@ -4,11 +4,31 @@ using System.Text.Json;
 namespace Rausoft.Erp.OdooImport;
 
 /// <summary>
+/// Ein Aufruf an ein Odoo-Modell (execute_kw). Schreibende Funktionen arbeiten gegen diese
+/// Schnittstelle, damit ihre Regeln ohne echtes Odoo prüfbar sind.
+/// </summary>
+public interface IOdooAufruf
+{
+    Task<JsonElement> AusfuehrenAsync(string modell, string methode, object[] args, Dictionary<string, object>? kwargs = null);
+}
+
+/// <summary>
+/// Odoo hat einen Aufruf mit einem Fehler beantwortet. <see cref="Art"/> ist der Name der
+/// Odoo-Ausnahme (z. B. <c>odoo.exceptions.AccessError</c>) — er lässt sich gefahrlos
+/// protokollieren und einer festen Meldung zuordnen. Die <see cref="Exception.Message"/>
+/// enthält Odoos ganze Antwort und gehört weder in die Oberfläche noch ins Log.
+/// </summary>
+public class OdooFehlerException(string? art, string meldung) : InvalidOperationException(meldung)
+{
+    public string? Art { get; } = art;
+}
+
+/// <summary>
 /// Minimaler JSON-RPC-Client für die Odoo External API (/jsonrpc).
 /// Authentifizierung per Benutzer + API-Key (der Key wirkt als Passwort-Ersatz).
 /// Der Key kommt ausschließlich aus einer Umgebungsvariablen — nie aus Dateien.
 /// </summary>
-public class OdooClient(string url, string db, string benutzer, string apiKey)
+public class OdooClient(string url, string db, string benutzer, string apiKey) : IOdooAufruf
 {
     private static readonly HttpClient Http = new();
     private int _uid;
@@ -60,7 +80,13 @@ public class OdooClient(string url, string db, string benutzer, string apiKey)
         using var doc = JsonDocument.Parse(json);
 
         if (doc.RootElement.TryGetProperty("error", out var fehler))
-            throw new InvalidOperationException($"Odoo-Fehler: {fehler.GetRawText()}");
+            throw new OdooFehlerException(
+                fehler.ValueKind == JsonValueKind.Object && fehler.TryGetProperty("data", out var daten)
+                && daten.ValueKind == JsonValueKind.Object && daten.TryGetProperty("name", out var name)
+                && name.ValueKind == JsonValueKind.String
+                    ? name.GetString()
+                    : null,
+                $"Odoo-Fehler: {fehler.GetRawText()}");
 
         return doc.RootElement.TryGetProperty("result", out var result)
             ? result.Clone()

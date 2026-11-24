@@ -23,6 +23,65 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (24.11.2026, Anfrage in Odoo anlegen — Stufe 2):** Migration
+  `AnfrageOdooAnlage` (neue Tabelle `AnfrageOdooAnlagen`, Einstellung
+  `Anfragen.OdooVorbelegung`) läuft beim Start von selbst; sie liegt hinter
+  `AnfragenOdooUebersprungen` und kommt mit demselben Publish. Wirkung: Unter Kunden →
+  „Anfragen“ hat jede gespeicherte Anfrage den Knopf **„In Odoo anlegen …“**. Er liest
+  zuerst nur (Vorschau): vorhandene Firma und Kontakt per Dublettensuche, offene
+  Verkaufschancen, dazu Phasen, Stichwörter, Benutzer, Aktivitätsarten, Quelle und Medium
+  aus Odoo. Geschrieben wird erst nach „Jetzt anlegen“: Firma (oder vorhandene), Kontakt
+  (Name = Nachname, Vorname, Anrede nach Bestätigung), Hauptansprechpartner (nur wenn die
+  Firma keinen hat, sonst per Häkchen), Verkaufschance (neu oder Notiz an einer offenen)
+  und Aktivität. Nicht übertragen: Klick-Kennungen, IP-Adresse, Browser-Kennung. Im
+  Programm stehen keine Odoo-Nummern — alles kommt über den API-Key und wird am Namen
+  vorbelegt; die letzte Wahl (Zuweisung, Aktivitätsart, Phase, Quelle, Medium) merkt sich
+  die Kundenzentrale. Rechte: Vertrieb und Admin.
+  **Rundlauf-Test gegen die Odoo-Testdatenbank:**
+  1. Administration → „Odoo-Testdatenbank“: Stand prüfen (nicht abgelaufen), „Nur prüfen“.
+  2. Dort „Schreiben nach Odoo geht an“ auf **Odoo-Testdatenbank** stellen. Solange
+     „Aus“ gilt, ist der Knopf gesperrt und sagt warum.
+  3. Kunden → „Anfragen“: Mailtext einfügen → „Auslesen“ → speichern → Anfrage in der
+     Liste öffnen → „In Odoo anlegen …“ → Vorschau prüfen. Beim ersten Mal Zuweisung
+     (Daniel) und ggf. Art der Aktivität wählen → „Jetzt in der Testdatenbank anlegen“.
+  4. In der Odoo-Testdatenbank ansehen: Firma, Ansprechpartner (Vorname, Anrede),
+     Hauptansprechpartner, Verkaufschance (Phase, Stichwörter, Quelle/Medium, Felder unter
+     „weitere Informationen“ ohne gclid/gbraid/wbraid/msclkid), Aktivität.
+  5. Gegenprobe: dieselbe Anfrage lässt sich nicht noch einmal anlegen; eine zweite
+     Anfrage derselben Firma schlägt die vorhandene Firma und die offene Verkaufschance vor.
+  Schlägt ein Schritt fehl, nennt die Seite den Schritt mit festem Text und was in Odoo
+  schon steht; „Anlegen fortsetzen …“ legt nichts doppelt an. Im Server-Log stehen nur
+  Schritt und Fehlerart (z. B. `odoo.exceptions.AccessError`), nie Odoos Antwort. Den
+  Fehlertext bitte an Claude geben — lokal ließ sich nur gegen ein nachgestelltes Odoo
+  prüfen, das echte kann an Feldtypen oder Rechten anders reagieren.
+  Nummern aus der Testdatenbank bleiben in `AnfrageOdooAnlagen` (je Datenbank) und kommen
+  nie in `Anfragen.OdooLeadId`; nach Ablauf der Testdatenbank oder beim Wechsel auf
+  „Produktiv“ lässt sich eine Anfrage dort neu anlegen. Test-Anfragen danach unter
+  „Anfragen“ löschen.
+  **Vor „Produktiv“ klären:** (a) Das Schreiben in die Produktiv-Datenbank nutzt den
+  API-Key der Odoo-Anbindung — der dortige Benutzer ist bisher zum Lesen gedacht. Entweder
+  ihm Schreibrechte nur auf Kontakte, CRM und Aktivitäten geben oder einen eigenen
+  Benutzer dafür anlegen (dann braucht die Kundenzentrale einen zweiten Produktiv-Zugang —
+  an Claude geben). (b) Mit Daniel abstimmen, was vom n8n-Workflow abweicht: neue Firmen
+  werden zusätzlich ausdrücklich als Firma markiert (`is_company` — sonst nur, wenn die
+  Anreicherung eine USt-ID liefert; meldet Odoo das Feld als nur berechnet, wird es nicht
+  mitgeschickt), die Verkaufschance wird als „Verkaufschance“ angelegt (nicht als Lead),
+  ohne Firmenname wird keine Firma erfunden.
+  **Anreicherung der Firma (MP 24.11.2026):** Wie im Workflow lässt die Kundenzentrale
+  eine neue Firma von Odoo über die E-Mail-Domäne anreichern (`enrich_by_domain`: Adresse,
+  USt-ID, Telefon, allgemeine E-Mail, Branche) — in der Vorschau als Häkchen „Firmendaten
+  von Odoo ergänzen lassen“, vorbelegt an, nie bei Freemailern oder vorhandener Firma.
+  Der Firmenname aus dem Formular bleibt; was Odoo eingetragen hat, steht als Prüfhinweis
+  an Verkaufschance und Aktivität („nicht die Konzernmutter?“). Findet Odoo nichts oder
+  schlägt der Aufruf fehl, wird die Firma trotzdem angelegt, mit Hinweis. Beim Test in der
+  Testdatenbank darauf achten, ob die Anreicherung dort Daten liefert (je nach
+  Odoo-Vertrag verbraucht sie Guthaben).
+  **Mit demselben Publish (24.11.2026, Liste filtern):** Unter „Anfragen“ sind die Chips
+  mit der Zählung je Kanal anklickbar. Ein Klick auf den Kanal zeigt nur dessen Anfragen,
+  ein Klick auf eine Zahl darin (Kunden, gewonnen, verloren, offen) nur diese — z. B.
+  „Google organisch“ → „gewonnen“. Der Chip „Alle“ filtert kanalübergreifend. Ein zweiter
+  Klick oder „Filter aufheben“ zeigt wieder alles. Keine Migration.
+
 - [ ] **Publish aktualisieren (24.11.2026, Verträge umbenennen und zusammenfassen):**
   Migration `VertragBezeichnungUndAnhaenge` (zwei neue Spalten an `Vertraege`) läuft beim
   Start von selbst; sie trägt bei Verträgen aus einer Vorlage einmalig den Vorlagennamen

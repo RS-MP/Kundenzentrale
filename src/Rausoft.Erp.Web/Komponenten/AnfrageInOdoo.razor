@@ -1,0 +1,504 @@
+@* Stufe 2 des Anfrage-Eingangs: eine gespeicherte Website-Anfrage in Odoo anlegen.
+   Erst die Vorschau (liest Odoo, schreibt nichts): vorhandene Firma und Kontakt,
+   offene Verkaufschancen, Auswahl von Anrede, Phase, Stichwörtern, Zuweisung und
+   Aktivitätsart. Geschrieben wird erst nach „Jetzt anlegen“ — und nur an das Ziel, das
+   unter Administration → Odoo-Testdatenbank eingestellt ist. *@
+@inject HttpClient Http
+
+<div class="odoo-anlage">
+    <div class="odoo-kopf">
+        <b>Odoo</b>
+        @if (Eintrag.OdooAnlage is { Fertig: true } fertig)
+        {
+            <span>
+                Angelegt am @fertig.Am.ToString("dd.MM.yyyy") in @ZielName(fertig.Ziel)@(fertig is { Ziel: "Test", AktuelleDatenbank: false } ? " (frühere Testdatenbank)" : "")
+                @if (fertig.LeadNr is { } nr)
+                {
+                    <text> · Verkaufschance Nr. @nr</text>
+                    @if (fertig.LeadLink is not null)
+                    {
+                        <text> · </text><a href="@fertig.LeadLink" target="_blank" rel="noopener">in Odoo öffnen ↗</a>
+                    }
+                }
+            </span>
+        }
+        else if (Eintrag.OdooAnlage is { Fertig: false, AktuelleDatenbank: true } offen)
+        {
+            @* Den Fehler nennt nach einem Lauf schon der Kasten darunter, in der Vorschau der Hinweis *@
+            <span class="warntext">Anlegen in @ZielName(offen.Ziel) nicht abgeschlossen@(offen.Fehler is not null && _ergebnis is null && _vorschau is null ? $" — {offen.Fehler}" : "")</span>
+        }
+        else if (_vorschau is null && _ergebnis is null)
+        {
+            <span class="neben" style="display:inline">noch nicht angelegt</span>
+        }
+    </div>
+
+    @if (_fehler is not null)
+    {
+        <div class="fehler" style="margin-top:8px">@_fehler</div>
+    }
+
+    @if (_ergebnis is { } erg)
+    {
+        <div class="@(erg.Fertig ? "zert-hinweis" : "anfrage-hinweis")" style="margin:8px 0 0">
+            <b>@(erg.Fertig ? $"In {ZielName(erg.Eintrag.OdooAnlage?.Ziel)} angelegt" : "Nicht alles angelegt")</b>
+            @if (erg.Fehler is not null)
+            {
+                <div>@erg.Fehler</div>
+            }
+            <ul class="odoo-schritte">
+                @foreach (var schritt in erg.Schritte)
+                {
+                    <li>@schritt</li>
+                }
+            </ul>
+            @if (!erg.Fertig)
+            {
+                <div class="neben">Was oben steht, ist in Odoo vorhanden und wird beim nächsten Versuch nicht noch einmal angelegt.</div>
+            }
+        </div>
+    }
+
+    @if (_vorschau is null)
+    {
+        @if (Eintrag.OdooAnlage is not { Fertig: true, AktuelleDatenbank: true } && Eintrag.OdooAnlage is not { Fertig: true, Ziel: "Produktiv" })
+        {
+            <div class="formular-aktionen" style="margin-top:8px">
+                <button class="knopf" disabled="@(_sende || Sperre is not null)" @onclick="VorschauLadenAsync">
+                    @(_sende ? "Lese Odoo …" : Eintrag.OdooAnlage is { Fertig: false, AktuelleDatenbank: true } ? "Anlegen fortsetzen …" : "In Odoo anlegen …")
+                </button>
+                @if (Sperre is not null)
+                {
+                    <span class="neben" style="display:inline">@Sperre</span>
+                }
+                else
+                {
+                    <span class="neben" style="display:inline">Zeigt zuerst, was in @ZielName(OdooZiel) angelegt würde. Geschrieben wird erst nach Ihrer Bestätigung.</span>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        var v = _vorschau;
+        var firma = v.Firmen.FirstOrDefault(f => f.Id == _firmaId);
+        var offene = OffeneLeads();
+
+        <div class="odoo-vorschau">
+            <div class="@(v.Ziel == "Produktiv" ? "odoo-ziel produktiv" : "odoo-ziel")">
+                Geschrieben wird in @(v.Ziel == "Produktiv" ? "die Produktiv-Datenbank von Odoo" : "die Odoo-Testdatenbank") (@v.Datenbank).
+                Bis zu Ihrer Bestätigung unten ist nichts geschrieben.
+            </div>
+
+            @if (v.Erledigt.Count > 0)
+            {
+                <div class="anfrage-hinweis">
+                    Ein früherer Versuch hat in dieser Datenbank schon erledigt: @string.Join(" · ", v.Erledigt).
+                    Das wird nicht noch einmal angelegt.@(v.LetzterFehler is not null ? $" Abgebrochen bei: {v.LetzterFehler}" : "")
+                </div>
+            }
+            @foreach (var hinweis in v.Hinweise)
+            {
+                <div class="anfrage-hinweis">@hinweis</div>
+            }
+
+            @* ---- Firma ---- *@
+            <div class="odoo-block">
+                <div class="odoo-titel">Firma</div>
+                @if (v.FirmaFest && firma is not null)
+                {
+                    <div>@firma.Name <a href="@firma.Link" target="_blank" rel="noopener">↗</a> <span class="neben" style="display:inline">· steht aus dem früheren Versuch fest</span></div>
+                }
+                else
+                {
+                    @foreach (var f in v.Firmen)
+                    {
+                        <label class="odoo-wahl">
+                            <input type="radio" name="@FirmaGruppe" checked="@(_firmaId == f.Id)" @onchange="@(() => FirmaWaehlen(f.Id))" />
+                            <span>
+                                Vorhandene Firma verwenden: <b>@f.Name</b> <a href="@f.Link" target="_blank" rel="noopener">↗</a>
+                                <span class="neben @(f.Uebereinstimmung >= 70 ? "warntext" : "")">@f.Grund@(f.Hauptansprechpartner is not null ? $" · Hauptansprechpartner: {f.Hauptansprechpartner}" : "")</span>
+                            </span>
+                        </label>
+                    }
+                    <label class="odoo-wahl">
+                        <input type="radio" name="@FirmaGruppe" checked="@(_firmaId is null)" @onchange="@(() => FirmaWaehlen(null))" />
+                        <span>
+                            @if (v.NeueFirma is not null)
+                            {
+                                <text>Neue Firma anlegen: <b>@v.NeueFirma</b></text>
+                            }
+                            else
+                            {
+                                <text>Ohne Firma — die Verkaufschance hängt am Kontakt</text>
+                            }
+                            @if (v.Firmen.Count == 0)
+                            {
+                                <span class="neben">Keine passende Firma in Odoo gefunden (geprüft: E-Mail-Adresse, E-Mail-Domäne, Firmenname).</span>
+                            }
+                        </span>
+                    </label>
+                    @if (_firmaId is null && v.NeueFirma is not null && v.AnreicherungDomaene is not null)
+                    {
+                        <label class="odoo-wahl odoo-unterwahl">
+                            <input type="checkbox" @bind="_anreichern" />
+                            <span>
+                                Firmendaten von Odoo ergänzen lassen (Adresse, USt-ID)
+                                <span class="neben">Odoo sucht sie über die Domäne @v.AnreicherungDomaene. Was es einträgt, steht danach als Prüfhinweis an Verkaufschance und Aktivität.</span>
+                            </span>
+                        </label>
+                    }
+                }
+            </div>
+
+            @* ---- Ansprechpartner ---- *@
+            <div class="odoo-block">
+                <div class="odoo-titel">Ansprechpartner</div>
+                @if (v.Kontakt.Id is not null)
+                {
+                    <div>
+                        Vorhandener Kontakt wird verwendet: <b>@string.Join(" ", new[] { v.Kontakt.Vorname, v.Kontakt.Name }.Where(t => !string.IsNullOrWhiteSpace(t)))</b>
+                        <a href="@v.Kontakt.Link" target="_blank" rel="noopener">↗</a>
+                        <span class="neben">@v.Kontakt.EMail@(v.Kontakt.Firma is not null ? $" · gehört zu „{v.Kontakt.Firma}“" : " · bisher ohne Firma") — vorhandene Angaben bleiben, nur Lücken werden gefüllt.</span>
+                    </div>
+                }
+                else
+                {
+                    <div>
+                        Wird angelegt: <b>@v.Kontakt.Name</b>@(v.Kontakt.Vorname is not null ? $", Vorname {v.Kontakt.Vorname}" : "")
+                        <span class="neben">@string.Join(" · ", new[] { v.Kontakt.EMail, v.Kontakt.Telefon }.Where(t => !string.IsNullOrWhiteSpace(t)))</span>
+                    </div>
+                }
+                @if (v.AnredeWaehlbar)
+                {
+                    <div class="odoo-feld">
+                        <label>
+                            Anrede
+                            <select @bind="_anrede">
+                                <option value="">— bitte wählen —</option>
+                                <option value="Herr">Herr</option>
+                                <option value="Frau">Frau</option>
+                                <option value="Keine">keine Anrede</option>
+                            </select>
+                        </label>
+                        @if (v.AnredeVorschlag is not null && _anrede == v.AnredeVorschlag)
+                        {
+                            <span class="neben" style="display:inline">Vorschlag aus dem Vornamen — bitte prüfen.</span>
+                        }
+                    </div>
+                }
+                @if (_firmaId is null && v.NeueFirma is not null)
+                {
+                    <div class="neben">Wird Hauptansprechpartner der neuen Firma.</div>
+                }
+                else if (firma is { HauptansprechpartnerIstKontakt: true })
+                {
+                    <div class="neben">Ist bereits Hauptansprechpartner der Firma.</div>
+                }
+                else if (firma is { Hauptansprechpartner: null })
+                {
+                    <div class="neben">Die Firma hat noch keinen Hauptansprechpartner — diese Person wird eingetragen.</div>
+                }
+                else if (firma is not null)
+                {
+                    <label class="odoo-wahl">
+                        <input type="checkbox" @bind="_haUmstellen" />
+                        <span>
+                            Hauptansprechpartner auf diese Person umstellen
+                            <span class="neben">Bisher: @firma.Hauptansprechpartner. Ohne Häkchen bleibt es dabei.</span>
+                        </span>
+                    </label>
+                }
+            </div>
+
+            @* ---- Verkaufschance ---- *@
+            <div class="odoo-block">
+                <div class="odoo-titel">Verkaufschance</div>
+                @if (v.LeadFest is { } festeNr)
+                {
+                    <div>Verkaufschance Nr. @festeNr steht aus dem früheren Versuch — es fehlt nur noch die Aktivität.</div>
+                }
+                else
+                {
+                    @foreach (var l in offene)
+                    {
+                        <label class="odoo-wahl">
+                            <input type="radio" name="@LeadGruppe" checked="@(_leadId == l.Id)" @onchange="@(() => _leadId = l.Id)" />
+                            <span>
+                                Offene Verkaufschance ergänzen: <b>@l.Name</b> <a href="@l.Link" target="_blank" rel="noopener">↗</a>
+                                <span class="neben">@string.Join(" · ", new[] { l.Phase, l.Zustaendig }.Where(t => !string.IsNullOrWhiteSpace(t))) — bekommt eine Notiz mit den Angaben der Anfrage und die Aktivität.</span>
+                            </span>
+                        </label>
+                    }
+                    <label class="odoo-wahl">
+                        <input type="radio" name="@LeadGruppe" checked="@(_leadId is null)" @onchange="@(() => _leadId = null)" />
+                        <span>Neue Verkaufschance anlegen: <b>@v.LeadTitel</b></span>
+                    </label>
+
+                    @if (_leadId is null)
+                    {
+                        <div class="odoo-raster">
+                            <label>
+                                Phase
+                                <select @bind="_phaseId">
+                                    <option value="">Odoo-Standard</option>
+                                    @foreach (var p in v.Phasen)
+                                    {
+                                        <option value="@p.Id">@p.Name</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                Quelle
+                                <select @bind="_quelleId">
+                                    <option value="">— keine —</option>
+                                    @foreach (var q in v.Quellen)
+                                    {
+                                        <option value="@q.Id">@q.Name</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                Medium
+                                <select @bind="_mediumId">
+                                    <option value="">— keines —</option>
+                                    @foreach (var m in v.Medien)
+                                    {
+                                        <option value="@m.Id">@m.Name</option>
+                                    }
+                                </select>
+                            </label>
+                        </div>
+                        @if (v.Stichwoerter.Count > 0)
+                        {
+                            <div class="odoo-feld">
+                                <span class="odoo-beschriftung">Stichwörter</span>
+                                <span class="odoo-stichwoerter">
+                                    @foreach (var s in v.Stichwoerter)
+                                    {
+                                        <label>
+                                            <input type="checkbox" checked="@_stichwoerter.Contains(s.Id)" @onchange="@(e => StichwortSetzen(s.Id, e.Value is true))" />
+                                            @s.Name
+                                        </label>
+                                    }
+                                </span>
+                            </div>
+                        }
+                    }
+                }
+            </div>
+
+            @* ---- Aktivität und Zuweisung ---- *@
+            <div class="odoo-block">
+                <div class="odoo-titel">Aktivität</div>
+                <div>„@v.AktivitaetsText“, fällig @v.Faellig.ToString("dd.MM.yyyy")</div>
+                <div class="odoo-raster">
+                    <label>
+                        Art der Aktivität
+                        <select @bind="_aktivitaetsartId">
+                            <option value="">— bitte wählen —</option>
+                            @foreach (var a in v.Aktivitaetsarten)
+                            {
+                                <option value="@a.Id">@a.Name</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Zugewiesen an
+                        <select @bind="_benutzerId">
+                            <option value="">— bitte wählen —</option>
+                            @foreach (var b in v.Benutzer)
+                            {
+                                <option value="@b.Id">@b.Name</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+                <div class="neben">Gilt für die Aktivität und für eine neue Verkaufschance. Die Auswahl ist beim nächsten Mal vorbelegt.</div>
+            </div>
+
+            <details class="odoo-block">
+                <summary>Was an einer neuen Verkaufschance steht</summary>
+                <dl class="anfrage-felder herkunft" style="margin-top:8px">
+                    @foreach (var feld in v.Uebertragen)
+                    {
+                        <dt>@feld.Name</dt>
+                        <dd>@feld.Wert</dd>
+                    }
+                </dl>
+                <div class="odoo-beschreibung">
+                    @foreach (var zeile in v.Beschreibung)
+                    {
+                        <div>@zeile</div>
+                    }
+                </div>
+            </details>
+            <div class="neben">Nicht nach Odoo übertragen: @string.Join(", ", v.NichtUebertragen).</div>
+
+            <div class="formular-aktionen">
+                <button class="knopf" disabled="@(_sende || Fehlt() is not null)" @onclick="AnlegenAsync">
+                    @(_sende ? "Lege an …" : v.Ziel == "Produktiv" ? "Jetzt in Odoo anlegen" : "Jetzt in der Testdatenbank anlegen")
+                </button>
+                <button class="knopf sekundaer" disabled="@_sende" @onclick="Abbrechen">Abbrechen</button>
+                @if (Fehlt() is { } fehlt)
+                {
+                    <span class="neben" style="display:inline">@fehlt</span>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public AnfrageEintrag Eintrag { get; set; } = default!;
+    /// <summary>„Aus“, „Test“ oder „Produktiv“.</summary>
+    [Parameter] public string OdooZiel { get; set; } = "Aus";
+    /// <summary>Warum gerade gar nicht nach Odoo geschrieben wird.</summary>
+    [Parameter] public string? OdooSperre { get; set; }
+    /// <summary>Nach einem Lauf (auch einem unvollständigen): der aktualisierte Eintrag.</summary>
+    [Parameter] public EventCallback<AnfrageEintrag> NachLauf { get; set; }
+
+    private AnfrageOdooVorschau? _vorschau;
+    private AnfrageOdooErgebnis? _ergebnis;
+    private string? _fehler;
+    private bool _sende;
+
+    private int? _firmaId;
+    private string _anrede = "";
+    private bool _haUmstellen;
+    private bool _anreichern = true;
+    private int? _leadId;
+    private int? _phaseId;
+    private int? _quelleId;
+    private int? _mediumId;
+    private int? _benutzerId;
+    private int? _aktivitaetsartId;
+    private readonly HashSet<int> _stichwoerter = [];
+
+    private string? Sperre => OdooSperre ?? Eintrag.OdooSperre;
+    private string FirmaGruppe => $"odoo-firma-{Eintrag.Id}";
+    private string LeadGruppe => $"odoo-lead-{Eintrag.Id}";
+
+    private static string ZielName(string? ziel) => ziel == "Produktiv" ? "Odoo" : "der Odoo-Testdatenbank";
+
+    private List<AnfrageOdooLead> OffeneLeads() => _vorschau is null
+        ? []
+        : (_vorschau.Firmen.FirstOrDefault(f => f.Id == _firmaId)?.OffeneVerkaufschancen ?? [])
+            .Concat(_vorschau.VerkaufschancenZumKontakt).DistinctBy(l => l.Id).ToList();
+
+    private void FirmaWaehlen(int? id)
+    {
+        _firmaId = id;
+        _haUmstellen = false;
+        // Wie bisher im Workflow: eine offene Verkaufschance wird ergänzt, statt eine zweite anzulegen
+        _leadId = OffeneLeads().FirstOrDefault()?.Id;
+    }
+
+    private void StichwortSetzen(int id, bool gesetzt)
+    {
+        if (gesetzt)
+            _stichwoerter.Add(id);
+        else
+            _stichwoerter.Remove(id);
+    }
+
+    /// <summary>Was vor dem Anlegen noch gewählt werden muss.</summary>
+    private string? Fehlt()
+    {
+        if (_vorschau is not { } v)
+            return null;
+        if (v.AnredeWaehlbar && _anrede == "")
+            return "Bitte noch die Anrede wählen.";
+        if (_aktivitaetsartId is null)
+            return "Bitte noch die Art der Aktivität wählen.";
+        if (_benutzerId is null && v.Benutzer.Count > 0)
+            return "Bitte noch wählen, wem zugewiesen wird.";
+        return null;
+    }
+
+    private static async Task<string> FehlerTextAsync(HttpResponseMessage antwort) =>
+        antwort.StatusCode == System.Net.HttpStatusCode.Forbidden
+            ? "Anfragen dürfen nur Vertrieb und Administration bearbeiten."
+            : await antwort.Content.ReadAsStringAsync() is { Length: > 0 and < 500 } text && !text.TrimStart().StartsWith('{') && !text.TrimStart().StartsWith('<')
+                ? text
+                : $"Fehler {(int)antwort.StatusCode}";
+
+    private async Task VorschauLadenAsync()
+    {
+        _fehler = null;
+        _ergebnis = null;
+        _sende = true;
+        try
+        {
+            var antwort = await Http.PostAsync($"api/anfragen/{Eintrag.Id}/odoo/vorschau", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await FehlerTextAsync(antwort);
+                return;
+            }
+            var v = await antwort.Content.ReadFromJsonAsync<AnfrageOdooVorschau>();
+            if (v is null)
+                return;
+            _vorschau = v;
+            _firmaId = v.FirmaVorschlag;
+            _anrede = v.AnredeVorschlag ?? "";
+            _haUmstellen = false;
+            _anreichern = true; // wie bisher im Workflow; im Einzelfall abwählbar
+            _leadId = OffeneLeads().FirstOrDefault()?.Id;
+            _phaseId = v.PhaseVorschlag;
+            _quelleId = v.QuelleVorschlag;
+            _mediumId = v.MediumVorschlag;
+            _benutzerId = v.BenutzerVorschlag;
+            _aktivitaetsartId = v.AktivitaetsartVorschlag;
+            _stichwoerter.Clear();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+
+    private void Abbrechen()
+    {
+        _vorschau = null;
+        _fehler = null;
+    }
+
+    private async Task AnlegenAsync()
+    {
+        if (_vorschau is not { } v)
+            return;
+        _fehler = null;
+        _sende = true;
+        try
+        {
+            var neu = _leadId is null;
+            var antwort = await Http.PostAsJsonAsync($"api/anfragen/{Eintrag.Id}/odoo/anlegen", new AnfrageOdooAnlegen(
+                _firmaId, v.AnredeWaehlbar ? _anrede : null, _haUmstellen, _leadId,
+                neu ? _phaseId : null, neu ? _stichwoerter.ToList() : [], _benutzerId, _aktivitaetsartId,
+                neu ? _quelleId : null, neu ? _mediumId : null,
+                FirmaAnreichern: _anreichern && _firmaId is null));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await FehlerTextAsync(antwort);
+                return;
+            }
+            _ergebnis = await antwort.Content.ReadFromJsonAsync<AnfrageOdooErgebnis>();
+            _vorschau = null;
+            if (_ergebnis is not null)
+                await NachLauf.InvokeAsync(_ergebnis.Eintrag);
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _sende = false;
+        }
+    }
+}

@@ -490,6 +490,87 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Anfragen");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Customers.AnfrageOdooAnlage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AbgeschlossenAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("AktivitaetErledigt")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("AktivitaetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AnfrageId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("BegonnenAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("BegonnenVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Datenbank")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int?>("FirmaId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("FirmaNeu")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HauptansprechpartnerErledigt")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("KontaktId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("KontaktNeu")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LaeuftSeit")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("LeadId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("LeadNeu")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LetzterFehler")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Stand")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Ziel")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BegonnenVonId");
+
+                    b.HasIndex("AnfrageId", "Datenbank")
+                        .IsUnique();
+
+                    b.ToTable("AnfrageOdooAnlagen", (string)null);
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Ansprechpartner", b =>
                 {
                     b.Property<int>("Id")
@@ -2516,6 +2597,24 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("ErfasstVon");
 
                     b.Navigation("Kunde");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Customers.AnfrageOdooAnlage", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Anfrage", "Anfrage")
+                        .WithMany()
+                        .HasForeignKey("AnfrageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "BegonnenVon")
+                        .WithMany()
+                        .HasForeignKey("BegonnenVonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Anfrage");
+
+                    b.Navigation("BegonnenVon");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Ansprechpartner", b =>

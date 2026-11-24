@@ -7,7 +7,8 @@
    Benachrichtigungsmail ein, die API liest ihn aus und liefert einen Vorschlag
    mit Auffälligkeiten und möglichen Dubletten. Gespeichert wird die Anfrage mit
    ihrer Herkunft (nicht der Mailtext); darunter die gespeicherten Anfragen des
-   Jahres mit Zählung je Kanal.
+   Jahres mit Zählung je Kanal. Eine gespeicherte Anfrage lässt sich von dort in
+   Odoo anlegen (Komponente AnfrageInOdoo: erst Vorschau, dann Bestätigung).
 *@
 
 <PageTitle>Anfragen · Kundenzentrale</PageTitle>
@@ -192,20 +193,38 @@
         }
         else
         {
-            <div class="anfrage-kanaele">
-                @foreach (var k in _uebersicht.Kanaele)
+            @* Die Zählung je Kanal filtert zugleich die Liste: Klick auf den Kanal oder auf eine seiner Zahlen *@
+            var gefiltert = Gefiltert();
+            <div class="anfrage-kanaele" role="group" aria-label="Liste filtern" title="Anklicken filtert die Liste; ein zweiter Klick hebt den Filter auf.">
+                @foreach (var k in Chips())
                 {
-                    <span class="anfrage-kanal">
-                        <b>@k.Anzahl</b> @k.Kanal@(k.DavonKunden > 0 ? $" · {k.DavonKunden} Kunde{(k.DavonKunden == 1 ? "" : "n")}" : "")@(k.Gewonnen > 0 ? $" · {k.Gewonnen} gewonnen" : "")@(k.Verloren > 0 ? $" · {k.Verloren} verloren" : "")
+                    <span class="anfrage-kanal @(k.Kanal == _filterKanal ? "aktiv" : "")">
+                        <button type="button" class="@(k.Kanal == _filterKanal && _filterAusgang is null ? "aktiv" : "")"
+                                aria-pressed="@(k.Kanal == _filterKanal && _filterAusgang is null)"
+                                @onclick="@(() => FilterSetzen(k.Kanal, null))"><b>@k.Anzahl</b> @(k.Kanal ?? "Alle")</button>
+                        @foreach (var (ausgang, anzahl, text) in k.Teile)
+                        {
+                            <button type="button" class="@(k.Kanal == _filterKanal && _filterAusgang == ausgang ? "aktiv" : "")"
+                                    aria-pressed="@(k.Kanal == _filterKanal && _filterAusgang == ausgang)"
+                                    @onclick="@(() => FilterSetzen(k.Kanal, ausgang))">@anzahl @text</button>
+                        }
                     </span>
                 }
             </div>
+            @if (_filterKanal is not null || _filterAusgang is not null)
+            {
+                <div class="anfrage-filterzeile">
+                    Gezeigt: @gefiltert.Count von @_uebersicht.Eintraege.Count —
+                    @string.Join(" · ", new[] { _filterKanal, AusgangText(_filterAusgang) }.Where(t => t is not null))
+                    <button type="button" class="knopf sekundaer klein" @onclick="@(() => FilterSetzen(null, null))">Filter aufheben</button>
+                </div>
+            }
             <table class="liste">
                 <thead>
                     <tr><th>Eingang</th><th>Formular</th><th>Firma</th><th>Herkunft</th><th>Kunde</th><th title="Ausgang der Verkaufschance laut Odoo">Ausgang</th></tr>
                 </thead>
                 <tbody>
-                    @foreach (var e in _uebersicht.Eintraege)
+                    @foreach (var e in gefiltert)
                     {
                         <tr @onclick="@(() => OeffnenAsync(e))">
                             <td>@e.Eingang.ToString("dd.MM.yyyy")</td>
@@ -271,7 +290,7 @@
                                             <dt>Odoo</dt>
                                             <dd>
                                                 Verkaufschance Nr. @leadNr · @(e.Ergebnis ?? "offen")@(e.VerlustGrund is not null ? $" ({e.VerlustGrund})" : "")
-                                                <div class="neben">@(e.ErfasstVon is null ? "Aus Odoo übernommen." : "Von Hand erfasst und mit der Verkaufschance verknüpft.") Der Ausgang wird bei jeder Übernahme aus Odoo nachgezogen.</div>
+                                                <div class="neben">@(e.OdooAnlage is { Fertig: true, Ziel: "Produktiv" } ? "Aus der Kundenzentrale in Odoo angelegt." : e.ErfasstVon is null ? "Aus Odoo übernommen." : "Von Hand erfasst und mit der Verkaufschance verknüpft.") Der Ausgang wird bei jeder Übernahme aus Odoo nachgezogen.</div>
                                             </dd>
                                         }
                                     </dl>
@@ -299,6 +318,9 @@
                                             }
                                         </div>
                                     }
+                                    <AnfrageInOdoo @key="e.Id" Eintrag="e" OdooZiel="@_uebersicht.OdooZiel" OdooSperre="@_uebersicht.OdooSperre"
+                                                   NachLauf="EintragErsetzen" />
+
                                     <div class="formular-aktionen">
                                         @if (e.KundeId is not null)
                                         {
@@ -359,9 +381,81 @@
         }
     }
 
+    // ---- Filter der Liste über die Zählung je Kanal ----
+
+    private const string AusgangKunde = "kunde";
+    private const string AusgangGewonnen = "gewonnen";
+    private const string AusgangVerloren = "verloren";
+    private const string AusgangOffen = "offen";
+
+    private string? _filterKanal;
+    private string? _filterAusgang;
+
+    /// <summary>Ein Chip: der Kanal (<c>null</c> = alle) mit seinen anklickbaren Zahlen.</summary>
+    private record Chip(string? Kanal, int Anzahl, List<(string Ausgang, int Anzahl, string Text)> Teile);
+
+    private static bool Passt(AnfrageEintrag e, string? ausgang) => ausgang switch
+    {
+        null => true,
+        AusgangKunde => e.HeuteKunde,
+        _ => e.Ergebnis == ausgang,
+    };
+
+    private static string? AusgangText(string? ausgang) => ausgang switch
+    {
+        AusgangKunde => "heute Kunde",
+        AusgangGewonnen => "gewonnen",
+        AusgangVerloren => "verloren",
+        AusgangOffen => "offen",
+        _ => null,
+    };
+
+    private List<AnfrageEintrag> Gefiltert() => _uebersicht is null
+        ? []
+        : _uebersicht.Eintraege
+            .Where(e => (_filterKanal is null || e.Kanal == _filterKanal) && Passt(e, _filterAusgang))
+            .ToList();
+
+    /// <summary>„Alle“ und je Kanal ein Chip; gezählt wird aus den geladenen Anfragen, damit Zahl und Liste zusammenpassen.</summary>
+    private List<Chip> Chips()
+    {
+        if (_uebersicht is null)
+            return [];
+        Chip Aus(string? kanal, IReadOnlyCollection<AnfrageEintrag> gruppe)
+        {
+            var teile = new List<(string, int, string)>();
+            void Teil(string ausgang, string einzahl, string mehrzahl)
+            {
+                var anzahl = gruppe.Count(e => Passt(e, ausgang));
+                if (anzahl > 0)
+                    teile.Add((ausgang, anzahl, anzahl == 1 ? einzahl : mehrzahl));
+            }
+            Teil(AusgangKunde, "Kunde", "Kunden");
+            Teil(AusgangGewonnen, "gewonnen", "gewonnen");
+            Teil(AusgangVerloren, "verloren", "verloren");
+            Teil(AusgangOffen, "offen", "offen");
+            return new Chip(kanal, gruppe.Count, teile);
+        }
+        var chips = new List<Chip> { Aus(null, _uebersicht.Eintraege) };
+        chips.AddRange(_uebersicht.Eintraege.GroupBy(e => e.Kanal)
+            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key)
+            .Select(g => Aus(g.Key, g.ToList())));
+        return chips;
+    }
+
+    /// <summary>Setzt den Filter; ein zweiter Klick auf denselben Chip hebt ihn wieder auf.</summary>
+    private void FilterSetzen(string? kanal, string? ausgang)
+    {
+        (_filterKanal, _filterAusgang) = kanal == _filterKanal && ausgang == _filterAusgang ? (null, null) : (kanal, ausgang);
+        // Eine geöffnete Anfrage, die der Filter ausblendet, bleibt nicht unsichtbar offen
+        if (_offen is { } offen && Gefiltert().All(e => e.Id != offen))
+            _offen = null;
+    }
+
     private Task JahrWaehlenAsync(ChangeEventArgs e)
     {
         _offen = null;
+        (_filterKanal, _filterAusgang) = (null, null);
         return LadenAsync(int.TryParse(e.Value?.ToString(), out var jahr) ? jahr : null);
     }
 
@@ -452,6 +546,13 @@
             _treffer = [];
             _fehler = $"Fehler: {ex.Message}";
         }
+    }
+
+    /// <summary>Nach „In Odoo anlegen“: die Zeile zeigt den neuen Stand, die geöffnete Anfrage bleibt offen.</summary>
+    private void EintragErsetzen(AnfrageEintrag neu)
+    {
+        if (_uebersicht?.Eintraege.FindIndex(x => x.Id == neu.Id) is { } stelle and >= 0)
+            _uebersicht.Eintraege[stelle] = neu;
     }
 
     private Task ZuordnenAsync(AnfrageEintrag e, int? kundeId) => AusfuehrenAsync(
