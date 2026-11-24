@@ -33,6 +33,24 @@ Option dokumentiert.
   Kundenkategorie nicht mehr extra. Kein erneuter Import nötig; Bestandsscan und
   Odoo-Import lassen Bezeichnung und Zuordnung unberührt.
 
+- [ ] **Publish aktualisieren (24.11.2026, Website-Anfragen aus Odoo übernehmen):**
+  Migration `AnfragenAusOdoo` (vier neue Spalten an `Anfragen`) läuft beim Start von
+  selbst; sie liegt hinter `VertragBezeichnungUndAnhaenge`, beide kommen mit demselben
+  Publish. Unter Administration → Odoo-Anbindung zuerst **„Anfragen übernehmen:
+  Probelauf“** starten (liest Odoo, speichert nichts) und den Bericht an Claude geben —
+  er nennt nur Zahlen, Formular-, Kanal- und Feldnamen sowie die Werte der Felder
+  „Herkunftskanal“ und „Anliegen“. Danach **„Anfragen übernehmen“**: legt jede als
+  Website-Anfrage erkennbare Verkaufschance (Formular oder Herkunft gefüllt) unter
+  Kunden → „Anfragen“ an, mit lesbarer Herkunft, Kunde (über den Odoo-Kontakt) und Ausgang
+  laut Odoo (offen/gewonnen/verloren, Verlustgrund); zugeordnete Anfragen stehen zum
+  ursprünglichen Datum im Verlauf der Kundenakte. Klick-Kennungen (jetzt auch Microsoft,
+  msclkid) kommen nur mit, wenn die Anfrage jünger als 90 Tage ist. Der Lauf ist
+  wiederholbar: nichts wird doppelt angelegt, eine von Hand erfasste Anfrage mit derselben
+  E-Mail-Adresse wird verknüpft statt verdoppelt, bei schon Übernommenem wird nur der
+  Ausgang nachgezogen. Odoo wird nur gelesen. Eine in der Liste gelöschte übernommene
+  Anfrage legt der nächste Lauf wieder an. Konsole:
+  `Rausoft.Erp.OdooImport.exe anfragen-import [--dry-run]`.
+
 - [ ] **Publish aktualisieren (17.11.2026, Website-Anfragen):** Migration `Anfragen`
   (neue Tabelle, Einstellung `Anfragen.Kampagnen`) läuft beim Start von selbst. Wirkung:
   Unter Kunden → „Anfragen“ fügt ein Mitarbeiter (Vertrieb/Admin) den Text einer

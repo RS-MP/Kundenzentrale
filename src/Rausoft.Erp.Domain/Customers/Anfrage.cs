@@ -76,13 +76,38 @@ public class Anfrage
     public string? Gclid { get; set; }
     public string? Gbraid { get; set; }
     public string? Wbraid { get; set; }
+    /// <summary>Klick-Kennung von Microsoft Ads (Bing) — wird wie die Google-Kennungen behandelt.</summary>
+    public string? Msclkid { get; set; }
     /// <summary>Gesetzt, sobald der Löschlauf die Klick-Kennungen entfernt hat.</summary>
     public DateTime? KlickKennungenGeloeschtAm { get; set; }
+
+    // ---- Übernahme aus Odoo ----
+
+    /// <summary>
+    /// Verkaufschance in Odoo (crm.lead), aus der die Anfrage übernommen oder mit der sie
+    /// verknüpft wurde. Macht die Übernahme wiederholbar; leer bei reinen Hand-Anfragen.
+    /// </summary>
+    public int? OdooLeadId { get; set; }
+    /// <summary>Ausgang der Verkaufschance laut Odoo — nur aussagekräftig mit <see cref="OdooLeadId"/>.</summary>
+    public AnfrageErgebnis Ergebnis { get; set; }
+    /// <summary>Verlustgrund laut Odoo (lost_reason_id), wenn gepflegt.</summary>
+    public string? VerlustGrund { get; set; }
 
     public byte[] RowVersion { get; set; } = [];
 
     public string? Kontaktname() =>
         $"{Vorname} {Nachname}".Trim() is { Length: > 0 } name ? name : null;
+
+    public bool HatKlickKennung() =>
+        Gclid is not null || Gbraid is not null || Wbraid is not null || Msclkid is not null;
+}
+
+/// <summary>Ausgang einer Anfrage, so wie Odoo ihn an der Verkaufschance führt.</summary>
+public enum AnfrageErgebnis
+{
+    Offen = 0,
+    Gewonnen = 1,
+    Verloren = 2,
 }
 
 /// <summary>Regeln zur Herkunft einer Anfrage: Übernahme aus der Mail, lesbarer Kanal, Kampagnennamen.</summary>
@@ -108,8 +133,10 @@ public static partial class AnfrageHerkunft
         string? Feld(string name) =>
             a.Herkunft.FirstOrDefault(h => h.Name.Equals(name, StringComparison.OrdinalIgnoreCase))?.Wert;
 
-        var (gclid, gbraid, wbraid) = (Feld("gclid"), Feld("gbraid"), Feld("wbraid"));
+        var (gclid, gbraid, wbraid, msclkid) = (Feld("gclid"), Feld("gbraid"), Feld("wbraid"), Feld("msclkid"));
         var medium = Feld("utm_medium");
+        // Ohne utm_source bliebe nach dem Löschen der Kennung unbekannt, dass die Anzeige von Microsoft kam
+        var quelle = Feld("utm_source") ?? (msclkid is not null ? "bing" : null);
         var kampagne = Feld("utm_campaign");
         var kampagnenNr = Feld("gad_campaignid");
         // Die Website trägt bei Anzeigen ohne eigenen Namen „google_ads_<Nummer>" ein — das ist kein Name
@@ -132,7 +159,7 @@ public static partial class AnfrageHerkunft
             Telefon = Kuerzen(a.Telefon, 50),
             Nachricht = Kuerzen(a.Nachricht, WebsiteAnfrageLeser.MaxFeldLaenge),
             DatenschutzBestaetigt = a.DatenschutzBestaetigt,
-            Quelle = Kuerzen(Feld("utm_source"), 100),
+            Quelle = Kuerzen(quelle, 100),
             Medium = Kuerzen(medium, 100),
             Kampagne = Kuerzen(kampagne, 200),
             KampagnenNr = Kuerzen(kampagnenNr, 50),
@@ -143,12 +170,39 @@ public static partial class AnfrageHerkunft
             LetzteSeite = UrlOhneAbfrage(Feld("last_page_before_form")),
             ErsterBesuch = DateTimeOffset.TryParse(Feld("first_touch_at"), CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal, out var besuch) ? besuch.UtcDateTime : null,
-            UeberAnzeige = gclid is not null || gbraid is not null || wbraid is not null
+            UeberAnzeige = gclid is not null || gbraid is not null || wbraid is not null || msclkid is not null
                            || Feld("gad_source") is not null || kampagnenNr is not null
                            || (medium is not null && BezahltMedien.Contains(medium.ToLowerInvariant())),
             Gclid = Kuerzen(gclid, 500),
             Gbraid = Kuerzen(gbraid, 500),
             Wbraid = Kuerzen(wbraid, 500),
+            Msclkid = Kuerzen(msclkid, 500),
+        };
+    }
+
+    /// <summary>Eintrag im Verlauf der Kundenakte: sichtbar bei den Notizen, mit Verweis auf die Anfrage.</summary>
+    public static Aktivitaet VerlaufsEintrag(Anfrage a, IReadOnlyDictionary<string, string> namen)
+    {
+        var zeilen = new List<string?>
+        {
+            string.Join(" · ", new[] { a.Kontaktname(), a.Email, a.Telefon }.Where(t => !string.IsNullOrWhiteSpace(t))),
+            a.Firma is not null ? $"Firma laut Formular: {a.Firma}" : null,
+            a.Nachricht is not null ? $"Nachricht: {a.Nachricht}" : null,
+            $"Herkunft: {Text(a, namen)}",
+            a.Einstiegsseite is not null ? $"Einstiegsseite: {a.Einstiegsseite}" : null,
+        };
+        return new Aktivitaet
+        {
+            KundeId = a.KundeId ?? throw new InvalidOperationException("Verlaufseintrag nur für zugeordnete Anfragen."),
+            Typ = AktivitaetsTyp.Notiz,
+            Richtung = AktivitaetsRichtung.Eingehend,
+            Stufe = AktivitaetsStufe.Wesentlich,
+            Zeitpunkt = a.EingegangenAm,
+            MitarbeiterId = a.ErfasstVonId,
+            Betreff = $"Website-Anfrage: {a.Formular}",
+            Inhalt = string.Join('\n', zeilen.Where(z => !string.IsNullOrWhiteSpace(z))),
+            VerweisTyp = AktivitaetsVerweisTyp.Anfrage,
+            VerweisId = a.Id,
         };
     }
 
@@ -174,7 +228,9 @@ public static partial class AnfrageHerkunft
             verweisHost = verweisHost[4..];
 
         if (ueberAnzeige)
-            return string.IsNullOrEmpty(q) || q == "google" ? "Google Ads" : $"{Gross(q)} (bezahlt)";
+            return string.IsNullOrEmpty(q) || q == "google" ? "Google Ads"
+                : q is "bing" or "microsoft" ? "Microsoft Ads"
+                : $"{Gross(q)} (bezahlt)";
         if (m is not null && MailMedien.Contains(m))
             return "Newsletter";
         if (!string.IsNullOrEmpty(q))

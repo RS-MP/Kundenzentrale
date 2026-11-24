@@ -6,7 +6,7 @@ namespace Rausoft.Erp.Api.Dienste;
 
 /// <summary>
 /// Täglicher Löschlauf für die Klick-Kennungen der Website-Anfragen (gclid, gbraid,
-/// wbraid): nach <see cref="AnfrageHerkunft.KlickKennungTage"/> Tagen nimmt Google sie
+/// wbraid, msclkid): nach <see cref="AnfrageHerkunft.KlickKennungTage"/> Tagen nimmt Google sie
 /// weder zum Nachschlagen noch zur Rückmeldung an — dann haben sie keinen Zweck mehr
 /// und werden entfernt (Entscheidung MP 17.11.2026). Die lesbare Herkunft bleibt.
 /// Läuft auch im Testsystem: Löschen von Abgelaufenem ist dort genauso richtig.
@@ -48,11 +48,12 @@ public class AnfragenAufraeumen(IServiceScopeFactory scopeFactory, ILogger<Anfra
     {
         var grenze = jetztUtc.AddDays(-AnfrageHerkunft.KlickKennungTage);
         return db.Anfragen
-            .Where(a => a.EingegangenAm < grenze && (a.Gclid != null || a.Gbraid != null || a.Wbraid != null))
+            .Where(a => a.EingegangenAm < grenze && (a.Gclid != null || a.Gbraid != null || a.Wbraid != null || a.Msclkid != null))
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.Gclid, (string?)null)
                 .SetProperty(a => a.Gbraid, (string?)null)
                 .SetProperty(a => a.Wbraid, (string?)null)
+                .SetProperty(a => a.Msclkid, (string?)null)
                 .SetProperty(a => a.KlickKennungenGeloeschtAm, jetztUtc), ct);
     }
 }

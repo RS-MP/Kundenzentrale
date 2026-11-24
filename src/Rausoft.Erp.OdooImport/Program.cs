@@ -96,6 +96,13 @@ if (args.Contains("anfragen-analyse"))
     await new AnfragenAnalyse(odoo).AusfuehrenAsync();
     return 0;
 }
+// Modus "anfragen-import": übernimmt die als Website-Anfrage erkennbaren Verkaufschancen
+// in die Kundenzentrale (Odoo nur lesen); mit --dry-run wird nichts gespeichert.
+if (args.Contains("anfragen-import"))
+{
+    await new AnfragenImporter(odoo, dryRun: args.Contains("--dry-run")).AusfuehrenAsync();
+    return 0;
+}
 if (args.Contains("chatter-import"))
 {
     await new ChatterImporter(odoo, dryRun: args.Contains("--dry-run"), nurKunde: Option("--kunde"),

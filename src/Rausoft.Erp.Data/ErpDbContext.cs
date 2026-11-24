@@ -367,6 +367,9 @@ public class ErpDbContext(
             e.Property(a => a.Gclid).HasMaxLength(500);
             e.Property(a => a.Gbraid).HasMaxLength(500);
             e.Property(a => a.Wbraid).HasMaxLength(500);
+            e.Property(a => a.Msclkid).HasMaxLength(500);
+            e.Property(a => a.VerlustGrund).HasMaxLength(200);
+            e.HasIndex(a => a.OdooLeadId).IsUnique().HasFilter("[OdooLeadId] IS NOT NULL");
             e.Property(a => a.RowVersion).IsRowVersion();
         });
 
@@ -707,7 +710,7 @@ public class ErpDbContext(
         [typeof(Domain.Wiki.PreislistenVersion)] = [nameof(Domain.Wiki.PreislistenVersion.Daten)],
         // Klick-Kennungen werden nach 90 Tagen gelöscht — im Audit-Log dürfen sie nicht überleben.
         [typeof(Anfrage)] =
-            [nameof(Anfrage.Gclid), nameof(Anfrage.Gbraid), nameof(Anfrage.Wbraid), nameof(Anfrage.KlickKennungenGeloeschtAm)],
+            [nameof(Anfrage.Gclid), nameof(Anfrage.Gbraid), nameof(Anfrage.Wbraid), nameof(Anfrage.Msclkid), nameof(Anfrage.KlickKennungenGeloeschtAm)],
     };
 
     // Einstellungen, die Hintergrundläufe als Zeitstempel fortschreiben (kein Admin-Handeln)

@@ -64,9 +64,14 @@ public record AnfrageEintrag(
     int? KundeId,
     string? Kundenname,
     string? Kundennummer,
-    string? ErfasstVon);
+    string? ErfasstVon,
+    /// <summary>Nummer der Verkaufschance in Odoo, wenn die Anfrage von dort übernommen oder mit ihr verknüpft ist.</summary>
+    int? OdooLeadId = null,
+    /// <summary>Ausgang laut Odoo: „offen“, „gewonnen“ oder „verloren“; fehlt ohne Verkaufschance.</summary>
+    string? Ergebnis = null,
+    string? VerlustGrund = null);
 
-public record AnfrageKanalZahl(string Kanal, int Anzahl, int DavonKunden);
+public record AnfrageKanalZahl(string Kanal, int Anzahl, int DavonKunden, int Gewonnen = 0, int Verloren = 0);
 
 /// <summary>Anfragen eines Jahres mit Zählung je Kanal.</summary>
 public record AnfragenUebersicht(

@@ -156,7 +156,7 @@
                 </dl>
                 <div class="neben" style="margin-top:10px">
                     Gespeichert werden Kanal, Kampagne, Suchbegriff und die Seiten ohne Abfrageteil. Die Klick-Kennungen
-                    (gclid, gbraid, wbraid) werden nach @KlickKennungTage Tagen automatisch gelöscht.
+                    (gclid, gbraid, wbraid, msclkid) werden nach @KlickKennungTage Tagen automatisch gelöscht.
                 </div>
             </div>
         </details>
@@ -196,13 +196,13 @@
                 @foreach (var k in _uebersicht.Kanaele)
                 {
                     <span class="anfrage-kanal">
-                        <b>@k.Anzahl</b> @k.Kanal@(k.DavonKunden > 0 ? $" · {k.DavonKunden} Kunde{(k.DavonKunden == 1 ? "" : "n")}" : "")
+                        <b>@k.Anzahl</b> @k.Kanal@(k.DavonKunden > 0 ? $" · {k.DavonKunden} Kunde{(k.DavonKunden == 1 ? "" : "n")}" : "")@(k.Gewonnen > 0 ? $" · {k.Gewonnen} gewonnen" : "")@(k.Verloren > 0 ? $" · {k.Verloren} verloren" : "")
                     </span>
                 }
             </div>
             <table class="liste">
                 <thead>
-                    <tr><th>Eingang</th><th>Formular</th><th>Firma</th><th>Herkunft</th><th>Kunde</th></tr>
+                    <tr><th>Eingang</th><th>Formular</th><th>Firma</th><th>Herkunft</th><th>Kunde</th><th title="Ausgang der Verkaufschance laut Odoo">Ausgang</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var e in _uebersicht.Eintraege)
@@ -228,11 +228,12 @@
                                     <span class="neben" style="display:inline">nicht zugeordnet</span>
                                 }
                             </td>
+                            <td class="@(e.Ergebnis == "gewonnen" ? "anfrage-gewonnen" : e.Ergebnis == "verloren" ? "anfrage-verloren" : "")">@(e.Ergebnis ?? "—")</td>
                         </tr>
                         @if (_offen == e.Id)
                         {
                             <tr class="anfrage-detail">
-                                <td colspan="5">
+                                <td colspan="6">
                                     <dl class="anfrage-felder">
                                         <dt>Eingang</dt>
                                         <dd>@e.Eingang.ToString("dd.MM.yyyy HH:mm")@(e.Website is not null ? $" · {e.Website}" : "")</dd>
@@ -264,6 +265,14 @@
                                         {
                                             <dt>Erfasst von</dt>
                                             <dd>@e.ErfasstVon</dd>
+                                        }
+                                        @if (e.OdooLeadId is { } leadNr)
+                                        {
+                                            <dt>Odoo</dt>
+                                            <dd>
+                                                Verkaufschance Nr. @leadNr · @(e.Ergebnis ?? "offen")@(e.VerlustGrund is not null ? $" ({e.VerlustGrund})" : "")
+                                                <div class="neben">@(e.ErfasstVon is null ? "Aus Odoo übernommen." : "Von Hand erfasst und mit der Verkaufschance verknüpft.") Der Ausgang wird bei jeder Übernahme aus Odoo nachgezogen.</div>
+                                            </dd>
                                         }
                                     </dl>
 

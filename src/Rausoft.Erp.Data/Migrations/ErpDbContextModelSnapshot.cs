@@ -372,6 +372,9 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<int?>("ErfasstVonId")
                         .HasColumnType("int");
 
+                    b.Property<int>("Ergebnis")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("ErsterBesuch")
                         .HasColumnType("datetime2");
 
@@ -414,6 +417,10 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("Msclkid")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Nachname")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -421,6 +428,9 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<string>("Nachricht")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("OdooLeadId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Quelle")
                         .HasMaxLength(100)
@@ -442,6 +452,10 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.Property<bool>("UeberAnzeige")
                         .HasColumnType("bit");
+
+                    b.Property<string>("VerlustGrund")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Verweis")
                         .HasMaxLength(500)
@@ -468,6 +482,10 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasIndex("ErfasstVonId");
 
                     b.HasIndex("KundeId");
+
+                    b.HasIndex("OdooLeadId")
+                        .IsUnique()
+                        .HasFilter("[OdooLeadId] IS NOT NULL");
 
                     b.ToTable("Anfragen");
                 });

@@ -23,6 +23,10 @@ public class ChatterImportDienst(
     public const string ModusImport = "import";
     /// <summary>Zählt, was Odoo zu früheren Website-Anfragen enthält (Verkaufschancen, nur lesen).</summary>
     public const string ModusAnfragen = "anfragen";
+    /// <summary>Website-Anfragen aus Odoo übernehmen — Probelauf (nur lesen, nichts speichern).</summary>
+    public const string ModusAnfragenProbe = "anfragen-probe";
+    /// <summary>Website-Anfragen aus Odoo übernehmen (Odoo nur lesen, Anfragen in der Kundenzentrale anlegen).</summary>
+    public const string ModusAnfragenImport = "anfragen-import";
 
     private readonly object _sperre = new();
     private Puffer _bericht = new();
@@ -69,6 +73,11 @@ public class ChatterImportDienst(
                     break;
                 case ModusAnfragen:
                     await new AnfragenAnalyse(odoo, ausgabe: aus).AusfuehrenAsync();
+                    break;
+                case ModusAnfragenProbe:
+                case ModusAnfragenImport:
+                    await new AnfragenImporter(odoo, dryRun: modus == ModusAnfragenProbe,
+                        verbindung: verbindung, ausgabe: aus).AusfuehrenAsync();
                     break;
                 case ModusDryRun:
                     await new ChatterImporter(odoo, dryRun: true, nurKunde: kunde, anhaengeLaden: anhaengeLaden,

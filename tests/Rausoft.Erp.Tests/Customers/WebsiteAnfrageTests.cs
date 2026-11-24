@@ -133,6 +133,17 @@ public class WebsiteAnfrageTests
     }
 
     [Theory]
+    [InlineData("Bitte TESTVERSION freischalten!", "Testversion")]
+    [InlineData("Bitte CHECKLISTE versenden!", "Checkliste")]
+    [InlineData("Neue Kontaktanfrage", "Kontakt")]
+    public void Lesen_ErkenntFormularAmBetreff(string betreff, string erwartet)
+    {
+        var (a, _) = WebsiteAnfrageLeser.Lesen($"Betreff: {betreff}\nName: Anna Test\nFirma: Muster AG\nFirmen E-Mail: anna@muster.example");
+        Assert.NotNull(a);
+        Assert.Equal(erwartet, a.Formular);
+    }
+
+    [Theory]
     [InlineData("PROMOS Consult GmbH", "Promos-Consult", 100)]
     [InlineData("Müller & Söhne GmbH & Co. KG", "Mueller Soehne", 100)]
     [InlineData("Beispiel Consult GmbH", "Beispiel Consult Deutschland AG", 80)]

@@ -75,7 +75,7 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
         await db.SaveChangesAsync(ct);
         if (anfrage.KundeId is not null)
         {
-            db.Aktivitaeten.Add(VerlaufsEintrag(anfrage, namen));
+            db.Aktivitaeten.Add(AnfrageHerkunft.VerlaufsEintrag(anfrage, namen));
             await db.SaveChangesAsync(ct);
         }
         await transaktion.CommitAsync(ct);
@@ -117,7 +117,8 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
         return new AnfragenUebersicht(
             gewaehlt, jahre.Reverse().ToList(), eintraege.Count, eintraege.Count(IstKunde),
             eintraege.GroupBy(e => e.Kanal)
-                .Select(g => new AnfrageKanalZahl(g.Key, g.Count(), g.Count(IstKunde)))
+                .Select(g => new AnfrageKanalZahl(g.Key, g.Count(), g.Count(IstKunde),
+                    g.Count(e => e.Ergebnis == ErgebnisGewonnen), g.Count(e => e.Ergebnis == ErgebnisVerloren)))
                 .OrderByDescending(k => k.Anzahl).ThenBy(k => k.Kanal).ToList(),
             eintraege);
     }
@@ -151,7 +152,7 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
             db.Aktivitaeten.RemoveRange(await VerlaufsEintraege(id).ToListAsync(ct));
             anfrage.KundeId = daten.KundeId;
             if (anfrage.KundeId is not null)
-                db.Aktivitaeten.Add(VerlaufsEintrag(anfrage, namen));
+                db.Aktivitaeten.Add(AnfrageHerkunft.VerlaufsEintrag(anfrage, namen));
             await db.SaveChangesAsync(ct);
         }
         return (await EintraegeAsync(db.Anfragen.Where(a => a.Id == id), namen, ct)).Single();
@@ -186,32 +187,6 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
             .Where(e => e.Schluessel == EinstellungsSchluessel.AnfragenKampagnen)
             .Select(e => e.Wert).FirstOrDefaultAsync(ct));
 
-    /// <summary>Eintrag im Verlauf der Kundenakte: sichtbar bei den Notizen, mit Verweis auf die Anfrage.</summary>
-    private static Aktivitaet VerlaufsEintrag(Anfrage a, IReadOnlyDictionary<string, string> namen)
-    {
-        var zeilen = new List<string?>
-        {
-            string.Join(" · ", new[] { a.Kontaktname(), a.Email, a.Telefon }.Where(t => !string.IsNullOrWhiteSpace(t))),
-            a.Firma is not null ? $"Firma laut Formular: {a.Firma}" : null,
-            a.Nachricht is not null ? $"Nachricht: {a.Nachricht}" : null,
-            $"Herkunft: {AnfrageHerkunft.Text(a, namen)}",
-            a.Einstiegsseite is not null ? $"Einstiegsseite: {a.Einstiegsseite}" : null,
-        };
-        return new Aktivitaet
-        {
-            KundeId = a.KundeId!.Value,
-            Typ = AktivitaetsTyp.Notiz,
-            Richtung = AktivitaetsRichtung.Eingehend,
-            Stufe = AktivitaetsStufe.Wesentlich,
-            Zeitpunkt = a.EingegangenAm,
-            MitarbeiterId = a.ErfasstVonId,
-            Betreff = $"Website-Anfrage: {a.Formular}",
-            Inhalt = string.Join('\n', zeilen.Where(z => !string.IsNullOrWhiteSpace(z))),
-            VerweisTyp = AktivitaetsVerweisTyp.Anfrage,
-            VerweisId = a.Id,
-        };
-    }
-
     private static async Task<List<AnfrageEintrag>> EintraegeAsync(
         IQueryable<Anfrage> anfragen, IReadOnlyDictionary<string, string> namen, CancellationToken ct)
     {
@@ -227,7 +202,6 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
         return roh.Select(r =>
         {
             var a = r.Anfrage;
-            var hatKennung = a.Gclid is not null || a.Gbraid is not null || a.Wbraid is not null;
             return new AnfrageEintrag(
                 a.Id, Ortszeit.VonUtc(a.EingegangenAm), a.Formular, a.Website, a.Firma, a.Kontaktname(),
                 a.Email, a.Telefon, a.Nachricht,
@@ -235,10 +209,22 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
                 a.ErsterBesuch is { } besuch && besuch <= a.EingegangenAm.AddMinutes(1)
                     ? (int)Math.Max(0, Math.Round((a.EingegangenAm - besuch).TotalMinutes))
                     : null,
-                hatKennung ? Ortszeit.VonUtc(a.EingegangenAm).Date.AddDays(AnfrageHerkunft.KlickKennungTage) : null,
-                a.KundeId, r.Kundenname, r.Kundennummer, r.ErfasstVon);
+                a.HatKlickKennung() ? Ortszeit.VonUtc(a.EingegangenAm).Date.AddDays(AnfrageHerkunft.KlickKennungTage) : null,
+                a.KundeId, r.Kundenname, r.Kundennummer, r.ErfasstVon,
+                a.OdooLeadId,
+                // Der Ausgang kommt aus Odoo — ohne Verkaufschance gibt es dazu keine Aussage
+                a.OdooLeadId is null ? null : a.Ergebnis switch
+                {
+                    AnfrageErgebnis.Gewonnen => ErgebnisGewonnen,
+                    AnfrageErgebnis.Verloren => ErgebnisVerloren,
+                    _ => "offen",
+                },
+                a.OdooLeadId is null ? null : a.VerlustGrund);
         }).ToList();
     }
+
+    private const string ErgebnisGewonnen = "gewonnen";
+    private const string ErgebnisVerloren = "verloren";
 
     /// <summary>
     /// Mögliche Dubletten im Kundenbestand: gleiche E-Mail-Adresse, gleiche E-Mail-Domäne

@@ -222,6 +222,7 @@ public static partial class WebsiteAnfrageLeser
         (string Stichwort, string Name)[] bekannte =
         [
             ("Infomappe", "Infomappe"), ("Demo", "Demo"), ("Präsentation", "Präsentation"),
+            ("Testversion", "Testversion"), ("Checkliste", "Checkliste"),
             ("Testzugang", "Testzugang"), ("Rückruf", "Rückruf"), ("Angebot", "Angebot"),
             ("Kontakt", "Kontakt"), ("Newsletter", "Newsletter"),
         ];

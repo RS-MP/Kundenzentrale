@@ -1050,6 +1050,8 @@ tr.anfrage-gewaehlt { background: var(--accent-soft); }
 .anfrage-rohfelder > summary { padding: 12px 16px; cursor: pointer; font-size: 13.5px; color: var(--ink2); }
 .anfrage-kanaele { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 0 16px 12px; font-size: 13px; color: var(--ink2); }
 .anfrage-kanal { border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
+.anfrage-gewonnen { color: var(--good); font-weight: 600; }
+.anfrage-verloren { color: var(--ink2); }
 table.liste tr.anfrage-detail, table.liste tr.anfrage-detail:hover { cursor: default; background: var(--surface2); }
 .anfrage-detail .anfrage-felder { margin-top: 0; }
 .anfrage-zuordnen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }

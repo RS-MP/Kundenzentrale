@@ -40,14 +40,17 @@ internal static class OdooJson
             : [];
 
     /// <summary>Odoo-Zeitstempel ("2024-05-03 10:12:33", UTC) → lokale Zeit.</summary>
-    public static DateTime? Zeitpunkt(JsonElement element, string feld)
+    public static DateTime? Zeitpunkt(JsonElement element, string feld) => ZeitpunktUtc(element, feld)?.ToLocalTime();
+
+    /// <summary>Odoo-Zeitstempel ("2024-05-03 10:12:33", UTC) unverändert als UTC.</summary>
+    public static DateTime? ZeitpunktUtc(JsonElement element, string feld)
     {
         var text = Text(element, feld);
         if (text is null)
             return null;
         return DateTime.TryParseExact(text, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var utc)
-            ? utc.ToLocalTime()
+            ? utc
             : null;
     }
 

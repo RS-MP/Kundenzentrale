@@ -327,6 +327,14 @@
                     Grundlage für die Übernahme alter Anfragen.
                 </span>
             </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px">
+                <button class="knopf sekundaer" disabled="@(_chatter?.Laeuft == true)" @onclick='() => ChatterStartenAsync("anfragen-probe")'>Anfragen übernehmen: Probelauf</button>
+                <button class="knopf" disabled="@(_chatter?.Laeuft == true)" @onclick='() => ChatterStartenAsync("anfragen-import")'>Anfragen übernehmen</button>
+                <span style="color:var(--muted); font-size:12.5px">
+                    Legt die als Website-Anfrage erkennbaren Verkaufschancen unter „Anfragen“ an, mit Herkunft und Ausgang laut Odoo.
+                    Odoo wird nur gelesen; ein erneuter Lauf legt nichts doppelt an und zieht nur den Ausgang nach.
+                </span>
+            </div>
             @if (_chatter?.Fehler is not null)
             {
                 <div class="krittext" style="margin-top:6px; font-size:13px">@_chatter.Fehler</div>
@@ -831,6 +839,8 @@
             "dryrun" => "Dry-Run",
             "import" => "Import",
             "anfragen" => "Auswertung der Website-Anfragen",
+            "anfragen-probe" => "Probelauf Übernahme der Website-Anfragen",
+            "anfragen-import" => "Übernahme der Website-Anfragen",
             _ => "Lauf",
         };
         var kunde = _chatter.Kunde is { Length: > 0 } k ? $" für {k}" : "";
