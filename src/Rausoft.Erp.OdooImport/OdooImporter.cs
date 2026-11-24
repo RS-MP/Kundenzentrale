@@ -64,8 +64,12 @@ public class OdooImporter(OdooClient odoo, bool dryRun, string? verbindung = nul
                 .Where(a => a.Status == Domain.Subscriptions.AboStatus.Laufend)
                 .Select(a => a.KundeId).Distinct().ToListAsync())
             .ToHashSet();
+        // Anhänge bleiben außen vor: für sie gilt der Status des Hauptvertrags, eine
+        // Kündigung nur am Anhang wäre in der Oberfläche unsichtbar. Bezeichnung und
+        // Zuordnung (Handpflege) fasst der Import nie an.
         var aktiveBestandsVertraege = (await db.Vertraege
                 .Where(v => v.Status == Domain.Contracts.VertragsStatus.Aktiv
+                    && v.HauptvertragId == null
                     && v.Notiz != null && v.Notiz.StartsWith("Bestandsimport")
                     // nur Kundenverträge — Partnerverträge haben keinen Kunden
                     && v.KundeId != null)

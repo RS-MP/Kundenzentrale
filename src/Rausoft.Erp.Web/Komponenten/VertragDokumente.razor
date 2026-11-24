@@ -1,0 +1,51 @@
+@* Dokumente einer Vertragsakte als kompakte Zeilen (11/2026): Art, Titel und Datum —
+   damit in Listen und in der Kundenakte niemand den Vertrag öffnen muss.
+   Bis zu fünf Dokumente stehen direkt da, mehr klappen auf einen Klick auf. *@
+@if (Dokumente is { Count: > 0 })
+{
+    @if (Dokumente.Count <= DirektBis || ImmerOffen)
+    {
+        <div class="vdok">@Zeilen</div>
+    }
+    else
+    {
+        <details class="vdok-klapp" @onclick:stopPropagation="true">
+            <summary>@Dokumente.Count Dokumente anzeigen</summary>
+            <div class="vdok">@Zeilen</div>
+        </details>
+    }
+}
+
+@code {
+    [Parameter] public List<VertragDokumentKurz>? Dokumente { get; set; }
+
+    /// <summary>Alle Dokumente ohne Aufklapper zeigen (z. B. in einer bereits aufgeklappten Zeile).</summary>
+    [Parameter] public bool ImmerOffen { get; set; }
+
+    private const int DirektBis = 5;
+
+    private RenderFragment Zeilen => @<text>
+        @foreach (var dokument in Dokumente!)
+        {
+            <div class="vdok-zeile">
+                <span class="typ" title="@dokument.Art">@dokument.Kuerzel</span>
+                <span class="vdok-text">
+                    @dokument.Art
+                    @if (TitelZeigen(dokument))
+                    {
+                        <span class="vdok-titel">@dokument.Titel</span>
+                    }
+                    @if (dokument.Vertraulich)
+                    {
+                        <span class="vdok-schloss" title="Vertraulich — vollständig nur für die Rolle „Vertrauliche Verträge“">🔒</span>
+                    }
+                </span>
+                <span class="vdok-datum">@(dokument.Stand?.ToString("dd.MM.yyyy") ?? "")</span>
+            </div>
+        }
+    </text>;
+
+    // Titel nur zeigen, wenn er mehr sagt als die Dokumentart („Wartungsvertrag“ · „Wartungsvertrag“)
+    private static bool TitelZeigen(VertragDokumentKurz dokument) =>
+        dokument.Titel.Length > 0 && !dokument.Art.StartsWith(dokument.Titel, StringComparison.OrdinalIgnoreCase);
+}

@@ -51,7 +51,7 @@ public class ServerController(ErpDbContext db, ServerStatusDienst statusDienst, 
                 k.Id, k.Kundennummer, k.Firmenname, k.MandantenKennung,
                 HatAktives = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
                     || db.Vertraege.Any(v => v.KundeId == k.Id
-                        && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
+                        && v.HauptvertragId == null && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
             })
             .ToListAsync(ct);
         return Ok(roh.Select(k => new ServerKunde(

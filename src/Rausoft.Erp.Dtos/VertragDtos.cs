@@ -15,10 +15,48 @@ public record VertragListenEintrag(
     StandEintrag? AktuellerStand,
     int? PartnerId,
     // Für alle sichtbare Kurzinfos der Bestandteile (z. B. „Provision 15 %")
-    List<string> Kurzinfos);
+    List<string> Kurzinfos,
+    // Frei vergebene Bezeichnung des Vertrags (11/2026)
+    string? Bezeichnung,
+    // Dokumente der Akte mit Art, Titel und Datum — damit niemand den Vertrag öffnen muss
+    List<VertragDokumentKurz> Dokumente,
+    // Zugeordnete Anhänge; Status und Ende gelten vom Hauptvertrag (diesem Eintrag)
+    List<VertragAnhangEintrag> Anhaenge);
 
 /// <summary>Dokumentart-Kürzel für Listen (FEEDBACK Nr. 19): „BE" · „Bestellungen" · 5.</summary>
 public record BestandteilKurz(string Kuerzel, string Name, int Anzahl);
+
+/// <summary>
+/// Ein Dokument (Bestandteil) in Listen: „NT · Nachtrag 2 · Preisanpassung 2024 · 12.03.2024".
+/// Titel ist leer, wenn der Bestandteil vertraulich ist und die Rolle fehlt.
+/// </summary>
+public record VertragDokumentKurz(string Kuerzel, string Art, string Titel, DateOnly? Stand, bool Vertraulich);
+
+/// <summary>Anhang eines Hauptvertrags in Listen — eigener Vertrag mit eigener Nummer und eigenen Dokumenten.</summary>
+public record VertragAnhangEintrag(
+    int Id,
+    string Vertragsnummer,
+    string? Bezeichnung,
+    List<BestandteilKurz> Bestandteile,
+    StandEintrag? AktuellerStand,
+    List<string> Kurzinfos,
+    List<VertragDokumentKurz> Dokumente);
+
+/// <summary>Verweis auf einen anderen Vertrag derselben Vertragspartei (Hauptvertrag, Auswahl beim Zuordnen).</summary>
+public record VertragVerweis(
+    int Id,
+    string Vertragsnummer,
+    string? Bezeichnung,
+    string Status,
+    DateOnly? NaechstesEnde,
+    bool IstAnhang,
+    bool HatAnhaenge);
+
+/// <summary>Vertrag umbenennen — leer entfernt die Bezeichnung.</summary>
+public record VertragUmbenennen(string? Bezeichnung);
+
+/// <summary>Vertrag einem Hauptvertrag als Anhang zuordnen — null löst die Zuordnung.</summary>
+public record VertragZuordnen(int? HauptvertragId);
 
 public record StandEintrag(string Kuerzel, string Bezeichnung, DateOnly Datum);
 
@@ -40,7 +78,16 @@ public record VertragDetail(
     StandEintrag? AktuellerStand,
     // Angemeldeter Benutzer hat die Rolle „Vertrauliche Verträge"
     bool DarfVertrauliche,
-    int? PartnerId);
+    int? PartnerId,
+    string? Bezeichnung,
+    // Gesetzt, wenn dieser Vertrag ein Anhang ist: Status, Laufzeit und Kündigung gelten von dort.
+    // Die Felder Status/Beginn/… oben bleiben die eigenen, gespeicherten Werte.
+    VertragVerweis? Hauptvertrag,
+    List<VertragAnhangEintrag> Anhaenge,
+    // Übrige Verträge derselben Vertragspartei — Auswahl fürs Zuordnen
+    List<VertragVerweis> AndereVertraege,
+    // Nur vertrauliche Bestandteile und die Rolle fehlt: Umbenennen/Zuordnen gesperrt
+    bool GruppeGesperrt);
 
 public record BestandteilDetail(
     int Id,

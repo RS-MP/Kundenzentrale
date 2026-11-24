@@ -24,7 +24,7 @@
 }
 
 <div class="werkzeugleiste">
-    <input type="search" placeholder="Vertragsnummer, Firma oder Kundennummer …"
+    <input type="search" placeholder="Vertragsnummer, Bezeichnung, Firma oder Kundennummer …"
            @bind="_suche" @bind:event="oninput" @onkeydown="BeiTaste" />
     <div class="chips">
         <button class="chip @(_arbeitsfilter == "" ? "aktiv" : "")" @onclick='() => Navigiere(arbeitsfilter: "")'>Alle</button>
@@ -129,7 +129,7 @@
             <table class="liste">
                 <thead>
                     <tr>
-                        <th style="width:100px">Vertrags-Nr.</th>
+                        <th style="width:170px">Vertrag</th>
                         <th>Kunde</th>
                         <th style="width:110px">Beginn</th>
                         <th style="width:150px">Nächstmögl. Ende</th>
@@ -140,7 +140,17 @@
                     @foreach (var vertrag in _ergebnis.Eintraege)
                     {
                         <tr @onclick='() => Navigation.NavigateTo($"vertraege/{vertrag.Id}")'>
-                            <td>@vertrag.Vertragsnummer</td>
+                            <td>
+                                <span class="haupt">@vertrag.Vertragsnummer</span>
+                                @if (vertrag.Bezeichnung is not null)
+                                {
+                                    <div class="neben" style="color:var(--ink2)">@vertrag.Bezeichnung</div>
+                                }
+                                @if (vertrag.Anhaenge.Count > 0)
+                                {
+                                    <div class="neben">@(vertrag.Anhaenge.Count == 1 ? "mit 1 Anhang" : $"mit {vertrag.Anhaenge.Count} Anhängen")</div>
+                                }
+                            </td>
                             <td>
                                 <span class="haupt">@vertrag.KundeName</span>
                                 <div class="neben" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
@@ -161,6 +171,23 @@
                                 @if (vertrag.Kurzinfos.Count > 0)
                                 {
                                     <div class="neben" style="color:var(--ink2)">@string.Join(" · ", vertrag.Kurzinfos)</div>
+                                }
+                                @* Zusammengefasste Verträge: Anhänge stehen direkt unter dem Hauptvertrag;
+                                   die Dokumente klappen auf, ohne den Vertrag zu öffnen *@
+                                @{ var dokumentAnzahl = vertrag.Dokumente.Count + vertrag.Anhaenge.Sum(a => a.Dokumente.Count); }
+                                @if (_aufgeklappt.Contains(vertrag.Id))
+                                {
+                                    <VertragDokumente Dokumente="vertrag.Dokumente" ImmerOffen="true" />
+                                }
+                                <VertragAnhaenge Anhaenge="vertrag.Anhaenge" MitDokumenten="_aufgeklappt.Contains(vertrag.Id)" DokumenteImmerOffen="true" />
+                                @if (dokumentAnzahl > 0)
+                                {
+                                    <button class="mehr" style="padding:2px 0; font-size:12.5px"
+                                            @onclick="() => Umklappen(vertrag.Id)" @onclick:stopPropagation="true">
+                                        @(_aufgeklappt.Contains(vertrag.Id)
+                                            ? "Dokumente ausblenden"
+                                            : dokumentAnzahl == 1 ? "1 Dokument anzeigen" : $"{dokumentAnzahl} Dokumente anzeigen")
+                                    </button>
                                 }
                             </td>
                             <td>@vertrag.Beginn.ToString("dd.MM.yyyy")</td>
@@ -213,6 +240,15 @@
     private List<KundeListenEintrag>? _kundenTreffer;
     private KundeListenEintrag? _gewaehlterKunde;
     private readonly NeuerVertrag _neu = new();
+
+    /// <summary>Verträge, deren Dokumente in der Liste aufgeklappt sind.</summary>
+    private readonly HashSet<int> _aufgeklappt = [];
+
+    private void Umklappen(int vertragId)
+    {
+        if (!_aufgeklappt.Remove(vertragId))
+            _aufgeklappt.Add(vertragId);
+    }
 
     protected override async Task OnInitializedAsync()
     {

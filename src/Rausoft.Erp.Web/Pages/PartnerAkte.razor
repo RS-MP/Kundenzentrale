@@ -62,8 +62,12 @@ else
                     @foreach (var vertrag in _vertraege ?? [])
                     {
                         <div style="padding:6px 0; border-bottom:1px dashed var(--border)">
-                            <div style="display:flex; gap:10px; align-items:baseline">
+                            <div style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap">
                                 <a href="vertraege/@vertrag.Id" style="font-weight:600">@vertrag.Vertragsnummer</a>
+                                @if (vertrag.Bezeichnung is not null)
+                                {
+                                    <span class="vname">@vertrag.Bezeichnung</span>
+                                }
                                 <span class="status @StatusKlasse(vertrag.Status)" style="font-size:13px">@vertrag.Status</span>
                                 <span style="margin-left:auto; color:var(--muted); font-size:12.5px">
                                     @(vertrag.NaechstesEnde is not null ? $"Ende {vertrag.NaechstesEnde.Value:dd.MM.yyyy}" : "")
@@ -80,6 +84,8 @@ else
                             {
                                 <div class="neben" style="color:var(--ink2)">@info</div>
                             }
+                            <VertragDokumente Dokumente="vertrag.Dokumente" />
+                            <VertragAnhaenge Anhaenge="vertrag.Anhaenge" />
                         </div>
                     }
                 </div>

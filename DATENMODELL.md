@@ -129,6 +129,20 @@ Rechnungsanschrift = eigene Adresse mit Typ `Rechnung`.
 | GekuendigtZum | date, null | |
 | Notiz | nvarchar(max), null | |
 | OdooId | int, null | |
+| Bezeichnung | nvarchar(200), null | frei vergeben, reine Handpflege (11/2026) |
+| HauptvertragId | FK → Vertrag, null | Anhang eines anderen Vertrags (11/2026) |
+
+**Umbenennen und Zusammenfassen** (Migration `VertragBezeichnungUndAnhaenge`, 24.11.2026):
+Die `Bezeichnung` steht in allen Listen neben der Nummer; Bestandsscan und Odoo-Import
+schreiben sie nie. Über `HauptvertragId` wird ein Vertrag einem Hauptvertrag derselben
+Vertragspartei als **Anhang** zugeordnet — gruppiert wird nur die Anzeige, beide
+Datensätze behalten Nummer und Dokumente (kein Verschmelzen, Dokumente bleiben
+unverändert). Regeln in `VertragsGruppe`: nicht an sich selbst, nur gleiche
+Vertragspartei, genau eine Ebene (keine Ketten, keine Kreise). Für Anhänge gelten
+Status, Laufzeit und Kündigung des Hauptvertrags; die eigenen Werte bleiben gespeichert
+und gelten nach dem Lösen wieder. Anhänge zählen deshalb in Vertragsliste, Kennzahlen
+und Kundenkategorie nicht extra. Wird ein Hauptvertrag gelöscht, werden seine Anhänge
+vorher gelöst.
 
 Kündigungstermine werden aus Beginn/Laufzeit/Frist **berechnet**, nicht gespeichert.
 Erinnerungen laufen ab Phase 2 über Aufgaben/Wiedervorlage. `AngebotId` (FK) kommt

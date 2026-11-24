@@ -18,6 +18,10 @@ namespace Rausoft.Erp.OdooImport;
 ///   4228-1.pdf → Bestandteil "Nachtrag"
 /// Idempotent: registrierte Dateipfade werden übersprungen, die Bestands-
 /// Vertragsakte eines Kunden wird wiederverwendet.
+/// Handpflege bleibt unberührt: An einer vorhandenen Akte schreibt der Scan
+/// weder Bezeichnung noch Zuordnung zum Hauptvertrag, und von Hand umbenannte
+/// Bestandteile behalten ihren Titel (ihre Datei ist registriert und wird
+/// übersprungen) — siehe <see cref="BestandteilFinden"/>.
 /// </summary>
 public partial class VertragsBestandScanner(bool dryRun)
 {
@@ -192,12 +196,7 @@ public partial class VertragsBestandScanner(bool dryRun)
                     : fund.Typ;
                 var titel = istBasis ? "Wartungsvertrag" : Path.GetFileNameWithoutExtension(fund.Datei.Name);
 
-                var bestandteil = vertrag.Bestandteile.FirstOrDefault(b => b.Typ == typ && b.Titel == titel);
-                if (bestandteil is null)
-                {
-                    bestandteil = new Vertragsbestandteil { Typ = typ, Titel = titel, Vertrag = vertrag };
-                    vertrag.Bestandteile.Add(bestandteil);
-                }
+                var bestandteil = BestandteilFinden(vertrag, typ, titel);
                 // Stand für die Reihenfolge (Datum im Namen, sonst Dateidatum) — nur beim ersten Dokument
                 DokumentdatumDienst.Uebernehmen(bestandteil, fund.Datei.FullName, fund.Datei.LastWriteTime);
 
@@ -247,6 +246,23 @@ public partial class VertragsBestandScanner(bool dryRun)
                 $"({daten.AusDateiname} aus Dateiname, {daten.AusDateidatum} aus Dateidatum, {daten.OhneDatei} ohne erreichbare Datei).");
         Listen("Ohne erkennbare Kundennummer (manuell zuordnen)", nichtZuordenbar);
         Listen("Nummer passt zu keinem Kunden", unbekannteNummer);
+    }
+
+    /// <summary>
+    /// Bestandteil für eine neue Datei: vorhandener mit gleicher Art und gleichem
+    /// Titel, sonst ein neuer. Vorhandene Bestandteile werden nie umbenannt — ein
+    /// von Hand vergebener Titel bleibt also stehen, die neue Datei bekommt
+    /// dann einen eigenen Bestandteil mit dem Dateinamen als Titel.
+    /// </summary>
+    public static Vertragsbestandteil BestandteilFinden(Vertrag vertrag, BestandteilTyp typ, string titel)
+    {
+        var bestandteil = vertrag.Bestandteile.FirstOrDefault(b => b.Typ == typ && b.Titel == titel);
+        if (bestandteil is null)
+        {
+            bestandteil = new Vertragsbestandteil { Typ = typ, Titel = titel, Vertrag = vertrag };
+            vertrag.Bestandteile.Add(bestandteil);
+        }
+        return bestandteil;
     }
 
     private static Aktivitaet TimelineEintrag(int kundeId, int mitarbeiterId, Vertrag vertrag, string betreff) => new()

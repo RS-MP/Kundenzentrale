@@ -183,6 +183,28 @@ table.liste tbody tr:hover { background: var(--accent-soft); }
 .dokart-gruppe:first-child { margin-top: 0; }
 .stand-neu { color: var(--muted); font-size: 12px; }
 
+/* Verträge umbenennen und zusammenfassen (11/2026): Bezeichnung neben der Nummer,
+   Anhänge eingerückt unter dem Hauptvertrag, Dokumente als kompakte Zeilen */
+.vname { font-weight: 500; color: var(--ink2); }
+h1 .vname { margin-left: 8px; }
+.vdok { display: grid; gap: 2px; margin-top: 4px; }
+.vdok-zeile { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--ink2); }
+.vdok-text { flex: 1; min-width: 0; overflow-wrap: break-word; }
+.vdok-titel { color: var(--ink); margin-left: 6px; }
+.vdok-titel::before { content: "· "; color: var(--border-strong); }
+.vdok-schloss { margin-left: 4px; font-size: 11px; }
+.vdok-datum { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vdok-klapp { margin-top: 4px; font-size: 12.5px; }
+.vdok-klapp summary { color: var(--accent); cursor: pointer; }
+.vanhang { margin: 6px 0 0 4px; padding-left: 10px; border-left: 2px solid var(--border-strong); }
+.vanhang-kopf { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
+.vanhang-kopf a { font-weight: 600; }
+.vanhang-pfeil { color: var(--muted); cursor: default; }
+.vanhang-name { color: var(--ink); font-weight: 400; }
+.vanhang-info { color: var(--ink2); font-size: 12.5px; margin-left: 20px; }
+.vanhang-dokumente { margin-left: 20px; }
+.vgruppe-hinweis { color: var(--muted); font-size: 12.5px; margin: 6px 0; }
+
 /* Status-Punkt: der einzige Farbtupfer */
 .status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }

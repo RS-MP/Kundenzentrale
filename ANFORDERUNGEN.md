@@ -104,6 +104,32 @@ Layout-Entscheidung nach Ansicht beider Varianten.
   Pfad + SHA-256-Prüfsumme.
 - Laufzeiten, Kündigungsfristen, automatische Erinnerungen.
 
+### Verträge umbenennen und zusammenfassen (Entscheidungen 24.11.2026, MP)
+
+Anlass: Bei manchen Kunden stehen viele Verträge einzeln untereinander, die als
+Anhang zusammengehören — bisher musste jeder geöffnet werden.
+
+- **Bezeichnung:** Jeder Vertrag bekommt eine frei änderbare Bezeichnung
+  („Wartungsvertrag ID.prove“), die überall neben der Nummer steht. Neue Verträge aus
+  einer Vorlage tragen den Vorlagennamen als Vorbelegung. Reine Handpflege — Bestandsscan
+  und Odoo-Import überschreiben sie nicht. Einzelne Dokumente einer Akte lassen sich wie
+  bisher umbenennen (Titel des Bestandteils).
+- **Gruppieren statt verschmelzen:** Ein Vertrag wird einem Hauptvertrag desselben Kunden
+  (bzw. Partners) als Anhang zugeordnet und kann jederzeit wieder gelöst werden. Jeder
+  Vertrag behält Nummer und Dokumente — die Vertragsnummer steht im erzeugten PDF, und
+  unterschriebene Dokumente bleiben unverändert. Genau eine Ebene: kein Anhang am Anhang.
+- **Anhang folgt dem Hauptvertrag:** Status, Laufzeit und Kündigung gelten vom
+  Hauptvertrag und werden nur dort gepflegt. Anhänge zählen nicht extra bei „Laufzeit
+  nachzupflegen“, „Ende in 90 Tagen“ und der Kundenkategorie.
+- **Ohne Öffnen sichtbar:** Vertragsliste, Kundenakte und Partnerakte zeigen den
+  Hauptvertrag mit eingerückten Anhängen und die Dokumente jeder Akte mit Art, Titel
+  und Datum (bis fünf direkt, mehr auf einen Klick).
+- **Rechte:** wie das übrige Vertragsbearbeiten. Besteht ein Vertrag nur aus
+  vertraulichen Bestandteilen, brauchen Umbenennen und Zuordnen die Rolle
+  „Vertrauliche Verträge“. Die Bezeichnung selbst sehen alle (wie die Kurzinfo).
+- **Offen:** Dokumente innerhalb einer Akte untereinander gruppieren (z. B. Anlage zu
+  einem bestimmten Nachtrag) ist nicht gebaut — bisher ordnet die Akte nach Dokumentart.
+
 ## Aufgabenverwaltung (Muster: rausoft-Service-Portal)
 
 - Zuweisung an **Person oder Bereich** (Vertrieb, Support, Buchhaltung …).

@@ -1,0 +1,41 @@
+@* Anhänge eines Hauptvertrags (11/2026): eigene Verträge mit eigener Nummer, eingerückt
+   unter dem Hauptvertrag. Status und Ende gelten vom Hauptvertrag und stehen deshalb nur dort. *@
+@foreach (var anhang in Anhaenge ?? [])
+{
+    <div class="vanhang">
+        <div class="vanhang-kopf">
+            <span class="vanhang-pfeil" title="Anhang — Status, Laufzeit und Kündigung gelten vom Hauptvertrag">↳</span>
+            <a href="vertraege/@anhang.Id" @onclick:stopPropagation="true">@anhang.Vertragsnummer</a>
+            @if (anhang.Bezeichnung is not null)
+            {
+                <span class="vanhang-name">@anhang.Bezeichnung</span>
+            }
+            <TypPills Bestandteile="anhang.Bestandteile" />
+            @if (BeiLoesen.HasDelegate)
+            {
+                <button class="mehr" style="margin-left:auto; padding:0" title="Zuordnung lösen — der Vertrag steht danach wieder für sich"
+                        @onclick="() => BeiLoesen.InvokeAsync(anhang)">lösen</button>
+            }
+        </div>
+        @foreach (var info in anhang.Kurzinfos)
+        {
+            <div class="vanhang-info">@info</div>
+        }
+        @if (MitDokumenten)
+        {
+            <div class="vanhang-dokumente"><VertragDokumente Dokumente="anhang.Dokumente" ImmerOffen="DokumenteImmerOffen" /></div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public List<VertragAnhangEintrag>? Anhaenge { get; set; }
+
+    /// <summary>Dokumente je Anhang mit anzeigen.</summary>
+    [Parameter] public bool MitDokumenten { get; set; } = true;
+
+    [Parameter] public bool DokumenteImmerOffen { get; set; }
+
+    /// <summary>Wenn gesetzt, steht an jedem Anhang „lösen“.</summary>
+    [Parameter] public EventCallback<VertragAnhangEintrag> BeiLoesen { get; set; }
+}

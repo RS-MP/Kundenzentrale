@@ -410,13 +410,24 @@ public class ErpDbContext(
             e.HasIndex(v => v.Vertragsnummer).IsUnique();
             e.HasIndex(v => v.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
             e.Property(v => v.Vertragsnummer).HasMaxLength(20);
+            e.Property(v => v.Bezeichnung).HasMaxLength(VertragsGruppe.BezeichnungMaxLaenge);
             e.Property(v => v.Notiz).HasColumnType("nvarchar(max)");
             e.Property(v => v.RowVersion).IsRowVersion();
             e.HasOne(v => v.Kunde).WithMany().OnDelete(DeleteBehavior.Restrict);
             e.HasOne(v => v.Partner).WithMany().OnDelete(DeleteBehavior.Restrict);
             // Genau eine Vertragspartei: Kunde ODER Partner
-            e.ToTable(t => t.HasCheckConstraint("CK_Vertraege_Partei",
-                "([KundeId] IS NULL AND [PartnerId] IS NOT NULL) OR ([KundeId] IS NOT NULL AND [PartnerId] IS NULL)"));
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_Vertraege_Partei",
+                    "([KundeId] IS NULL AND [PartnerId] IS NOT NULL) OR ([KundeId] IS NOT NULL AND [PartnerId] IS NULL)");
+                // Kein Vertrag ist sein eigener Anhang (übrige Regeln: VertragsGruppe)
+                t.HasCheckConstraint("CK_Vertraege_KeinSelbstanhang",
+                    "[HauptvertragId] IS NULL OR [HauptvertragId] <> [Id]");
+            });
+            // Zusammenfassen: Anhang → Hauptvertrag. Kein Kaskadieren — beim Löschen eines
+            // Hauptvertrags werden die Anhänge vorher gelöst und stehen wieder für sich.
+            e.HasOne(v => v.Hauptvertrag).WithMany(v => v.Anhaenge)
+                .HasForeignKey(v => v.HauptvertragId).OnDelete(DeleteBehavior.Restrict);
             e.HasMany(v => v.Bestandteile).WithOne(b => b.Vertrag!)
                 .HasForeignKey(b => b.VertragId).OnDelete(DeleteBehavior.Cascade);
         });

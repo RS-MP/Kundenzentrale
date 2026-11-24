@@ -15,6 +15,27 @@ public class Vertrag
     public required string Vertragsnummer { get; set; }
 
     /// <summary>
+    /// Frei vergebene Bezeichnung („Wartungsvertrag ID.prove“) — steht in allen
+    /// Listen neben der Nummer. Reine Handpflege: Bestandsscan und Odoo-Import
+    /// schreiben dieses Feld nie, ein erneuter Lauf überschreibt also nichts.
+    /// Für alle sichtbar (wie die Kurzinfo), auch bei vertraulichen Verträgen.
+    /// </summary>
+    public string? Bezeichnung { get; set; }
+
+    /// <summary>
+    /// Anhang eines anderen Vertrags derselben Vertragspartei (Nachtrag, AVV,
+    /// Zusatzvereinbarung …). Der Datensatz bleibt mit eigener Nummer und eigenen
+    /// Dokumenten bestehen; Status, Laufzeit und Kündigung gelten vom
+    /// Hauptvertrag — die eigenen Werte bleiben gespeichert und gelten wieder,
+    /// sobald die Zuordnung gelöst wird. Genau eine Ebene, Regeln in
+    /// <see cref="VertragsGruppe"/>. Ebenfalls reine Handpflege.
+    /// </summary>
+    public int? HauptvertragId { get; set; }
+    public Vertrag? Hauptvertrag { get; set; }
+
+    public List<Vertrag> Anhaenge { get; set; } = [];
+
+    /// <summary>
     /// Vertragspartei: genau eines von Kunde oder Partner (FEEDBACK Nr. 20 Stufe 2,
     /// Partnerverträge — z. B. Vertriebs-/Provisionsvereinbarungen). Per
     /// Check-Constraint in der DB erzwungen.

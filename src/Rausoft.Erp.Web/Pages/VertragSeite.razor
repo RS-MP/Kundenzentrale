@@ -20,7 +20,29 @@ else
 {
     <div class="akte-kopf">
         <div class="seitenkopf">
-            <h1>Vertrag @_vertrag.Vertragsnummer</h1>
+            @if (_umbenennenOffen)
+            {
+                <h1>Vertrag @_vertrag.Vertragsnummer</h1>
+                <input type="text" maxlength="200" style="min-width:280px" placeholder="Bezeichnung, z. B. Wartungsvertrag ID.prove"
+                       @bind="_neueBezeichnung" @bind:event="oninput" @onkeydown="BeiUmbenennenTaste" />
+                <button class="knopf" @onclick="UmbenennenAsync">Speichern</button>
+                <button class="knopf sekundaer" @onclick="() => _umbenennenOffen = false">Abbrechen</button>
+            }
+            else
+            {
+                <h1>
+                    Vertrag @_vertrag.Vertragsnummer
+                    @if (_vertrag.Bezeichnung is not null)
+                    {
+                        <span class="vname">@_vertrag.Bezeichnung</span>
+                    }
+                </h1>
+                @if (!_vertrag.GruppeGesperrt)
+                {
+                    <button class="mehr" title="Bezeichnung des Vertrags ändern — sie steht in allen Listen neben der Nummer"
+                            @onclick="UmbenennenOeffnen">@(_vertrag.Bezeichnung is null ? "Benennen" : "Umbenennen")</button>
+                }
+            }
             <span class="untertitel">
                 @if (_vertrag.PartnerId is not null)
                 {
@@ -33,14 +55,31 @@ else
             </span>
         </div>
         <p class="faktenzeile2">
-            <span class="status @StatusKlasse(_vertrag.Status)">@_vertrag.Status</span>
-            @if (_vertrag.NaechstesEnde is not null)
+            @if (_vertrag.Hauptvertrag is { } haupt)
             {
-                <span class="trenn">·</span><span>Nächstmögliches Ende @_vertrag.NaechstesEnde.Value.ToString("dd.MM.yyyy")</span>
+                @* Anhang: Status und Ende gelten vom Hauptvertrag *@
+                <span>Anhang zu <a href="vertraege/@haupt.Id">@VerweisKurz(haupt)</a></span>
+                <span class="trenn">·</span><span class="status @StatusKlasse(haupt.Status)" title="Status des Hauptvertrags">@haupt.Status</span>
+                @if (haupt.NaechstesEnde is not null)
+                {
+                    <span class="trenn">·</span><span title="Vom Hauptvertrag">Nächstmögliches Ende @haupt.NaechstesEnde.Value.ToString("dd.MM.yyyy")</span>
+                }
             }
             else
             {
-                <span class="trenn">·</span><span class="warntext">Laufzeit fehlt — bitte nachpflegen</span>
+                <span class="status @StatusKlasse(_vertrag.Status)">@_vertrag.Status</span>
+                @if (_vertrag.NaechstesEnde is not null)
+                {
+                    <span class="trenn">·</span><span>Nächstmögliches Ende @_vertrag.NaechstesEnde.Value.ToString("dd.MM.yyyy")</span>
+                }
+                else
+                {
+                    <span class="trenn">·</span><span class="warntext">Laufzeit fehlt — bitte nachpflegen</span>
+                }
+                @if (_vertrag.Anhaenge.Count > 0)
+                {
+                    <span class="trenn">·</span><span>@(_vertrag.Anhaenge.Count == 1 ? "1 Anhang" : $"{_vertrag.Anhaenge.Count} Anhänge")</span>
+                }
             }
             @if (_vertrag.AktuellerStand is { } stand)
             {
@@ -144,7 +183,8 @@ else
                                 }
                                 @if (!bestandteil.Gesperrt)
                                 {
-                                    <button class="mehr" style="margin-left:auto" @onclick="() => BearbeitenOeffnen(bestandteil)">Korrigieren</button>
+                                    <button class="mehr" style="margin-left:auto" @onclick="() => BearbeitenOeffnen(bestandteil)"
+                                            title="Titel, Dokumentart, Datum und Kurzinfo dieses Dokuments ändern">Umbenennen · Korrigieren</button>
                                 }
                             </div>
                             @if (bestandteil.Kurzinfo is not null)
@@ -254,7 +294,16 @@ else
             <div class="karte">
                 <div class="karte-kopf"><h2>Stammdaten</h2></div>
                 <div class="karte-koerper">
+                    @if (_vertrag.Hauptvertrag is { } hauptvertrag)
+                    {
+                        <div class="vgruppe-hinweis" style="margin-top:0">
+                            Dieser Vertrag ist ein Anhang. Status, Laufzeit und Kündigung gelten vom Hauptvertrag
+                            <a href="vertraege/@hauptvertrag.Id">@hauptvertrag.Vertragsnummer</a> und werden dort gepflegt.
+                        </div>
+                    }
                     <div class="formular">
+                        @if (_vertrag.Hauptvertrag is null)
+                        {
                         <label>
                             Status
                             <select @bind="_bearbeitung.Status">
@@ -284,6 +333,7 @@ else
                             Gekündigt zum
                             <input type="date" @bind="_bearbeitung.GekuendigtZum" />
                         </label>
+                        }
                         <label class="breit">
                             Notiz
                             <textarea rows="3" @bind="_bearbeitung.Notiz"></textarea>
@@ -298,6 +348,109 @@ else
                         <span style="flex:1"></span>
                         <button class="knopf sekundaer krittext" @onclick="LoeschenAsync">Vertrag löschen …</button>
                     </div>
+                </div>
+            </div>
+
+            @* Zusammenfassen (11/2026): Hauptvertrag mit Anhängen — gruppiert wird nur die Anzeige,
+               jeder Vertrag behält Nummer und Dokumente *@
+            <div class="karte" style="margin-top:16px">
+                <div class="karte-kopf"><h2>Hauptvertrag &amp; Anhänge</h2></div>
+                <div class="karte-koerper">
+                    @if (_vertrag.Hauptvertrag is { } zugeordnet)
+                    {
+                        <div>
+                            Anhang zu <a href="vertraege/@zugeordnet.Id" style="font-weight:600">@zugeordnet.Vertragsnummer</a>
+                            @if (zugeordnet.Bezeichnung is not null)
+                            {
+                                <span class="vname">@zugeordnet.Bezeichnung</span>
+                            }
+                        </div>
+                        @if (!_vertrag.GruppeGesperrt)
+                        {
+                            <div class="formular-aktionen">
+                                <button class="knopf sekundaer" @onclick="() => ZuordnenAsync(_vertrag.Id, null)">Zuordnung lösen</button>
+                            </div>
+                            <div class="vgruppe-hinweis">
+                                Nach dem Lösen steht der Vertrag wieder für sich — mit seinem eigenen Status und seiner eigenen Laufzeit.
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        @if (_vertrag.Anhaenge.Count > 0)
+                        {
+                            @if (_vertrag.GruppeGesperrt)
+                            {
+                                <VertragAnhaenge Anhaenge="_vertrag.Anhaenge" />
+                            }
+                            else
+                            {
+                                <VertragAnhaenge Anhaenge="_vertrag.Anhaenge" BeiLoesen="a => ZuordnenAsync(a.Id, null)" />
+                            }
+                        }
+                        else
+                        {
+                            <div class="vgruppe-hinweis" style="margin-top:0">
+                                Gehören mehrere Verträge zusammen, lassen sie sich hier zusammenfassen: Anhänge stehen dann
+                                in allen Listen eingerückt unter ihrem Hauptvertrag.
+                            </div>
+                        }
+                        @if (_vertrag.GruppeGesperrt)
+                        {
+                            <div class="vgruppe-hinweis">
+                                Vertraulicher Vertrag — Umbenennen und Zuordnen nur mit der Rolle „Vertrauliche Verträge“.
+                            </div>
+                        }
+                        else if (_vertrag.AndereVertraege.Count == 0)
+                        {
+                            <div class="vgruppe-hinweis">Es gibt keine weiteren Verträge mit dieser Vertragspartei.</div>
+                        }
+                        else
+                        {
+                            @if (MoeglicheAnhaenge.Count > 0)
+                            {
+                                <div class="formular" style="margin-top:12px">
+                                    <label class="breit">
+                                        Anhang hinzufügen
+                                        <select @bind="_neuerAnhangId">
+                                            <option value="0">— Vertrag wählen —</option>
+                                            @foreach (var anderer in MoeglicheAnhaenge)
+                                            {
+                                                <option value="@anderer.Id">@VerweisText(anderer)</option>
+                                            }
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="formular-aktionen">
+                                    <button class="knopf sekundaer" disabled="@(_neuerAnhangId == 0)"
+                                            @onclick="() => ZuordnenAsync(_neuerAnhangId, _vertrag.Id)">Als Anhang hinzufügen</button>
+                                </div>
+                            }
+                            @if (_vertrag.Anhaenge.Count == 0 && MoeglicheHauptvertraege.Count > 0)
+                            {
+                                <div class="formular" style="margin-top:12px">
+                                    <label class="breit">
+                                        Oder: diesen Vertrag als Anhang zuordnen zu
+                                        <select @bind="_neuerHauptvertragId">
+                                            <option value="0">— Hauptvertrag wählen —</option>
+                                            @foreach (var anderer in MoeglicheHauptvertraege)
+                                            {
+                                                <option value="@anderer.Id">@VerweisText(anderer)</option>
+                                            }
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="formular-aktionen">
+                                    <button class="knopf sekundaer" disabled="@(_neuerHauptvertragId == 0)"
+                                            @onclick="() => ZuordnenAsync(_vertrag.Id, _neuerHauptvertragId)">Zuordnen</button>
+                                </div>
+                            }
+                            <div class="vgruppe-hinweis">
+                                Für Anhänge gelten Status, Laufzeit und Kündigung des Hauptvertrags. Jeder Vertrag behält
+                                seine Nummer und seine Dokumente; die Zuordnung lässt sich jederzeit wieder lösen.
+                            </div>
+                        }
+                    }
                 </div>
             </div>
         </div>
@@ -417,6 +570,88 @@ else
         catch (Exception ex)
         {
             _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    // --- Umbenennen und Zusammenfassen (11/2026) ------------------------------
+
+    private bool _umbenennenOffen;
+    private string? _neueBezeichnung;
+    private int _neuerAnhangId;
+    private int _neuerHauptvertragId;
+
+    /// <summary>Als Anhang kommen Verträge in Frage, die für sich stehen: kein Anhang, keine eigenen Anhänge.</summary>
+    private List<VertragVerweis> MoeglicheAnhaenge =>
+        _vertrag!.AndereVertraege.Where(v => !v.IstAnhang && !v.HatAnhaenge).ToList();
+
+    /// <summary>Als Hauptvertrag kommt jeder Vertrag in Frage, der nicht selbst Anhang ist.</summary>
+    private List<VertragVerweis> MoeglicheHauptvertraege =>
+        _vertrag!.AndereVertraege.Where(v => !v.IstAnhang).ToList();
+
+    private static string VerweisText(VertragVerweis vertrag) =>
+        $"{vertrag.Vertragsnummer}{(vertrag.Bezeichnung is null ? "" : " · " + vertrag.Bezeichnung)} ({vertrag.Status})";
+
+    private static string VerweisKurz(VertragVerweis vertrag) =>
+        vertrag.Bezeichnung is null ? vertrag.Vertragsnummer : $"{vertrag.Vertragsnummer} {vertrag.Bezeichnung}";
+
+    private void UmbenennenOeffnen()
+    {
+        _neueBezeichnung = _vertrag?.Bezeichnung;
+        _umbenennenOffen = true;
+    }
+
+    private Task BeiUmbenennenTaste(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            return UmbenennenAsync();
+        if (e.Key == "Escape")
+            _umbenennenOffen = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task UmbenennenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/vertraege/{Id}/bezeichnung",
+                new VertragUmbenennen(string.IsNullOrWhiteSpace(_neueBezeichnung) ? null : _neueBezeichnung));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _umbenennenOffen = false;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Umbenennen fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    /// <summary>Ordnet <paramref name="anhangId"/> dem Hauptvertrag zu — oder löst die Zuordnung (null).</summary>
+    private async Task ZuordnenAsync(int anhangId, int? hauptvertragId)
+    {
+        if (anhangId == 0 || hauptvertragId == 0)
+            return;
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/vertraege/{anhangId}/hauptvertrag",
+                new VertragZuordnen(hauptvertragId));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await antwort.Content.ReadAsStringAsync();
+                return;
+            }
+            _neuerAnhangId = 0;
+            _neuerHauptvertragId = 0;
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Zuordnung fehlgeschlagen: {ex.Message}";
         }
     }
 

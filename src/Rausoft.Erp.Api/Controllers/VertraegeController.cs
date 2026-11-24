@@ -37,51 +37,51 @@ public class VertraegeController(
         // Arbeitsfilter „Partnerverträge"
         if (filter == "partner")
             query = query.Where(v => v.PartnerId != null);
+        // Zusammengefasste Verträge (11/2026): Die Liste zeigt je Gruppe den Hauptvertrag,
+        // die Anhänge hängen darunter. Suche und Filter wirken deshalb auf die ganze Gruppe —
+        // ein Treffer im Anhang zeigt die Gruppe; der Status ist der des Hauptvertrags.
         if (!string.IsNullOrWhiteSpace(suche))
         {
             var s = suche.Trim();
-            query = query.Where(v => v.Vertragsnummer.Contains(s)
-                || v.Kunde!.Firmenname.Contains(s) || v.Kunde!.Kundennummer.Contains(s)
-                || v.Partner!.Name.Contains(s));
+            var gruppen = db.Vertraege
+                .Where(v => v.Vertragsnummer.Contains(s)
+                    || (v.Bezeichnung != null && v.Bezeichnung.Contains(s))
+                    || v.Kunde!.Firmenname.Contains(s) || v.Kunde!.Kundennummer.Contains(s)
+                    || v.Partner!.Name.Contains(s))
+                .Select(v => v.HauptvertragId ?? v.Id);
+            query = query.Where(v => gruppen.Contains(v.HauptvertragId ?? v.Id));
         }
         if (StatusWert(status) is { } statusWert)
-            query = query.Where(v => v.Status == statusWert);
+            query = query.Where(v => (v.Hauptvertrag != null ? v.Hauptvertrag.Status : v.Status) == statusWert);
         // Explizite Anforderung: „Wer hat eine Sondervereinbarung?" — Filter über den Bestandteil-Typ
         if (BestandteilWert(bestandteil) is { } typWert)
-            query = query.Where(v => v.Bestandteile.Any(b => b.Typ == typWert));
+        {
+            var gruppen = db.Vertraege
+                .Where(v => v.Bestandteile.Any(b => b.Typ == typWert))
+                .Select(v => v.HauptvertragId ?? v.Id);
+            query = query.Where(v => gruppen.Contains(v.HauptvertragId ?? v.Id));
+        }
 
         // Nächstmögliches Ende wird berechnet → Arbeitsfilter/Paging im Speicher
-        var roh = await query
-            .Select(v => new
-            {
-                v.Id, v.Vertragsnummer, v.KundeId, v.PartnerId,
-                // Partnerverträge: Partnername an Stelle des Kunden
-                KundeName = v.Kunde != null ? v.Kunde.Firmenname : v.Partner!.Name,
-                Kundennummer = v.Kunde != null ? v.Kunde.Kundennummer : "Partner",
-                Kurzinfos = v.Bestandteile.Where(b => b.Kurzinfo != null).Select(b => b.Kurzinfo!).ToList(),
-                v.Status, v.Beginn, v.MindestlaufzeitMonate, v.VerlaengerungMonate,
-                v.KuendigungsfristMonate, v.GekuendigtZum,
-                Teile = v.Bestandteile
-                    .Select(b => new BestandteilRang(b.Id, b.Typ, b.UnterzeichnetAm ?? b.Dokumentdatum, b.Folge))
-                    .ToList(),
-            })
-            .ToListAsync(ct);
+        var roh = await query.Select(AlsZeile).ToListAsync(ct);
+        var darfVertrauliche = await DarfVertraulicheAsync(ct);
+
+        // Gruppieren: Anhänge unter ihren Hauptvertrag. Fehlt der Hauptvertrag in der
+        // Ergebnismenge (dürfte nicht vorkommen), bleibt der Anhang als eigene Zeile sichtbar.
+        var vorhanden = roh.Select(v => v.Id).ToHashSet();
+        var anhaengeVon = roh
+            .Where(v => v.HauptvertragId is { } h && vorhanden.Contains(h))
+            .ToLookup(v => v.HauptvertragId!.Value);
 
         var heute = DateOnly.FromDateTime(DateTime.Today);
-        var berechnet = roh.Select(v => new
-        {
-            v.Id, v.Vertragsnummer, v.KundeId, v.PartnerId, v.KundeName, v.Kundennummer, v.Kurzinfos,
-            v.Status, v.Beginn, v.MindestlaufzeitMonate, v.Teile,
-            Ende = new Vertrag
+        var berechnet = roh
+            .Where(v => v.HauptvertragId is not { } h || !vorhanden.Contains(h))
+            .Select(v => new
             {
-                Vertragsnummer = v.Vertragsnummer,
-                Beginn = v.Beginn,
-                MindestlaufzeitMonate = v.MindestlaufzeitMonate,
-                VerlaengerungMonate = v.VerlaengerungMonate,
-                KuendigungsfristMonate = v.KuendigungsfristMonate,
-                GekuendigtZum = v.GekuendigtZum,
-            }.NaechstesVertragsende(heute),
-        });
+                v.Id, v.Vertragsnummer, v.Bezeichnung, v.KundeId, v.PartnerId, v.KundeName, v.Kundennummer,
+                v.Kurzinfos, v.Status, v.Beginn, v.MindestlaufzeitMonate, v.Teile,
+                Ende = Ende(v, heute),
+            });
 
         berechnet = filter switch
         {
@@ -103,18 +103,103 @@ public class VertraegeController(
             .Select(v => new VertragListenEintrag(
                 v.Id, v.Vertragsnummer, v.KundeId, v.KundeName, v.Kundennummer,
                 StatusText(v.Status), v.Beginn, v.Ende,
-                BestandteilZusammenfassung(v.Teile.Select(t => t.Typ).ToList()), AktuellerStand(v.Teile),
-                v.PartnerId, v.Kurzinfos))
+                BestandteilZusammenfassung(v.Teile.Select(t => t.Typ).ToList()), AktuellerStand(Raenge(v.Teile)),
+                v.PartnerId, v.Kurzinfos, v.Bezeichnung,
+                DokumenteKurz(v.Teile, darfVertrauliche),
+                anhaengeVon[v.Id]
+                    .OrderBy(a => a.Vertragsnummer, StringComparer.OrdinalIgnoreCase)
+                    .Select(a => NachAnhang(a, darfVertrauliche))
+                    .ToList()))
             .ToList();
 
         return Ok(new SeitenErgebnis<VertragListenEintrag>(eintraege, gefiltert.Count, seite, proSeite));
     }
 
-    /// <summary>Kennzahlen für die Arbeitsliste (KPI-Zeile).</summary>
+    // --- Zeilen für Liste, Anhänge und Auswahl ---------------------------------
+
+    private sealed record BestandteilZeile(
+        int Id, BestandteilTyp Typ, DateOnly? Stand, int Folge, string Titel, bool Vertraulich);
+
+    /// <summary>Was Liste, Anhang-Anzeige und Zuordnungs-Auswahl von einem Vertrag brauchen.</summary>
+    private sealed record VertragZeile(
+        int Id, string Vertragsnummer, string? Bezeichnung, int? HauptvertragId, bool HatAnhaenge,
+        int? KundeId, int? PartnerId, string KundeName, string Kundennummer,
+        VertragsStatus Status, DateOnly Beginn, int? MindestlaufzeitMonate, int? VerlaengerungMonate,
+        int? KuendigungsfristMonate, DateOnly? GekuendigtZum,
+        List<string> Kurzinfos, List<BestandteilZeile> Teile);
+
+    private static readonly System.Linq.Expressions.Expression<Func<Vertrag, VertragZeile>> AlsZeile =
+        v => new VertragZeile(
+            v.Id, v.Vertragsnummer, v.Bezeichnung, v.HauptvertragId, v.Anhaenge.Any(),
+            v.KundeId, v.PartnerId,
+            // Partnerverträge: Partnername an Stelle des Kunden
+            v.Kunde != null ? v.Kunde.Firmenname : v.Partner!.Name,
+            v.Kunde != null ? v.Kunde.Kundennummer : "Partner",
+            v.Status, v.Beginn, v.MindestlaufzeitMonate, v.VerlaengerungMonate,
+            v.KuendigungsfristMonate, v.GekuendigtZum,
+            v.Bestandteile.Where(b => b.Kurzinfo != null).Select(b => b.Kurzinfo!).ToList(),
+            v.Bestandteile
+                .Select(b => new BestandteilZeile(
+                    b.Id, b.Typ, b.UnterzeichnetAm ?? b.Dokumentdatum, b.Folge, b.Titel, b.Vertraulich))
+                .ToList());
+
+    private static DateOnly? Ende(VertragZeile v, DateOnly heute) => new Vertrag
+    {
+        Vertragsnummer = v.Vertragsnummer,
+        Beginn = v.Beginn,
+        MindestlaufzeitMonate = v.MindestlaufzeitMonate,
+        VerlaengerungMonate = v.VerlaengerungMonate,
+        KuendigungsfristMonate = v.KuendigungsfristMonate,
+        GekuendigtZum = v.GekuendigtZum,
+    }.NaechstesVertragsende(heute);
+
+    private static List<BestandteilRang> Raenge(IEnumerable<BestandteilZeile> teile) =>
+        teile.Select(t => new BestandteilRang(t.Id, t.Typ, t.Stand, t.Folge)).ToList();
+
+    /// <summary>
+    /// Dokumente einer Akte für Listen — gleiche Reihenfolge wie in der Vertragsansicht
+    /// (nach Dokumentart, innerhalb neuestes oben). Vertrauliche Titel verlassen den
+    /// Server nur mit der Rolle „Vertrauliche Verträge".
+    /// </summary>
+    private static List<VertragDokumentKurz> DokumenteKurz(List<BestandteilZeile> teile, bool darfVertrauliche)
+    {
+        var raenge = Raenge(teile);
+        var nummern = LaufendeNummern(raenge);
+        var nachId = teile.ToDictionary(t => t.Id);
+        return raenge
+            .GroupBy(r => Dienste.Dokumentarten.Rang(r.Typ))
+            .OrderBy(g => g.Key)
+            .SelectMany(g => Chronologisch(g).AsEnumerable().Reverse())
+            .Select(r =>
+            {
+                var teil = nachId[r.Id];
+                return new VertragDokumentKurz(
+                    Dienste.Dokumentarten.Kuerzel(r.Typ),
+                    Dienste.Dokumentarten.Name(r.Typ) + (nummern.TryGetValue(r.Id, out var n) ? $" {n}" : ""),
+                    teil.Vertraulich && !darfVertrauliche ? "" : teil.Titel,
+                    r.Stand, teil.Vertraulich);
+            })
+            .ToList();
+    }
+
+    private static VertragAnhangEintrag NachAnhang(VertragZeile a, bool darfVertrauliche) => new(
+        a.Id, a.Vertragsnummer, a.Bezeichnung,
+        BestandteilZusammenfassung(a.Teile.Select(t => t.Typ).ToList()), AktuellerStand(Raenge(a.Teile)),
+        a.Kurzinfos, DokumenteKurz(a.Teile, darfVertrauliche));
+
+    private static VertragVerweis NachVerweis(VertragZeile v, DateOnly heute) => new(
+        v.Id, v.Vertragsnummer, v.Bezeichnung, StatusText(v.Status), Ende(v, heute),
+        v.HauptvertragId is not null, v.HatAnhaenge);
+
+    /// <summary>
+    /// Kennzahlen für die Arbeitsliste (KPI-Zeile). Anhänge zählen nicht extra —
+    /// Status und Laufzeit gelten vom Hauptvertrag, gezählt wird wie in der Liste je Gruppe.
+    /// </summary>
     [HttpGet("kennzahlen")]
     public async Task<ActionResult<VertragsKennzahlen>> Kennzahlen(CancellationToken ct)
     {
         var roh = await db.Vertraege.AsNoTracking()
+            .Where(v => v.HauptvertragId == null)
             .Select(v => new
             {
                 v.Vertragsnummer, v.Status, v.Beginn, v.MindestlaufzeitMonate,
@@ -204,8 +289,15 @@ public class VertraegeController(
         if (vertrag is null)
             return NotFound();
 
+        // Übrige Verträge derselben Vertragspartei: Hauptvertrag, Anhänge und Auswahl fürs Zuordnen
+        var partei = vertrag.KundeId is { } kundeId
+            ? db.Vertraege.Where(v => v.KundeId == kundeId)
+            : db.Vertraege.Where(v => v.PartnerId == vertrag.PartnerId);
+        var andere = await partei.AsNoTracking().Where(v => v.Id != id)
+            .OrderBy(v => v.Vertragsnummer).Select(AlsZeile).ToListAsync(ct);
+
         return Ok(NachDetail(vertrag, await Einstellung(EinstellungsSchluessel.VertragsablageVerzeichnis, ct),
-            await DarfVertraulicheAsync(ct)));
+            await DarfVertraulicheAsync(ct), andere));
     }
 
     [HttpPost]
@@ -269,6 +361,15 @@ public class VertraegeController(
         if (StatusWert(aenderung.Status) is not { } neuerStatus)
             return BadRequest($"Unbekannter Status '{aenderung.Status}'.");
 
+        // Anhang: Status, Laufzeit und Kündigung gelten vom Hauptvertrag — hier ist nur die
+        // Notiz pflegbar. Die eigenen Werte bleiben unverändert für den Fall, dass gelöst wird.
+        if (vertrag.HauptvertragId is not null)
+        {
+            vertrag.Notiz = aenderung.Notiz;
+            await db.SaveChangesAsync(ct);
+            return NoContent();
+        }
+
         var alterStatus = vertrag.Status;
         vertrag.Status = neuerStatus;
         vertrag.Beginn = aenderung.Beginn;
@@ -285,6 +386,78 @@ public class VertraegeController(
                 null, vertrag.Id, ct);
         }
 
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Vertrag umbenennen (11/2026). Die Bezeichnung ist reine Handpflege — Bestandsscan
+    /// und Odoo-Import schreiben sie nie. Leer entfernt die Bezeichnung.
+    /// </summary>
+    [HttpPut("{id:int}/bezeichnung")]
+    public async Task<IActionResult> Umbenennen(int id, VertragUmbenennen eingabe, CancellationToken ct)
+    {
+        var vertrag = await db.Vertraege.FirstOrDefaultAsync(v => v.Id == id, ct);
+        if (vertrag is null)
+            return NotFound();
+        if (await GruppeGesperrtAsync(ct, id))
+            return KeinZugriffVertraulicherVertrag();
+
+        var neu = VertragsGruppe.BezeichnungBereinigen(eingabe.Bezeichnung);
+        if (neu == vertrag.Bezeichnung)
+            return NoContent();
+        vertrag.Bezeichnung = neu;
+        await VerlaufAsync(vertrag.KundeId,
+            neu is null
+                ? $"Vertrag {vertrag.Vertragsnummer}: Bezeichnung entfernt"
+                : $"Vertrag {vertrag.Vertragsnummer} umbenannt: „{neu}“",
+            null, vertrag.Id, ct);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Zusammenfassen (11/2026): Vertrag einem Hauptvertrag derselben Vertragspartei als
+    /// Anhang zuordnen — oder mit <c>null</c> wieder lösen. Beide Datensätze bleiben
+    /// bestehen, Dokumente werden nicht angefasst. Regeln: <see cref="VertragsGruppe"/>.
+    /// </summary>
+    [HttpPut("{id:int}/hauptvertrag")]
+    public async Task<IActionResult> HauptvertragSetzen(int id, VertragZuordnen eingabe, CancellationToken ct)
+    {
+        var vertrag = await db.Vertraege.Include(v => v.Hauptvertrag).FirstOrDefaultAsync(v => v.Id == id, ct);
+        if (vertrag is null)
+            return NotFound();
+        if (eingabe.HauptvertragId == vertrag.HauptvertragId)
+            return NoContent();
+
+        if (eingabe.HauptvertragId is not { } hauptId)
+        {
+            // Lösen: der Vertrag steht wieder für sich, mit seinen eigenen gespeicherten Werten
+            if (await GruppeGesperrtAsync(ct, id, vertrag.HauptvertragId!.Value))
+                return KeinZugriffVertraulicherVertrag();
+            await VerlaufAsync(vertrag.KundeId,
+                $"Vertrag {vertrag.Vertragsnummer} vom Hauptvertrag {vertrag.Hauptvertrag!.Vertragsnummer} gelöst",
+                null, vertrag.Id, ct);
+            vertrag.HauptvertragId = null;
+            await db.SaveChangesAsync(ct);
+            return NoContent();
+        }
+
+        var haupt = await db.Vertraege.FirstOrDefaultAsync(v => v.Id == hauptId, ct);
+        if (haupt is null)
+            return BadRequest("Der angegebene Hauptvertrag existiert nicht.");
+        var hatAnhaenge = await db.Vertraege.AnyAsync(v => v.HauptvertragId == id, ct);
+        if (VertragsGruppe.ZuordnungsFehler(vertrag, haupt, hatAnhaenge) is { } fehler)
+            return BadRequest(fehler);
+        // Auch ein bisheriger Hauptvertrag (Umhängen) zählt für die Vertraulichkeitsprüfung
+        var beteiligte = vertrag.HauptvertragId is { } bisher ? new[] { id, hauptId, bisher } : [id, hauptId];
+        if (await GruppeGesperrtAsync(ct, beteiligte))
+            return KeinZugriffVertraulicherVertrag();
+
+        vertrag.HauptvertragId = haupt.Id;
+        await VerlaufAsync(vertrag.KundeId,
+            $"Vertrag {vertrag.Vertragsnummer} als Anhang dem Vertrag {haupt.Vertragsnummer} zugeordnet",
+            "Status, Laufzeit und Kündigung gelten ab jetzt vom Hauptvertrag.", vertrag.Id, ct);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
@@ -487,6 +660,16 @@ public class VertraegeController(
             .ToListAsync(ct);
         db.Aktivitaeten.RemoveRange(verweise);
 
+        // Anhänge dieses Vertrags lösen — sie bleiben erhalten und stehen wieder für sich
+        var anhaenge = await db.Vertraege.Where(v => v.HauptvertragId == id).ToListAsync(ct);
+        foreach (var anhang in anhaenge)
+        {
+            anhang.HauptvertragId = null;
+            await VerlaufAsync(anhang.KundeId,
+                $"Vertrag {anhang.Vertragsnummer} vom Hauptvertrag {vertrag.Vertragsnummer} gelöst — Hauptvertrag gelöscht",
+                null, anhang.Id, ct);
+        }
+
         await VerlaufAsync(vertrag.KundeId,
             $"Vertrag {vertrag.Vertragsnummer} gelöscht (Admin)",
             dateien.Count > 0 ? "Dateien verbleiben in der Ablage: " + string.Join("; ", dateien) : null,
@@ -623,6 +806,8 @@ public class VertraegeController(
         {
             Vertragsnummer = nummer,
             KundeId = kunde.Id,
+            // Neue Akte: Vorlagenname als Bezeichnung vorbelegen — danach frei änderbar
+            Bezeichnung = VertragsGruppe.BezeichnungBereinigen(v.Version.Vorlage!.Name),
             Status = VertragsStatus.Entwurf,
             Beginn = DateOnly.FromDateTime(DateTime.Today),
             Notiz = $"Aus Vorlage „{v.VorlagenStand}“ erstellt"
@@ -899,6 +1084,26 @@ public class VertraegeController(
     private ObjectResult KeinZugriffVertraulich() => StatusCode(StatusCodes.Status403Forbidden,
         "Vertraulicher Bestandteil — nur mit der Rolle „Vertrauliche Verträge“ (Administration → Benutzer & Rollen).");
 
+    /// <summary>
+    /// Umbenennen und Zuordnen: Ist einer der beteiligten Verträge vertraulich
+    /// (<see cref="VertragsGruppe.IstVertraulich"/>), braucht es die Rolle „Vertrauliche Verträge".
+    /// </summary>
+    private async Task<bool> GruppeGesperrtAsync(CancellationToken ct, params int[] vertragIds)
+    {
+        if (await DarfVertraulicheAsync(ct))
+            return false;
+        var teile = await db.Vertragsbestandteile.AsNoTracking()
+            .Where(b => vertragIds.Contains(b.VertragId))
+            .Select(b => new { b.VertragId, b.Vertraulich })
+            .ToListAsync(ct);
+        return teile.GroupBy(b => b.VertragId)
+            .Any(g => VertragsGruppe.IstVertraulich(g.Select(b => b.Vertraulich)));
+    }
+
+    private ObjectResult KeinZugriffVertraulicherVertrag() => StatusCode(StatusCodes.Status403Forbidden,
+        "Vertraulicher Vertrag — Umbenennen und Zuordnen nur mit der Rolle „Vertrauliche Verträge“ " +
+        "(Administration → Benutzer & Rollen).");
+
     /// <summary>Name für den für alle sichtbaren Verlauf: bei vertraulichen nur die Dokumentart.</summary>
     private static string VerlaufsName(Vertragsbestandteil b) =>
         b.Vertraulich ? $"vertrauliche(r) {BestandteilText(b.Typ)}" : b.Titel;
@@ -910,8 +1115,10 @@ public class VertraegeController(
         pfad.StartsWith(basis.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
             StringComparison.OrdinalIgnoreCase);
 
-    private static VertragDetail NachDetail(Vertrag vertrag, string? ablage = null, bool darfVertrauliche = false)
+    private static VertragDetail NachDetail(
+        Vertrag vertrag, string? ablage = null, bool darfVertrauliche = false, List<VertragZeile>? andere = null)
     {
+        andere ??= [];
         var raenge = vertrag.Bestandteile
             .Select(b => new BestandteilRang(b.Id, b.Typ, b.Stand, b.Folge)).ToList();
         var nummern = LaufendeNummern(raenge);
@@ -925,12 +1132,12 @@ public class VertraegeController(
             .Select((r, i) => (r.Id, Position: i))
             .ToDictionary(x => x.Id, x => x.Position);
 
-        return NachDetail(vertrag, ablage, nummern, stand, juengsterId, reihenfolge, darfVertrauliche);
+        return NachDetail(vertrag, ablage, nummern, stand, juengsterId, reihenfolge, darfVertrauliche, andere);
     }
 
     private static VertragDetail NachDetail(
         Vertrag vertrag, string? ablage, Dictionary<int, int> nummern, StandEintrag? stand,
-        int? juengsterId, Dictionary<int, int> reihenfolge, bool darfVertrauliche) => new(
+        int? juengsterId, Dictionary<int, int> reihenfolge, bool darfVertrauliche, List<VertragZeile> andere) => new(
         vertrag.Id,
         vertrag.Vertragsnummer,
         vertrag.KundeId,
@@ -950,7 +1157,14 @@ public class VertraegeController(
             .ToList(),
         stand,
         darfVertrauliche,
-        vertrag.PartnerId);
+        vertrag.PartnerId,
+        vertrag.Bezeichnung,
+        andere.Where(a => a.Id == vertrag.HauptvertragId)
+            .Select(a => NachVerweis(a, DateOnly.FromDateTime(DateTime.Today))).FirstOrDefault(),
+        andere.Where(a => a.HauptvertragId == vertrag.Id)
+            .Select(a => NachAnhang(a, darfVertrauliche)).ToList(),
+        andere.Select(a => NachVerweis(a, DateOnly.FromDateTime(DateTime.Today))).ToList(),
+        !darfVertrauliche && VertragsGruppe.IstVertraulich(vertrag.Bestandteile.Select(b => b.Vertraulich)));
 
     private static BestandteilDetail NachBestandteil(
         Vertragsbestandteil b, string? ablage, Dictionary<int, int> nummern, int? juengsterId, bool darfVertrauliche)

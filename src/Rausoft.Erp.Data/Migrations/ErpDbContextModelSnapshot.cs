@@ -33,8 +33,15 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Property<DateOnly>("Beginn")
                         .HasColumnType("date");
 
+                    b.Property<string>("Bezeichnung")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<DateOnly?>("GekuendigtZum")
                         .HasColumnType("date");
+
+                    b.Property<int?>("HauptvertragId")
+                        .HasColumnType("int");
 
                     b.Property<int?>("KuendigungsfristMonate")
                         .HasColumnType("int");
@@ -74,6 +81,8 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("HauptvertragId");
+
                     b.HasIndex("KundeId");
 
                     b.HasIndex("OdooId")
@@ -87,6 +96,8 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.ToTable("Vertraege", t =>
                         {
+                            t.HasCheckConstraint("CK_Vertraege_KeinSelbstanhang", "[HauptvertragId] IS NULL OR [HauptvertragId] <> [Id]");
+
                             t.HasCheckConstraint("CK_Vertraege_Partei", "([KundeId] IS NULL AND [PartnerId] IS NOT NULL) OR ([KundeId] IS NOT NULL AND [PartnerId] IS NULL)");
                         });
                 });
@@ -2384,6 +2395,11 @@ namespace Rausoft.Erp.Data.Migrations
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
                 {
+                    b.HasOne("Rausoft.Erp.Domain.Contracts.Vertrag", "Hauptvertrag")
+                        .WithMany("Anhaenge")
+                        .HasForeignKey("HauptvertragId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
                         .WithMany()
                         .HasForeignKey("KundeId")
@@ -2393,6 +2409,8 @@ namespace Rausoft.Erp.Data.Migrations
                         .WithMany()
                         .HasForeignKey("PartnerId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Hauptvertrag");
 
                     b.Navigation("Kunde");
 
@@ -2989,6 +3007,8 @@ namespace Rausoft.Erp.Data.Migrations
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
                 {
+                    b.Navigation("Anhaenge");
+
                     b.Navigation("Bestandteile");
                 });
 

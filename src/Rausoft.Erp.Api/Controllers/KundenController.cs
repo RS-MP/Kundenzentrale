@@ -54,9 +54,9 @@ public class KundenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter a
         else if (kategorie == "einmalbestellung")
             query = query.Where(k =>
                 !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
-                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.HauptvertragId == null && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
                 && !db.Vertraege.Any(v => v.KundeId == k.Id
-                    && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))
+                    && v.HauptvertragId == null && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))
                 && db.Vertraege.Any(v => v.KundeId == k.Id)
                 && !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                 && !db.Vertraege.Any(v => v.KundeId == k.Id
@@ -64,22 +64,22 @@ public class KundenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter a
         else if (kategorie == "zuklaeren")
             query = query.Where(k =>
                 !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
-                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.HauptvertragId == null && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
                 && !db.Abos.Any(a => a.KundeId == k.Id
                     && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
                 && !db.Vertraege.Any(v => v.KundeId == k.Id
-                    && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))
+                    && v.HauptvertragId == null && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))
                 && (db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                     || db.Vertraege.Any(v => v.KundeId == k.Id
                         && v.Bestandteile.Any(b => b.Typ != Domain.Contracts.BestandteilTyp.Bestellung))));
         else if (kategorie == "ehemalige")
             query = query.Where(k =>
                 !db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
-                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
+                && !db.Vertraege.Any(v => v.KundeId == k.Id && v.HauptvertragId == null && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null)
                 && (db.Abos.Any(a => a.KundeId == k.Id
                         && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
                     || db.Vertraege.Any(v => v.KundeId == k.Id
-                        && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))));
+                        && v.HauptvertragId == null && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet))));
         else if (kategorie == "interessenten")
             query = query.Where(k =>
                 !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
@@ -108,11 +108,11 @@ public class KundenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter a
                 RechnungAn = k.RechnungsempfaengerPartner!.Name,
                 HatAktives = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
                     || db.Vertraege.Any(v => v.KundeId == k.Id
-                        && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
+                        && v.HauptvertragId == null && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
                 IstEhemalig = db.Abos.Any(a => a.KundeId == k.Id
                         && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
                     || db.Vertraege.Any(v => v.KundeId == k.Id
-                        && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet)),
+                        && v.HauptvertragId == null && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet)),
                 IstEinmalbestellung = db.Vertraege.Any(v => v.KundeId == k.Id)
                     && !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                     && !db.Vertraege.Any(v => v.KundeId == k.Id
@@ -160,11 +160,11 @@ public class KundenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter a
         var hatAktives = await db.Abos.AnyAsync(
                 a => a.KundeId == id && a.Status == Domain.Subscriptions.AboStatus.Laufend, ct)
             || await db.Vertraege.AnyAsync(v => v.KundeId == id
-                && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null, ct);
+                && v.HauptvertragId == null && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null, ct);
         var istEhemalig = await db.Abos.AnyAsync(a => a.KundeId == id
                 && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet), ct)
             || await db.Vertraege.AnyAsync(v => v.KundeId == id
-                && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet), ct);
+                && v.HauptvertragId == null && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet), ct);
         var istEinmalbestellung = await db.Vertraege.AnyAsync(v => v.KundeId == id, ct)
             && !await db.Abos.AnyAsync(a => a.KundeId == id
                 && a.Status != Domain.Subscriptions.AboStatus.Entwurf, ct)
@@ -603,11 +603,13 @@ public class KundenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter a
     /// Berechnete Kategorie (Regel V2, 09/2026): Kunde = laufendes Abo oder
     /// aktiver Vertrag MIT gepflegter Laufzeit — aktive Verträge ohne Laufzeit
     /// gelten als ungeklärt (oft unerkannte Kündigungen im Bestand).
+    /// Anhänge (Vertrag mit Hauptvertrag, 11/2026) zählen bei allen Status-Regeln
+    /// nicht extra: für sie gilt der Status des Hauptvertrags, und der wird gezählt.
     /// </summary>
     internal static System.Linq.Expressions.Expression<Func<Kunde, bool>> KundenRegel(ErpDbContext db) =>
         k => db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
              || db.Vertraege.Any(v => v.KundeId == k.Id
-                 && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null);
+                 && v.HauptvertragId == null && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null);
 
     /// <summary>
     /// Kategorie + „laufendes Abo" für eine Kundenmenge (z. B. die Kunden eines
@@ -622,11 +624,11 @@ public class KundenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter a
                 AktivesAbo = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend),
                 HatAktives = db.Abos.Any(a => a.KundeId == k.Id && a.Status == Domain.Subscriptions.AboStatus.Laufend)
                     || db.Vertraege.Any(v => v.KundeId == k.Id
-                        && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
+                        && v.HauptvertragId == null && v.Status == Domain.Contracts.VertragsStatus.Aktiv && v.MindestlaufzeitMonate != null),
                 IstEhemalig = db.Abos.Any(a => a.KundeId == k.Id
                         && (a.Status == Domain.Subscriptions.AboStatus.Abgeloest || a.Status == Domain.Subscriptions.AboStatus.Beendet))
                     || db.Vertraege.Any(v => v.KundeId == k.Id
-                        && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet)),
+                        && v.HauptvertragId == null && (v.Status == Domain.Contracts.VertragsStatus.Gekuendigt || v.Status == Domain.Contracts.VertragsStatus.Beendet)),
                 IstEinmalbestellung = db.Vertraege.Any(v => v.KundeId == k.Id)
                     && !db.Abos.Any(a => a.KundeId == k.Id && a.Status != Domain.Subscriptions.AboStatus.Entwurf)
                     && !db.Vertraege.Any(v => v.KundeId == k.Id

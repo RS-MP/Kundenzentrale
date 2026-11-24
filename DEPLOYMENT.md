@@ -23,6 +23,16 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (24.11.2026, Verträge umbenennen und zusammenfassen):**
+  Migration `VertragBezeichnungUndAnhaenge` (zwei neue Spalten an `Vertraege`) läuft beim
+  Start von selbst; sie trägt bei Verträgen aus einer Vorlage einmalig den Vorlagennamen
+  als Bezeichnung ein. Wirkung: In der Vertragsansicht oben „Benennen/Umbenennen“; rechts
+  die Karte „Hauptvertrag & Anhänge“ zum Zuordnen und Lösen. Vertragsliste, Kundenakte und
+  Partnerakte zeigen Bezeichnung, eingerückte Anhänge und die Dokumente je Akte. Anhänge
+  übernehmen Status und Laufzeit des Hauptvertrags und zählen in den Kennzahlen und der
+  Kundenkategorie nicht mehr extra. Kein erneuter Import nötig; Bestandsscan und
+  Odoo-Import lassen Bezeichnung und Zuordnung unberührt.
+
 - [ ] **Publish aktualisieren (17.11.2026, Website-Anfragen):** Migration `Anfragen`
   (neue Tabelle, Einstellung `Anfragen.Kampagnen`) läuft beim Start von selbst. Wirkung:
   Unter Kunden → „Anfragen“ fügt ein Mitarbeiter (Vertrieb/Admin) den Text einer
