@@ -23,6 +23,47 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (24.11.2026, Margenrechner World-Check):** Migration
+  `Margenrechner` (neue Tabelle `MargenrechnerStaende`) läuft beim Start von selbst.
+  Wirkung: neue Seite **„Margenrechner“** (Full File und Sanctions Only, Einkauf nach
+  Variante B) mit denselben Eingaben, Formeln und Ergebnissen wie die
+  HTML-Kalkulationsvorlage; gerechnet wird auf dem Server.
+  **Zugang nur mit der neuen Rolle „Margenrechner“** — sie steckt in keiner anderen Rolle,
+  auch nicht in Admin. Ohne die Rolle gibt es weder den Menüpunkt noch Daten (die API
+  antwortet mit 403).
+  **Nach dem Update auf dem Server:**
+  1. Administration → „Benutzer & Rollen“: bei Marcus und bei sich selbst die Rolle
+     **Margenrechner** anklicken und speichern. Seite neu laden — der Menüpunkt
+     „Margenrechner“ erscheint unter „Wiki“.
+  2. Margenrechner öffnen. Beim ersten Mal sind keine Daten da: unter „Daten des
+     Margenrechners“ die HTML-Vorlage wählen (`V:\5_Preise\ID.prove\Neue Preisliste\
+     04_World Check\Margenrechner_Full-File_Sanctions-Only_1.html`) — die Seite liest
+     Baskets, Verkaufspreise, Staffeltabelle und lineare Regel aus und zeigt sie zur
+     Kontrolle. Mit **„Speichern“** gilt der Stand.
+  3. Gegenprobe: Beispielbestand, „pro Monat“ — der **Einkaufspreis** muss mit der Vorlage
+     übereinstimmen. Verkaufspreis, Gewinn und Marge weichen dort ab, wo die Wiki-Preisliste
+     andere (aktuell gültige) Verkaufspreise hat als die Vorlage; das ist gewollt. Mit
+     gleichen Verkaufspreisen stimmt die Anzeige Feld für Feld (lokal gegen das Skript der
+     Vorlage geprüft).
+  **Verkaufspreise (Entscheidung 24.11.2026):** Es gilt die **Wiki-Preisliste** — hat sie
+  für Basket und Bereich einen World-Check-Preis, rechnet der Margenrechner damit, und eine
+  neu importierte Version gilt sofort. Der in der Datenpflege eingetragene Verkaufspreis
+  (aus der Vorlage, teils noch zu niedrig) gilt nur für Baskets, die im Wiki keinen Preis
+  haben. Unter der Bestandstabelle steht, welche das sind; die Datenpflege zeigt je Basket
+  Wiki-Preis und eingetragenen Preis nebeneinander. Stand v22: Im Wiki fehlen für
+  Sanctions Only die Baskets 15.000, 20.000, 30.000 und 40.000, für Full File 15.000,
+  25.000, 30.000 und 40.000 — dort rechnet der Rechner bis zur nächsten Preisliste mit den
+  eingetragenen Preisen.
+  Die **Einkaufsstaffel** wird in der Datenpflege **von Hand gepflegt** (eine Zeile je
+  Stufe, aus Excel einfügbar) und steht nicht im Wiki; jeder gespeicherte Stand ist eine
+  neue Zeile, das Audit-Log hält fest, wer wann gespeichert hat, aber keine Zahlen.
+  **Zu wissen:** Die Daten liegen verschlüsselt in der Datenbank (Data Protection, derselbe
+  Schlüsselbund wie die Geheimnisse). Das **Testsystem** hat einen eigenen Schlüsselbund und
+  kann einen Stand aus einer Produktiv-Kopie nicht lesen — dort die Vorlage neu einlesen;
+  dasselbe gilt nach einem Serverumzug. Im Programm, in den Tests und im Repository stehen
+  keine Preise. Ein Admin kann sich die Rolle selbst geben (wie bei „Vertrauliche
+  Verträge“) — das steht dann im Audit-Log.
+
 - [ ] **Publish aktualisieren (24.11.2026, Anfrage in Odoo anlegen — Stufe 2):** Migration
   `AnfrageOdooAnlage` (neue Tabelle `AnfrageOdooAnlagen`, Einstellung
   `Anfragen.OdooVorbelegung`) läuft beim Start von selbst; sie liegt hinter

@@ -61,4 +61,10 @@ public enum MitarbeiterRolle
     /// freigegeben sind (z. B. nur Sanktionslisten). Admin und Compliance dürfen alles.
     /// </summary>
     WikiRedaktion = 64,
+    /// <summary>
+    /// Darf den Margenrechner öffnen und dessen Daten (Verkaufspreise, Einkaufsstaffel)
+    /// pflegen. Bewusst NICHT in Admin, Vertrieb oder Compliance enthalten — nur
+    /// einzeln vergebene Personen sehen Einkaufspreise und Margen.
+    /// </summary>
+    Margenrechner = 128,
 }

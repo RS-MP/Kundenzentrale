@@ -1,0 +1,329 @@
+@using Rausoft.Erp.Dtos.Margen
+@using static Rausoft.Erp.Web.MargenFormat
+@inject HttpClient Http
+
+@* Datenpflege des Margenrechners: Verkaufspreise je Basket und Einkaufsstaffel, von Hand
+   (Entscheidung MP 24.11.2026). Erstbefüllung über das Einlesen der HTML-Kalkulationsvorlage.
+   Die API verlangt für alles hier die Rolle „Margenrechner“. *@
+<div class="karte mr-pflege">
+    <div class="karte-kopf">
+        <h2>Daten des Margenrechners</h2>
+        <span class="hinweis-klein">
+            @if (_ansicht?.GeaendertAm is { } am)
+            {
+                <text>zuletzt gespeichert @am.ToLocalTime().ToString("dd.MM.yyyy HH:mm")@(_ansicht.GeaendertVon is not null ? $" von {_ansicht.GeaendertVon}" : "")</text>
+            }
+            else if (_ansicht is not null)
+            {
+                <text>noch nichts gespeichert</text>
+            }
+        </span>
+    </div>
+    <div class="karte-koerper">
+        @if (_fehler is not null)
+        {
+            <div class="fehler">@_fehler</div>
+        }
+        @if (_ansicht is null)
+        {
+            @if (_fehler is null)
+            {
+                <div class="leer-hinweis">Lade Daten …</div>
+            }
+        }
+        else
+        {
+            <p class="mr-text">
+                Die Einkaufsstaffel steht nur hier — verschlüsselt in der Datenbank, sichtbar nur mit der Rolle „Margenrechner“.
+                Bei den Verkaufspreisen gilt die Preisliste im Wiki; der hier eingetragene Preis gilt nur für Baskets, die im Wiki
+                keinen Preis haben (siehe Abgleich unten). Eine Zeile je Eintrag, Werte durch Semikolon oder Tabulator getrennt
+                (aus Excel einfügbar). Beträge in Euro pro Monat.
+            </p>
+
+            <div class="mr-pflege-zeile">
+                <span>Aus der HTML-Kalkulationsvorlage einlesen:</span>
+                <InputFile OnChange="VorlageEinlesenAsync" accept=".html,.htm" />
+                @if (_liest)
+                {
+                    <span class="hinweis-klein">Lese …</span>
+                }
+            </div>
+            @if (_geaendert)
+            {
+                <div class="mr-meldung">@(_ausVorlage ? "Aus der Vorlage eingelesen — " : "")Noch nicht gespeichert. Bitte prüfen und unten speichern.</div>
+            }
+
+            <div class="mr-pflege-raster">
+                <label>
+                    <span>Baskets und Verkaufspreise <small>Cases pro Jahr; VK Sanctions Only; VK Full File</small></span>
+                    <textarea rows="13" spellcheck="false" value="@_baskets" @oninput="e => Setze(ref _baskets, e)"></textarea>
+                </label>
+                <label>
+                    <span>Einkaufsstaffel <small>bis Cases pro Jahr; Full File; Sanctions Only</small></span>
+                    <textarea rows="13" spellcheck="false" value="@_staffel" @oninput="e => Setze(ref _staffel, e)"></textarea>
+                </label>
+                <div class="mr-pflege-spalte">
+                    <label>
+                        <span>Lineare Staffel oberhalb der Tabelle <small>Anker: Cases; Gebühr — der erste liegt am Ende der Tabelle</small></span>
+                        <textarea rows="4" spellcheck="false" value="@_anker" @oninput="e => Setze(ref _anker, e)"></textarea>
+                    </label>
+                    <label>
+                        <span>Schrittweite der linearen Stufen <small>Cases</small></span>
+                        <input type="text" value="@_schritt" @oninput="e => Setze(ref _schritt, e)" />
+                    </label>
+                    <label>
+                        <span>Stand <small>z. B. Datum der Abstimmung</small></span>
+                        <input type="text" maxlength="100" value="@_stand" @oninput="e => Setze(ref _stand, e)" />
+                    </label>
+                    <label>
+                        <span>Hinweis zur Regel <small>erscheint unter „So rechnet die Seite“</small></span>
+                        <textarea rows="3" maxlength="500" class="fliess" value="@_hinweis" @oninput="e => Setze(ref _hinweis, e)"></textarea>
+                    </label>
+                </div>
+            </div>
+
+            <div class="formular-aktionen">
+                <button class="knopf" disabled="@(_speichert || !_geaendert)" @onclick="SpeichernAsync">@(_speichert ? "Speichere …" : "Speichern")</button>
+                @if (_geaendert)
+                {
+                    <button class="knopf sekundaer" disabled="@_speichert" @onclick="LadenAsync">Verwerfen</button>
+                }
+                @if (_gespeichert)
+                {
+                    <span class="mr-gut">Gespeichert — der Rechner nutzt den neuen Stand.</span>
+                }
+            </div>
+
+            @* ---------- Abgleich mit der Preisliste im Wiki ---------- *@
+            @if (_ansicht.Wiki is { } wiki)
+            {
+                var zeilen = Abgleich(wiki);
+                var fehlen = zeilen.Count(z => z.WikiSo is null) + zeilen.Count(z => z.WikiFf is null);
+                var nurImWiki = wiki.Preise.Where(p => zeilen.All(z => z.Cases != p.Cases)).Select(p => Zahl(p.Cases)).ToList();
+                <details class="mr-abgleich" open>
+                    <summary>
+                        Verkaufspreise: Es gilt die Wiki-Preisliste Version @wiki.Version (Stand @wiki.Stand) —
+                        @(zeilen.Count == 0 ? "noch keine Baskets eingetragen" : fehlen == 0 ? "sie hat für jeden Basket einen Preis" : fehlen == 1 ? "1 Preis fehlt dort, dafür gilt der hier eingetragene" : $"{fehlen} Preise fehlen dort, dafür gelten die hier eingetragenen")
+                    </summary>
+                    <div class="mr-tabellenrahmen">
+                        <table class="mr-tabelle">
+                            <thead>
+                                <tr><th>Basket</th><th>Sanctions Only im Wiki</th><th>hier eingetragen</th><th>Full File im Wiki</th><th>hier eingetragen</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var z in zeilen)
+                                {
+                                    <tr>
+                                        <td>@Zahl(z.Cases)</td>
+                                        <td class="@(z.WikiSo is null ? "fehlt" : "gilt")">@(z.WikiSo is { } a ? EurGenau(a) : "nicht im Wiki")</td>
+                                        <td class="@Eingetragen(z.WikiSo, z.HierSo)">@EurGenau(z.HierSo)</td>
+                                        <td class="@(z.WikiFf is null ? "fehlt" : "gilt")">@(z.WikiFf is { } b ? EurGenau(b) : "nicht im Wiki")</td>
+                                        <td class="@Eingetragen(z.WikiFf, z.HierFf)">@EurGenau(z.HierFf)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="hinweis-klein" style="margin:8px 0 0">
+                        Fett = damit rechnet der Margenrechner. Durchgestrichen = eingetragener Preis, den der Wiki-Preis ersetzt.
+                        Quelle der Wiki-Preise ist das Preislisten-Projekt (<a href="wiki/preisliste">Preisliste</a>, Abschnitt WorldCheck);
+                        eine neu importierte Version gilt sofort. Die Einkaufsstaffel steht nicht im Wiki.
+                        @if (nurImWiki.Count > 0)
+                        {
+                            <text> Im Wiki zusätzlich vorhanden, im Rechner kein Basket: @string.Join(", ", nurImWiki).</text>
+                        }
+                    </p>
+                </details>
+            }
+            else
+            {
+                <p class="hinweis-klein" style="margin-top:12px">Im Wiki ist keine Preisliste mit World-Check-Preisen importiert — der Margenrechner rechnet mit den hier eingetragenen Verkaufspreisen.</p>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>Nach dem Speichern: die Seite lädt Baskets und Ergebnis neu.</summary>
+    [Parameter] public EventCallback OnGespeichert { get; set; }
+
+    private MargenDatenAnsicht? _ansicht;
+    private string? _fehler;
+    private string _baskets = "", _staffel = "", _anker = "", _schritt = "", _stand = "", _hinweis = "";
+    private bool _geaendert, _ausVorlage, _liest, _speichert, _gespeichert;
+
+    protected override Task OnInitializedAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _ansicht = await Http.GetFromJsonAsync<MargenDatenAnsicht>("api/margenrechner/daten");
+            Fuelle(_ansicht?.Daten);
+            _geaendert = _ausVorlage = false;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Daten konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private void Fuelle(MargenDaten? d)
+    {
+        _baskets = d is null ? "" : string.Join("\n", d.Baskets.Select(b => $"{Eingabe(b.Cases)}; {Eingabe(b.VkSanctionsOnly)}; {Eingabe(b.VkFullFile)}"));
+        _staffel = d is null ? "" : string.Join("\n", d.Staffel.Select(s => $"{Eingabe(s.BisCases)}; {Eingabe(s.GebuehrFullFile)}; {Eingabe(s.GebuehrSanctionsOnly)}"));
+        _anker = d is null ? "" : string.Join("\n", d.LinearAnker.Select(a => $"{Eingabe(a.Cases)}; {Eingabe(a.Gebuehr)}"));
+        _schritt = d is null ? "100.000" : Eingabe(d.LinearSchritt);
+        _stand = d?.Stand ?? "";
+        _hinweis = d?.Hinweis ?? "";
+    }
+
+    private void Setze(ref string feld, ChangeEventArgs e)
+    {
+        feld = e.Value?.ToString() ?? "";
+        _geaendert = true;
+        _gespeichert = false;
+    }
+
+    private async Task VorlageEinlesenAsync(InputFileChangeEventArgs e)
+    {
+        _fehler = null;
+        _liest = true;
+        _gespeichert = false;
+        try
+        {
+            using var inhalt = new MultipartFormDataContent();
+            inhalt.Add(new StreamContent(e.File.OpenReadStream(5_000_000)), "datei", e.File.Name);
+            var antwort = await Http.PostAsync("api/margenrechner/daten/aus-vorlage", inhalt);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await FehlertextAsync(antwort, "Die Vorlage konnte nicht eingelesen werden");
+                return;
+            }
+            Fuelle(await antwort.Content.ReadFromJsonAsync<MargenDaten>());
+            _geaendert = _ausVorlage = true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Vorlage konnte nicht eingelesen werden: {ex.Message}";
+        }
+        finally
+        {
+            _liest = false;
+        }
+    }
+
+    private async Task SpeichernAsync()
+    {
+        _fehler = null;
+        if (Lies(out var fehler) is not { } daten)
+        {
+            _fehler = fehler;
+            return;
+        }
+        _speichert = true;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync("api/margenrechner/daten", daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await FehlertextAsync(antwort, "Speichern fehlgeschlagen");
+                return;
+            }
+            await LadenAsync();
+            _gespeichert = _fehler is null;
+            await OnGespeichert.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichert = false;
+        }
+    }
+
+    private static async Task<string> FehlertextAsync(HttpResponseMessage antwort, string vorspann)
+    {
+        var text = (await antwort.Content.ReadAsStringAsync()).Trim().Trim('"');
+        return antwort.StatusCode == System.Net.HttpStatusCode.Forbidden
+            ? "Dafür fehlt die Rolle „Margenrechner“."
+            : text.Length is > 0 and < 600 ? $"{vorspann}: {text}" : $"{vorspann} ({(int)antwort.StatusCode}).";
+    }
+
+    // --- Textfelder ↔ Daten ------------------------------------------------------
+
+    /// <summary>Liest die Textfelder; null mit Fehlertext (Feld und Zeile), wenn etwas nicht lesbar ist. Die fachliche Prüfung macht der Server.</summary>
+    private MargenDaten? Lies(out string? fehler)
+    {
+        fehler = null;
+        var baskets = Zeilen(_baskets, 3, "Baskets", ref fehler);
+        var staffel = Zeilen(_staffel, 3, "Einkaufsstaffel", ref fehler);
+        var anker = Zeilen(_anker, 2, "Anker", ref fehler);
+        if (fehler is not null)
+            return null;
+        if (!Lesen(_schritt, out var schritt) || schritt != Math.Floor(schritt) || schritt <= 0)
+        {
+            fehler = "Die Schrittweite muss eine ganze Zahl sein.";
+            return null;
+        }
+        return new MargenDaten(
+            baskets!.Select(z => new MargenBasket((long)z[0], z[1], z[2])).ToList(),
+            staffel!.Select(z => new MargenStaffelStufe((long)z[0], z[1], z[2])).ToList(),
+            (long)schritt,
+            anker!.Select(z => new MargenAnker((long)z[0], z[1])).ToList(),
+            string.IsNullOrWhiteSpace(_stand) ? null : _stand.Trim(),
+            string.IsNullOrWhiteSpace(_hinweis) ? null : _hinweis.Trim());
+    }
+
+    private static readonly char[] Trenner = { ';', '\t' };
+
+    private static List<double[]>? Zeilen(string text, int spalten, string feld, ref string? fehler)
+    {
+        var liste = new List<double[]>();
+        var nr = 0;
+        foreach (var roh in text.Split('\n'))
+        {
+            nr++;
+            var zeile = roh.Trim();
+            if (zeile.Length == 0)
+                continue;
+            var teile = zeile.Split(Trenner, StringSplitOptions.TrimEntries);
+            var werte = new double[spalten];
+            var ok = teile.Length == spalten;
+            for (var i = 0; ok && i < spalten; i++)
+                ok = Lesen(teile[i], out werte[i]) && werte[i] >= 0;
+            // erste Spalte = Cases: ganze Zahl
+            if (!ok || werte[0] != Math.Floor(werte[0]))
+            {
+                var kurz = zeile.Length > 60 ? zeile[..60] + " …" : zeile;
+                fehler ??= $"{feld}, Zeile {nr}: erwartet werden {spalten} Zahlen, getrennt durch Semikolon — gelesen „{kurz}“.";
+                return null;
+            }
+            liste.Add(werte);
+        }
+        return liste;
+    }
+
+    // --- Abgleich mit dem Wiki ---------------------------------------------------
+
+    private sealed record AbgleichZeile(long Cases, double HierSo, double? WikiSo, double HierFf, double? WikiFf);
+
+    /// <summary>Je eingetragenem Basket der Preis im Wiki (gilt) und der hier eingetragene; nicht lesbare Zeilen bleiben weg.</summary>
+    private List<AbgleichZeile> Abgleich(MargenWikiPreise wiki)
+    {
+        string? fehler = null;
+        var baskets = Zeilen(_baskets, 3, "Baskets", ref fehler) ?? [];
+        var jeCases = wiki.Preise.GroupBy(p => p.Cases).ToDictionary(g => g.Key, g => g.First());
+        return baskets.Select(z =>
+        {
+            jeCases.TryGetValue((long)z[0], out var w);
+            return new AbgleichZeile((long)z[0], z[1], w?.SanctionsOnly, z[2], w?.FullFile);
+        }).ToList();
+    }
+
+    /// <summary>Der eingetragene Preis gilt nur ohne Wiki-Preis; weicht er vom Wiki-Preis ab, ist er ersetzt.</summary>
+    private static string Eingetragen(double? wiki, double hier) => wiki is null ? "gilt" : wiki == hier ? "" : "ersetzt";
+}

@@ -1,0 +1,131 @@
+@using Rausoft.Erp.Dtos.Margen
+@using static Rausoft.Erp.Web.MargenFormat
+
+@* Marge über dem Gesamtvolumen bei gleicher Mischung (logarithmisch). Eigene Komponente,
+   damit das Überfahren mit der Maus nur das Diagramm neu zeichnet. *@
+<div class="mr-kurve" @onmouseleave="() => _spalte = null">
+    <svg viewBox="0 0 @Breite @Hoehe" role="img" aria-label="Marge in Abhängigkeit vom Gesamtvolumen bei gleicher Mischung">
+        @foreach (var p in new[] { -1d, -.5, 0, .5, 1 })
+        {
+            <g>
+                <line class="@(p == 0 ? "null" : "gitter")" x1="@Roh(Links)" x2="@Roh(Breite - Rechts)" y1="@Roh(Y(p))" y2="@Roh(Y(p))" />
+                <text class="achse" x="@Roh(Links - 10)" y="@Roh(Y(p) + 5)" text-anchor="end">@Prozent(p, 0)</text>
+            </g>
+        }
+        @foreach (var (v, text, anker) in Marken)
+        {
+            <g>
+                <line class="strich" x1="@Roh(X(v))" x2="@Roh(X(v))" y1="@Roh(Oben + PlotH)" y2="@Roh(Oben + PlotH + 5)" />
+                <text class="achse" x="@Roh(X(v))" y="@Roh(Hoehe - Unten + 21)" text-anchor="@anker">@text</text>
+            </g>
+        }
+        <g><text class="achsentitel" x="@Roh(Links + PlotB / 2)" y="@Roh(Hoehe - 4)" text-anchor="middle">Screening Cases pro Jahr, alle Kunden zusammen</text></g>
+
+        @if (Leer)
+        {
+            <g><text class="achsentitel gross" x="@Roh(Links + PlotB / 2)" y="@Roh(Oben + PlotH / 2 - 14)" text-anchor="middle">Bestand eintragen, um die Kurve zu sehen</text></g>
+        }
+        else
+        {
+            <defs>
+                <clipPath id="mr-oben"><rect x="@Roh(Links)" y="@Roh(Oben - 4)" width="@Roh(PlotB)" height="@Roh(Y(0) - Oben + 4)" /></clipPath>
+                <clipPath id="mr-unten"><rect x="@Roh(Links)" y="@Roh(Y(0))" width="@Roh(PlotB)" height="@Roh(Oben + PlotH - Y(0))" /></clipPath>
+            </defs>
+            <path class="linie" d="@_pfad" clip-path="url(#mr-oben)" />
+            <path class="linie verlust" d="@_pfad" clip-path="url(#mr-unten)" />
+
+            @* Marke des aktuellen Bestands; Beschriftung dort, wo die Kurve nicht verläuft *@
+            var marge = Ergebnis!.Kennzahlen.Marge ?? 0;
+            var xn = X(Ergebnis.Volumen.Cases);
+            var yn = Y(marge);
+            var rechts = xn < Links + PlotB * 0.6;
+            var unten = marge > 0.2;
+            <line class="null" x1="@Roh(xn)" x2="@Roh(xn)" y1="@Roh(yn)" y2="@Roh(unten ? Oben + PlotH : Oben)" />
+            <rect class="marke" x="@Roh(xn - 5.5)" y="@Roh(yn - 5.5)" width="11" height="11" />
+            <g>
+                <text class="jetzt" x="@Roh(xn + (rechts ? 10 : -10))" y="@Roh(unten ? Oben + PlotH - 12 : Oben + 18)" text-anchor="@(rechts ? "start" : "end")">Aktueller Bestand: @Prozent(marge) Marge bei @Volumen(Ergebnis.Volumen.Cases) Cases</text>
+            </g>
+
+            @if (Zeiger() is { } z)
+            {
+                <line class="null" x1="@Roh(z.X)" x2="@Roh(z.X)" y1="@Roh(Oben)" y2="@Roh(Oben + PlotH)" />
+                <rect class="marke @(z.Marge < 0 ? "verlust" : "")" x="@Roh(z.X - 4.5)" y="@Roh(Y(z.Marge) - 4.5)" width="9" height="9" />
+            }
+            @for (var i = 0; i < Spalten; i++)
+            {
+                var nr = i;
+                <rect class="treffer" x="@Roh(Links + PlotB * nr / Spalten)" y="@Roh(Oben)" width="@Roh(PlotB / Spalten + 0.5)" height="@Roh(PlotH)"
+                      @onmouseover="() => _spalte = nr" />
+            }
+        }
+    </svg>
+    @if (!Leer && Zeiger() is { } t)
+    {
+        <div class="mr-tip" style="@(t.X / Breite > 0.6 ? $"right:{Roh(100 - t.X / Breite * 100 + 1.5)}%" : $"left:{Roh(t.X / Breite * 100 + 1.5)}%")">
+            <b>@Volumen(t.Cases) Cases · rund @Zahl(t.Kunden) Kunden</b>
+            Staffel bis @Zahl(t.StaffelBis)<br />
+            Verkaufspreis @Eur(t.Vk, Per)<br />
+            Einkaufspreis @Eur(t.Kosten, Per)<br />
+            @(t.Vk - t.Kosten < 0 ? "Verlust" : "Gewinn") @Eur(t.Vk - t.Kosten, Per) · Marge @Prozent(t.Marge)
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public MargenErgebnis? Ergebnis { get; set; }
+    [Parameter] public int Per { get; set; } = 1;
+
+    private const double Breite = 1200, Hoehe = 360, Links = 70, Rechts = 28, Oben = 18, Unten = 44;
+    private const double PlotB = Breite - Links - Rechts, PlotH = Hoehe - Oben - Unten;
+    private const double Von = 10_000, Bis = 50_000_000;
+    private const int Spalten = 160;
+    private static readonly double L0 = Math.Log(Von), L1 = Math.Log(Bis);
+
+    private static readonly (double Cases, string Text, string Anker)[] Marken =
+    [
+        (1e4, "10.000", "start"), (1e5, "100.000", "middle"), (1e6, "1 Mio.", "middle"),
+        (5e6, "5 Mio.", "middle"), (2e7, "20 Mio.", "middle"), (5e7, "50 Mio.", "end"),
+    ];
+
+    private string _pfad = "";
+    private int? _spalte;
+    private MargenErgebnis? _gezeichnet;
+
+    private bool Leer => Ergebnis is null || Ergebnis.Kurve.Count == 0;
+
+    private static double X(double cases) => Links + (Math.Log(Math.Clamp(cases, Von, Bis)) - L0) / (L1 - L0) * PlotB;
+    private static double Y(double marge) => Oben + (1 - (Math.Clamp(marge, -1, 1) + 1) / 2) * PlotH;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_gezeichnet, Ergebnis))
+            return;
+        _gezeichnet = Ergebnis;
+        _spalte = null;
+        if (Leer)
+        {
+            _pfad = "";
+            return;
+        }
+        // Unterhalb von −100 % läuft die Linie aus dem Bild; die Beschneidung blendet sie aus
+        var sb = new System.Text.StringBuilder();
+        foreach (var p in Ergebnis!.Kurve)
+            sb.Append(sb.Length == 0 ? 'M' : 'L').Append(Roh(X(p.Cases))).Append(',')
+              .Append(Roh(Oben + (1 - (p.Marge + 1) / 2) * PlotH));
+        _pfad = sb.ToString();
+    }
+
+    private sealed record Zeigerwert(double X, double Cases, double Kunden, long StaffelBis, double Vk, double Kosten, double Marge);
+
+    /// <summary>Werte an der Mausposition: Stufe und Einkauf der Kurve, Umsatz in gleicher Mischung hochgerechnet.</summary>
+    private Zeigerwert? Zeiger()
+    {
+        if (_spalte is not { } spalte || Leer || Ergebnis!.Volumen.Cases <= 0)
+            return null;
+        var cases = Math.Exp(L0 + (spalte + 0.5) / Spalten * (L1 - L0));
+        var stufe = Ergebnis.Kurve.FirstOrDefault(p => p.StaffelBis >= cases) ?? Ergebnis.Kurve[^1];
+        var faktor = cases / Ergebnis.Volumen.Cases;
+        var vk = faktor * Ergebnis.Kennzahlen.Verkaufspreis;
+        return new Zeigerwert(X(cases), cases, faktor * Ergebnis.Kennzahlen.Kunden, stufe.StaffelBis, vk, stufe.Kosten, 1 - stufe.Kosten / vk);
+    }
+}

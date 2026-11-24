@@ -24,6 +24,7 @@ public class MitarbeiterController(ErpDbContext db, Dienste.AngemeldeterMitarbei
         (MitarbeiterRolle.Compliance, "Compliance"),
         (MitarbeiterRolle.VertraulicheVertraege, "Vertrauliche Verträge"),
         (MitarbeiterRolle.WikiRedaktion, "Wiki-Redaktion"),
+        (MitarbeiterRolle.Margenrechner, "Margenrechner"),
         (MitarbeiterRolle.Vertrieb, "Vertrieb"),
         (MitarbeiterRolle.Support, "Support"),
         (MitarbeiterRolle.Buchhaltung, "Buchhaltung"),
@@ -154,6 +155,8 @@ public class MitarbeiterController(ErpDbContext db, Dienste.AngemeldeterMitarbei
             return BadRequest("Dieser Benutzer ist im Wiki als Verantwortlicher/Vertreter einer Sanktionsliste eingetragen — bitte dort zuerst umstellen oder deaktivieren statt löschen.");
         if (await db.Bereiche.AnyAsync(b => b.LeiterId == id, ct))
             return BadRequest("Dieser Benutzer leitet einen Bereich — bitte zuerst einen anderen Bereichsleiter eintragen oder deaktivieren statt löschen.");
+        if (await db.MargenrechnerStaende.AnyAsync(s => s.GeaendertVonId == id, ct))
+            return BadRequest("Dieser Benutzer hat Daten des Margenrechners geändert — bitte deaktivieren statt löschen.");
         if (await db.Aufgaben.AnyAsync(a => a.ZustaendigId == id || a.ErstelltVonId == id || a.ErledigtVonId == id, ct))
             return BadRequest("Dieser Benutzer ist an Aufgaben beteiligt — bitte deaktivieren statt löschen.");
 

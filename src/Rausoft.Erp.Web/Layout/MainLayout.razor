@@ -51,6 +51,14 @@
                     <span class="abzeichen" title="@WikiHinweisText(h)">@(h.UnbestaetigteNeuerungen + h.OffeneMeldungen)</span>
                 }
             </NavLink>
+            @if (_margenrechner)
+            {
+                @* Nur mit der Rolle „Margenrechner“ — die API sperrt unabhängig davon *@
+                <NavLink href="margenrechner">
+                    <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 2.5v11h11"/><path d="M4.8 10.6l2.6-3 2.2 1.6 3.4-4.4"/></svg>
+                    Margenrechner
+                </NavLink>
+            }
             <NavLink href="server">
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="11" height="4.2" rx="1.2"/><rect x="2.5" y="8.8" width="11" height="4.2" rx="1.2"/><circle cx="5" cy="5.1" r=".9" fill="currentColor" stroke="none"/><circle cx="5" cy="10.9" r=".9" fill="currentColor" stroke="none"/></svg>
                 Server
@@ -85,11 +93,14 @@
     private string? _thema; // null = Automatisch (Systemeinstellung), "light", "dark"
     private WikiHinweise? _wikiHinweise;
     private InstanzInfo? _instanz;
+    private bool _margenrechner;
 
     protected override async Task OnInitializedAsync()
     {
         try { _instanz = await Http.GetFromJsonAsync<InstanzInfo>("api/instanz"); }
         catch { _instanz = null; /* ohne Antwort kein Band — die Sperren greifen serverseitig */ }
+        try { _margenrechner = (await Http.GetFromJsonAsync<Rausoft.Erp.Dtos.Margen.MargenrechnerZugangInfo>("api/margenrechner-zugang"))?.Darf == true; }
+        catch { _margenrechner = false; /* ohne Antwort kein Menüpunkt */ }
         WikiHinweisSignal.Geaendert += WikiHinweiseNachladen;
         AufgabenSignal.Geaendert += AufgabenNachladen;
         await WikiHinweiseLadenAsync();

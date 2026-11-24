@@ -137,6 +137,7 @@
             <b>Compliance</b> gibt Vertragsvorlagen frei (Admins dürfen das auch).
             <b>Vertrauliche Verträge</b> sieht vertrauliche Bestandteile (Sondervereinbarungen, Partnerverträge) vollständig — Admins nicht automatisch.
             <b>Wiki-Redaktion</b> pflegt das Wiki — nur die freigegebenen Themen (Admin und Compliance pflegen alle).
+            <b>Margenrechner</b> öffnet den Margenrechner mit Einkaufspreisen und Margen und pflegt dessen Daten — nur für einzeln ausgewählte Personen, Admins nicht automatisch.
         </div>
         @if (_mitarbeiter is null)
         {
@@ -516,7 +517,7 @@
     private OdooImportStatus? _odooImport;
     private readonly CancellationTokenSource _seiteVerlassen = new();
 
-    private static readonly string[] AlleRollen = ["Admin", "Compliance", "Vertrauliche Verträge", "Wiki-Redaktion", "Vertrieb", "Support", "Buchhaltung"];
+    private static readonly string[] AlleRollen = ["Admin", "Compliance", "Vertrauliche Verträge", "Wiki-Redaktion", "Margenrechner", "Vertrieb", "Support", "Buchhaltung"];
     private List<WikiThemaEintrag> _wikiThemen = [];
     private HashSet<string> _mitarbWikiThemen = [];
     private List<MitarbeiterEintrag>? _mitarbeiter;

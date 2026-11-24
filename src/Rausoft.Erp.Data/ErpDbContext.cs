@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Rausoft.Erp.Domain.Contracts;
 using Rausoft.Erp.Domain.Customers;
+using Rausoft.Erp.Domain.Margen;
 using Rausoft.Erp.Domain.Servers;
 using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Domain.Subscriptions;
@@ -63,6 +64,9 @@ public class ErpDbContext(
     public DbSet<WikiMeldung> WikiMeldungen => Set<WikiMeldung>();
     public DbSet<FaqEintrag> FaqEintraege => Set<FaqEintrag>();
     public DbSet<Sprachregel> Sprachregeln => Set<Sprachregel>();
+
+    // Margenrechner (Daten verschlüsselt, Zugang nur mit eigener Rolle)
+    public DbSet<MargenrechnerStand> MargenrechnerStaende => Set<MargenrechnerStand>();
 
     // Abos
     public DbSet<Abo> Abos => Set<Abo>();
@@ -644,6 +648,15 @@ public class ErpDbContext(
             e.HasOne(r => r.ZurueckgezogenVon).WithMany().HasForeignKey(r => r.ZurueckgezogenVonId).OnDelete(DeleteBehavior.NoAction);
         });
 
+        // --- Margenrechner ----------------------------------------------------
+        modelBuilder.Entity<MargenrechnerStand>(e =>
+        {
+            e.ToTable("MargenrechnerStaende");
+            e.Property(s => s.DatenVerschluesselt).HasColumnType("nvarchar(max)");
+            e.HasIndex(s => s.GeaendertAm);
+            e.HasOne(s => s.GeaendertVon).WithMany().HasForeignKey(s => s.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+
         modelBuilder.Entity<VorlagenVersion>(e =>
         {
             e.HasIndex(v => new { v.VorlageId, v.Nummer }).IsUnique();
@@ -727,6 +740,9 @@ public class ErpDbContext(
              nameof(Domain.Servers.Zertifikat.LetzterMailFehler)],
         // Der Preislisten-JSON (bis 5 MB) liegt in der Tabelle selbst; Version, Stand und Hash reichen im Audit.
         [typeof(Domain.Wiki.PreislistenVersion)] = [nameof(Domain.Wiki.PreislistenVersion.Daten)],
+        // Einkaufspreise des Margenrechners gehören nicht ins Audit-Log, auch nicht verschlüsselt —
+        // wer wann geändert hat, steht trotzdem dort.
+        [typeof(MargenrechnerStand)] = [nameof(MargenrechnerStand.DatenVerschluesselt)],
         // Klick-Kennungen werden nach 90 Tagen gelöscht — im Audit-Log dürfen sie nicht überleben.
         [typeof(Anfrage)] =
             [nameof(Anfrage.Gclid), nameof(Anfrage.Gbraid), nameof(Anfrage.Wbraid), nameof(Anfrage.Msclkid), nameof(Anfrage.KlickKennungenGeloeschtAm)],

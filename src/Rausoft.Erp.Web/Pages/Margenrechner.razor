@@ -1,0 +1,720 @@
+@page "/margenrechner"
+@using Rausoft.Erp.Dtos.Margen
+@using static Rausoft.Erp.Web.MargenFormat
+@inject HttpClient Http
+@implements IDisposable
+
+@* Margenrechner World-Check (Full File und Sanctions Only). Gerechnet wird auf dem Server
+   (api/margenrechner/berechnen); die Seite hält nur die eingetragenen Kundenzahlen und
+   zeigt das Ergebnis. Zugang nur mit der Rolle „Margenrechner“ — ohne sie liefert die API 403
+   und die Seite zeigt nichts außer dem Hinweis. *@
+
+<PageTitle>Margenrechner · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Margenrechner</h1>
+    <span class="untertitel">World-Check · Full File und Sanctions Only · Einkauf nach Variante B</span>
+    @if (_start is not null)
+    {
+        <span style="flex:1"></span>
+        <button class="knopf sekundaer" @onclick="() => _pflegeOffen = !_pflegeOffen">@(_pflegeOffen ? "Datenpflege schließen" : "Daten pflegen")</button>
+    }
+</div>
+
+@if (_keinZugriff)
+{
+    <div class="karte"><div class="karte-koerper">
+        <div class="leer-hinweis">
+            Der Margenrechner ist nur für einzeln freigeschaltete Personen zugänglich.
+            Die Freigabe vergibt ein Admin unter Administration → Benutzer &amp; Rollen (Rolle „Margenrechner“).
+        </div>
+    </div></div>
+}
+else
+{
+    @if (_fehler is not null)
+    {
+        <div class="fehler">@_fehler</div>
+    }
+    @if (_start is null)
+    {
+        @if (_fehler is null)
+        {
+            <div class="leer-hinweis">Lade Margenrechner …</div>
+        }
+    }
+    else
+    {
+        @if (_pflegeOffen || !_start.DatenVorhanden)
+        {
+            @if (!_start.DatenVorhanden)
+            {
+                <div class="mr-meldung">@(_start.Hinweis ?? "Es sind noch keine Daten eingetragen.") Tragen Sie unten Verkaufspreise und Einkaufsstaffel ein — am schnellsten über das Einlesen der HTML-Kalkulationsvorlage.</div>
+            }
+            <MargenDatenPflege OnGespeichert="NachSpeichernAsync" />
+        }
+
+        @if (_start.DatenVorhanden && _e is null && _fehler is null)
+        {
+            <div class="leer-hinweis">Rechne …</div>
+        }
+        @if (_start.DatenVorhanden && _e is { } e)
+        {
+            var verlust = e.Kennzahlen.Gewinn < 0;
+
+            @* ---------- Ergebnisleiste (bleibt beim Scrollen oben stehen) ---------- *@
+            <section class="mr-leiste" aria-label="Ergebnis" aria-live="polite">
+                <div class="mr-kennzahl">
+                    <span>Verkaufspreis</span>
+                    <b>@Eur(e.Kennzahlen.Verkaufspreis, _per)</b>
+                    <small>@Zeitraum(_per) · @Zahl(e.Kennzahlen.Kunden) Kunden</small>
+                </div>
+                <div class="mr-kennzahl">
+                    <span>Einkaufspreis</span>
+                    <b>@Eur(e.Kennzahlen.Einkaufspreis, _per)</b>
+                    <small>@Zeitraum(_per)@(e.Kennzahlen.StaffelBis is { } bis ? $" · Staffel bis {Zahl(bis)}" : "")</small>
+                </div>
+                <div class="mr-kennzahl">
+                    <span>@(verlust ? "Verlust" : "Gewinn")</span>
+                    <b class="@(verlust ? "neg" : "")">@Eur(e.Kennzahlen.Gewinn, _per)</b>
+                    <small>@Zeitraum(_per) · VK minus EK</small>
+                </div>
+                <div class="mr-kennzahl">
+                    <span>Marge</span>
+                    <b class="@(verlust ? "neg" : "")">@(e.Kennzahlen.Marge is { } m ? Prozent(m) : "–")</b>
+                    <small>Gewinn in Prozent des VK</small>
+                </div>
+                <span style="flex:1"></span>
+                <span class="thema-segment" role="group" aria-label="Zeitraum der Beträge">
+                    <button class="@(_per == 1 ? "an" : "")" aria-pressed="@(_per == 1 ? "true" : "false")" @onclick="() => _per = 1">pro Monat</button>
+                    <button class="@(_per == 12 ? "an" : "")" aria-pressed="@(_per == 12 ? "true" : "false")" @onclick="() => _per = 12">pro Jahr</button>
+                </span>
+            </section>
+
+            @* ---------- 01 Kundenbestand ---------- *@
+            <section class="mr-abschnitt">
+                <div class="mr-abschnitt-kopf">
+                    <div>
+                        <div class="mr-nr">01 · Kundenbestand</div>
+                        <h2>Kunden je Basket eintragen</h2>
+                    </div>
+                    <div class="mr-aktionen">
+                        <span class="hinweis-klein">@_status</span>
+                        <button class="knopf sekundaer" @onclick="BeispielLaden">Beispielbestand</button>
+                        <button class="knopf sekundaer" @onclick="Leeren">Leeren</button>
+                    </div>
+                </div>
+                <div class="mr-raster">
+                    <div>
+                        <div class="mr-tabellenrahmen">
+                            <table class="mr-tabelle zwei" style="min-width:790px">
+                                <thead>
+                                    <tr><th></th><th colspan="5">Sanctions Only</th><th colspan="5" class="abstand">Full File</th></tr>
+                                    <tr>
+                                        <th>Basket</th>
+                                        <th>Kunden</th><th>VK je Kunde</th><th>EK-Anteil</th><th>Beitrag</th><th>+1 Kunde</th>
+                                        <th class="abstand">Kunden</th><th>VK je Kunde</th><th>EK-Anteil</th><th>Beitrag</th><th>+1 Kunde</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (var i = 0; i < e.Zeilen.Count && i < _nS.Length; i++)
+                                    {
+                                        var nr = i;
+                                        var z = e.Zeilen[i];
+                                        <tr>
+                                            <td>@Zahl(z.Basket)</td>
+                                            <td><input class="mr-kunden" type="number" min="0" step="1" inputmode="numeric" placeholder="0"
+                                                       aria-label="Kunden Sanctions Only, Basket @Zahl(z.Basket)"
+                                                       value="@(_nS[nr] == 0 ? "" : _nS[nr].ToString())" @oninput="a => KundenSetzen(_nS, nr, a)" /></td>
+                                            <td>@EurGenau(z.SanctionsOnly.VkJeKunde, _per)</td>
+                                            <td>@(z.SanctionsOnly.EkAnteil is { } ekS ? EurGenau(ekS, _per) : "–")</td>
+                                            <td class="@Neg(z.SanctionsOnly.Beitrag)">@(z.SanctionsOnly.Beitrag is { } dbS ? EurGenauMitVorzeichen(dbS, _per) : "–")</td>
+                                            <td class="@Neg(z.SanctionsOnly.WeitererKunde)">@EurGenauMitVorzeichen(z.SanctionsOnly.WeitererKunde, _per)</td>
+                                            <td class="abstand"><input class="mr-kunden" type="number" min="0" step="1" inputmode="numeric" placeholder="0"
+                                                       aria-label="Kunden Full File, Basket @Zahl(z.Basket)"
+                                                       value="@(_nF[nr] == 0 ? "" : _nF[nr].ToString())" @oninput="a => KundenSetzen(_nF, nr, a)" /></td>
+                                            <td>@EurGenau(z.FullFile.VkJeKunde, _per)</td>
+                                            <td>@(z.FullFile.EkAnteil is { } ekF ? EurGenau(ekF, _per) : "–")</td>
+                                            <td class="@Neg(z.FullFile.Beitrag)">@(z.FullFile.Beitrag is { } dbF ? EurGenauMitVorzeichen(dbF, _per) : "–")</td>
+                                            <td class="@Neg(z.FullFile.WeitererKunde)">@EurGenauMitVorzeichen(z.FullFile.WeitererKunde, _per)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td>Summe</td>
+                                        <td>@Zahl(e.Summen.KundenSanctionsOnly)</td>
+                                        <td>@Eur(e.Summen.VkSanctionsOnly, _per)</td>
+                                        <td>@(e.Summen.EkSanctionsOnly is { } sEkS ? Eur(sEkS, _per) : "–")</td>
+                                        <td class="@Neg(e.Summen.VkSanctionsOnly - e.Summen.EkSanctionsOnly)">@(e.Summen.EkSanctionsOnly is { } sDbS ? EurMitVorzeichen(e.Summen.VkSanctionsOnly - sDbS, _per) : "–")</td>
+                                        <td></td>
+                                        <td class="abstand">@Zahl(e.Summen.KundenFullFile)</td>
+                                        <td>@Eur(e.Summen.VkFullFile, _per)</td>
+                                        <td>@(e.Summen.EkFullFile is { } sEkF ? Eur(sEkF, _per) : "–")</td>
+                                        <td class="@Neg(e.Summen.VkFullFile - e.Summen.EkFullFile)">@(e.Summen.EkFullFile is { } sDbF ? EurMitVorzeichen(e.Summen.VkFullFile - sDbF, _per) : "–")</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        <p class="mr-anmerkung">
+                            Basket = Screening Cases pro Jahr je Kunde. EK-Anteil = Anteil des Kunden am Einkaufspreis nach seinem Volumen.
+                            Beitrag = VK minus EK-Anteil. +1 Kunde = Änderung des Gewinns, wenn ein weiterer Kunde mit diesem Basket dazukommt,
+                            einschließlich eines möglichen Staffelsprungs. Die Summenzeile zeigt Umsatz, Einkauf und Beitrag je Bereich.
+                        </p>
+                        <p class="mr-anmerkung">@Preisherkunft()</p>
+                    </div>
+                    <aside class="mr-seite">
+                        <div class="mr-feld">
+                            <h3>VK-Preise ändern</h3>
+                            <div class="mr-regler">
+                                <label for="mr-as">Sanctions Only</label>
+                                <input type="range" id="mr-as" min="-50" max="100" step="1" value="@Roh(Math.Clamp(_aS, -50, 100))" @oninput="a => AenderungSetzen(false, a)" />
+                                <span class="mr-prozent"><input type="number" min="-90" max="300" step="1" value="@Roh(_aS)" aria-label="Änderung der VK-Preise Sanctions Only in Prozent" @oninput="a => AenderungSetzen(false, a)" /></span>
+                                <label for="mr-af">Full File</label>
+                                <input type="range" id="mr-af" min="-50" max="100" step="1" value="@Roh(Math.Clamp(_aF, -50, 100))" @oninput="a => AenderungSetzen(true, a)" />
+                                <span class="mr-prozent"><input type="number" min="-90" max="300" step="1" value="@Roh(_aF)" aria-label="Änderung der VK-Preise Full File in Prozent" @oninput="a => AenderungSetzen(true, a)" /></span>
+                            </div>
+                            <div class="mr-regler-fuss">
+                                <label><input type="checkbox" checked="@_gemeinsam" @onchange="GemeinsamSetzen" /> gemeinsam ändern</label>
+                                <button class="knopf sekundaer klein" @onclick="Listenpreise">Listenpreise</button>
+                            </div>
+                        </div>
+                        <div class="mr-feld">
+                            <h3>Volumen und Staffel</h3>
+                            <dl class="mr-werte">
+                                <dt>Screening Cases pro Jahr</dt><dd>@(e.HatBestand ? Zahl(e.Volumen.Cases) : "0")</dd>
+                                <dt>Kunden</dt><dd>@Zahl(e.Kennzahlen.Kunden)</dd>
+                            </dl>
+                            <div class="mr-anteile" role="img" aria-label="Anteile Full File und Sanctions Only am Volumen">
+                                <i class="ff" style="width:@Roh(e.Volumen.AnteilFullFile * 100)%"></i>
+                                <i class="so" style="width:@Roh(e.Volumen.AnteilSanctionsOnly * 100)%"></i>
+                            </div>
+                            <div class="mr-legende">
+                                <span><i class="ff"></i>Full File @(e.HatBestand ? Prozent(e.Volumen.AnteilFullFile) : "–")</span>
+                                <span><i class="so"></i>Sanctions Only @(e.HatBestand ? Prozent(e.Volumen.AnteilSanctionsOnly) : "–")</span>
+                            </div>
+                            <dl class="mr-werte">
+                                @if (e.HatBestand && e.Kennzahlen.StaffelBis is { } stufeBis)
+                                {
+                                    <dt class="voll">Staffel bis @Zahl(stufeBis) Cases@(e.Volumen.Linear ? " (linear)" : "")</dt>
+                                    <dt>Full File @Eur(e.Volumen.GebuehrFullFile ?? 0, _per) × @Prozent(e.Volumen.AnteilFullFile)</dt><dd>@Eur(e.Summen.EkFullFile ?? 0, _per)</dd>
+                                    <dt>Sanctions Only @Eur(e.Volumen.GebuehrSanctionsOnly ?? 0, _per) × @Prozent(e.Volumen.AnteilSanctionsOnly)</dt><dd>@Eur(e.Summen.EkSanctionsOnly ?? 0, _per)</dd>
+                                    <dt class="summe">Einkaufspreis</dt><dd class="summe">@Eur(e.Kennzahlen.Einkaufspreis, _per)</dd>
+                                }
+                                else
+                                {
+                                    <dt class="voll">Staffel</dt>
+                                    <dt>Full File Fee × Anteil</dt><dd>–</dd>
+                                    <dt>Sanctions Only Fee × Anteil</dt><dd>–</dd>
+                                    <dt class="summe">Einkaufspreis</dt><dd class="summe">–</dd>
+                                }
+                            </dl>
+                        </div>
+                    </aside>
+                </div>
+            </section>
+
+            @* ---------- 02 Grenzwerte ---------- *@
+            <section class="mr-abschnitt">
+                <div class="mr-abschnitt-kopf">
+                    <div>
+                        <div class="mr-nr">02 · Grenzwerte</div>
+                        <h2>Ab wann ein Verlust entsteht</h2>
+                    </div>
+                </div>
+                <div class="mr-karten">
+                    @if (e.Grenzwerte is not { } g)
+                    {
+                        @foreach (var titel in new[] { "Preisuntergrenze", "Mindestbestand", "Nächste Staffel", "Unter Einstand" })
+                        {
+                            <div class="mr-grenze"><span>@titel</span><b>–</b><p>Noch kein Bestand eingetragen.</p></div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="mr-grenze">
+                            <span>Preisuntergrenze</span>
+                            @if (g.Preisuntergrenze is not { } x)
+                            {
+                                <b>–</b><p>Ohne Verkaufspreis keine Untergrenze.</p>
+                            }
+                            else if (!verlust)
+                            {
+                                <b>@Prozent(x)</b><p>So weit können alle VK-Preise sinken, bis der Gewinn null erreicht.</p>
+                            }
+                            else
+                            {
+                                <b class="neg">+@Prozent(x)</b><p>So weit müssten alle VK-Preise steigen, um den Einkaufspreis zu decken.</p>
+                            }
+                        </div>
+                        <div class="mr-grenze">
+                            <span>Mindestbestand</span>
+                            @switch (g.Mindestbestand.Art)
+                            {
+                                case MargenMindestbestandArt.Nie:
+                                    <b class="neg">nie</b><p>Mit dieser Mischung und diesen Preisen bleibt der Bestand bei jedem Volumen im Verlust.</p>
+                                    break;
+                                case MargenMindestbestandArt.AbKunden:
+                                    <b class="@(g.Mindestbestand.ImVerlust ? "neg" : "")">@Zahl(g.Mindestbestand.Kunden ?? 0) Kunden</b>
+                                    <p>
+                                        Mit dieser Mischung entsteht darunter ein Verlust (unter @Volumen(g.Mindestbestand.UnterCases ?? 0) Cases).
+                                        @foreach (var zone in g.Mindestbestand.WeitereZonen)
+                                        {
+                                            @if (zone.BisCases is { } zoneBis)
+                                            {
+                                                <text> Weitere Verlustzone bei @Volumen(zone.VonCases) bis @Volumen(zoneBis) Cases.</text>
+                                            }
+                                            else
+                                            {
+                                                <text> Ab @Volumen(zone.VonCases) Cases entsteht dauerhaft ein Verlust.</text>
+                                            }
+                                        }
+                                    </p>
+                                    break;
+                                default:
+                                    <b>–</b><p>Keine Verlustzone.</p>
+                                    break;
+                            }
+                        </div>
+                        <div class="mr-grenze">
+                            <span>Nächste Staffel</span>
+                            <b>@EurMitVorzeichen(g.NaechsteStaffel.Mehrkosten, _per)</b>
+                            <p>Noch @Zahl(g.NaechsteStaffel.RestCases) Cases bis zur Staffel bis @Zahl(g.NaechsteStaffel.NaechsteBis). Dann steigt der Einkaufspreis um diesen Betrag @Zeitraum(_per).</p>
+                        </div>
+                        <div class="mr-grenze">
+                            <span>Unter Einstand</span>
+                            <b>@Zahl(g.KundenUnterEinstand) @(g.KundenUnterEinstand == 1 ? "Kunde" : "Kunden")</b>
+                            @if (g.KundenUnterEinstand > 0)
+                            {
+                                <p>zahlen weniger als ihren Anteil am Einkaufspreis. Ihnen fehlen zusammen @Eur(g.LueckeUnterEinstand, _per) @Zeitraum(_per) zur Kostendeckung.</p>
+                            }
+                            else
+                            {
+                                <p>Jeder Kunde im Bestand deckt seinen Anteil am Einkaufspreis.</p>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="mr-diagramm">
+                    <div class="mr-diagramm-kopf">
+                        <h3>Marge, wenn der Bestand in gleicher Mischung wächst oder schrumpft</h3>
+                        <span class="mr-legende"><span><i class="ff"></i>Marge</span><span><i class="rot"></i>Verlustzone</span><span class="hinweis-klein">Gesamtvolumen logarithmisch</span></span>
+                    </div>
+                    <MargenKurve Ergebnis="e" Per="_per" />
+                </div>
+            </section>
+
+            @* ---------- 03 Kritische Verteilungen ---------- *@
+            var b = e.Befunde;
+            var ueber = VolumenGlatt(b.LetzterAnkerCases);
+            <section class="mr-abschnitt">
+                <div class="mr-abschnitt-kopf">
+                    <div>
+                        <div class="mr-nr">03 · Kritische Verteilungen</div>
+                        <h2>Welche Bestände und Baskets den Gewinn drücken</h2>
+                    </div>
+                </div>
+                <ul class="mr-befunde">
+                    @if (!e.HatBestand)
+                    {
+                        <li>Noch kein Bestand eingetragen. Die Tabellen darunter gelten unabhängig vom Bestand.</li>
+                    }
+                    else
+                    {
+                        @if (b.UnterEinstandMitKunden.Count > 0)
+                        {
+                            <li><b>Unter Einstand im Bestand:</b> @Liste(b.UnterEinstandMitKunden.Select(x => Name(x.Basket, x.Bereich))). Bei @Volumen(e.Volumen.Cases) Cases Gesamtvolumen liegt ihr VK unter dem EK-Anteil.</li>
+                        }
+                        else
+                        {
+                            <li><b>Kein Basket im Bestand liegt unter Einstand.</b> Bei @Volumen(e.Volumen.Cases) Cases Gesamtvolumen deckt jeder VK seinen EK-Anteil.</li>
+                        }
+                        @if (b.UnterEinstandOhneKunden.Count > 0)
+                        {
+                            <li><b>Derzeit nicht kostendeckend, aber ohne Kunden:</b> @Liste(b.UnterEinstandOhneKunden.Select(x => Name(x.Basket, x.Bereich))).</li>
+                        }
+                    }
+                    @if (b.DauerhaftUnterEinkauf.Count > 0)
+                    {
+                        <li><b>Dauerhaft unter dem Einkauf je Case:</b> @Liste(b.DauerhaftUnterEinkauf.Select(x => $"{Name(x.Basket, x.Bereich)} (VK {Eur(x.Vk, _per)}, nötig {Eur(x.Noetig, _per)})")). Über @ueber Cases kostet jeder Case @Cent(b.EkJeCaseUnendlich, _per) @Zeitraum(_per). Diese Baskets tragen sich bei keinem Volumen selbst.</li>
+                    }
+                    else
+                    {
+                        <li><b>Kein Basket liegt dauerhaft unter dem Einkauf je Case.</b> Über @ueber Cases kostet jeder Case @Cent(b.EkJeCaseUnendlich, _per) @Zeitraum(_per); jeder VK je Case liegt darüber.</li>
+                    }
+                    @if (b.SpaetKostendeckend.Count > 0)
+                    {
+                        <li><b>Erst bei großem Gesamtvolumen kostendeckend:</b> @Liste(b.SpaetKostendeckend.Select(x => $"{Name(x.Basket, x.Bereich)} ab {Volumen(x.AbCases)} Cases")). Darunter tragen andere Kunden diese Baskets mit.</li>
+                    }
+                    @if (e.HatBestand)
+                    {
+                        @if (b.WeitererKundeSenktGewinn.Count > 0)
+                        {
+                            <li><b>Ein weiterer Kunde senkt den Gewinn derzeit bei:</b> @Liste(b.WeitererKundeSenktGewinn.Take(4).Select(x => $"{Name(x.Basket, x.Bereich)} ({EurGenau(x.Aenderung, _per)})"))@(b.WeitererKundeSenktGewinn.Count > 4 ? $" und {b.WeitererKundeSenktGewinn.Count - 4} weiteren" : "").</li>
+                        }
+                        else
+                        {
+                            <li><b>Jeder weitere Kunde erhöht derzeit den Gewinn</b>, gleich mit welchem Basket.</li>
+                        }
+                        @if (b.MargeUnendlich is { } mEnde)
+                        {
+                            <li>
+                                <b>Wachstum in gleicher Mischung:</b>
+                                @foreach (var anker in b.MargeBeiAnkern)
+                                {
+                                <text> Bei @VolumenGlatt(anker.Cases) Cases läge die Marge bei @Prozent(anker.Marge),</text>
+                                }
+                                <text> ab @ueber Cases bei</text> @Prozent(mEnde)@(mEnde < 0
+                                    ? "; der Bestand wäre dort dauerhaft im Verlust."
+                                    : $". Oberhalb von {VolumenGlatt(b.LinearAb)} Cases steigt der Einkaufspreis je Staffel um höchstens {Eur(b.MaxAnstiegJeStufe, _per)} {Zeitraum(_per)}.")
+                            </li>
+                        }
+                        <li><b>Mindestumsatz:</b> Der Einkauf kostet in jeder Staffel mindestens @Eur(e.Rechenweg.GebuehrVon, _per) @Zeitraum(_per). Liegt der Verkaufspreis darunter, ist jeder Bestand ein Verlust.</li>
+                    }
+                </ul>
+
+                @if (e.Verteilungen.Count > 0)
+                {
+                    <h3 class="mr-zwischen">Verteilungen, die mit den aktuellen VK-Preisen kritisch sind</h3>
+                    <div class="mr-tabellenrahmen">
+                        <table class="mr-tabelle" style="min-width:820px">
+                            <thead><tr><th>Verteilung</th><th>Cases pro Jahr</th><th>Staffel bis</th><th>Verkaufspreis</th><th>Einkaufspreis</th><th>Gewinn</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var v in e.Verteilungen)
+                                {
+                                    <tr>
+                                        <td class="umbruch"><b>@v.Name</b><small>@v.Beschreibung</small></td>
+                                        <td>@Zahl(v.Cases)</td>
+                                        <td>@Zahl(v.StaffelBis)</td>
+                                        <td>@Eur(v.Vk, _per)</td>
+                                        <td>@Eur(v.Ek, _per)</td>
+                                        <td class="@Neg(v.Gewinn)">@EurMitVorzeichen(v.Gewinn, _per)</td>
+                                        <td><button class="knopf sekundaer klein" @onclick="() => VerteilungLaden(v)">Laden</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <h3 class="mr-zwischen">Grenzen je Basket</h3>
+                <div class="mr-tabellenrahmen">
+                    <table class="mr-tabelle zwei" style="min-width:900px">
+                        <thead>
+                            <tr><th></th><th colspan="3">Sanctions Only</th><th colspan="3" class="abstand">Full File</th></tr>
+                            <tr>
+                                <th>Basket</th>
+                                <th>VK je Case</th><th>Trägt sich ab Gesamtvolumen</th><th>Allein Gewinn ab</th>
+                                <th class="abstand">VK je Case</th><th>Trägt sich ab Gesamtvolumen</th><th>Allein Gewinn ab</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var gr in e.BasketGrenzen)
+                            {
+                                <tr>
+                                    <td>@Zahl(gr.Basket)</td>
+                                    @foreach (var (bereich, erster) in new[] { (gr.SanctionsOnly, true), (gr.FullFile, false) })
+                                    {
+                                        var t = bereich.TraegtSich;
+                                        var a = bereich.AlleinGewinn;
+                                        <td class="@(erster ? "" : "abstand")">@Cent(bereich.VkJeCase, _per)</td>
+                                        <td class="@(t.JetztUngedeckt ? "neg" : "")">
+                                            @if (t.Nie)
+                                            {
+                                                <text>nie</text><small>VK je Case unter dem Einkauf je Case</small>
+                                            }
+                                            else
+                                            {
+                                                @(t.VonAnfangAn ? "von Anfang an" : "ab " + Volumen(t.AbCases))
+                                                @if (TraegtZusatz(t) is { Length: > 0 } zusatz)
+                                                {
+                                                    <small>@zusatz</small>
+                                                }
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (a.Nie)
+                                            {
+                                                <text>nie</text>
+                                            }
+                                            else
+                                            {
+                                                <text>ab @Zahl(a.AbKunden) @(a.AbKunden == 1 ? "Kunde" : "Kunden")</text>
+                                                @if (AlleinZusatz(a) is { Length: > 0 } zusatz)
+                                                {
+                                                    <small>@zusatz</small>
+                                                }
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mr-anmerkung">
+                    Trägt sich ab Gesamtvolumen: Ab diesem Volumen aller Kunden zusammen deckt der VK den EK-Anteil des Baskets. Darunter müssen andere
+                    Kunden ihn mittragen. Allein Gewinn ab: Kundenzahl, ab der ein Bestand nur aus diesem Basket Gewinn macht. Lücken entstehen dort, wo
+                    der Einkauf je Case an einer Staffelgrenze steigt. Nie: Der VK je Case liegt unter dem Einkauf je Case oberhalb von @ueber Cases.
+                </p>
+            </section>
+
+            @* ---------- 04 Rechenweg ---------- *@
+            var w = e.Rechenweg;
+            <section class="mr-abschnitt">
+                <div class="mr-abschnitt-kopf">
+                    <div>
+                        <div class="mr-nr">04 · Rechenweg</div>
+                        <h2>So rechnet die Seite</h2>
+                    </div>
+                </div>
+                <ul class="mr-befunde rechenweg">
+                    <li><b>Verkaufspreis:</b> Kunden je Basket mal VK-Preis des Baskets pro Monat, wahlweise mit prozentualer Änderung. Es gilt der Preis der Wiki-Preisliste; nur wo sie für Basket und Bereich keinen hat, der in der Datenpflege eingetragene.</li>
+                    <li><b>Volumen:</b> Ein Basket zählt mit seiner Größe als Screening Cases pro Jahr. Die Summe aller Kunden bestimmt die Staffel; zwischen zwei Stufen gilt die höhere.</li>
+                    <li><b>Einkaufspreis nach Variante B:</b> Full File Monthly Fee mal Full-File-Anteil plus Sanctions Only Monthly Fee mal Sanctions-Only-Anteil, jeweils aus derselben Staffel.</li>
+                    <li><b>Gewinn:</b> Verkaufspreis minus Einkaufspreis. Weitere Kosten wie Betrieb, Vertrieb und Support sind nicht enthalten.</li>
+                    <li><b>Staffel bis @VolumenGlatt(w.LetzteStufeBis) Cases:</b> @w.StufenAnzahl Stufen von @Zahl(w.ErsteStufeBis) bis @VolumenGlatt(w.LetzteStufeBis) Cases laut Staffeltabelle, Monatsgebühren von @Eur(w.GebuehrVon) bis @Eur(w.GebuehrBis).</li>
+                    @if (w.Anker.Count > 1)
+                    {
+                        <li>
+                            <b>Staffel von @VolumenGlatt(w.Anker[0].Cases) bis @VolumenGlatt(w.Anker[^1].Cases) Cases:</b>
+                            @Zahl(w.LinearSchritt)er Stufen, die Gebühr steigt linear von Staffelpreis zu Staffelpreis. Von @Eur(w.Anker[0].Gebuehr) bei @VolumenGlatt(w.Anker[0].Cases)@foreach (var anker in w.Anker.Skip(1))
+                            {
+                                <text> auf @Eur(anker.Gebuehr) bei @VolumenGlatt(anker.Cases) (@EurGenau(anker.AnstiegJeStufe ?? 0) je Stufe)@(anker == w.Anker[^1] ? "." : ", dann")</text>
+                            }
+                            Full File und Sanctions Only kosten dort gleich viel.
+                        </li>
+                    }
+                    <li><b>Staffel über @VolumenGlatt(w.Anker[^1].Cases) Cases:</b> Die @Zahl(w.LinearSchritt)er Stufen laufen mit dem Preis der letzten Staffel je Case linear weiter, ohne Obergrenze. Das sind @EurGenau(w.AnstiegJeStufeUnendlich) je Stufe.</li>
+                    <li>
+                        <b>Stand der Daten:</b>
+                        @(w.Stand is not null ? $"{w.Stand}. " : "")@(w.Hinweis ?? "Maßgeblich ist der Vertragstext.")
+                        @if (_start.GeaendertAm is { } am)
+                        {
+                            <text> In der Kundenzentrale zuletzt gepflegt am @am.ToLocalTime().ToString("dd.MM.yyyy")@(_start.GeaendertVon is not null ? $" von {_start.GeaendertVon}" : "").</text>
+                        }
+                    </li>
+                </ul>
+                <p class="mr-anmerkung">Interne Kalkulation · Beträge ohne Umsatzsteuer · es wird nichts gespeichert außer den gepflegten Daten.</p>
+            </section>
+        }
+    }
+}
+
+@code {
+    private MargenrechnerStart? _start;
+    private MargenErgebnis? _e;
+    private string? _fehler;
+    private bool _keinZugriff;
+    private bool _pflegeOffen;
+
+    // Eingaben — leben nur in dieser Seite
+    private int[] _nS = [], _nF = [];
+    private double _aS, _aF;
+    private bool _gemeinsam = true;
+    private int _per = 1;
+    private string _status = "";
+
+    private int _lauf;
+    private CancellationTokenSource? _warten;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await StartLadenAsync();
+        if (_start is { DatenVorhanden: true })
+        {
+            BeispielSetzen();
+            await BerechnenAsync();
+        }
+    }
+
+    public void Dispose() => _warten?.Cancel();
+
+    private async Task StartLadenAsync()
+    {
+        _fehler = null;
+        try
+        {
+            _start = await Http.GetFromJsonAsync<MargenrechnerStart>("api/margenrechner");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            _keinZugriff = true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Der Margenrechner konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    /// <summary>Nach dem Speichern der Daten: Baskets können sich geändert haben — Bestand passend zuschneiden und neu rechnen.</summary>
+    private async Task NachSpeichernAsync()
+    {
+        var vorher = _start?.Baskets ?? [];
+        var alteS = _nS;
+        var alteF = _nF;
+        await StartLadenAsync();
+        if (_start is not { DatenVorhanden: true } start)
+            return;
+        if (vorher.Count == 0)
+            BeispielSetzen();
+        else
+        {
+            // Kundenzahlen am Basket festhalten, nicht an der Zeilennummer
+            int[] Uebernehmen(int[] alt) => start.Baskets
+                .Select(basket => vorher.IndexOf(basket) is var i and >= 0 && i < alt.Length ? alt[i] : 0).ToArray();
+            _nS = Uebernehmen(alteS);
+            _nF = Uebernehmen(alteF);
+        }
+        await BerechnenAsync();
+    }
+
+    private void BeispielSetzen()
+    {
+        _nS = [.. _start!.BeispielSanctionsOnly];
+        _nF = [.. _start.BeispielFullFile];
+        _status = "Beispielbestand geladen";
+    }
+
+    private async Task BeispielLaden()
+    {
+        BeispielSetzen();
+        await BerechnenAsync();
+    }
+
+    private async Task Leeren()
+    {
+        _nS = new int[_nS.Length];
+        _nF = new int[_nF.Length];
+        _status = "Bestand geleert";
+        await BerechnenAsync();
+    }
+
+    private async Task VerteilungLaden(MargenVerteilung v)
+    {
+        _nS = [.. v.KundenSanctionsOnly];
+        _nF = [.. v.KundenFullFile];
+        _status = $"Geladen: {v.Name}";
+        await BerechnenAsync();
+    }
+
+    private void KundenSetzen(int[] feld, int nr, ChangeEventArgs a)
+    {
+        feld[nr] = int.TryParse(a.Value?.ToString(), out var n) && n > 0 ? Math.Min(n, 1_000_000) : 0;
+        _status = "Eigener Bestand";
+        Anstossen();
+    }
+
+    private void AenderungSetzen(bool fullFile, ChangeEventArgs a)
+    {
+        var wert = double.TryParse(a.Value?.ToString(), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var x) && double.IsFinite(x) ? Math.Clamp(x, -90, 300) : 0;
+        if (_gemeinsam) _aS = _aF = wert;
+        else if (fullFile) _aF = wert;
+        else _aS = wert;
+        Anstossen();
+    }
+
+    private void GemeinsamSetzen(ChangeEventArgs a)
+    {
+        _gemeinsam = a.Value is true;
+        if (_gemeinsam && _aF != _aS)
+        {
+            _aF = _aS;
+            Anstossen();
+        }
+    }
+
+    private async Task Listenpreise()
+    {
+        _aS = _aF = 0;
+        await BerechnenAsync();
+    }
+
+    /// <summary>Beim Tippen und Schieben kurz warten, damit nicht jede Zwischenstufe gerechnet wird.</summary>
+    private void Anstossen()
+    {
+        _warten?.Cancel();
+        _warten = new CancellationTokenSource();
+        _ = VerzoegertAsync(_warten.Token);
+    }
+
+    private async Task VerzoegertAsync(CancellationToken abbruch)
+    {
+        try { await Task.Delay(140, abbruch); }
+        catch (TaskCanceledException) { return; }
+        await BerechnenAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task BerechnenAsync()
+    {
+        var lauf = ++_lauf;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/margenrechner/berechnen",
+                new MargenEingabe([.. _nS], [.. _nF], _aS, _aF));
+            if (lauf != _lauf)
+                return;   // inzwischen wurde neu gerechnet
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _keinZugriff = antwort.StatusCode == System.Net.HttpStatusCode.Forbidden;
+                _fehler = _keinZugriff ? null : $"Die Berechnung ist fehlgeschlagen ({(int)antwort.StatusCode}).";
+                return;
+            }
+            _e = await antwort.Content.ReadFromJsonAsync<MargenErgebnis>();
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            if (lauf == _lauf)
+                _fehler = $"Die Berechnung ist fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    // --- Darstellung -------------------------------------------------------------
+
+    private static string Neg(double? wert) => wert < 0 ? "neg" : "";
+
+    /// <summary>Woher die Verkaufspreise der Rechnung stammen — Wiki-Preisliste mit Vorrang, sonst Datenpflege.</summary>
+    private string Preisherkunft()
+    {
+        if (_start?.Preisherkunft is not { } h)
+            return "";
+        if (h.WikiVersion is null)
+            return "Verkaufspreise: Im Wiki ist keine Preisliste mit World-Check-Preisen importiert — es gelten die in der Datenpflege eingetragenen Preise.";
+        var wiki = $"Wiki-Preisliste Version {h.WikiVersion} (Stand {h.WikiStand})";
+        if (h.AusWiki == 0)
+            return $"Verkaufspreise: Die {wiki} hat für keinen Basket des Rechners einen World-Check-Preis — es gelten die in der Datenpflege eingetragenen Preise.";
+        if (h.VonHand.Count == 0)
+            return $"Verkaufspreise aus der {wiki}.";
+        return $"Verkaufspreise aus der {wiki}. Nicht im Wiki und deshalb aus der Datenpflege: {Liste(h.VonHand.Select(x => Name(x.Basket, x.Bereich)))}.";
+    }
+
+    private static string Name(long basket, MargenBereich bereich) =>
+        $"{Zahl(basket)} {(bereich == MargenBereich.FullFile ? "Full File" : "Sanctions Only")}";
+
+    private static string Liste(IEnumerable<string> teile) => string.Join(", ", teile);
+
+    private static string TraegtZusatz(MargenTraegtSich t)
+    {
+        var teile = new List<string>();
+        if (t.Luecken.Count > 0)
+            teile.Add("Lücke " + string.Join(", ", t.Luecken.Select(l => $"{Volumen(l.Von)} bis {Volumen(l.Bis)}")) + (t.WeitereLuecken ? " und weitere" : ""));
+        if (t.DauerhaftNichtAb is { } ab)
+            teile.Add($"ab {Volumen(ab)} dauerhaft nicht");
+        return string.Join(" · ", teile);
+    }
+
+    private static string AlleinZusatz(MargenAlleinGewinn a)
+    {
+        var teile = new List<string>();
+        if (a.VerlustWieder.Count > 0)
+            teile.Add("Verlust wieder bei " + string.Join(", ", a.VerlustWieder.Select(z => z.Von == z.Bis ? Zahl(z.Von) : $"{Zahl(z.Von)} bis {Zahl(z.Bis)}"))
+                      + (a.WeitereVerlustbereiche ? " und weiteren" : "") + " Kunden");
+        if (a.DauerhaftVerlustAb is { } ab)
+            teile.Add($"ab {Zahl(ab)} Kunden dauerhaft Verlust");
+        return string.Join(" · ", teile);
+    }
+}

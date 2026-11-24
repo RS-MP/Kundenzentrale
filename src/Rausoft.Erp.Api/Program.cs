@@ -62,11 +62,14 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Admin", policy => policy.Requirements.Add(new AdminAnforderung()));
     options.AddPolicy("Compliance", policy => policy.Requirements.Add(new ComplianceAnforderung()));
     options.AddPolicy("Betrieb", policy => policy.Requirements.Add(new BetriebAnforderung()));
+    // Margenrechner: nur die einzeln vergebene Rolle — Admin genügt nicht
+    options.AddPolicy(MargenrechnerAnforderung.Policy, policy => policy.Requirements.Add(new MargenrechnerAnforderung()));
 });
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AktiverMitarbeiterAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, ComplianceAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, BetriebAnforderungHandler>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MargenrechnerAnforderungHandler>();
 // Wiki: Themen-Freigabe je Redakteur (kein Policy, weil themenabhängig)
 builder.Services.AddScoped<WikiBerechtigung>();
 // Mitarbeiter-Datensatz zum Konto einmal je Request (Policies, Controller, Wiki) — SICHERHEIT.md Q3
@@ -101,6 +104,7 @@ builder.Services.AddDataProtection()
 #pragma warning restore CA1416
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<GeheimnisDienst>();
+builder.Services.AddScoped<MargenrechnerAblage>();
 builder.Services.AddScoped<ServerStatusDienst>();
 builder.Services.AddSingleton<OdooImportDienst>();
 builder.Services.AddSingleton<ChatterImportDienst>();

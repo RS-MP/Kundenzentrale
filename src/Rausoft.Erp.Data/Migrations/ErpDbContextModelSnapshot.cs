@@ -852,6 +852,34 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Partner");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Margen.MargenrechnerStand", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DatenVerschluesselt")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeaendertVonId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GeaendertAm");
+
+                    b.HasIndex("GeaendertVonId");
+
+                    b.ToTable("MargenrechnerStaende", (string)null);
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Servers.Server", b =>
                 {
                     b.Property<int>("Id")
@@ -2675,6 +2703,16 @@ namespace Rausoft.Erp.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Kunde");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Margen.MargenrechnerStand", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
+                        .WithMany()
+                        .HasForeignKey("GeaendertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("GeaendertVon");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Servers.Zertifikat", b =>

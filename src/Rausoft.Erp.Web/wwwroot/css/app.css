@@ -1090,3 +1090,120 @@ table.liste tr.anfrage-detail, table.liste tr.anfrage-detail:hover { cursor: def
 .odoo-stichwoerter label { flex-direction: row; align-items: center; gap: 5px; color: var(--ink); cursor: pointer; }
 .odoo-beschreibung { margin-top: 10px; padding: 8px 12px; background: var(--surface2); border-radius: 7px; font-size: 13px; overflow-wrap: anywhere; }
 .odoo-schritte { margin: 6px 0 0; padding-left: 20px; }
+
+/* Margenrechner (World-Check, Full File und Sanctions Only) — nur mit der Rolle Margenrechner */
+.mr-meldung { border: 1px solid var(--warn); background: var(--warn-bg); color: var(--ink); border-radius: 7px; padding: 10px 14px; margin-bottom: 14px; }
+.mr-gut { color: var(--good); font-size: 13px; }
+.mr-text { margin: 0 0 12px; color: var(--ink2); font-size: 13.5px; max-width: 110ch; }
+.mr-leiste {
+  position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 14px 36px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 12px 18px;
+}
+@media (min-width: 821px) { .app-rahmen.mit-testband .mr-leiste { top: 30px; } }
+.mr-kennzahl { display: flex; flex-direction: column; gap: 2px; min-width: 140px; }
+.mr-kennzahl span { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.mr-kennzahl b { font-size: 26px; line-height: 1.1; font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mr-kennzahl small { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.mr-leiste .neg, .mr-tabelle td.neg, .mr-grenze b.neg { color: var(--crit); font-weight: 600; }
+.mr-abschnitt { margin-top: 30px; }
+.mr-abschnitt-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.mr-abschnitt-kopf h2 { font-size: 18px; margin-top: 2px; }
+.mr-nr { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.mr-aktionen { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mr-raster { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.mr-seite { display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 1340px) {
+  .mr-raster { grid-template-columns: minmax(0, 1fr); }
+  .mr-seite { flex-direction: row; flex-wrap: wrap; order: -1; }
+  .mr-seite .mr-feld { flex: 1 1 300px; }
+}
+.mr-feld { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); }
+.mr-feld h3, .mr-diagramm h3 { margin: 0 0 10px; font-size: 14px; font-weight: 650; }
+.mr-tabellenrahmen { border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; background: var(--surface); box-shadow: var(--shadow); }
+.mr-tabelle { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.mr-tabelle th {
+  background: var(--surface2); color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  text-align: right; padding: 8px 6px; white-space: nowrap; border-bottom: 1px solid var(--border);
+}
+.mr-tabelle.zwei thead tr:first-child th { text-align: left; color: var(--ink2); border-bottom: none; padding-bottom: 0; }
+.mr-tabelle td { padding: 6px 6px; text-align: right; border-top: 1px solid var(--border); white-space: nowrap; }
+.mr-tabelle tbody tr:first-child td { border-top: none; }
+.mr-tabelle th:first-child, .mr-tabelle td:first-child { text-align: left; padding-left: 14px; }
+.mr-tabelle th:last-child, .mr-tabelle td:last-child { padding-right: 14px; }
+.mr-tabelle .abstand { padding-left: 20px; }
+.mr-tabelle tfoot td { border-top: 1px solid var(--border-strong); font-weight: 600; }
+.mr-tabelle td small { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); font-weight: 400; white-space: normal; }
+.mr-tabelle td.umbruch { white-space: normal; min-width: 220px; }
+input.mr-kunden { width: 62px; padding: 4px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.mr-anmerkung { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin: 8px 0 0; max-width: 110ch; }
+.mr-regler { display: grid; grid-template-columns: 1fr 84px; gap: 4px 10px; align-items: center; }
+.mr-regler label { grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.mr-regler input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+.mr-prozent { position: relative; display: block; }
+.mr-prozent input { width: 100%; padding: 5px 22px 5px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.mr-prozent::after { content: "%"; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.mr-regler-fuss { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--ink2); }
+.mr-regler-fuss label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.mr-werte { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; margin: 0; font-size: 13.5px; }
+.mr-werte dt { color: var(--ink2); }
+.mr-werte dt.voll { grid-column: 1 / -1; }
+.mr-werte dd { margin: 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mr-werte .summe { border-top: 1px solid var(--border-strong); padding-top: 6px; margin-top: 3px; font-weight: 650; color: var(--ink); }
+.mr-anteile { display: flex; gap: 2px; height: 12px; background: var(--surface2); margin: 10px 0 6px; border-radius: 3px; overflow: hidden; }
+.mr-anteile i { display: block; height: 12px; }
+.mr-anteile .ff, .mr-legende i.ff { background: var(--ink); }
+.mr-anteile .so, .mr-legende i.so { background: var(--muted); }
+.mr-legende i.rot { background: var(--crit); }
+.mr-legende { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink2); margin-bottom: 10px; align-items: center; }
+.mr-legende i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
+.mr-karten { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1180px) { .mr-karten { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .mr-karten { grid-template-columns: minmax(0, 1fr); } .mr-leiste { position: static; } }
+.mr-grenze { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.mr-grenze span { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.mr-grenze b { font-size: 24px; line-height: 1.15; font-weight: 650; font-variant-numeric: tabular-nums; }
+.mr-grenze p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink2); }
+.mr-diagramm { margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 14px 16px 8px; }
+.mr-diagramm-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.mr-diagramm-kopf .mr-legende { margin: 0; }
+.mr-kurve { position: relative; }
+.mr-kurve svg { display: block; width: 100%; height: auto; }
+.mr-kurve .gitter { stroke: var(--border); stroke-width: 1; }
+.mr-kurve .null { stroke: var(--ink2); stroke-width: 1; }
+.mr-kurve .strich { stroke: var(--border-strong); stroke-width: 1; }
+.mr-kurve .achse { font-size: 13px; fill: var(--muted); }
+.mr-kurve .achsentitel { font-size: 13px; fill: var(--ink2); }
+.mr-kurve .achsentitel.gross { font-size: 15px; }
+.mr-kurve .linie { fill: none; stroke: var(--ink); stroke-width: 2.5; }
+.mr-kurve .linie.verlust { stroke: var(--crit); }
+.mr-kurve .marke { fill: var(--ink); stroke: var(--surface); stroke-width: 2; }
+.mr-kurve .marke.verlust { fill: var(--crit); }
+.mr-kurve .jetzt { font-size: 14px; font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.mr-kurve .treffer { fill: transparent; }
+.mr-tip {
+  position: absolute; top: 8px; z-index: 5; pointer-events: none; white-space: nowrap; font-size: 12.5px; line-height: 1.5;
+  background: var(--ink); color: var(--surface); padding: 8px 12px; border-radius: 7px; font-variant-numeric: tabular-nums;
+}
+.mr-tip b { display: block; font-weight: 600; }
+.mr-befunde { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 36px; font-size: 13.5px; line-height: 1.55; }
+.mr-befunde li { padding-left: 20px; position: relative; color: var(--ink2); }
+.mr-befunde li::before { content: ""; position: absolute; left: 0; top: .5em; width: 8px; height: 8px; background: var(--accent); }
+.mr-befunde b { font-weight: 600; color: var(--ink); }
+@media (max-width: 900px) { .mr-befunde { grid-template-columns: minmax(0, 1fr); } }
+.mr-zwischen { margin: 22px 0 10px; font-size: 14px; font-weight: 650; }
+.mr-pflege { margin-bottom: 20px; }
+.mr-pflege-zeile { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--ink2); margin-bottom: 12px; }
+.mr-pflege-raster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .mr-pflege-raster { grid-template-columns: minmax(0, 1fr); } }
+.mr-pflege-raster label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink2); }
+.mr-pflege-raster label small { display: block; color: var(--muted); font-size: 12px; }
+.mr-pflege-raster textarea { font-family: Consolas, monospace; font-size: 13px; line-height: 1.45; width: 100%; white-space: pre; overflow: auto; resize: vertical; }
+.mr-pflege-raster textarea.fliess { font-family: inherit; white-space: pre-wrap; }
+.mr-pflege-raster input[type=text] { width: 100%; }
+.mr-pflege-spalte { display: flex; flex-direction: column; gap: 12px; }
+.mr-abgleich { margin-top: 16px; border-top: 1px dashed var(--border-strong); padding-top: 12px; font-size: 13.5px; }
+.mr-abgleich summary { cursor: pointer; color: var(--ink2); margin-bottom: 10px; }
+.mr-tabelle td.gilt { font-weight: 600; }
+.mr-tabelle td.ersetzt { color: var(--muted); text-decoration: line-through; }
+.mr-tabelle td.fehlt { color: var(--warn); }
+@media print { .mr-leiste { position: static; } }
