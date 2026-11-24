@@ -675,6 +675,8 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
 .auf-zeile .faellig.ueber { color: var(--crit); font-weight: 600; }
 .auf-zeile .titel, .vb-zeile .txt { font-weight: 600; }
 .auf-zeile.erledigt .titel, .vb-zeile.erledigt .txt { color: var(--muted); text-decoration: line-through; }
+.auf-erledigte { padding: 8px 0 0; font-size: 12.5px; }
+.auf-zeile:has(+ .auf-erledigte) { border-bottom: 0; }
 .auf-zeile .woher, .vb-zeile .woher { font-size: 12.5px; color: var(--muted); }
 .auf-zeile .auf-akt { display: flex; gap: 10px; font-size: 12.5px; white-space: nowrap; }
 .auf-zeile .auf-akt .leise { color: var(--muted); }

@@ -147,12 +147,17 @@
         <AufgabeFormular KundeId="KundeId" Fertig="AufgabeFertigAsync" />
     }
     <div class="liste-eng">
-        @if (_aufgaben is { Count: > 0 })
+        @* Erledigte bleiben ausgeblendet (Entscheidung MP 24.11.2026) — durchgestrichene Zeilen zwischen den
+           offenen verwirren. Über die Zeile am Ende lassen sich die kürzlich erledigten einblenden, etwa um
+           ein versehentliches Abhaken zurückzunehmen. *@
+        @{ var erledigte = _aufgaben?.Count(a => a.Erledigt) ?? 0; }
+        @if (_aufgaben is not null && _aufgaben.Any(a => _erledigteZeigen || !a.Erledigt))
         {
-            @foreach (var a in _aufgaben)
+            @foreach (var a in _aufgaben.Where(a => _erledigteZeigen || !a.Erledigt))
             {
                 var ueber = !a.Erledigt && a.Faellig is { } f && f < Heute;
-                <div class="auf-zeile @(a.Erledigt ? "erledigt" : "")">
+                @* @key: Verschwindet eine abgehakte Zeile, darf die nächste nicht deren Kästchen (noch angehakt) erben *@
+                <div class="auf-zeile @(a.Erledigt ? "erledigt" : "")" @key="a.Id">
                     @if (a.VorgangId is { } vid)
                     {
                         @* Vorgangsschritte werden im Vorgang erledigt (Pflichtfeld, Weitergabe an den nächsten Bereich) *@
@@ -215,6 +220,14 @@
         else
         {
             <div class="leer-hinweis">Keine offenen Aufgaben.</div>
+        }
+        @if (erledigte > 0)
+        {
+            <div class="auf-erledigte">
+                <button type="button" class="link" @onclick="() => _erledigteZeigen = !_erledigteZeigen">
+                    @(_erledigteZeigen ? "Erledigte ausblenden" : $"{erledigte} in den letzten 7 Tagen erledigt — anzeigen")
+                </button>
+            </div>
         }
     </div>
 </div>
@@ -508,6 +521,8 @@
     private readonly HashSet<string> _kategorien = ["Notizen", "EMails"];
     private (string R, string K, string Text)? _paar;
     private bool _matrix;
+    // Aufgaben: kürzlich erledigte nur auf Wunsch zeigen
+    private bool _erledigteZeigen;
     private (string Schluessel, string Name)? _vorgang;
     private readonly HashSet<int> _aufgeklappt = [];
     private bool _alleAuf;

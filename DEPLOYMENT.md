@@ -23,6 +23,21 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (24.11.2026, erledigte Aufgaben in der Akte ausgeblendet):**
+  Keine Migration, nur `publish`. In der Kundenakte zeigt „Offene Aufgaben“ nur noch offene
+  Aufgaben — die durchgestrichenen erledigten zwischen den offenen verwirrten, erst recht
+  nachdem der Import viele Odoo-Aufgaben auf einmal geschlossen hat. Am Ende der Liste
+  steht „n in den letzten 7 Tagen erledigt — anzeigen“; damit lassen sich die kürzlich
+  erledigten einblenden, etwa um ein versehentliches Abhaken zurückzunehmen. Ältere
+  erledigte Aufgaben stehen wie bisher nur im Verlauf.
+  **Mit demselben Publish — Anfragen, Zeile „Odoo“:** Bei Anfragen, die aus Odoo
+  übernommen oder mit einer Verkaufschance verknüpft sind, stand dort „noch nicht
+  angelegt“ (die Zeile kannte nur das Anlegen aus der Kundenzentrale). Jetzt steht
+  „In Odoo vorhanden · Verkaufschance Nr. … · in Odoo öffnen ↗“, und der Knopf „In Odoo
+  anlegen …“ entfällt dort (die API lehnte das Anlegen ohnehin ab). Der Link führt in die
+  Produktiv-Datenbank laut Administration → Odoo-Anbindung. Von Hand erfasste Anfragen
+  ohne Verkaufschance zeigen weiter „noch nicht angelegt“.
+
 - [ ] **Publish aktualisieren (24.11.2026, erledigte Odoo-Aktivitäten als offene Aufgaben):**
   Keine Migration. Anlass: Bei SKD stand „Online Presentation“ vom 31.07. als überfällige
   Aufgabe „aus Odoo“, in Odoo war sie nicht mehr geplant. Ursache: Der Verlaufs-Import las

@@ -75,7 +75,9 @@ public record AnfrageEintrag(
     /// <summary>Warum diese Anfrage (jetzt) nicht in Odoo angelegt werden kann; fehlt, wenn es geht.</summary>
     string? OdooSperre = null,
     /// <summary>Der zugeordnete Kunde hat heute ein laufendes Abo oder einen aktiven Vertrag (nur in der Liste gefüllt).</summary>
-    bool HeuteKunde = false);
+    bool HeuteKunde = false,
+    /// <summary>Adresse der Verkaufschance in Odoo (zu <see cref="OdooLeadId"/>); fehlt ohne Verkaufschance oder ohne eingerichtete Odoo-Adresse.</summary>
+    string? OdooLeadLink = null);
 
 public record AnfrageKanalZahl(string Kanal, int Anzahl, int DavonKunden, int Gewonnen = 0, int Verloren = 0);
 

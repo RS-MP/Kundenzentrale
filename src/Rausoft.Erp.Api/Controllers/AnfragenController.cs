@@ -256,7 +256,11 @@ public partial class AnfragenController(
                 },
                 a.OdooLeadId is null ? null : a.VerlustGrund,
                 OdooAnlageInfo(eigene, stand, kennung),
-                schreibenGesperrt || kennung is null ? null : OdooAnlageRegeln.Sperre(a, eigene, kennung, jetzt));
+                schreibenGesperrt || kennung is null ? null : OdooAnlageRegeln.Sperre(a, eigene, kennung, jetzt),
+                // Die Nummer in OdooLeadId gilt immer in der Produktiv-Datenbank (Testnummern stehen nur in den Anlagen)
+                OdooLeadLink: a.OdooLeadId is { } leadNr && !string.IsNullOrWhiteSpace(stand.ProdUrl)
+                    ? Rausoft.Erp.OdooImport.AnfrageOdooAnleger.LeadLink(stand.ProdUrl, leadNr)
+                    : null);
         }).ToList();
     }
 

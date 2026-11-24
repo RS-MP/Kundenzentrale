@@ -27,6 +27,19 @@
             @* Den Fehler nennt nach einem Lauf schon der Kasten darunter, in der Vorschau der Hinweis *@
             <span class="warntext">Anlegen in @ZielName(offen.Ziel) nicht abgeschlossen@(offen.Fehler is not null && _ergebnis is null && _vorschau is null ? $" — {offen.Fehler}" : "")</span>
         }
+        else if (Eintrag.OdooLeadId is { } leadNr)
+        {
+            @* Aus Odoo übernommen oder mit einer Verkaufschance verknüpft: in Odoo gibt es die Anfrage schon —
+               „noch nicht angelegt“ wäre hier falsch, und angelegt wird sie nicht noch einmal *@
+            <span>
+                In Odoo vorhanden · Verkaufschance Nr. @leadNr
+                @if (Eintrag.OdooLeadLink is not null)
+                {
+                    <text> · </text><a href="@Eintrag.OdooLeadLink" target="_blank" rel="noopener">in Odoo öffnen ↗</a>
+                }
+                <span class="neben" style="display:inline"> · @(Eintrag.ErfasstVon is null ? "aus Odoo übernommen" : "von Hand erfasst und mit der Verkaufschance verknüpft")</span>
+            </span>
+        }
         else if (_vorschau is null && _ergebnis is null)
         {
             <span class="neben" style="display:inline">noch nicht angelegt</span>
@@ -61,7 +74,9 @@
 
     @if (_vorschau is null)
     {
-        @if (Eintrag.OdooAnlage is not { Fertig: true, AktuelleDatenbank: true } && Eintrag.OdooAnlage is not { Fertig: true, Ziel: "Produktiv" })
+        @* Kein Knopf, wenn es die Verkaufschance in Odoo schon gibt (die API lehnte das Anlegen ohnehin ab) *@
+        @if (Eintrag.OdooLeadId is null
+             && Eintrag.OdooAnlage is not { Fertig: true, AktuelleDatenbank: true } && Eintrag.OdooAnlage is not { Fertig: true, Ziel: "Produktiv" })
         {
             <div class="formular-aktionen" style="margin-top:8px">
                 <button class="knopf" disabled="@(_sende || Sperre is not null)" @onclick="VorschauLadenAsync">
