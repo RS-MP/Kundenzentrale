@@ -83,6 +83,38 @@ public class AnfragenUebernahmeTests
         Assert.False(AnfragenUebernahme.IstWebsiteAnfrage(Lead(formular: null, seitenUrl: null)));
     }
 
+    [Theory]
+    [InlineData("doc_referrer", "https://tagassistant.google.com/", true)]
+    [InlineData("last_page_before_form", "https://www.idprove.de/service/infomappe/?gtm_debug=1763000000000", true)]
+    [InlineData("doc_referrer", "https://www.google.com/", false)]
+    [InlineData("utm_source", "google", false)]
+    public void IstTestEintrag_ErkenntDenGoogleTagAssistant(string feld, string wert, bool erwartet) =>
+        Assert.Equal(erwartet, AnfragenUebernahme.IstTestEintrag(Lead(seitenUrl: null, herkunft: new() { [feld] = wert })));
+
+    [Fact]
+    public void IstTestEintrag_AuchUeberDieSeiteDesFormulars() =>
+        Assert.True(AnfragenUebernahme.IstTestEintrag(Lead(seitenUrl: "https://www.idprove.de/kontakt/?gtm_debug=1763000000000")));
+
+    [Fact]
+    public void Bericht_NenntAusgelassene_UndZaehltSieNichtBeiDenKanaelen()
+    {
+        UebernahmeZeile[] zeilen = [new(AnfragenUebernahme.Aus(Lead(), Jetzt), UebernahmeArt.Neu)];
+
+        var bericht = AnfragenUebernahme.Bericht(zeilen, 342, [], probelauf: true, new DateTime(2026, 11, 24, 15, 0, 0),
+            testEintraege: 5, geloeschte: 2);
+
+        Assert.Contains("davon Website-Anfragen: 8", bericht);
+        Assert.Matches(@"neu anlegen\s+1\b", bericht);
+        Assert.Matches(@"ausgelassen: Test über Google Tag Assistant\s+5\b", bericht);
+        Assert.Matches(@"ausgelassen: in der Kundenzentrale gelöscht\s+2\b", bericht);
+        Assert.Matches(@"Summe\s+1\s+1\s+0\s+0\b", bericht);
+
+        // Nur Ausgelassenes: der Bericht endet nach der Zählung
+        var nurAusgelassen = AnfragenUebernahme.Bericht([], 342, [], probelauf: false, new DateTime(2026, 11, 24), testEintraege: 5);
+        Assert.Matches(@"ausgelassen: Test über Google Tag Assistant\s+5\b", nurAusgelassen);
+        Assert.DoesNotContain("Kanal und Ausgang", nurAusgelassen);
+    }
+
     [Fact]
     public void Aus_UebernimmtHerkunftWieBeimEinfuegen_UndDenAusgang()
     {

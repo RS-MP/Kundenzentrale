@@ -465,13 +465,17 @@
 
     private async Task LoeschenAsync(AnfrageEintrag e)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Anfrage von {Oder(e.Firma)} vom {e.Eingang:dd.MM.yyyy} endgültig löschen?"))
+        var ausOdoo = e.OdooLeadId is not null;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Anfrage von {Oder(e.Firma)} vom {e.Eingang:dd.MM.yyyy} endgültig löschen?"
+                + (ausOdoo ? " Sie wird bei der nächsten Übernahme aus Odoo nicht wieder angelegt." : "")))
             return;
         await AusfuehrenAsync(
             () => Http.DeleteAsync($"api/anfragen/{e.Id}"),
             async _ =>
             {
-                _hinweis = "Anfrage gelöscht.";
+                _hinweis = ausOdoo
+                    ? "Anfrage gelöscht. Die Übernahme aus Odoo lässt diese Verkaufschance künftig aus."
+                    : "Anfrage gelöscht.";
                 _offen = null;
                 await LadenAsync(_uebersicht?.Jahr);
             });

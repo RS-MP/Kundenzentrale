@@ -21,6 +21,8 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
 {
     private const int MaxDubletten = 10;
     private const int MaxEintraege = 500;
+    /// <summary>Spaltenlänge von <see cref="Einstellung.Wert"/>.</summary>
+    private const int MaxAusschlussLaenge = 1000;
 
     private Task<bool> DarfAsync(CancellationToken ct) =>
         angemeldet.HatRolleAsync(MitarbeiterRolle.Vertrieb | MitarbeiterRolle.Admin, ct);
@@ -166,6 +168,20 @@ public class AnfragenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
         var anfrage = await db.Anfragen.FirstOrDefaultAsync(a => a.Id == id, ct);
         if (anfrage is null)
             return NotFound();
+        // Aus Odoo übernommen oder mit einer Verkaufschance verknüpft: die Nummer merken,
+        // sonst legte die nächste Übernahme die Anfrage wieder an
+        if (anfrage.OdooLeadId is { } leadId)
+        {
+            var merker = await db.Einstellungen
+                .FirstOrDefaultAsync(e => e.Schluessel == EinstellungsSchluessel.AnfragenOdooUebersprungen, ct);
+            if (merker is null)
+                db.Einstellungen.Add(merker = new Einstellung { Schluessel = EinstellungsSchluessel.AnfragenOdooUebersprungen });
+            var liste = AnfragenAusschluss.Hinzufuegen(merker.Wert, leadId);
+            if (liste.Length > MaxAusschlussLaenge)
+                return Conflict("Die Liste der nicht zu übernehmenden Verkaufschancen ist voll. " +
+                                "Bitte unter Administration → Einstellungen „Anfragen.OdooUebersprungen“ kürzen.");
+            merker.Wert = liste;
+        }
         db.Aktivitaeten.RemoveRange(await VerlaufsEintraege(id).ToListAsync(ct));
         db.Anfragen.Remove(anfrage);
         await db.SaveChangesAsync(ct);

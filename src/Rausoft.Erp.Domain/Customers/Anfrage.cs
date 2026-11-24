@@ -219,13 +219,14 @@ public static partial class AnfrageHerkunft
     /// <summary>
     /// Lesbarer Kanal: „Google Ads", „Google organisch", „Newsletter", „Verweis von seite.de", „Direkt".
     /// </summary>
-    public static string Kanal(string? quelle, string? medium, bool ueberAnzeige, string? verweis)
+    public static string Kanal(string? quelle, string? medium, bool ueberAnzeige, string? verweis, string? website = null)
     {
         var q = quelle?.Trim().ToLowerInvariant();
         var m = medium?.Trim().ToLowerInvariant();
-        var verweisHost = Uri.TryCreate(verweis, UriKind.Absolute, out var uri) ? uri.Host.ToLowerInvariant() : null;
-        if (verweisHost?.StartsWith("www.") == true)
-            verweisHost = verweisHost[4..];
+        var verweisHost = Host(verweis);
+        // Ein Verweis von der eigenen Website (auch idprove.com → idprove.de) ist keine Herkunft
+        if (verweisHost is not null && website is not null && Hauptname(verweisHost) == Hauptname(Host(website) ?? website.ToLowerInvariant()))
+            verweisHost = null;
 
         if (ueberAnzeige)
             return string.IsNullOrEmpty(q) || q == "google" ? "Google Ads"
@@ -240,11 +241,43 @@ public static partial class AnfrageHerkunft
         if (verweisHost is not null)
             return Suchmaschinen.FirstOrDefault(s => verweisHost == s + ".com" || verweisHost.StartsWith(s + ".")) is { } suche
                 ? $"{Gross(suche)} organisch"
+                // Link in einem Teams-Chat angeklickt — der Rechnername des Teams-Clients sagt niemandem etwas
+                : verweisHost.StartsWith("teams.") || verweisHost.Contains(".teams.") ? "Link aus Microsoft Teams"
                 : $"Verweis von {verweisHost}";
         return "Direkt";
     }
 
-    public static string Kanal(Anfrage a) => Kanal(a.Quelle, a.Medium, a.UeberAnzeige, a.Verweis);
+    public static string Kanal(Anfrage a) =>
+        Kanal(a.Quelle, a.Medium, a.UeberAnzeige, a.Verweis, a.Website ?? a.LetzteSeite ?? a.Einstiegsseite);
+
+    /// <summary>
+    /// Testaufruf über den Google Tag Assistant (Vorschau des Tag Managers): Er hängt
+    /// „gtm_debug=…“ an die Adressen und erscheint als Verweis von tagassistant.google.com.
+    /// So prüft man die Formulare selbst — das sind keine Anfragen von Interessenten.
+    /// </summary>
+    public static bool IstTestAufruf(IEnumerable<string?> herkunftsWerte) =>
+        herkunftsWerte.Any(w => w is not null
+            && (w.Contains("tagassistant.google.com", StringComparison.OrdinalIgnoreCase)
+                || w.Contains("gtm_debug=", StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>Rechnername einer Adresse in Kleinbuchstaben, ohne „www.“; auch für „idprove.de“ ohne Schema.</summary>
+    private static string? Host(string? adresse)
+    {
+        if (string.IsNullOrWhiteSpace(adresse))
+            return null;
+        var text = adresse.Trim();
+        if (!Uri.TryCreate(text.Contains("://") ? text : "https://" + text, UriKind.Absolute, out var uri) || uri.Host.Length == 0)
+            return null;
+        var host = uri.Host.ToLowerInvariant();
+        return host.StartsWith("www.") ? host[4..] : host;
+    }
+
+    /// <summary>Name vor der Endung: „idprove“ für idprove.de, www.idprove.com und portal.idprove.de.</summary>
+    private static string Hauptname(string host)
+    {
+        var teile = host.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        return teile.Length >= 2 ? teile[^2] : host;
+    }
 
     /// <summary>
     /// Kampagnennamen aus der Einstellung „Nummer = Name; Nummer = Name" (auch zeilenweise).
@@ -278,6 +311,22 @@ public static partial class AnfrageHerkunft
 
     private static string? Kuerzen(string? wert, int laenge) =>
         string.IsNullOrWhiteSpace(wert) ? null : wert.Length <= laenge ? wert : wert[..laenge];
+}
+
+/// <summary>
+/// Verkaufschancen, die die Übernahme aus Odoo auslässt, weil ihre Anfrage in der
+/// Kundenzentrale gelöscht wurde — sonst legte der nächste Lauf sie wieder an. Die Nummern
+/// stehen als Liste in der Einstellung <see cref="EinstellungsSchluessel.AnfragenOdooUebersprungen"/>.
+/// </summary>
+public static class AnfragenAusschluss
+{
+    public static HashSet<int> Lesen(string? einstellung) =>
+        (einstellung ?? "").Split([',', ';', ' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => int.TryParse(t, out var nr) && nr > 0 ? nr : (int?)null)
+            .OfType<int>().ToHashSet();
+
+    public static string Hinzufuegen(string? einstellung, int leadId) =>
+        string.Join(", ", Lesen(einstellung).Append(leadId).Distinct().Order());
 }
 
 /// <summary>Umrechnung deutscher Ortszeit (Angaben der Website) in UTC.</summary>

@@ -167,6 +167,8 @@ public static partial class WebsiteAnfrageLeser
             hinweise.Add("Es ist keine E-Mail-Adresse angegeben.");
         if (name is null)
             hinweise.Add("Es ist kein Name angegeben.");
+        if (AnfrageHerkunft.IstTestAufruf(herkunft.Select(h => h.Wert)))
+            hinweise.Add("Die Anfrage kam über den Google Tag Assistant — vermutlich ein eigener Test des Formulars.");
         var datenschutz = Wert("Datenschutzerklärung", "Datenschutz") is { } d
                           && (d.Equals("on", StringComparison.OrdinalIgnoreCase)
                               || d.StartsWith("ja", StringComparison.OrdinalIgnoreCase)

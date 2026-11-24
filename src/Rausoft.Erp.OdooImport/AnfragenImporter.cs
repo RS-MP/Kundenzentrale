@@ -120,6 +120,10 @@ public static partial class AnfragenUebernahme
     public static bool IstWebsiteAnfrage(AnfrageLead l) =>
         l.Formular is not null || l.SeitenUrl is not null || l.Herkunft.Count > 0;
 
+    /// <summary>Eigener Test des Formulars über den Google Tag Assistant — keine Anfrage eines Interessenten.</summary>
+    public static bool IstTestEintrag(AnfrageLead l) =>
+        AnfrageHerkunft.IstTestAufruf(l.Herkunft.Values.Append(l.SeitenUrl));
+
     /// <summary>
     /// Einheitlicher Formularname: „Infomappe_LP1“ → „Infomappe“, „Testversion 3.0“ →
     /// „Testversion“, „Contact From“ → „Kontakt“. Ohne Formularfeld hilft der Name der
@@ -254,19 +258,20 @@ public static partial class AnfragenUebernahme
     /// <summary>Bericht des Laufs — nur Zahlen, Formular-, Kanal- und Feldnamen, keine Personen.</summary>
     public static string Bericht(
         IReadOnlyCollection<UebernahmeZeile> zeilen, int gelesen, IReadOnlyCollection<ZusatzFeld> zusatzFelder,
-        bool probelauf, DateTime heute)
+        bool probelauf, DateTime heute, int testEintraege = 0, int geloeschte = 0)
     {
         var kultur = CultureInfo.GetCultureInfo("de-DE");
         var b = new StringBuilder();
         void Zeile(string text = "") => b.Append(text).Append('\n');
         int Anzahl(UebernahmeArt art) => zeilen.Count(z => z.Art == art);
+        var erkannt = zeilen.Count + testEintraege + geloeschte;
 
         Zeile(probelauf
             ? "=== WEBSITE-ANFRAGEN AUS ODOO ÜBERNEHMEN (PROBELAUF — es wird nichts gespeichert) ==="
             : "=== WEBSITE-ANFRAGEN AUS ODOO ÜBERNEHMEN ===");
-        Zeile($"Stand {heute.ToString("dd.MM.yyyy HH:mm", kultur)} · Verkaufschancen gelesen: {gelesen} · davon Website-Anfragen: {zeilen.Count}");
+        Zeile($"Stand {heute.ToString("dd.MM.yyyy HH:mm", kultur)} · Verkaufschancen gelesen: {gelesen} · davon Website-Anfragen: {erkannt}");
         Zeile();
-        if (zeilen.Count == 0)
+        if (erkannt == 0)
         {
             Zeile("Keine Verkaufschance mit Formular oder Herkunft gefunden.");
             return b.ToString();
@@ -277,11 +282,15 @@ public static partial class AnfragenUebernahme
         Zeile($"  {(probelauf ? "mit Hand-Anfrage verknüpfen" : "mit Hand-Anfrage verknüpft"),-44}{Anzahl(UebernahmeArt.Verknuepft),5}");
         Zeile($"  {(probelauf ? "schon übernommen, Ausgang aktualisieren" : "schon übernommen, Ausgang aktualisiert"),-44}{Anzahl(UebernahmeArt.Aktualisiert),5}");
         Zeile($"  {"schon übernommen, unverändert",-44}{Anzahl(UebernahmeArt.Unveraendert),5}");
+        Zeile($"  {"ausgelassen: Test über Google Tag Assistant",-44}{testEintraege,5}");
+        Zeile($"  {"ausgelassen: in der Kundenzentrale gelöscht",-44}{geloeschte,5}");
         Zeile();
+        if (zeilen.Count == 0)
+            return b.ToString();
 
         var anfragen = zeilen.Select(z => z.Anfrage).ToList();
         var neue = zeilen.Where(z => z.Art == UebernahmeArt.Neu).Select(z => z.Anfrage).ToList();
-        Zeile("Alle Website-Anfragen aus Odoo");
+        Zeile("Übernommene Website-Anfragen aus Odoo (ohne die ausgelassenen)");
         Zeile($"  Zeitraum: {Ortszeit.VonUtc(anfragen.Min(a => a.EingegangenAm)):dd.MM.yyyy} bis {Ortszeit.VonUtc(anfragen.Max(a => a.EingegangenAm)):dd.MM.yyyy}");
         Zeile($"  einem Kunden zugeordnet: {anfragen.Count(a => a.KundeId is not null)} · ohne Kunde: {anfragen.Count(a => a.KundeId is null)}" +
               " (lassen sich unter „Anfragen“ nachträglich zuordnen)");
@@ -434,8 +443,14 @@ public class AnfragenImporter(OdooClient odoo, bool dryRun, string? verbindung =
         var jeLead = vorhandene.Where(a => a.OdooLeadId is not null).ToDictionary(a => a.OdooLeadId!.Value);
         var handAnfragen = vorhandene.Where(a => a.OdooLeadId is null).ToList();
 
+        // In der Kundenzentrale gelöschte Anfragen kommen nicht wieder
+        var ausgeschlossen = AnfragenAusschluss.Lesen(await db.Einstellungen.AsNoTracking()
+            .Where(e => e.Schluessel == EinstellungsSchluessel.AnfragenOdooUebersprungen)
+            .Select(e => e.Wert).FirstOrDefaultAsync());
+
         var zeilen = new List<UebernahmeZeile>();
         var neue = new List<Anfrage>();
+        var (testEintraege, geloeschte) = (0, 0);
         foreach (var (lead, _, kontakt) in kandidaten)
         {
             var ergebnis = AnfragenUebernahme.Ergebnis(lead);
@@ -446,6 +461,16 @@ public class AnfragenImporter(OdooClient odoo, bool dryRun, string? verbindung =
                 var geaendert = bekannt.Ergebnis != ergebnis || bekannt.VerlustGrund != grund;
                 (bekannt.Ergebnis, bekannt.VerlustGrund) = (ergebnis, grund);
                 zeilen.Add(new(bekannt, geaendert ? UebernahmeArt.Aktualisiert : UebernahmeArt.Unveraendert));
+                continue;
+            }
+            if (ausgeschlossen.Contains(lead.Id))
+            {
+                geloeschte++;
+                continue;
+            }
+            if (AnfragenUebernahme.IstTestEintrag(lead))
+            {
+                testEintraege++;
                 continue;
             }
 
@@ -489,7 +514,7 @@ public class AnfragenImporter(OdooClient odoo, bool dryRun, string? verbindung =
                         .Select(g => $"{g.Count(),4}  {(g.Key.Length > 60 ? g.Key[..60] + "…" : g.Key)}").ToList()
                     : []))
             .ToList();
-        _aus.Write(AnfragenUebernahme.Bericht(zeilen, leads.Count, zusatz, dryRun, DateTime.Now));
+        _aus.Write(AnfragenUebernahme.Bericht(zeilen, leads.Count, zusatz, dryRun, DateTime.Now, testEintraege, geloeschte));
     }
 
     private sealed record PartnerDaten(int Id, string? Name, bool IstFirma, int? FirmaId, string? FirmaName, string? Email, string? Telefon);

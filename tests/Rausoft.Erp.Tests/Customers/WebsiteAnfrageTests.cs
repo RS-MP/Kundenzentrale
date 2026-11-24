@@ -132,6 +132,16 @@ public class WebsiteAnfrageTests
         Assert.Contains(a.Hinweise, h => h.Contains("gekürzt"));
     }
 
+    [Fact]
+    public void Lesen_TagAssistant_WirdAlsTestGemeldet()
+    {
+        const string mail = "Name: Anna Test\nFirma: Muster AG\nFirmen E-Mail: anna@muster.example\nDatenschutzerklärung: on\n";
+        var (test, _) = WebsiteAnfrageLeser.Lesen(mail + "doc_referrer: https://tagassistant.google.com/");
+        var (echt, _) = WebsiteAnfrageLeser.Lesen(mail + "doc_referrer: https://www.google.com/");
+        Assert.Contains(test!.Hinweise, h => h.Contains("Google Tag Assistant"));
+        Assert.DoesNotContain(echt!.Hinweise, h => h.Contains("Google Tag Assistant"));
+    }
+
     [Theory]
     [InlineData("Bitte TESTVERSION freischalten!", "Testversion")]
     [InlineData("Bitte CHECKLISTE versenden!", "Checkliste")]

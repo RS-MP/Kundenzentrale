@@ -333,6 +333,7 @@
                 <span style="color:var(--muted); font-size:12.5px">
                     Legt die als Website-Anfrage erkennbaren Verkaufschancen unter „Anfragen“ an, mit Herkunft und Ausgang laut Odoo.
                     Odoo wird nur gelesen; ein erneuter Lauf legt nichts doppelt an und zieht nur den Ausgang nach.
+                    Eigene Tests über den Google Tag Assistant und hier gelöschte Anfragen bleiben außen vor.
                 </span>
             </div>
             @if (_chatter?.Fehler is not null)
@@ -558,6 +559,7 @@
         "Odoo.Datenbank" => "Datenbank",
         "Odoo.Benutzer" => "API-Benutzer (Login)",
         "Anfragen.Kampagnen" => "Kampagnennamen für Website-Anfragen (Nummer = Name; …)",
+        "Anfragen.OdooUebersprungen" => "Odoo-Verkaufschancen, die nicht als Anfrage übernommen werden (Nummern)",
         "Vertragsablage.Verzeichnis" => "Vertragsablage",
         "Dokumentablage.Verzeichnis" => "Dokumentablage",
         "Vorlagen.Verzeichnis" => "Word-Vorlagen",

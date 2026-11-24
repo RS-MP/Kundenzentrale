@@ -89,6 +89,48 @@ public class AnfrageHerkunftTests
     public void Kanal_IstLesbar(string? quelle, string? medium, bool anzeige, string? verweis, string erwartet) =>
         Assert.Equal(erwartet, AnfrageHerkunft.Kanal(quelle, medium, anzeige, verweis));
 
+    [Theory]
+    // Die eigene Website ist keine Herkunft — auch nicht unter einer anderen Endung
+    [InlineData("https://www.idprove.com/produkt/", "idprove.de", "Direkt")]
+    [InlineData("https://idprove.de/", "https://www.idprove.de/service/infomappe/", "Direkt")]
+    [InlineData("https://www.fachportal.example/artikel", "idprove.de", "Verweis von fachportal.example")]
+    [InlineData("https://www.google.de/", "idprove.de", "Google organisch")]
+    [InlineData("https://teams.public.onecdn.static.microsoft/", "idprove.de", "Link aus Microsoft Teams")]
+    [InlineData("https://statics.teams.cdn.office.net/", null, "Link aus Microsoft Teams")]
+    public void Kanal_EigeneWebsiteUndTeams(string verweis, string? website, string erwartet) =>
+        Assert.Equal(erwartet, AnfrageHerkunft.Kanal(null, null, false, verweis, website));
+
+    [Fact]
+    public void Kanal_NimmtDieWebsiteDerAnfrage_ErsatzweiseDieSeiten()
+    {
+        Assert.Equal("Direkt", AnfrageHerkunft.Kanal(new Anfrage
+            { Formular = "Infomappe", Verweis = "https://www.idprove.com/", Website = "idprove.de" }));
+        Assert.Equal("Direkt", AnfrageHerkunft.Kanal(new Anfrage
+            { Formular = "Infomappe", Verweis = "https://www.idprove.com/", LetzteSeite = "https://www.idprove.de/service/infomappe/" }));
+        Assert.Equal("Verweis von idprove.com", AnfrageHerkunft.Kanal(new Anfrage
+            { Formular = "Infomappe", Verweis = "https://www.idprove.com/" }));
+    }
+
+    [Fact]
+    public void IstTestAufruf_TagAssistantOderGtmDebug()
+    {
+        Assert.True(AnfrageHerkunft.IstTestAufruf(["google", "https://tagassistant.google.com/"]));
+        Assert.True(AnfrageHerkunft.IstTestAufruf([null, "https://www.idprove.de/?GTM_DEBUG=1763000000000"]));
+        Assert.False(AnfrageHerkunft.IstTestAufruf(["google", "cpc", null, "https://www.google.com/"]));
+        Assert.False(AnfrageHerkunft.IstTestAufruf([]));
+    }
+
+    [Fact]
+    public void AnfragenAusschluss_LiestUndErgaenztNummern()
+    {
+        Assert.Equal([12, 340], AnfragenAusschluss.Lesen(" 340, 12;abc\n-5 ,").Order());
+        Assert.Empty(AnfragenAusschluss.Lesen(null));
+        Assert.Equal("12, 77, 340", AnfragenAusschluss.Hinzufuegen("340, 12", 77));
+        // Schon vorhanden: bleibt einmal
+        Assert.Equal("12, 340", AnfragenAusschluss.Hinzufuegen("340, 12", 12));
+        Assert.Equal("5", AnfragenAusschluss.Hinzufuegen(null, 5));
+    }
+
     [Fact]
     public void Uebernehmen_OhneHerkunft_IstDirekt_OhneEingangGiltJetzt()
     {

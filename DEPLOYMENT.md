@@ -47,9 +47,15 @@ Option dokumentiert.
   msclkid) kommen nur mit, wenn die Anfrage jünger als 90 Tage ist. Der Lauf ist
   wiederholbar: nichts wird doppelt angelegt, eine von Hand erfasste Anfrage mit derselben
   E-Mail-Adresse wird verknüpft statt verdoppelt, bei schon Übernommenem wird nur der
-  Ausgang nachgezogen. Odoo wird nur gelesen. Eine in der Liste gelöschte übernommene
-  Anfrage legt der nächste Lauf wieder an. Konsole:
+  Ausgang nachgezogen. Odoo wird nur gelesen. Konsole:
   `Rausoft.Erp.OdooImport.exe anfragen-import [--dry-run]`.
+  **Nachgeschärft nach dem Probelauf (24.11.2026, Migration `AnfragenOdooUebersprungen`,
+  nur eine Einstellung):** Eigene Tests über den Google Tag Assistant (Verweis von
+  tagassistant.google.com bzw. `gtm_debug=` in der Adresse) werden ausgelassen. Eine unter
+  „Anfragen“ gelöschte übernommene Anfrage kommt nicht wieder — ihre Verkaufschancen-Nummer
+  steht dann in der Einstellung `Anfragen.OdooUebersprungen` (dort wieder herausnehmen, um
+  sie doch zu übernehmen). Ein Verweis von der eigenen Website (idprove.com → idprove.de)
+  zählt als „Direkt“, ein in Teams angeklickter Link als „Link aus Microsoft Teams“.
 
 - [ ] **Publish aktualisieren (17.11.2026, Website-Anfragen):** Migration `Anfragen`
   (neue Tabelle, Einstellung `Anfragen.Kampagnen`) läuft beim Start von selbst. Wirkung:
