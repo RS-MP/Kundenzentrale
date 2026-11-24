@@ -56,6 +56,35 @@ public class MargenrechnerController(ErpDbContext db, MargenrechnerAblage ablage
         return Ok(new Margenrechnung(daten).Berechnen(eingabe));
     }
 
+    /// <summary>
+    /// Verkaufte World-Check-Lizenzen aus den laufenden Abos (Odoo-Import) als Bestand:
+    /// Bereich und Basket kommen aus dem Produktnamen der Position. Nur lesend.
+    /// </summary>
+    [HttpGet("lizenzen")]
+    public async Task<ActionResult<MargenLizenzbestand>> Lizenzen(CancellationToken ct)
+    {
+        var stand = await ablage.LadenAsync(ct);
+        if (stand.Daten is not { } daten)
+            return Conflict(stand.Hinweis);
+
+        // Grob in der Datenbank vorfiltern, genau erkennt MargenLizenzErkennung
+        var positionen = await db.Abos.AsNoTracking()
+            .Where(a => a.Status == Domain.Subscriptions.AboStatus.Laufend)
+            .SelectMany(a => a.Positionen
+                .Where(p => EF.Functions.Like(p.Produkt, "%World%Check%")
+                            || EF.Functions.Like(p.Produkt, "%Sanction%Only%")
+                            || EF.Functions.Like(p.Produkt, "%Full%File%"))
+                .Select(p => new MargenLizenzbestandErmittlung.Position(
+                    a.KundeId, a.Kunde!.Kundennummer, a.Kunde.Firmenname, a.Nummer, p.Produkt, p.Menge)))
+            .ToListAsync(ct);
+        var standImport = (await db.Einstellungen.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Schluessel == Domain.Shared.EinstellungsSchluessel.OdooLetzterImport, ct))?.Wert;
+
+        return Ok(MargenLizenzbestandErmittlung.Ermitteln(
+            daten.Baskets.Select(b => b.Cases).ToList(), positionen,
+            string.IsNullOrWhiteSpace(standImport) ? null : standImport));
+    }
+
     /// <summary>Datenpflege: der gespeicherte Stand (so wie eingetragen), dazu die Verkaufspreise der aktuellen Wiki-Preisliste, die Vorrang haben.</summary>
     [HttpGet("daten")]
     public async Task<ActionResult<MargenDatenAnsicht>> Daten(CancellationToken ct)

@@ -1206,4 +1206,7 @@ input.mr-kunden { width: 62px; padding: 4px 6px; text-align: right; font-variant
 .mr-tabelle td.gilt { font-weight: 600; }
 .mr-tabelle td.ersetzt { color: var(--muted); text-decoration: line-through; }
 .mr-tabelle td.fehlt { color: var(--warn); }
+.mr-tabelle.links th, .mr-tabelle.links td { text-align: left; }
+.mr-lizenzen { margin-top: 10px; font-size: 13.5px; }
+.mr-lizenzen summary { cursor: pointer; color: var(--ink2); margin-bottom: 8px; }
 @media print { .mr-leiste { position: static; } }

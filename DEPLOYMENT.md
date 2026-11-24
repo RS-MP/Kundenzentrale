@@ -54,6 +54,17 @@ Option dokumentiert.
   Sanctions Only die Baskets 15.000, 20.000, 30.000 und 40.000, für Full File 15.000,
   25.000, 30.000 und 40.000 — dort rechnet der Rechner bis zur nächsten Preisliste mit den
   eingetragenen Preisen.
+  **Verkaufte Lizenzen als Bestand (24.11.2026):** Beim Öffnen lädt der Rechner die
+  verkauften World-Check-Lizenzen aus den **laufenden Abos** (Odoo-Import) als Bestand;
+  Knopf „Verkaufte Lizenzen“ holt sie jederzeit wieder, „Beispielbestand“ und „Leeren“
+  bleiben. Bereich und Basket kommen aus dem Produktnamen der Abo-Position, z. B.
+  „ID.prove SaaS World-Check Sanctions Only (5.000)“ → Sanctions Only, Basket 5.000; die
+  Menge der Position zählt als Stückzahl. Unter der Tabelle steht die Liste dahinter
+  (Kunde, Abo, Produkt, Zuordnung). **Bitte auf dem Server einmal durchsehen** — lokal gibt
+  es keine Abos, geprüft ist nur mit erfundenen Testkunden: Stehen dort alle erwarteten
+  Kunden (z. B. SKD)? Positionen mit „nicht zugeordnet“ nennen den Grund (Basket fehlt in
+  der Datenpflege oder Produktname ohne Bereich/Basket). Fehlt ein Kunde ganz, heißt sein
+  Produkt in Odoo anders als erwartet — den Produktnamen dann bitte an Claude geben.
   Die **Einkaufsstaffel** wird in der Datenpflege **von Hand gepflegt** (eine Zeile je
   Stufe, aus Excel einfügbar) und steht nicht im Wiki; jeder gespeicherte Stand ist eine
   neue Zeile, das Audit-Log hält fest, wer wann gespeichert hat, aber keine Zahlen.

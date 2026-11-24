@@ -161,3 +161,13 @@ public record MargenDatenAnsicht(
     MargenWikiPreise? Wiki);
 
 public record MargenrechnerZugangInfo(bool Darf);
+
+/// <summary>Verkaufte World-Check-Lizenz aus einem laufenden Abo; Anzahl = 0 heißt nicht zugeordnet (Hinweis sagt warum).</summary>
+public record MargenLizenz(
+    int KundeId, string Kundennummer, string Kunde, string Abo, string Produkt, decimal Menge,
+    MargenBereich? Bereich, long? Basket, int Anzahl, string? Hinweis);
+
+public record MargenLizenzbestand(
+    List<int> KundenSanctionsOnly, List<int> KundenFullFile,
+    List<MargenLizenz> Lizenzen, int Zugeordnet, int NichtZugeordnet,
+    string? StandImport);

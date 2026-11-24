@@ -63,6 +63,7 @@ public class MargenDtoTests
     [InlineData(typeof(MargenrechnerStart), typeof(Dto.MargenrechnerStart))]
     [InlineData(typeof(MargenDatenAnsicht), typeof(Dto.MargenDatenAnsicht))]
     [InlineData(typeof(MargenrechnerZugangInfo), typeof(Dto.MargenrechnerZugangInfo))]
+    [InlineData(typeof(MargenLizenzbestand), typeof(Dto.MargenLizenzbestand))]
     public void SpiegelStimmtMitDerDomaeneUeberein(Type domaene, Type spiegel) =>
         Vergleiche(domaene, spiegel, domaene.Name, []);
 
@@ -97,7 +98,7 @@ public class MargenDtoTests
             return;
         }
 
-        if (domaene.IsPrimitive || domaene == typeof(string) || domaene == typeof(DateTime))
+        if (domaene.IsPrimitive || domaene == typeof(string) || domaene == typeof(DateTime) || domaene == typeof(decimal))
         {
             Assert.True(domaene == spiegel, $"{pfad}: {domaene.Name} gegenüber {spiegel.Name}");
             return;

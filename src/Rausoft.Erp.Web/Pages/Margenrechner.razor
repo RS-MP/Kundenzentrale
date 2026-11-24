@@ -100,6 +100,8 @@ else
                     </div>
                     <div class="mr-aktionen">
                         <span class="hinweis-klein">@_status</span>
+                        <button class="knopf sekundaer" @onclick="LizenzenLaden"
+                                title="Lädt die verkauften World-Check-Lizenzen aus den laufenden Abos (Odoo-Import) als Bestand">Verkaufte Lizenzen</button>
                         <button class="knopf sekundaer" @onclick="BeispielLaden">Beispielbestand</button>
                         <button class="knopf sekundaer" @onclick="Leeren">Leeren</button>
                     </div>
@@ -163,6 +165,41 @@ else
                             einschließlich eines möglichen Staffelsprungs. Die Summenzeile zeigt Umsatz, Einkauf und Beitrag je Bereich.
                         </p>
                         <p class="mr-anmerkung">@Preisherkunft()</p>
+                        @if (_lizenzHinweis is not null)
+                        {
+                            <p class="mr-anmerkung">@_lizenzHinweis</p>
+                        }
+                        @if (_lizenzen is { Lizenzen.Count: > 0 } liz)
+                        {
+                            <details class="mr-lizenzen" open="@(liz.NichtZugeordnet > 0)">
+                                <summary>
+                                    Verkaufte World-Check-Lizenzen aus den laufenden Abos: @liz.Zugeordnet zugeordnet@(liz.NichtZugeordnet > 0 ? $", {liz.NichtZugeordnet} nicht zugeordnet" : "")@(liz.StandImport is not null ? $" · Odoo-Import {liz.StandImport}" : "")
+                                </summary>
+                                <div class="mr-tabellenrahmen">
+                                    <table class="mr-tabelle links">
+                                        <thead><tr><th>Kunde</th><th>Abo</th><th>Produkt</th><th>Menge</th><th>Zählt im Bestand als</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var l in liz.Lizenzen)
+                                            {
+                                                <tr>
+                                                    <td class="umbruch"><a href="kunden/@l.KundeId">@l.Kunde</a><small>@l.Kundennummer</small></td>
+                                                    <td>@l.Abo</td>
+                                                    <td class="umbruch">@l.Produkt</td>
+                                                    <td>@l.Menge.ToString("0.##")</td>
+                                                    <td class="umbruch @(l.Anzahl == 0 ? "fehlt" : "")">
+                                                        @(l.Anzahl > 0 && l.Basket is { } korb && l.Bereich is { } ber ? $"{l.Anzahl} × {Name(korb, ber)}" : "nicht zugeordnet")
+                                                        @if (l.Hinweis is not null)
+                                                        {
+                                                            <small>@l.Hinweis</small>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </details>
+                        }
                     </div>
                     <aside class="mr-seite">
                         <div class="mr-feld">
@@ -516,6 +553,10 @@ else
     private int _per = 1;
     private string _status = "";
 
+    // Verkaufte World-Check-Lizenzen aus den laufenden Abos (Liste unter der Tabelle)
+    private MargenLizenzbestand? _lizenzen;
+    private string? _lizenzHinweis;
+
     private int _lauf;
     private CancellationTokenSource? _warten;
 
@@ -524,9 +565,48 @@ else
         await StartLadenAsync();
         if (_start is { DatenVorhanden: true })
         {
-            BeispielSetzen();
+            // Ausgangsbestand sind die verkauften Lizenzen; ohne erkannte Lizenz der Beispielbestand
+            if (!await LizenzenSetzenAsync())
+                BeispielSetzen();
             await BerechnenAsync();
         }
+    }
+
+    /// <summary>Holt die verkauften Lizenzen (laufende Abos) — nur die Liste, der Bestand bleibt.</summary>
+    private async Task LizenzenHolenAsync()
+    {
+        _lizenzHinweis = null;
+        try
+        {
+            _lizenzen = await Http.GetFromJsonAsync<MargenLizenzbestand>("api/margenrechner/lizenzen");
+        }
+        catch (Exception ex)
+        {
+            _lizenzen = null;
+            _lizenzHinweis = $"Die verkauften Lizenzen konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    /// <summary>Setzt die verkauften Lizenzen als Bestand; false, wenn sich keine zuordnen ließ.</summary>
+    private async Task<bool> LizenzenSetzenAsync()
+    {
+        await LizenzenHolenAsync();
+        if (_lizenzen is not { Zugeordnet: > 0 } l || l.KundenSanctionsOnly.Count != _start!.Baskets.Count)
+            return false;
+        _nS = [.. l.KundenSanctionsOnly];
+        _nF = [.. l.KundenFullFile];
+        _status = "Verkaufte Lizenzen geladen";
+        return true;
+    }
+
+    private async Task LizenzenLaden()
+    {
+        if (await LizenzenSetzenAsync())
+            await BerechnenAsync();
+        else
+            _lizenzHinweis ??= _lizenzen is { Lizenzen.Count: > 0 }
+                ? "Keine der gefundenen World-Check-Positionen ließ sich einem Basket zuordnen — siehe Liste. Der Bestand bleibt, wie er ist."
+                : "In den laufenden Abos steht keine World-Check-Lizenz. Der Bestand bleibt, wie er ist.";
     }
 
     public void Dispose() => _warten?.Cancel();
@@ -558,9 +638,13 @@ else
         if (_start is not { DatenVorhanden: true } start)
             return;
         if (vorher.Count == 0)
-            BeispielSetzen();
+        {
+            if (!await LizenzenSetzenAsync())
+                BeispielSetzen();
+        }
         else
         {
+            await LizenzenHolenAsync();   // Zuordnung der Liste hängt an den Baskets
             // Kundenzahlen am Basket festhalten, nicht an der Zeilennummer
             int[] Uebernehmen(int[] alt) => start.Baskets
                 .Select(basket => vorher.IndexOf(basket) is var i and >= 0 && i < alt.Length ? alt[i] : 0).ToArray();
