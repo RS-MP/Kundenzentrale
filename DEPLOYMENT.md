@@ -23,6 +23,27 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Publish aktualisieren (24.11.2026, erledigte Odoo-Aktivitäten als offene Aufgaben):**
+  Keine Migration. Anlass: Bei SKD stand „Online Presentation“ vom 31.07. als überfällige
+  Aufgabe „aus Odoo“, in Odoo war sie nicht mehr geplant. Ursache: Der Verlaufs-Import las
+  geplante Aktivitäten **einschließlich archivierter** — Odoo (Version 19.3) löscht eine
+  erledigte Aktivität nicht, sondern archiviert sie. Jetzt liest der Import Aktivitäten
+  ohne archivierte; alles andere (Kontakte, Verkaufschancen, Nachrichten) weiterhin mit.
+  **Betrifft beide Pakete:** `publish` (Chatter-Import aus der Administration) **und**
+  `publish-import` (`C:\Kundenzentrale-Import`, falls der Import dort läuft) — beide neu
+  kopieren.
+  **Wirkung beim nächsten Lauf:** Alle offenen Aufgaben „aus Odoo“, deren Aktivität in Odoo
+  erledigt (archiviert) oder gelöscht ist, werden auf **erledigt** gesetzt — das können
+  beim ersten Mal viele sein. In der Kundenzentrale selbst erledigte oder dort angelegte
+  Aufgaben bleiben unberührt. **Vorher ansehen:** Administration → Odoo-Anbindung →
+  „Chatter → Kunden-Timeline“ → **Dry-Run** (oder `Rausoft.Erp.OdooImport.exe
+  chatter-import --dry-run`): Die Zeile „Aufgaben aus Odoo (würden): … in Odoo
+  erledigt/entfernt“ nennt die Zahl. Mit Kunde SKD zuerst probieren (`--kunde <KundenNr>`).
+  **Nicht gegen Odoo geprüft:** Der lokale API-Key wird von Odoo abgelehnt; die Ursache ist
+  aus dem Importcode und der Odoo-Version hergeleitet. Bleibt die SKD-Aufgabe nach einem
+  echten Lauf offen, ist die Aktivität in Odoo noch aktiv — sie hängt am Verkaufsauftrag
+  S01191, nicht am Kontakt.
+
 - [ ] **Publish aktualisieren (24.11.2026, Margenrechner World-Check):** Migration
   `Margenrechner` (neue Tabelle `MargenrechnerStaende`) läuft beim Start von selbst.
   Wirkung: neue Seite **„Margenrechner“** (Full File und Sanctions Only, Einkauf nach

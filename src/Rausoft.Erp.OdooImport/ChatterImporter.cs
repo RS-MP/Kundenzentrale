@@ -285,8 +285,9 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
     /// <summary>
     /// Geplante Aktivitäten (mail.activity) der Kunden als offene Aufgaben übernehmen. Wiederholbar über
     /// Aufgabe.OdooId; eine in der Kundenzentrale erledigte Aufgabe wird nicht wieder geöffnet. Was in Odoo
-    /// nicht mehr offen ist (erledigt oder gelöscht), wird hier erledigt — der Erledigt-Vermerk mit
-    /// Rückmeldung kommt über den Chatter in den Verlauf.
+    /// nicht mehr offen ist (erledigt = archiviert, oder gelöscht), wird hier erledigt — der Erledigt-Vermerk
+    /// mit Rückmeldung kommt über den Chatter in den Verlauf. Dafür werden Aktivitäten ohne archivierte
+    /// gelesen (<see cref="LiestArchivierte"/>).
     /// </summary>
     private async Task AufgabenUebernehmenAsync(ErpDbContext db, Dictionary<(string Modell, int Id), Quelle> quellen,
         Dictionary<int, Kunde> kundeNachOdooId, List<int> kundenIds, List<Mitarbeiter> mitarbeiter)
@@ -908,20 +909,40 @@ public class ChatterImporter(OdooClient odoo, bool dryRun, string? nurKunde = nu
         }
     }
 
+    /// <summary>
+    /// Liest der Import von diesem Modell auch archivierte Datensätze? Für fast alles ja — der
+    /// Verlauf eines archivierten Kontakts oder einer verlorenen Verkaufschance gehört in die Akte.
+    /// Nicht für geplante Aktivitäten: Odoo löscht eine erledigte Aktivität nicht mehr, sondern
+    /// archiviert sie. Mit archivierten käme jede erledigte Aktivität bei jedem Lauf wieder als
+    /// offene Aufgabe (SKD, 24.11.2026: „Online Presentation“ vom 31.07. stand als überfällig da).
+    /// </summary>
+    public static bool LiestArchivierte(string modell) => modell != "mail.activity";
+
+    /// <summary>
+    /// Optionen einer search_read-Abfrage. Ohne <c>active_test = false</c> gilt Odoos Standard:
+    /// archivierte Datensätze bleiben weg, sofern das Modell überhaupt ein Feld „active“ hat.
+    /// </summary>
+    public static Dictionary<string, object> SuchOptionen(string modell, string[] felder, int limit, int offset, string order)
+    {
+        var optionen = new Dictionary<string, object>
+        {
+            ["fields"] = felder,
+            ["limit"] = limit,
+            ["offset"] = offset,
+            ["order"] = order,
+        };
+        if (LiestArchivierte(modell))
+            optionen["context"] = new Dictionary<string, object> { ["active_test"] = false };
+        return optionen;
+    }
+
     private async Task<List<JsonElement>> LadeAlleAsync(string modell, object[] domain, string[] felder, string order = "id")
     {
         var alle = new List<JsonElement>();
         for (var offset = 0; ; offset += BatchGroesse)
         {
             var batch = await odoo.AusfuehrenAsync(modell, "search_read", [domain],
-                new Dictionary<string, object>
-                {
-                    ["fields"] = felder,
-                    ["limit"] = BatchGroesse,
-                    ["offset"] = offset,
-                    ["order"] = order,
-                    ["context"] = new Dictionary<string, object> { ["active_test"] = false },
-                });
+                SuchOptionen(modell, felder, BatchGroesse, offset, order));
             var anzahl = 0;
             foreach (var element in batch.EnumerateArray())
             {
