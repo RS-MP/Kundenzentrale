@@ -387,6 +387,45 @@ public class MargenrechnungTests
     }
 
     [Fact]
+    public void FesteStufenBisZumTabellenende_KeineLinearenZwischenstufen()
+    {
+        // So ist die Staffel des Anbieters aufgebaut (Entscheidung MP 25.11.2026): auch die großen
+        // Stufen stehen als feste Zeilen in der Tabelle — „bis 1 Mio." kostet für jedes Volumen
+        // darunter dasselbe. Erst oberhalb der letzten Zeile läuft es mit deren Preis je Case weiter.
+        var daten = Daten() with
+        {
+            Staffel =
+            [
+                new(100_000, 2000, 1000), new(200_000, 3000, 1500), new(500_000, 5000, 5000),
+                new(1_000_000, 8000, 8000), new(2_000_000, 10_000, 10_000),
+            ],
+            LinearAnker = [new(2_000_000, 10_000)],
+        };
+        Assert.Empty(daten.Pruefen());
+        var r = new Margenrechnung(daten);
+
+        // Knapp über 500.000 gilt sofort die ganze Stufe bis 1 Mio. — linear wären es bei 600.000 erst 5.600
+        Assert.Equal(3, r.StufenIndex(500_001));
+        Assert.Equal(new Margenrechnung.Stufe(1_000_000, 8000, 8000), r.StufeAn(3));
+        Gleich(8000, r.Einkauf(600_000, 0));
+        Gleich(8000, r.Einkauf(0, 1_000_000));
+        Gleich(10_000, r.Einkauf(1_000_001, 0));
+        Gleich(10_000, r.Einkauf(2_000_000, 0));
+
+        // Über dem Tabellenende: 100.000er Stufen mit 0,005 je Case
+        Assert.Equal(new Margenrechnung.Stufe(2_100_000, 10_500, 10_500), r.StufeAn(5));
+
+        var e = r.Berechnen(new MargenEingabe([0, 0, 6], [0, 0, 0]));   // 600.000 Cases Sanctions Only
+        Assert.Equal(1_000_000, e.Kennzahlen.StaffelBis);
+        Assert.False(e.Volumen.Linear);
+        Gleich(8000, e.Kennzahlen.Einkaufspreis);
+        Assert.Equal(5, e.Rechenweg.StufenAnzahl);
+        Assert.Equal(2_000_000, e.Rechenweg.LetzteStufeBis);
+        Assert.Equal(2_000_000, e.Befunde.LinearAb);
+        Assert.Empty(e.Befunde.MargeBeiAnkern);
+    }
+
+    [Fact]
     public void Daten_EinAnkerGenuegt_DarueberGiltSeinPreisJeCase()
     {
         var r = new Margenrechnung(Daten() with { LinearAnker = [new(500_000, 5000)] });

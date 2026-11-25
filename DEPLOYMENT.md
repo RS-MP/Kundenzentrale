@@ -23,6 +23,35 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Margenrechner: Einkaufsstaffel oberhalb von 5 Mio. Cases berichtigen (25.11.2026):**
+  Kein Publish, keine Migration — nur Datenpflege auf dem Server. Die HTML-Vorlage rechnet
+  oberhalb von 5 Mio. Cases mit linearen 100.000er Zwischenstufen; laut Staffeltabelle des
+  Anbieters gelten dort **zwei feste Stufen** (bis 10 Mio., bis 20 Mio.). Die 88 Stufen bis
+  5 Mio. stimmen überein (Stufe für Stufe verglichen). Folge des Fehlers: zwischen 5 und
+  20 Mio. Cases war der Einkauf zu niedrig angesetzt, knapp über 5 Mio. etwa um die Hälfte.
+  **So berichtigen (einfachster Weg):** Margenrechner → „Daten pflegen“ → die berichtigte
+  Vorlage `Margenrechner_Full-File_Sanctions-Only_2.html` einlesen (liegt neben dem Original
+  im Ordner `04_World Check` der neuen Preisliste auf `V:`) → prüfen → **Speichern**. Sie
+  bringt die 90 Stufen, den einen Anker bei 20 Mio. und den neuen Hinweistext mit. Die Kopie
+  ist geprüft: Ihr Skript läuft, die Kundenzentrale liest sie, und beide rechnen in 49
+  Beständen (davon 16 über 5 Mio. Cases) gleich.
+  **Oder von Hand** in „Daten pflegen“:
+  1. Feld **Einkaufsstaffel**: unten zwei Zeilen anhängen, mit den Gebühren aus der
+     Staffeltabelle des Anbieters (Full File und Sanctions Only sind dort gleich):
+     `10.000.000; <Gebühr bis 10 Mio.>; <Gebühr bis 10 Mio.>` und
+     `20.000.000; <Gebühr bis 20 Mio.>; <Gebühr bis 20 Mio.>`.
+  2. Feld **Lineare Staffel oberhalb der Tabelle** (Anker): die drei Zeilen durch **eine**
+     ersetzen: `20.000.000; <Gebühr bis 20 Mio.>` — der erste Anker muss am Ende der Tabelle
+     liegen. Schrittweite bleibt 100.000.
+  3. Feld **Hinweis zur Regel**: den Satz zur „linearen Staffel ab 5 Mio. Cases“ ersetzen,
+     z. B. „Staffeltabelle des Anbieters mit festen Stufen bis 20 Mio. Cases. Maßgeblich ist
+     der Vertragstext.“ → **Speichern**.
+  Kontrolle: Unter „So rechnet die Seite“ steht danach „90 Stufen von 130.000 bis 20 Mio.
+  Cases“; die Kurve springt bei 5 Mio. Cases sichtbar nach unten. Oberhalb von 20 Mio. Cases
+  (die Tabelle endet dort) rechnet der Rechner mit dem Preis je Case der 20-Mio.-Stufe
+  weiter (Entscheidung 25.11.2026). **Achtung:** Das Original `…_1.html` auf `V:` enthält die
+  lineare Regel weiterhin (bewusst unverändert gelassen) — nur noch `…_2.html` einlesen.
+
 - [ ] **Publish aktualisieren (24.11.2026, erledigte Aufgaben in der Akte ausgeblendet):**
   Keine Migration, nur `publish`. In der Kundenakte zeigt „Offene Aufgaben“ nur noch offene
   Aufgaben — die durchgestrichenen erledigten zwischen den offenen verwirrten, erst recht
@@ -73,7 +102,8 @@ Option dokumentiert.
      „Margenrechner“ erscheint unter „Wiki“.
   2. Margenrechner öffnen. Beim ersten Mal sind keine Daten da: unter „Daten des
      Margenrechners“ die HTML-Vorlage wählen (`V:\5_Preise\ID.prove\Neue Preisliste\
-     04_World Check\Margenrechner_Full-File_Sanctions-Only_1.html`) — die Seite liest
+     04_World Check\Margenrechner_Full-File_Sanctions-Only_2.html`, die am 25.11.2026
+     berichtigte Fassung — nicht mehr `…_1.html`) — die Seite liest
      Baskets, Verkaufspreise, Staffeltabelle und lineare Regel aus und zeigt sie zur
      Kontrolle. Mit **„Speichern“** gilt der Stand.
   3. Gegenprobe: Beispielbestand, „pro Monat“ — der **Einkaufspreis** muss mit der Vorlage
