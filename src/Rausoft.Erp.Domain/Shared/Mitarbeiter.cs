@@ -38,6 +38,13 @@ public class Mitarbeiter
 
     /// <summary>Deaktivieren statt Löschen — Timeline und Audit-Log referenzieren Mitarbeiter dauerhaft.</summary>
     public bool Aktiv { get; set; } = true;
+
+    /// <summary>
+    /// E-Mail-Signatur (HTML, gesäubert) für Mails, die die Kundenzentrale vorbereitet. Über
+    /// Graph angelegte Mails bekommen von Outlook keine Signatur — jeder Mitarbeiter hinterlegt
+    /// seine hier einmal (aus Odoo geholt oder aus Outlook eingefügt).
+    /// </summary>
+    public string? MailSignaturHtml { get; set; }
 }
 
 [Flags]

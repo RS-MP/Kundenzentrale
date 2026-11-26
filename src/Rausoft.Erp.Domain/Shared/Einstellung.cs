@@ -85,6 +85,12 @@ public static class EinstellungsSchluessel
     // Outlook-Anbindung: App-Registrierung in Entra ID (öffentlicher Client, keine Geheimnisse)
     public const string OutlookTenantId = "Outlook.TenantId";
     public const string OutlookClientId = "Outlook.ClientId";
+    /// <summary>
+    /// „Ja“ = Mails aus der Akte gehen an den Kunden. Alles andere (Standard „Nein“) = Probebetrieb:
+    /// Jede Mail geht an den Mitarbeiter selbst. So lässt sich auf dem Produktivsystem testen, ohne
+    /// dass ein Kunde Post bekommt (MP 26.11.2026).
+    /// </summary>
+    public const string OutlookKundenmailsFreigegeben = "Outlook.KundenmailsFreigegeben";
 
     // Kontoauszüge: Eingangsordner, Buchen in Odoo, Meldung offener Posten
     public const string ZahlungenEingangVerzeichnis = "Zahlungen.EingangVerzeichnis";

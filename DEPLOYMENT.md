@@ -23,6 +23,38 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **E-Mail aus der Kundenakte (26.11.2026):** Publish wie üblich, die Migration
+  `AusgangsmailUndSignatur` läuft beim Start (neue Tabelle `Ausgangsmails`, eine Spalte an
+  `Mitarbeiter` — nichts wird umgebaut), danach `SignaturOhneLaengengrenze` (die Signaturspalte
+  war im ersten Publish von 17:54 Uhr auf 200 Zeichen begrenzt — „Die Änderung konnte nicht
+  gespeichert werden“ beim Speichern der Signatur; behoben im Publish danach) und
+  `KundenmailsFreigabe` (Einstellung `Outlook.KundenmailsFreigegeben`, Startwert „Nein“).
+  **Probebetrieb auch in `Kundenzentrale`:** Solange unter Administration → Outlook-Anbindung
+  nicht „Kundenmails freigeben“ geklickt ist, geht jede Mail aus dem Mail-Fenster an den
+  Mitarbeiter selbst, nie an den Kunden — es kann also dort getestet werden. Zum Produktivstart
+  genügt der eine Klick; App-Registrierung, Add-in und Signaturen bleiben. Zuerst im **Testsystem**; dort geht jede Mail an die
+  Umleitungsadresse, nie an einen Kunden. **Nicht gegen Microsoft geprüft** — lokal gibt es
+  kein Postfach; geprüft sind Fenster, Vorschau, Ablage im Verlauf und die Signaturseite.
+  1. **App-Registrierung erweitern** (Entra → App-Registrierungen → `Kundenzentrale Outlook`
+     → API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte
+     Berechtigungen → **`Mail.Send`** → hinzufügen → „Administratorzustimmung erteilen“).
+     Ohne sie geht „In Outlook öffnen“ weiter, nur „Senden“ meldet die fehlende Berechtigung.
+     Für `Kundenzentrale` (Produktiv) außerdem die zweite Umleitungs-URI eintragen
+     (`https://rs-w2019-01:8443/Kundenzentrale/outlook-anmeldung.html`, Plattform SPA) und dort
+     unter Administration → Outlook-Anbindung dieselben beiden Kennungen eintragen.
+  2. **Signatur:** `…/signatur` öffnen (oder im Mail-Fenster „Signatur einrichten“) →
+     „Aus Odoo holen“ oder aus Outlook einfügen → prüfen → Speichern. Jeder Mitarbeiter einmal.
+  3. **Entwurf:** Kundenakte → „✉ E-Mail“ → Ansprechpartner, Textbaustein mit Anhang →
+     **„In Outlook öffnen“**. Erwartet: neuer Tab mit dem Entwurf in Outlook im Web, Anhang
+     dabei, Signatur drin; im Verlauf steht „E-Mail vorbereitet“. Dort senden, zurück in die
+     Akte → „1 Entwurf prüfen“ → im Verlauf steht die gesendete Mail.
+     **Bitte melden:** Öffnet sich der Entwurf im Schreibfenster oder nur zum Lesen? Blockiert
+     der Browser den neuen Tab (Pop-up-Hinweis in der Adresszeile)?
+  4. **Senden:** dieselbe Mail ohne offene Platzhalter → „Senden“ → Rückfrage bestätigen.
+     Erwartet: Mail in „Gesendete Elemente“, Eintrag im Verlauf. Einmal mit einem Anhang über
+     3 MB probieren (anderer Weg beim Hochladen).
+  5. Ergebnis an Claude melden — besonders Fehlermeldungen im Wortlaut.
+
 - [ ] **Textbausteine entfernen, Anhänge aus Odoo (26.11.2026):** Publish wie üblich, die
   Migration `TextbausteinEntfernenUndAnhaenge` läuft beim Start (zwei Spalten an
   `Textbausteine`, neue Tabelle `TextbausteinAnhaenge` — nichts wird umgebaut). Danach:

@@ -639,6 +639,66 @@ Korrespondenz.
   Benachrichtigung von Graph).
 - Zeitpunkt: zusammen mit dem Outlook-Knopf, nach dem Produktivstart.
 
+#### Ausbau 26.11.2026: „E-Mail“ in der Kundenakte (MP)
+
+Der Durchstich lief auf dem Server (Add-in mit Windows-Anmeldung, Entwurf und
+Erkennen des Sendens). Daraus entschieden und gebaut:
+
+- **Zwei Wege aus demselben Fenster** (MP: den Entwurf erst öffnen zu müssen,
+  ist ein Schritt zu viel): **„Senden“** schickt die Mail sofort aus dem
+  Postfach des Mitarbeiters (Graph, delegiert `Mail.Send` — nur angefordert,
+  wenn jemand auf „Senden“ klickt; mit Rückfrage „Jetzt an … senden?“).
+  **„In Outlook öffnen“** legt den Entwurf an und öffnet ihn in Outlook im Web
+  zum Ändern. Das ersetzt „nicht gewählt: eigener Versand“ von oben nur zum
+  Teil: Gesendet wird weiterhin aus dem Postfach des Mitarbeiters, die Mail
+  liegt in seinen gesendeten Elementen.
+- **Fenster** (`EmailFenster`, Knopf „✉ E-Mail“ am Verlauf): Ansprechpartner,
+  weitere Empfänger, Cc, Textbaustein, Betreff, eigener Text über dem Baustein,
+  Signatur, Anhänge des Bausteins zum Abwählen. Die **Vorschau kommt vom
+  Server** (`api/mail/zusammenstellen`, `MailRegeln`) — was dort steht, geht
+  ins Postfach.
+- **Platzhalter:** gefüllt werden Kunde (Firma, Ansprechpartner, Adresse,
+  Kundennummer) und Mitarbeiter (Name, Adresse, Signatur). Alles andere
+  (Beleg, Angebot, Rechnung …) bleibt offen, wird benannt und **sperrt das
+  direkte Senden** — solche Mails gehen über „In Outlook öffnen“.
+- **Signatur je Mitarbeiter** (`Mitarbeiter.MailSignaturHtml`, Seite
+  `/signatur`): über Graph angelegte Mails bekommen von Outlook keine (im Test
+  bestätigt). Jeder hinterlegt seine einmal — aus Odoo geholt
+  (`res.users.signature`, über die Anmeldung = E-Mail-Adresse) oder aus Outlook
+  kopiert und eingefügt. Outlooks eigene Signaturen sind über Graph nicht
+  lesbar. Bilder nur per Internetadresse.
+- **Verlauf:** Erst wenn die Mail im Postfach liegt, entsteht `Ausgangsmail`
+  mit Eintrag im Verlauf — „E-Mail vorbereitet: …“ beim Entwurf, die Mail
+  selbst beim Senden. „Stand prüfen“ (im Fenster) bzw. „n Entwürfe prüfen“ (am
+  Verlauf) holt die wirklich gesendete Fassung; ein gelöschter Entwurf
+  verschwindet aus dem Verlauf. Die Prüfung läuft im Browser des Mitarbeiters
+  (das Token liegt nur dort), also nicht von selbst im Hintergrund.
+- **Testsystem:** jede Mail geht an die Umleitungsadresse (`MailUmleitung`),
+  Cc entfällt; ohne Umleitung wird nichts angelegt. Der Server lehnt es ab,
+  dort eine Mail an eine andere Adresse festzuhalten.
+- **Probebetrieb auf dem Produktivsystem** (MP 26.11.2026 — getestet wird
+  dort, und die Tester sollen Add-in und App-Registrierung später nicht
+  umstellen müssen): Schalter **„Kundenmails freigegeben“**
+  (`Outlook.KundenmailsFreigegeben`, Administration → Outlook-Anbindung, nur
+  Admin, Freigeben mit Rückfrage). **Standard ist gesperrt**; nur ein
+  ausdrückliches „Ja“ gibt frei. Gesperrt geht jede Mail aus dem Fenster — bei
+  „Senden“ wie bei „In Outlook öffnen“ — an den Mitarbeiter selbst, Cc
+  entfällt, und das Fenster sagt das oben deutlich. Der Server hält gesperrt
+  keine Mail an eine andere Adresse fest. Grenze: Wer den geöffneten Entwurf
+  in Outlook selbst auf den Kunden umadressiert, sendet an den Kunden — das
+  ist dann eine Mail aus Outlook, nicht aus der Kundenzentrale.
+- **Versandweg vorgesehen (MP 26.11.2026):** Das **Ticketsystem** soll später
+  über einen **eigenen SMTP-Kanal unter @idprove.de** senden. Deshalb ist der
+  Weg ein Merkmal der Mail (`MailKanal`: Postfach, Smtp), und das
+  Zusammenstellen (Baustein, Platzhalter, Empfänger, Anhänge, Eintrag im
+  Verlauf) hängt nicht am Postfach. Der SMTP-Kanal selbst ist nicht gebaut.
+- **Noch offen:** „E-Mail“ aus Vertrag und Vorgang (mit deren Platzhaltern und
+  dem Vertrags-PDF als Anhang), weitere Anhänge aus der Ablage, freies
+  Formatieren des eigenen Texts; Add-in „Übernehmen“ für eingehende Mails.
+  **Nicht gegen Microsoft geprüft** (lokal nicht möglich): Senden, Anhänge
+  (auch über 3 MB) und ob der Verweis den Entwurf in Outlook im Web im
+  Schreibfenster öffnet.
+
 ### Outlook-Durchstich (26.11.2026 — vorgezogen, MP: schneller produktiv)
 
 Vor dem Ausbau beider Outlook-Wege klärt ein Durchstich die technischen Fragen

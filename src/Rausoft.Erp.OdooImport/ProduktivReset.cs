@@ -49,6 +49,7 @@ public class ProduktivReset(bool ausfuehren, string? bestaetigung)
         Zeile("Abo-Positionen", await db.AboPositionen.CountAsync());
         Zeile("Verlaufseinträge", await db.Aktivitaeten.CountAsync());
         Zeile("Anhänge im Verlauf (nur Einträge)", await db.Aktivitaetsanhaenge.CountAsync());
+        Zeile("Vorbereitete und gesendete Kundenmails", await db.Ausgangsmails.CountAsync());
         Zeile("Vereinbarungen", await db.Vereinbarungen.CountAsync());
         Zeile("Aufgaben und Vorgangsschritte", await db.Aufgaben.CountAsync());
         Zeile("Vorgänge", await db.Vorgaenge.CountAsync());
@@ -111,6 +112,7 @@ public class ProduktivReset(bool ausfuehren, string? bestaetigung)
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.WartetAufId, (int?)null));
         await db.Aufgaben.ExecuteDeleteAsync();
         await db.Vereinbarungen.ExecuteDeleteAsync();
+        await db.Ausgangsmails.ExecuteDeleteAsync();           // verweisen auf Verlaufseinträge und Kunden
         await db.Aktivitaeten.ExecuteDeleteAsync();            // Teilnehmer und Anhänge per Cascade
         await db.Vorgaenge.ExecuteDeleteAsync();
 
@@ -125,6 +127,9 @@ public class ProduktivReset(bool ausfuehren, string? bestaetigung)
                 .SetProperty(k => k.VermitteltDurchPartnerId, (int?)null)
                 .SetProperty(k => k.RechnungsempfaengerPartnerId, (int?)null));
         await db.Anfragen.ExecuteDeleteAsync();                // verweisen auf Kunden
+        // Zahlungseingänge bleiben (gebucht ist gebucht) — nur ihr Kundenbezug geht mit den Kunden
+        await db.Bankumsaetze.Where(u => u.KundeId != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.KundeId, (int?)null));
         await db.Partner.ExecuteDeleteAsync();
         await db.Kunden.ExecuteDeleteAsync();                  // Ansprechpartner, Adressen per Cascade; FAQ-Bezug wird geleert
 

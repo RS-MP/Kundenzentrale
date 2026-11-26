@@ -223,6 +223,30 @@ Bereich **Angebote**: drei Listen direkt aus Odoo.
   nachgefasst hat und der Kunde braucht noch Zeit: Aufgabe erledigen — nach
   weiteren 30 Tagen kommt die nächste. Die Fristen stellt ein Admin ein. Soll gar nicht mehr erinnert werden: „ausblenden“.
 
+## E-Mail aus der Kundenakte
+
+In der Akte am Verlauf: **✉ E-Mail**. Ansprechpartner wählen (weitere Adressen
+mit Semikolon), bei Bedarf einen Textbaustein und einen eigenen Text darüber.
+Die Vorschau zeigt genau, was verschickt wird.
+
+- **Senden** — die Mail geht sofort aus deinem Postfach (nach der Rückfrage
+  „Jetzt an … senden?“) und liegt in deinen gesendeten Elementen.
+- **In Outlook öffnen** — die Mail wird als Entwurf angelegt und in Outlook im
+  Web geöffnet; dort ändern, weitere Dateien anhängen, senden. Danach in der
+  Akte **„Entwurf prüfen“**, dann steht die gesendete Fassung im Verlauf.
+
+**Probebetrieb:** Steht oben im Fenster „Kundenmails sind noch nicht
+freigegeben“, geht jede Mail an dich selbst statt an den Kunden — zum
+Ausprobieren. Freigeben kann ein Admin unter Administration → Outlook-Anbindung.
+
+Stehen im Text noch Platzhalter wie `{{Beleg.Nummer}}`, lässt sich nicht direkt
+senden — „In Outlook öffnen“ und dort ersetzen. Beim ersten Mal fragt
+Microsoft kurz nach der Anmeldung.
+
+**Signatur:** einmal unter **Meine Signatur** einrichten (Verweis im
+Mail-Fenster): „Aus Odoo holen“ oder die Signatur in Outlook kopieren und ins
+Feld einfügen, prüfen, speichern.
+
 ## E-Mail-Textbausteine
 
 Unter **Vorlagen → E-Mail-Textbausteine** liegen die Mailtexte aus Odoo mit

@@ -23,6 +23,32 @@
 }
 else
 {
+    @if (!_konfig.Testsystem)
+    {
+        <div class="karte" style="padding:16px">
+            <h2 style="margin-top:0">Kundenmails aus der Akte</h2>
+            <div class="zeile2">
+                <span class="l">Stand</span>
+                <span class="status @(_freigegeben ? "gut" : "warnung")">
+                    @(_freigegeben ? "freigegeben — Mails gehen an den Kunden" : "Probebetrieb — jede Mail geht an den Mitarbeiter selbst")
+                </span>
+            </div>
+            <div style="color:var(--muted); font-size:13px; margin:8px 0 10px">
+                Im Probebetrieb lässt sich das Mail-Fenster der Kundenakte mit echten Kunden ausprobieren, ohne dass ein Kunde Post bekommt:
+                „Senden“ und „In Outlook öffnen“ setzen als Empfänger die eigene Adresse des Mitarbeiters ein. App-Registrierung, Add-in und
+                Signaturen bleiben beim Freigeben, wie sie sind.
+            </div>
+            <button class="knopf @(_freigegeben ? "sekundaer" : "")" @onclick="FreigabeUmschaltenAsync">
+                @(_freigegeben ? "Zurück in den Probebetrieb"
+                    : _freigabeSicher ? "Wirklich freigeben? Ab dann gehen Mails an Kunden." : "Kundenmails freigeben")
+            </button>
+            @if (_freigabeSicher)
+            {
+                <button class="mehr" @onclick="() => _freigabeSicher = false">abbrechen</button>
+            }
+        </div>
+    }
+
     <div class="karte" style="padding:16px">
         <h2 style="margin-top:0">1 · App-Registrierung in Entra ID</h2>
         <div style="color:var(--muted); font-size:13px; margin-bottom:10px">
@@ -191,6 +217,7 @@ else
             var einstellungen = await Http.GetFromJsonAsync<List<EinstellungEintrag>>("api/einstellungen") ?? [];
             foreach (var e in einstellungen.Where(e => _werte.ContainsKey(e.Schluessel)))
                 _werte[e.Schluessel] = e.Wert;
+            _freigegeben = MailFreigabe(einstellungen.FirstOrDefault(e => e.Schluessel == FreigabeSchluessel)?.Wert);
             _bausteine = (await Http.GetFromJsonAsync<TextbausteinUebersicht>("api/textbausteine"))?.Bausteine.Where(b => b.Aktiv).ToList() ?? [];
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
@@ -234,6 +261,40 @@ else
             }
             _gespeichert = schluessel;
             await KonfigLadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    // Kundenmails aus der Akte: gesperrt, solange die Einstellung nicht ausdrücklich „Ja“ sagt (wie auf dem Server)
+    private const string FreigabeSchluessel = "Outlook.KundenmailsFreigegeben";
+    private bool _freigegeben;
+    private bool _freigabeSicher;
+
+    private static bool MailFreigabe(string? wert) => string.Equals(wert?.Trim(), "Ja", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Freigeben braucht zwei Klicks; zurück in den Probebetrieb geht sofort.</summary>
+    private async Task FreigabeUmschaltenAsync()
+    {
+        if (!_freigegeben && !_freigabeSicher)
+        {
+            _freigabeSicher = true;
+            return;
+        }
+        _freigabeSicher = false;
+        _fehler = null;
+        try
+        {
+            var neu = _freigegeben ? "Nein" : "Ja";
+            var antwort = await Http.PutAsJsonAsync($"api/einstellungen/{Uri.EscapeDataString(FreigabeSchluessel)}", new EinstellungAenderung(neu));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            _freigegeben = neu == "Ja";
         }
         catch (Exception ex)
         {

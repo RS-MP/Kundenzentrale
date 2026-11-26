@@ -1,0 +1,412 @@
+@* Fenster „E-Mail“ in der Kundenakte: Empfänger, Textbaustein, eigener Text → Vorschau vom Server
+   (genau das geht ins Postfach) → „Senden“ oder „In Outlook öffnen“. Ins Postfach kommt die Mail
+   über den Browser des Mitarbeiters (Microsoft Graph, js/outlook-entwurf.js). *@
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<div class="vorschau-overlay" @onclick="SchliessenAsync">
+    <div class="fenster" style="width:min(980px, 100%)" @onclick:stopPropagation="true">
+        <div class="fenster-kopf">
+            <h2>E-Mail@(_auswahl is not null ? $" an {_auswahl.Kunde}" : "")</h2>
+            <button class="mehr" @onclick="SchliessenAsync">Schließen</button>
+        </div>
+
+        <div class="fenster-inhalt">
+            @if (_fehler is not null)
+            {
+                <div class="fehler">@_fehler</div>
+            }
+            @if (_auswahl is null || _konfig is null)
+            {
+                @if (_fehler is null) { <div class="leer-hinweis">Lade …</div> }
+            }
+            else if (!_konfig.Eingerichtet)
+            {
+                <div class="leer-hinweis">
+                    Die Outlook-Anbindung ist noch nicht eingerichtet (Administration → Outlook-Anbindung).
+                </div>
+            }
+            else if (_ergebnis is not null)
+            {
+                @if (_stand == "gesendet")
+                {
+                    <div style="color:var(--good); font-size:15px; margin-bottom:8px">✓ Gesendet an @(string.Join(", ", _fertig!.An))</div>
+                    <div style="color:var(--ink2); font-size:13.5px">
+                        Die Mail liegt in deinen gesendeten Elementen und steht im Verlauf der Akte.
+                    </div>
+                }
+                else if (_stand == "geloescht")
+                {
+                    <div style="font-size:15px; margin-bottom:8px">Der Entwurf wurde in Outlook gelöscht.</div>
+                    <div style="color:var(--ink2); font-size:13.5px">Im Verlauf der Akte steht dazu nichts mehr.</div>
+                }
+                else
+                {
+                    <div style="font-size:15px; margin-bottom:8px">
+                        @(_ergebnis.Geoeffnet ? "Der Entwurf ist in Outlook geöffnet (neuer Tab)." : "Der Entwurf liegt in deinem Outlook unter „Entwürfe“.")
+                    </div>
+                    <div style="color:var(--ink2); font-size:13.5px">
+                        Dort prüfen, bei Bedarf ändern und senden. Im Verlauf steht bis dahin „E-Mail vorbereitet“ —
+                        nach dem Senden hier oder später in der Akte „Stand prüfen“, dann übernimmt die Kundenzentrale die gesendete Fassung.
+                    </div>
+                    <div class="formular-aktionen">
+                        <button class="knopf" disabled="@_laeuft" @onclick="StandPruefenAsync">@(_laeuft ? "Prüft …" : "Stand prüfen")</button>
+                        @if (_ergebnis.Verweis is not null)
+                        {
+                            <button class="knopf sekundaer" @onclick="OeffnenAsync">In Outlook öffnen ↗</button>
+                        }
+                        @if (_standHinweis is not null) { <span class="neben">@_standHinweis</span> }
+                    </div>
+                }
+            }
+            else
+            {
+                @if (_auswahl.UmleitungHinweis is not null)
+                {
+                    <div class="zert-hinweis" style="margin-bottom:12px"><strong>@_auswahl.UmleitungHinweis</strong></div>
+                }
+                <div class="formular">
+                    <label>
+                        Ansprechpartner
+                        <select value="@(_apId?.ToString() ?? "")" @onchange="AnsprechpartnerAsync">
+                            <option value="">— keiner (an die Firma) —</option>
+                            @foreach (var a in _auswahl.Ansprechpartner)
+                            {
+                                <option value="@a.Id">@a.Name · @a.Email</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Textbaustein
+                        <select value="@(_bausteinId?.ToString() ?? "")" @onchange="BausteinAsync">
+                            <option value="">— ohne —</option>
+                            @foreach (var gruppe in _auswahl.Bausteine.GroupBy(b => b.Verwendung ?? "Sonstiges"))
+                            {
+                                <optgroup label="@gruppe.Key">
+                                    @foreach (var b in gruppe)
+                                    {
+                                        <option value="@b.Id">@b.Name@(b.Anhaenge > 0 ? $" ({b.Anhaenge} {(b.Anhaenge == 1 ? "Anhang" : "Anhänge")})" : "")</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        An
+                        <input type="text" value="@_an" placeholder="adresse@kunde.de; weitere mit Semikolon"
+                               @oninput="e => { _an = e.Value?.ToString() ?? string.Empty; _veraltet = true; }" @onchange="_ => VorschauAsync()" />
+                    </label>
+                    <label>
+                        Cc
+                        <input type="text" value="@_cc"
+                               @oninput="e => { _cc = e.Value?.ToString() ?? string.Empty; _veraltet = true; }" @onchange="_ => VorschauAsync()" />
+                    </label>
+                    <label class="breit">
+                        Betreff
+                        <input type="text" maxlength="500" value="@_betreff"
+                               @oninput="e => { _betreff = e.Value?.ToString() ?? string.Empty; _betreffVonHand = true; _veraltet = true; }" @onchange="_ => VorschauAsync()" />
+                    </label>
+                    <label class="breit">
+                        Eigener Text — steht über dem Baustein
+                        <textarea rows="4" value="@_freitext" placeholder="z. B. Anrede und ein persönlicher Satz"
+                                  @oninput="e => { _freitext = e.Value?.ToString() ?? string.Empty; _veraltet = true; }" @onchange="_ => VorschauAsync()"></textarea>
+                    </label>
+                    <label class="ll-haken breit">
+                        <input type="checkbox" checked="@_mitSignatur" @onchange="SignaturUmschaltenAsync" /> Meine Signatur anhängen
+                        <span class="neben">
+                            — @(_auswahl.HatSignatur ? "" : "noch keine hinterlegt: ")<a href="signatur" target="_blank">@(_auswahl.HatSignatur ? "ändern ↗" : "Signatur einrichten ↗")</a>
+                        </span>
+                    </label>
+                </div>
+
+                @if (_fertig is not null)
+                {
+                    @foreach (var h in _fertig.Hinweise)
+                    {
+                        <div class="zert-hinweis" style="margin-top:10px">@h</div>
+                    }
+                    @if (_fertig.OffenePlatzhalter.Count > 0)
+                    {
+                        <div class="zert-hinweis" style="margin-top:10px">
+                            <strong>Noch offen:</strong> @(string.Join(", ", _fertig.OffenePlatzhalter.Select(p => "{{" + p + "}}"))) —
+                            diese Platzhalter kann die Kundenzentrale hier nicht füllen. Direkt senden geht so nicht;
+                            „In Outlook öffnen“ und dort ersetzen.
+                        </div>
+                    }
+                    @if (_fertig.Anhaenge.Count > 0)
+                    {
+                        <div class="zeile2" style="margin-top:10px; align-items:flex-start">
+                            <span class="l">Anhänge</span>
+                            <span style="flex:1">
+                                @foreach (var a in _fertig.Anhaenge)
+                                {
+                                    <label style="display:block">
+                                        <input type="checkbox" checked="@(!_ohneAnhang.Contains(a.Id))" @onchange="() => AnhangUmschalten(a.Id)" />
+                                        @a.Dateiname <span class="neben">· @GroesseText(a.Groesse)</span>
+                                    </label>
+                                }
+                            </span>
+                        </div>
+                    }
+                    @* Fremdes HTML nie in die eigene Seite: abgeschotteter Rahmen ohne Skripte *@
+                    <iframe sandbox="" referrerpolicy="no-referrer" title="Vorschau der E-Mail" srcdoc="@Vorschau(_fertig.Html)"
+                            style="width:100%; height:300px; margin-top:12px; border:1px solid var(--border); border-radius:8px; background:#fff"></iframe>
+                }
+            }
+        </div>
+
+        @if (_auswahl is not null && _konfig is { Eingerichtet: true } && _ergebnis is null)
+        {
+            <div class="fenster-fuss">
+                <button class="knopf" disabled="@(!SendenMoeglich)" @onclick="() => AusfuehrenAsync(true)"
+                        title="@(_fertig?.OffenePlatzhalter.Count > 0 ? "Erst die offenen Platzhalter ersetzen — das geht in Outlook." : "Sendet die Mail sofort aus deinem Postfach.")">
+                    @(_laeuft && _sendet ? "Sendet …" : _sendenSicher ? $"Jetzt an {string.Join(", ", _fertig?.An ?? [])} senden?" : "Senden")
+                </button>
+                <button class="knopf sekundaer" disabled="@(!AnlegenMoeglich)" @onclick="() => AusfuehrenAsync(false)"
+                        title="Legt die Mail als Entwurf in deinem Postfach an und öffnet sie in Outlook im Web — dort ändern und senden.">
+                    @(_laeuft && !_sendet ? "Legt an …" : "In Outlook öffnen")
+                </button>
+                @if (_sendenSicher)
+                {
+                    <button class="mehr" @onclick="() => _sendenSicher = false">abbrechen</button>
+                }
+                <span class="neben" style="margin-left:auto">
+                    @(_stelltZusammen || _veraltet ? "Vorschau wird aktualisiert …" : _fertig is { An.Count: 0 } ? "Es fehlt ein Empfänger." : "")
+                </span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public int KundeId { get; set; }
+    /// <summary>Wird beim Schließen gerufen; wahr, wenn eine Mail angelegt oder gesendet wurde (Verlauf neu laden).</summary>
+    [Parameter] public EventCallback<bool> Geschlossen { get; set; }
+
+    private sealed record GraphErgebnis(string Id, string? Verweis, string? NachrichtenKennung, bool Gesendet, bool Geoeffnet);
+    private sealed record GraphStand(string Stand, DateTime? GesendetAm, string? Betreff, string? NachrichtenKennung, string? Html, List<string>? An, List<string>? Cc);
+
+    private MailAuswahl? _auswahl;
+    private OutlookKonfiguration? _konfig;
+    private MailFertig? _fertig;
+    private GraphErgebnis? _ergebnis;
+    private int? _ausgangId;
+    private string _stand = "entwurf";
+    private string? _standHinweis;
+    private string? _fehler;
+
+    private int? _apId;
+    private int? _bausteinId;
+    private string _an = "", _cc = "", _betreff = "", _freitext = "";
+    private bool _betreffVonHand;
+    private bool _mitSignatur = true;
+    private readonly HashSet<int> _ohneAnhang = [];
+
+    private bool _veraltet, _stelltZusammen, _laeuft, _sendet, _sendenSicher, _geaendert;
+    private int _anfrage;
+
+    private bool AnlegenMoeglich => !_laeuft && !_veraltet && !_stelltZusammen && _fertig is { An.Count: > 0 } && _fertig.Betreff.Length > 0;
+    private bool SendenMoeglich => AnlegenMoeglich && _fertig!.OffenePlatzhalter.Count == 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _auswahl = await Http.GetFromJsonAsync<MailAuswahl>($"api/mail/kunde/{KundeId}");
+            _konfig = await Http.GetFromJsonAsync<OutlookKonfiguration>("api/outlook/konfiguration");
+            // Genau ein Ansprechpartner mit Adresse: vorbelegen
+            if (_auswahl is { Ansprechpartner.Count: 1 })
+            {
+                _apId = _auswahl.Ansprechpartner[0].Id;
+                _an = _auswahl.Ansprechpartner[0].Email;
+            }
+            await VorschauAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Das Fenster konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task AnsprechpartnerAsync(ChangeEventArgs e)
+    {
+        var bisher = _auswahl?.Ansprechpartner.FirstOrDefault(a => a.Id == _apId)?.Email;
+        _apId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        var neu = _auswahl?.Ansprechpartner.FirstOrDefault(a => a.Id == _apId)?.Email;
+        // Die Adresse des Ansprechpartners tauschen, von Hand ergänzte Empfänger bleiben
+        var adressen = _an.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(a => !a.Equals(bisher, StringComparison.OrdinalIgnoreCase) && !a.Equals(neu, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (neu is not null)
+            adressen.Insert(0, neu);
+        _an = string.Join("; ", adressen);
+        await VorschauAsync();
+    }
+
+    private async Task BausteinAsync(ChangeEventArgs e)
+    {
+        _bausteinId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        _ohneAnhang.Clear();
+        // Der Betreff des neuen Bausteins gilt, solange niemand einen eigenen getippt hat
+        if (!_betreffVonHand)
+            _betreff = "";
+        await VorschauAsync();
+    }
+
+    private async Task SignaturUmschaltenAsync(ChangeEventArgs e)
+    {
+        _mitSignatur = e.Value is true;
+        await VorschauAsync();
+    }
+
+    private void AnhangUmschalten(int id)
+    {
+        if (!_ohneAnhang.Remove(id))
+            _ohneAnhang.Add(id);
+    }
+
+    /// <summary>Lässt den Server die Mail zusammenstellen; die jüngste Anfrage gewinnt.</summary>
+    private async Task VorschauAsync()
+    {
+        var nummer = ++_anfrage;
+        _stelltZusammen = true;
+        _sendenSicher = false;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync("api/mail/zusammenstellen", new MailZusammenstellen(
+                KundeId, _apId, _bausteinId, _an, _cc, _betreffVonHand ? _betreff : null, _freitext, _mitSignatur));
+            if (nummer != _anfrage)
+                return;
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                _fertig = null;
+                return;
+            }
+            _fertig = await antwort.Content.ReadFromJsonAsync<MailFertig>();
+            if (!_betreffVonHand && _fertig is not null)
+                _betreff = _fertig.Betreff;
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Vorschau konnte nicht erstellt werden: {ex.Message}";
+        }
+        finally
+        {
+            if (nummer == _anfrage)
+            {
+                _stelltZusammen = false;
+                _veraltet = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Mail ins Postfach bringen. Der Aufruf ins Graph-Skript ist bewusst das Erste nach dem Klick:
+    /// Nur dann lässt der Browser das Anmelde- bzw. Entwurfsfenster zu.
+    /// </summary>
+    private async Task AusfuehrenAsync(bool senden)
+    {
+        if (_fertig is null || _konfig is null || (senden ? !SendenMoeglich : !AnlegenMoeglich))
+            return;
+        if (senden && !_sendenSicher)
+        {
+            _sendenSicher = true;
+            return;
+        }
+        _sendenSicher = false;
+        _laeuft = true;
+        _sendet = senden;
+        _fehler = null;
+        var anhaenge = _fertig.Anhaenge.Where(a => !_ohneAnhang.Contains(a.Id)).ToList();
+        try
+        {
+            var ergebnis = await JS.InvokeAsync<GraphErgebnis>("outlookMailAnlegen", _konfig, new
+            {
+                an = _fertig.An, cc = _fertig.Cc, betreff = _fertig.Betreff, html = _fertig.Html,
+                anhaenge = anhaenge.Select(a => new { name = a.Dateiname, adresse = new Uri(Http.BaseAddress!, $"api/textbausteine/anhaenge/{a.Id}/datei").ToString() }),
+            }, senden);
+            _ergebnis = ergebnis;
+            _stand = ergebnis.Gesendet ? "gesendet" : "entwurf";
+            _geaendert = true;
+            var antwort = await Http.PostAsJsonAsync("api/mail/ausgang", new MailAngelegt(
+                KundeId, _apId, _bausteinId, _fertig.An, _fertig.Cc, _fertig.Betreff, _fertig.Html,
+                anhaenge.Select(a => a.Dateiname).ToList(), ergebnis.Id, ergebnis.NachrichtenKennung, ergebnis.Gesendet));
+            if (antwort.IsSuccessStatusCode)
+                _ausgangId = await antwort.Content.ReadFromJsonAsync<int>();
+            else
+                _fehler = $"Die Mail ist {(ergebnis.Gesendet ? "gesendet" : "in Outlook angelegt")}, konnte aber nicht im Verlauf festgehalten werden: {await VorgangAnzeige.FehlerAsync(antwort)}";
+        }
+        catch (JSException ex)
+        {
+            _fehler = senden
+                ? $"Senden nicht möglich: {ex.Message} — Falls die Berechtigung fehlt: In der App-Registrierung muss „Mail.Send“ (delegiert) eingetragen sein. „In Outlook öffnen“ geht auch ohne."
+                : $"Der Entwurf konnte nicht angelegt werden: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Unerwarteter Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _laeuft = false;
+            _sendet = false;
+        }
+    }
+
+    private async Task StandPruefenAsync()
+    {
+        if (_ergebnis is null || _konfig is null)
+            return;
+        _laeuft = true;
+        _standHinweis = null;
+        try
+        {
+            var s = await JS.InvokeAsync<GraphStand>("outlookEntwurfStand", _konfig, _ergebnis.Id);
+            if (s.Stand == "entwurf")
+            {
+                _standHinweis = "Noch nicht gesendet.";
+                return;
+            }
+            if (_ausgangId is { } id)
+            {
+                var antwort = await Http.PostAsJsonAsync($"api/mail/ausgang/{id}/stand",
+                    new MailStand(s.Stand, s.GesendetAm, s.Betreff, s.Html, s.An, s.Cc, s.NachrichtenKennung));
+                if (!antwort.IsSuccessStatusCode)
+                {
+                    _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                    return;
+                }
+            }
+            _stand = s.Stand;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Der Stand konnte nicht geprüft werden: {ex.Message}";
+        }
+        finally
+        {
+            _laeuft = false;
+        }
+    }
+
+    private async Task OeffnenAsync()
+    {
+        if (_ergebnis?.Verweis is { } verweis && verweis.StartsWith("https://"))
+            await JS.InvokeVoidAsync("outlookOeffnen", verweis);
+    }
+
+    private Task SchliessenAsync() => _laeuft ? Task.CompletedTask : Geschlossen.InvokeAsync(_geaendert);
+
+    private static string Vorschau(string html) =>
+        "<!doctype html><html><head><meta charset=\"utf-8\"><base target=\"_blank\">" +
+        "<style>body{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#222;margin:14px}img{max-width:100%}</style></head><body>" +
+        html + "</body></html>";
+
+    private static string GroesseText(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} Byte",
+        < 1024 * 1024 => $"{bytes / 1024.0:0} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.0} MB",
+    };
+}

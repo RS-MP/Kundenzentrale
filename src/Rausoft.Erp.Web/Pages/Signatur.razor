@@ -1,0 +1,172 @@
+@page "/signatur"
+@implements IDisposable
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Meine E-Mail-Signatur · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Meine E-Mail-Signatur</h1>
+    <span class="untertitel">Steht unter den Mails, die du aus der Kundenakte verschickst — Outlook setzt seine Signatur dort nicht selbst ein</span>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_meldung is not null)
+{
+    <div class="zert-hinweis">@_meldung</div>
+}
+
+@if (!_geladen)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade …</div> }
+}
+else
+{
+    <div class="karte" style="padding:16px">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+            <button class="knopf sekundaer" disabled="@_holt" @onclick="AusOdooAsync"
+                    title="Liest die Signatur, die in Odoo an deinem Benutzer hinterlegt ist. Gespeichert wird erst mit „Speichern“.">
+                @(_holt ? "Holt …" : "Aus Odoo holen")
+            </button>
+            <span class="neben">oder</span>
+            <div @ref="_einfuegen" tabindex="0"
+                 style="flex:1; min-width:260px; border:1px dashed var(--border); border-radius:8px; padding:9px 12px; color:var(--muted); cursor:text">
+                Hier klicken und die in Outlook kopierte Signatur mit Strg+V einfügen
+            </div>
+        </div>
+
+        <div style="margin-top:14px; font-size:12.5px; color:var(--muted)">Vorschau</div>
+        @* Fremdes HTML nie in die eigene Seite: abgeschotteter Rahmen ohne Skripte *@
+        <iframe sandbox="" referrerpolicy="no-referrer" title="Vorschau der Signatur" srcdoc="@Vorschau(_html)"
+                style="width:100%; height:220px; margin-top:4px; border:1px solid var(--border); border-radius:8px; background:#fff"></iframe>
+
+        <details style="margin-top:12px">
+            <summary style="cursor:pointer; font-size:13px; color:var(--ink2)">Als HTML bearbeiten</summary>
+            <textarea rows="10" style="width:100%; box-sizing:border-box; margin-top:6px; font-family:Consolas,monospace; font-size:12.5px"
+                      @bind="_html" @bind:event="oninput"></textarea>
+        </details>
+
+        <div class="neben" style="color:var(--muted); font-size:12.5px; margin-top:10px">
+            Bilder (z. B. ein Logo) kommen nur mit, wenn sie über eine Internetadresse eingebunden sind — aus Outlook kopierte
+            Bilder liegen auf deinem Rechner und fehlen beim Empfänger. Skripte und eingebettete Inhalte werden beim Speichern entfernt.
+        </div>
+
+        <div class="formular-aktionen">
+            <button class="knopf" disabled="@_speichert" @onclick="SpeichernAsync">@(_speichert ? "Speichert …" : "Speichern")</button>
+            @if (_html.Trim().Length > 0)
+            {
+                <button class="mehr" @onclick="() => _html = string.Empty">leeren</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private string _html = "";
+    private bool _geladen, _holt, _speichert;
+    private string? _fehler, _meldung;
+    private ElementReference _einfuegen;
+    private DotNetObjectReference<Signatur>? _ich;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _html = (await Http.GetFromJsonAsync<MailSignatur>("api/mail/signatur"))?.Html ?? "";
+            _geladen = true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Signatur konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Das Einfügefeld gibt es erst nach dem Laden; das Skript meldet sich je Element nur einmal an
+        if (_geladen)
+        {
+            _ich ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("signaturEinfuegenAnmelden", _einfuegen, _ich);
+        }
+    }
+
+    /// <summary>Aus der Zwischenablage eingefügt (HTML als Text) — erst nach „Speichern“ gilt es, gesäubert wird auf dem Server.</summary>
+    [JSInvokable]
+    public void SignaturEingefuegt(string html)
+    {
+        _html = html ?? "";
+        _meldung = "Eingefügt — bitte in der Vorschau prüfen und speichern.";
+        StateHasChanged();
+    }
+
+    private async Task AusOdooAsync()
+    {
+        _holt = true;
+        _meldung = null;
+        try
+        {
+            var antwort = await Http.PostAsync("api/mail/signatur/odoo", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            var e = await antwort.Content.ReadFromJsonAsync<MailSignaturAusOdoo>();
+            if (e?.Html is { } html)
+            {
+                _html = html;
+                _meldung = "Aus Odoo geholt — bitte in der Vorschau prüfen und speichern.";
+            }
+            else
+            {
+                _meldung = e?.Hinweis ?? "In Odoo wurde keine Signatur gefunden.";
+            }
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Signatur konnte nicht aus Odoo geholt werden: {ex.Message}";
+        }
+        finally
+        {
+            _holt = false;
+        }
+    }
+
+    private async Task SpeichernAsync()
+    {
+        _speichert = true;
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync("api/mail/signatur", new MailSignatur(_html));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            // Zeigen, was nach dem Säubern wirklich gespeichert ist
+            _html = (await Http.GetFromJsonAsync<MailSignatur>("api/mail/signatur"))?.Html ?? "";
+            _meldung = _html.Length > 0 ? "Gespeichert." : "Gespeichert — es ist keine Signatur hinterlegt.";
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichert = false;
+        }
+    }
+
+    private static string Vorschau(string html) =>
+        "<!doctype html><html><head><meta charset=\"utf-8\"><base target=\"_blank\">" +
+        "<style>body{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#222;margin:14px}img{max-width:100%}</style></head><body>" +
+        html + "</body></html>";
+
+    public void Dispose() => _ich?.Dispose();
+}

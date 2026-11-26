@@ -1421,6 +1421,83 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Aufgaben");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Ausgangsmail", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AktivitaetId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("An")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("AngelegtAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Anhaenge")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("AnsprechpartnerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Betreff")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Cc")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("GesendetAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GraphId")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("InhaltHtml")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Kanal")
+                        .HasColumnType("int");
+
+                    b.Property<int>("KundeId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MitarbeiterId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NachrichtenKennung")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TextbausteinId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AktivitaetId");
+
+                    b.HasIndex("KundeId");
+
+                    b.HasIndex("MitarbeiterId", "Status");
+
+                    b.ToTable("Ausgangsmails", (string)null);
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Bereich", b =>
                 {
                     b.Property<int>("Id")
@@ -1579,6 +1656,10 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.Property<Guid?>("EntraObjectId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MailSignaturHtml")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Rollen")
                         .HasColumnType("int");
@@ -3130,6 +3211,32 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Zustaendig");
 
                     b.Navigation("ZustaendigBereich");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Ausgangsmail", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Aktivitaet", "Aktivitaet")
+                        .WithMany()
+                        .HasForeignKey("AktivitaetId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
+                        .WithMany()
+                        .HasForeignKey("KundeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "Mitarbeiter")
+                        .WithMany()
+                        .HasForeignKey("MitarbeiterId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Aktivitaet");
+
+                    b.Navigation("Kunde");
+
+                    b.Navigation("Mitarbeiter");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Bereich", b =>

@@ -41,6 +41,7 @@ public class ErpDbContext(
     // E-Mail-Textbausteine und Zahlungseingänge aus Kontoauszügen
     public DbSet<Textbaustein> Textbausteine => Set<Textbaustein>();
     public DbSet<TextbausteinAnhang> TextbausteinAnhaenge => Set<TextbausteinAnhang>();
+    public DbSet<Ausgangsmail> Ausgangsmails => Set<Ausgangsmail>();
     public DbSet<Bankumsatz> Bankumsaetze => Set<Bankumsatz>();
 
     // Kontakte
@@ -100,6 +101,8 @@ public class ErpDbContext(
             e.HasIndex(m => m.Email).IsUnique();
             e.Property(m => m.Anzeigename).HasMaxLength(100);
             e.Property(m => m.WikiThemen).HasMaxLength(500);
+            // Formatierter Text — ohne diese Angabe gälte die Standardlänge von 200 Zeichen
+            e.Property(m => m.MailSignaturHtml).HasColumnType("nvarchar(max)");
             e.HasOne(m => m.Bereich).WithMany().OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -252,6 +255,24 @@ public class ErpDbContext(
             e.HasOne(t => t.GeaendertVon).WithMany().HasForeignKey(t => t.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(t => t.EntferntVon).WithMany().HasForeignKey(t => t.EntferntVonId).OnDelete(DeleteBehavior.NoAction);
             e.HasMany(t => t.Anhaenge).WithOne(a => a.Textbaustein).HasForeignKey(a => a.TextbausteinId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Ausgangsmail>(e =>
+        {
+            e.ToTable("Ausgangsmails");
+            e.Property(m => m.An).HasMaxLength(2000);
+            e.Property(m => m.Cc).HasMaxLength(2000);
+            e.Property(m => m.Betreff).HasMaxLength(500);
+            e.Property(m => m.InhaltHtml).HasColumnType("nvarchar(max)");
+            e.Property(m => m.Anhaenge).HasMaxLength(2000);
+            e.Property(m => m.GraphId).HasMaxLength(1000);
+            e.Property(m => m.NachrichtenKennung).HasMaxLength(1000);
+            e.HasIndex(m => new { m.MitarbeiterId, m.Status });
+            e.HasIndex(m => m.KundeId);
+            e.HasOne(m => m.Kunde).WithMany().HasForeignKey(m => m.KundeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(m => m.Mitarbeiter).WithMany().HasForeignKey(m => m.MitarbeiterId).OnDelete(DeleteBehavior.NoAction);
+            // Kein Kaskadieren über zwei Wege (Kunde → Aktivität → Ausgangsmail): der Eintrag wird von Hand gelöst
+            e.HasOne(m => m.Aktivitaet).WithMany().HasForeignKey(m => m.AktivitaetId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<TextbausteinAnhang>(e =>
@@ -816,6 +837,8 @@ public class ErpDbContext(
         [typeof(Textbaustein)] = [nameof(Textbaustein.InhaltHtml)],
         // Dateiinhalte gehören nicht ins Audit-Log — Name, Größe und Baustein stehen dort.
         [typeof(TextbausteinAnhang)] = [nameof(TextbausteinAnhang.Inhalt)],
+        // Der Mailtext steht im Verlauf der Akte — im Audit reichen Empfänger, Betreff und Stand.
+        [typeof(Ausgangsmail)] = [nameof(Ausgangsmail.InhaltHtml)],
     };
 
     // Einstellungen, die Hintergrundläufe als Zeitstempel fortschreiben (kein Admin-Handeln),

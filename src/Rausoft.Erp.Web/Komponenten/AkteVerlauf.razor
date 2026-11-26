@@ -300,6 +300,14 @@
                 <input type="checkbox" checked="@_mitOdoo" @onchange="OdooUmschaltenAsync" /> Odoo
             </label>
             <button type="button" class="link" @onclick="AlleAufklappen">@(_alleAuf ? "alle zuklappen" : "alle aufklappen")</button>
+            @if (_mailEntwuerfe > 0)
+            {
+                <button type="button" class="link" disabled="@_prueftMails" @onclick="MailEntwuerfePruefenAsync"
+                        title="Sieht in deinem Postfach nach, ob vorbereitete Mails inzwischen gesendet sind, und übernimmt die gesendete Fassung in den Verlauf.">
+                    @(_prueftMails ? "prüft …" : $"{_mailEntwuerfe} {(_mailEntwuerfe == 1 ? "Entwurf" : "Entwürfe")} prüfen")
+                </button>
+            }
+            <button type="button" class="knopf sekundaer klein" @onclick="() => _mailFenster = true">✉ E-Mail</button>
             <button type="button" class="knopf sekundaer klein" @onclick='() => FormularAsync("eintrag")'>+ Eintrag</button>
         </span>
     </div>
@@ -496,6 +504,11 @@
     }
 </div>
 
+@if (_mailFenster)
+{
+    <EmailFenster KundeId="KundeId" Geschlossen="MailFensterZuAsync" />
+}
+
 @code {
     [Parameter] public int KundeId { get; set; }
     /// <summary>Wird von der Akte erhöht, wenn sich etwas geändert hat (z. B. neuer Vertrag) — dann neu laden.</summary>
@@ -527,6 +540,11 @@
     private readonly HashSet<int> _aufgeklappt = [];
     private bool _alleAuf;
     private string? _fehler;
+
+    // E-Mail aus der Akte
+    private bool _mailFenster;
+    private int _mailEntwuerfe;
+    private bool _prueftMails;
 
     // Erfassen
     private string? _formular;
@@ -581,6 +599,71 @@
             _fehler = $"Überblick konnte nicht geladen werden: {ex.Message}";
         }
         await VerlaufLadenAsync();
+        await MailEntwuerfeLadenAsync();
+    }
+
+    // --- E-Mail aus der Akte -----------------------------------------------------------
+
+    private sealed record GraphStand(string Stand, DateTime? GesendetAm, string? Betreff, string? NachrichtenKennung, string? Html, List<string>? An, List<string>? Cc);
+
+    private List<MailOffen> _offeneMails = [];
+    private OutlookKonfiguration? _outlook;
+
+    /// <summary>Eigene Entwürfe zu diesem Kunden, deren Versand die Kundenzentrale noch nicht kennt. Fehler hier stören die Akte nicht.</summary>
+    private async Task MailEntwuerfeLadenAsync()
+    {
+        try
+        {
+            _offeneMails = await Http.GetFromJsonAsync<List<MailOffen>>($"api/mail/ausgang/offen?kundeId={KundeId}") ?? [];
+            // Die Einstellungen schon jetzt holen: Beim Klick muss der Weg ins Postfach das Erste sein (Anmeldefenster)
+            if (_offeneMails.Count > 0 && _outlook is null)
+                _outlook = await Http.GetFromJsonAsync<OutlookKonfiguration>("api/outlook/konfiguration");
+        }
+        catch
+        {
+            _offeneMails = [];
+        }
+        _mailEntwuerfe = _offeneMails.Count;
+    }
+
+    private async Task MailFensterZuAsync(bool geaendert)
+    {
+        _mailFenster = false;
+        if (geaendert)
+            await AllesLadenAsync();
+    }
+
+    /// <summary>Sieht im Postfach nach, was aus den vorbereiteten Mails wurde, und meldet es der Kundenzentrale.</summary>
+    private async Task MailEntwuerfePruefenAsync()
+    {
+        if (_outlook is not { Eingerichtet: true } || _prueftMails)
+            return;
+        _prueftMails = true;
+        _fehler = null;
+        try
+        {
+            foreach (var mail in _offeneMails)
+            {
+                var s = await JS.InvokeAsync<GraphStand>("outlookEntwurfStand", _outlook, mail.GraphId);
+                if (s.Stand == "entwurf")
+                    continue;
+                var antwort = await Http.PostAsJsonAsync($"api/mail/ausgang/{mail.Id}/stand",
+                    new MailStand(s.Stand, s.GesendetAm, s.Betreff, s.Html, s.An, s.Cc, s.NachrichtenKennung));
+                if (!antwort.IsSuccessStatusCode)
+                    _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+            }
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Entwürfe konnten nicht geprüft werden: {ex.Message}";
+        }
+        finally
+        {
+            _prueftMails = false;
+        }
+        var fehler = _fehler;
+        await AllesLadenAsync();
+        _fehler ??= fehler;
     }
 
     private async Task VerlaufLadenAsync()
