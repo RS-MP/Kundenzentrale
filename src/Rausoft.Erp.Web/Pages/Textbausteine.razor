@@ -27,7 +27,18 @@
 }
 @if (_meldung is not null)
 {
-    <div class="zert-hinweis">@_meldung</div>
+    <div class="zert-hinweis">
+        @_meldung
+        @if (_anhangHinweise is not null)
+        {
+            <details style="margin-top:6px">
+                <summary>@_anhangHinweise.Count @(_anhangHinweise.Count == 1 ? "Anhang wurde" : "Anhänge wurden") nicht übernommen</summary>
+                <ul style="margin:6px 0 0; padding-left:18px">
+                    @foreach (var h in _anhangHinweise) { <li>@h</li> }
+                </ul>
+            </details>
+        }
+    </div>
 }
 
 @if (_daten is null)
@@ -70,7 +81,7 @@ else
                                     <td>
                                         <div class="haupt" style="@(b.Aktiv ? "" : "color:var(--muted); text-decoration:line-through")">@b.Name</div>
                                         <div class="neben">
-                                            @(b.Verwendung ?? "Sonstiges")@(b.Aktiv ? "" : " · deaktiviert")@(b.LokalGeaendert ? " · hier bearbeitet" : "")
+                                            @(b.Verwendung ?? "Sonstiges")@(b.Aktiv ? "" : " · deaktiviert")@(b.LokalGeaendert ? " · hier bearbeitet" : "")@(b.Anhaenge switch { 0 => "", 1 => " · 1 Anhang", _ => $" · {b.Anhaenge} Anhänge" })
                                             @if (b.HatHinweise) { <span class="krittext" title="Bei der Übernahme blieb etwas offen — bitte nacharbeiten"> · nacharbeiten</span> }
                                         </div>
                                     </td>
@@ -79,6 +90,27 @@ else
                         </tbody>
                     </table>
                 </div>
+            }
+            @if (_daten.Entfernt is { Count: > 0 } entfernt)
+            {
+                <details class="gruppe" style="margin:8px">
+                    <summary>Entfernt<span class="zahl">@entfernt.Count</span></summary>
+                    <div class="gruppe-inhalt">
+                        <div class="neben" style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
+                            Diese Bausteine sieht niemand mehr, und die Übernahme aus Odoo legt sie nicht wieder an.
+                        </div>
+                        @foreach (var b in entfernt)
+                        {
+                            <div class="zeile2">
+                                <span>
+                                    @b.Name
+                                    <span class="l">— @b.EntferntAm.ToLocalTime().ToString("dd.MM.yyyy")@(b.EntferntVon is not null ? $", {b.EntferntVon}" : "")</span>
+                                </span>
+                                <button class="mehr" style="padding:0" @onclick="() => WiederherstellenAsync(b.Id)">wiederherstellen</button>
+                            </div>
+                        }
+                    </div>
+                </details>
             }
         </div>
 
@@ -103,11 +135,6 @@ else
                 <div class="formular-aktionen">
                     <button class="knopf" disabled="@_speichert" @onclick="SpeichernAsync">@(_speichert ? "Speichert …" : "Speichern")</button>
                     <button class="knopf sekundaer" @onclick="() => _bearbeiten = null">Abbrechen</button>
-                    @if (_bearbeitenId is not null && _detail is { AusOdoo: false })
-                    {
-                        <span style="flex:1"></span>
-                        <button class="mehr krittext" @onclick="LoeschenAsync">@(_loeschenSicher ? "Wirklich löschen?" : "Löschen")</button>
-                    }
                 </div>
             }
             else if (_detail is null)
@@ -130,12 +157,37 @@ else
                     @if (_daten.DarfPflegen)
                     {
                         <button class="knopf sekundaer" @onclick="BearbeitenOeffnen">Bearbeiten</button>
+                        <button class="mehr krittext" @onclick="EntfernenAsync"
+                                title="@(_detail.AusOdoo ? "Der Baustein verschwindet für alle und kommt bei der nächsten Übernahme aus Odoo nicht wieder. Unter „Entfernt“ lässt er sich wiederherstellen." : "Löscht den hier angelegten Baustein endgültig.")">
+                            @(_loeschenSicher ? "Wirklich entfernen?" : "Entfernen")
+                        </button>
                     }
                 </div>
                 <div class="zeile2" style="margin-top:12px">
                     <span class="l">Betreff</span>
                     <span style="flex:1; font-weight:600">@(_detail.Betreff.Length > 0 ? _detail.Betreff : "—")</span>
                 </div>
+                @if (_detail.Anhaenge is { Count: > 0 } anhaenge)
+                {
+                    <div class="zeile2" style="align-items:flex-start">
+                        <span class="l">Anhänge</span>
+                        <span style="flex:1">
+                            @foreach (var a in anhaenge)
+                            {
+                                <div>
+                                    <button class="mehr" style="padding:0" disabled="@(_laedtAnhang == a.Id)" @onclick="() => AnhangLadenAsync(a)"
+                                            title="Herunterladen — in Outlook als Anlage an die Mail hängen">
+                                        @(_laedtAnhang == a.Id ? "Lädt …" : $"↓ {a.Dateiname}")
+                                    </button>
+                                    <span class="neben" style="color:var(--muted); font-size:12.5px"> · @GroesseText(a.Groesse)</span>
+                                </div>
+                            }
+                            <div class="neben" style="color:var(--muted); font-size:12.5px">
+                                Odoo verschickt diese Dateien mit der Vorlage. „Text kopieren“ nimmt sie nicht mit — bitte herunterladen und in Outlook anhängen.
+                            </div>
+                        </span>
+                    </div>
+                }
                 @if (_detail.Hinweise.Count > 0)
                 {
                     <div class="zert-hinweis" style="margin-top:10px">
@@ -175,6 +227,8 @@ else
     private bool _uebernimmt;
     private bool _speichert;
     private bool _loeschenSicher;
+    private int? _laedtAnhang;
+    private List<string>? _anhangHinweise;
 
     protected override Task OnInitializedAsync() => LadenAsync();
 
@@ -298,30 +352,83 @@ else
         }
     }
 
-    private async Task LoeschenAsync()
+    /// <summary>Zwei Klicks: erst nachfragen, dann entfernen (aus Odoo: als Merker, hier angelegt: endgültig).</summary>
+    private async Task EntfernenAsync()
     {
-        if (_bearbeitenId is not { } id)
+        if (_detail is not { } detail)
             return;
         if (!_loeschenSicher)
         {
             _loeschenSicher = true;
             return;
         }
-        var antwort = await Http.DeleteAsync($"api/textbausteine/{id}");
+        _loeschenSicher = false;
+        _anhangHinweise = null;
+        var antwort = await Http.DeleteAsync($"api/textbausteine/{detail.Id}");
         if (!antwort.IsSuccessStatusCode)
         {
             _fehler = await VorgangAnzeige.FehlerAsync(antwort);
             return;
         }
-        _bearbeiten = null;
+        _meldung = detail.AusOdoo
+            ? $"„{detail.Name}“ ist entfernt und kommt bei der nächsten Übernahme aus Odoo nicht wieder. Unter „Entfernt“ lässt er sich wiederherstellen."
+            : $"„{detail.Name}“ ist gelöscht.";
         _detail = null;
         await LadenAsync();
     }
+
+    private async Task WiederherstellenAsync(int id)
+    {
+        var antwort = await Http.PostAsync($"api/textbausteine/{id}/wiederherstellen", null);
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+            return;
+        }
+        _anhangHinweise = null;
+        _meldung = "Wiederhergestellt. Die Anhänge kommen mit der nächsten Übernahme aus Odoo zurück.";
+        await LadenAsync();
+        await WaehlenAsync(id);
+    }
+
+    /// <summary>Lädt die Datei über die API und stößt den Browser-Download an.</summary>
+    private async Task AnhangLadenAsync(TextbausteinAnhangZeile anhang)
+    {
+        _laedtAnhang = anhang.Id;
+        try
+        {
+            var antwort = await Http.GetAsync($"api/textbausteine/anhaenge/{anhang.Id}/datei");
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            var bytes = await antwort.Content.ReadAsByteArrayAsync();
+            await JS.InvokeVoidAsync("dateiVorschau.herunterladen", Convert.ToBase64String(bytes), "application/octet-stream", anhang.Dateiname);
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Der Anhang konnte nicht geladen werden: {ex.Message}";
+        }
+        finally
+        {
+            _laedtAnhang = null;
+        }
+    }
+
+    private static string GroesseText(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} Byte",
+        < 1024 * 1024 => $"{bytes / 1024.0:0} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.0} MB",
+    };
 
     private async Task UebernehmenAsync(bool probe)
     {
         _uebernimmt = true;
         _meldung = null;
+        _anhangHinweise = null;
         try
         {
             var antwort = await Http.PostAsync($"api/textbausteine/odoo-uebernahme?probe={(probe ? "true" : "false")}", null);
@@ -336,9 +443,19 @@ else
                 : $"{(e.Probelauf ? "Probelauf — es wurde nichts gespeichert" : "Übernahme fertig")}: {e.Gelesen} Vorlagen in Odoo, " +
                   $"{e.Neu} neu, {e.Aktualisiert} aktualisiert, {e.Unveraendert} unverändert, {e.LokalGeaendert} hier bearbeitet und nicht angefasst. " +
                   $"{e.MitHinweisen} davon brauchen Nacharbeit (unbekannte Platzhalter oder Bedingungen)." +
+                  (e.Entfernt > 0 ? $" {e.Entfernt} hier entfernt und deshalb ausgelassen." : "") +
+                  (e.AnhaengeNeu + e.AnhaengeEntfernt > 0
+                      ? $" Anhänge: {e.AnhaengeNeu} {(e.Probelauf ? "würden übernommen" : "übernommen")}" +
+                        (e.AnhaengeEntfernt > 0 ? $", {e.AnhaengeEntfernt} {(e.Probelauf ? "würden entfernt" : "entfernt")} (in Odoo nicht mehr angehängt oder geändert)." : ".")
+                      : "") +
                   (e.Hinweis is { } h ? $" {h}" : "");
+            _anhangHinweise = e?.AnhangHinweise is { Count: > 0 } liste ? liste : null;
             if (!probe)
+            {
                 await LadenAsync();
+                if (_detail is { } offen)
+                    await WaehlenAsync(offen.Id);
+            }
         }
         catch (Exception ex)
         {

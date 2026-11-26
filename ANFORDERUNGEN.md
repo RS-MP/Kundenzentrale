@@ -433,11 +433,33 @@ Erste Ausbaustufe in der App (Navigation „Vorgänge"):
 Seite **Angebote** (`/angebote`, jeder aktive Mitarbeiter, ohne Preise), live
 aus Odoo, nur lesend (`OffeneVerkaeufe`, `VerkaufsUeberwachung`):
 
-- **Bestätigte Aufträge ohne Vorgang** — die am 28.10.2026 beschlossene Liste:
-  in Odoo bestätigt, noch keine Rechnung (Abo-Verlängerungen fallen so heraus),
-  kein Vorgang mit dieser Auftragsnummer. „Vorgang anlegen“ springt mit Kunde
-  und Auftragsnummer vorbelegt in die Anlage. Bewusst Vorschlag statt stiller
+- **Bestätigte Aufträge, die niemand gestartet hat** — die am 28.10.2026
+  beschlossene Liste: in Odoo bestätigt, noch keine Rechnung (Abo-Verlängerungen
+  fallen so heraus), kein Vorgang mit dieser Auftragsnummer **und kein Projekt
+  in Odoo** (siehe nächster Punkt). „Vorgang anlegen“ springt mit Kunde und
+  Auftragsnummer vorbelegt in die Anlage. Bewusst Vorschlag statt stiller
   Automatik.
+- **Aufträge, die als Projekt in Odoo laufen** (MP 26.11.2026): Solange der
+  Umstellungstag nicht erreicht ist, legt Odoo das Projekt mit seinen Aufgaben
+  selbst an, sobald die Verkaufschance als gewonnen bestätigt wird. Die Seite
+  zeigt zu jedem bestätigten Auftrag ohne Vorgang den Stand dieses Projekts:
+  Name, Leitung, Phase, erledigte Aufgaben, letzte Bewegung — was am längsten
+  stillsteht, oben. **Nur Anzeige, keine Kopie:** Es entsteht kein Vorgang, und
+  die Entscheidung vom 28.10.2026 bleibt (laufende Odoo-Projekte werden dort zu
+  Ende geführt, nicht importiert). Ein Auftrag, dessen Projekte in Odoo
+  archiviert oder als erledigt gemeldet sind, erscheint nicht mehr.
+  Zuordnung (`AuftragsProjekte`), sicherste Spur zuerst: Odoo verknüpft Projekt
+  und Auftrag selbst (Auftrag oder Auftragsposition) → das Projekt hängt an der
+  Verkaufschance des Auftrags → **vermutet** über Kunde und Zeitpunkt (Projekt
+  desselben Kunden, frühestens 3 Tage vor dem Auftrag bzw. vor dem Gewinn der
+  Verkaufschance; jedes Projekt nur an einem Auftrag). Vermutete Zuordnungen
+  sind als solche gekennzeichnet. Welche Verknüpfungsfelder es gibt, fragt der
+  Leser bei Odoo ab — keine festen Feldnamen einer Odoo-Einrichtung, keine
+  festen Nummern. Sind die Projekte nicht lesbar (Rechte des Odoo-Benutzers),
+  steht ein Hinweis auf der Seite und die Liste verhält sich wie zuvor.
+  **Offen:** gegen das echte Odoo prüfen, über welche Spur die Zuordnung dort
+  tatsächlich läuft; Aufgabe oder Hinweis bei Stillstand (Frist als
+  Einstellung) erst, wenn die Anzeige sich bewährt hat.
 - **Angebote ohne Rückmeldung** — in Odoo gesendet, weder bestätigt noch
   storniert; mit Alter, Gültigkeit, Verkäufer.
 - **Nachfass-Aufgabe:** nach 30 Tagen ohne Reaktion (einstellbar) beim Verkäufer des Angebots
@@ -656,16 +678,34 @@ Alle Mailvorlagen aus Odoo (`mail.template`, deutsche Fassung) werden als
 Zwischenablage kopieren und in Outlook einfügen.
 
 - **Übernahme auf Knopfdruck** (Admin, mit Probelauf), wiederholbar über die
-  Odoo-Nummer der Vorlage. Hier bearbeitete Bausteine überschreibt sie nicht;
-  aus Odoo übernommene werden deaktiviert statt gelöscht.
+  Odoo-Nummer der Vorlage. Hier bearbeitete Bausteine überschreibt sie nicht.
+- **Entfernen** (MP 26.11.2026 — nicht jede Odoo-Vorlage wird gebraucht): Ein
+  Admin entfernt einzelne Bausteine. Ein aus Odoo übernommener bleibt dabei als
+  Merker stehen (`EntferntAm`), unsichtbar für alle und ohne seine Dateien —
+  sonst legte die nächste Übernahme ihn wieder an. Unter „Entfernt“ lässt er
+  sich wiederherstellen. Hier angelegte Bausteine werden wirklich gelöscht.
+- **Anhänge** (MP 26.11.2026, Beispiel „Infomappe 3.0 Erstkontakt“): Die
+  Dateien, die Odoo fest an eine Vorlage hängt (`attachment_ids`), kommen mit
+  und stehen am Baustein zum Herunterladen. Abgleich bei jeder Übernahme,
+  unabhängig vom Text (`AnhangAbgleich`): neu oder geändert → laden, in Odoo
+  abgehängt → entfernen. Ablage in der Datenbank (`TextbausteinAnhaenge`),
+  nicht in der Dokumentablage — wenige, kleine Dateien ohne Kundenbezug, und
+  das Testsystem braucht kein eigenes Verzeichnis. Nicht übernommen werden
+  Dateien über 15 MB, bloße Links und ausführbare oder aktive Dateiarten
+  (Programme, Skripte, HTML, Office mit Makros) — mit Grund in der Meldung.
+  Auslieferung immer als Download mit neutralem Inhaltstyp. Fehlt dem Namen
+  die Endung, kommt sie aus dem Inhaltstyp. „Text kopieren“ nimmt Dateien
+  nicht mit; beim späteren „E-Mail vorbereiten“ (Graph-Entwurf) sollen sie
+  automatisch am Entwurf hängen.
 - **Platzhalter:** Odoos `<t t-out="object.partner_id.name"/>`,
   `{{ object.name }}` und `${…}` werden zu `{{Kunde.Name}}`,
   `{{Beleg.Nummer}}` usw. (`OdooMailvorlage`). Unbekannte bleiben als
   `{{Odoo: …}}` stehen und erscheinen unter „Bitte nacharbeiten“.
 - **Bedingungen und Schleifen** (`t-if`, `t-foreach`) kann ein Textbaustein
   nicht: Der Inhalt bleibt stehen, die Bedingung wird als Hinweis genannt.
-- **Nicht übernommen:** Odoos Mailrahmen (Kopf, Fuß, Logo) und angehängte
-  Berichte — die Signatur kommt aus dem Postfach des Mitarbeiters.
+- **Nicht übernommen:** Odoos Mailrahmen (Kopf, Fuß, Logo) und Berichte, die
+  Odoo beim Senden frisch erzeugt (z. B. das Angebot als PDF) — die Signatur
+  kommt aus dem Postfach des Mitarbeiters.
 - **Sicherheit:** Fremdes HTML wird beim Speichern gesäubert (keine Skripte,
   Formulare, eingebetteten Inhalte, Ereignis-Attribute) und nur in einem
   abgeschotteten Rahmen angezeigt (`iframe sandbox`).

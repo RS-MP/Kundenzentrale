@@ -23,6 +23,37 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Textbausteine entfernen, Anhänge aus Odoo (26.11.2026):** Publish wie üblich, die
+  Migration `TextbausteinEntfernenUndAnhaenge` läuft beim Start (zwei Spalten an
+  `Textbausteine`, neue Tabelle `TextbausteinAnhaenge` — nichts wird umgebaut). Danach:
+  1. Vorlagen → E-Mail-Textbausteine → **„Aus Odoo übernehmen“** noch einmal ausführen: Die
+     Texte bleiben, die Anhänge kommen dazu (Meldung „Anhänge: n übernommen“). Dateien, die
+     ausgelassen wurden, stehen mit Grund unter der Meldung.
+  2. Meldet die Übernahme, dass der Odoo-Benutzer die Anhänge nicht lesen darf
+     (`ir.attachment`), fehlt ihm dieses Leserecht in Odoo.
+  3. Einen Baustein mit Anhang öffnen (z. B. Erstkontakt mit der Infomappe), Datei
+     herunterladen und öffnen. **Nicht gegen das echte Odoo geprüft** — das Laden der Dateien
+     ist nur gegen ein nachgestelltes Odoo getestet.
+  4. Nicht gebrauchte Bausteine mit „Entfernen“ aussortieren; das gilt je System (Test und
+     `Kundenzentrale` haben eigene Datenbanken).
+
+- [ ] **Odoo-Projekte auf der Seite „Angebote“ (26.11.2026):** nur `publish`, keine
+  Migration, keine neue Einstellung. Die Seite liest zu bestätigten Aufträgen ohne Vorgang
+  zusätzlich die Projekte aus Odoo (nur lesend) und trennt „niemand hat gestartet“ von „läuft
+  als Projekt in Odoo“. **Nicht gegen das echte Odoo geprüft** — lokal ist Odoo nicht
+  erreichbar; geprüft ist die Zuordnung gegen ein nachgestelltes Odoo. Auf dem Server ansehen:
+  1. Seite „Angebote“ öffnen. Steht oben ein Hinweis „… darf Projekte nicht lesen“, braucht
+     der Odoo-Benutzer der Anbindung Leserechte auf Projekte, Aufgaben und Verkaufschancen
+     (Odoo: Benutzer → Projekt „Benutzer“).
+  2. Liste **„Aufträge, die als Projekt in Odoo laufen“**: zwei, drei Aufträge mit Odoo
+     vergleichen — stimmt das Projekt, stimmen erledigte Aufgaben und letzte Bewegung?
+  3. Steht bei den Projekten **„vermutlich, über den Kunden zugeordnet“**, verknüpft euer
+     Odoo Projekt und Auftrag nicht selbst (die Automatik an der Verkaufschance setzt keine
+     Verbindung). Das an Claude melden — dann lässt sich die Zuordnung auf das Feld
+     umstellen, das eure Automatik tatsächlich füllt.
+  4. Liste **„Bestätigte Aufträge, die niemand gestartet hat“**: Steht dort ein Auftrag, zu
+     dem es in Odoo sehr wohl ein Projekt gibt, Auftragsnummer und Projektname an Claude melden.
+
 - [ ] **Outlook-Durchstich (26.11.2026):** Publish wie üblich, Migration `OutlookEinstellungen`
   (nur zwei Einstellungen). Zuerst im **Testsystem** (`…/Kundenzentrale-Test`). Der Durchstich
   speichert nichts; er soll zeigen, ob beide Wege in eurem M365 und eurem Outlook funktionieren.

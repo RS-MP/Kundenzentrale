@@ -5,7 +5,7 @@
 
 <div class="seitenkopf">
     <h1>Angebote und Aufträge</h1>
-    <span class="untertitel">Was in Odoo offen steht: Angebote ohne Rückmeldung, bestätigte Aufträge ohne Vorgang</span>
+    <span class="untertitel">Was in Odoo offen steht: Angebote ohne Rückmeldung, bestätigte Aufträge, die niemand gestartet hat</span>
     <span style="flex:1"></span>
     <button class="knopf sekundaer" disabled="@_laeuft" @onclick="NachfassenAsync"
             title="Legt Nachfass-Aufgaben für Angebote an, deren Frist erreicht ist, und erledigt Aufgaben, deren Angebot in Odoo nicht mehr offen steht. Läuft sonst stündlich.">
@@ -37,6 +37,10 @@ else
     {
         <div class="zert-hinweis">@_daten.Hinweis</div>
     }
+    @if (_daten.ProjektHinweis is not null)
+    {
+        <div class="zert-hinweis">@_daten.ProjektHinweis</div>
+    }
     <div class="vg-kpis">
         <div class="vg-kpi">
             <div class="wert">@_daten.Angebote.Count</div>
@@ -48,20 +52,24 @@ else
         </div>
         <div class="vg-kpi">
             <div class="wert @(_daten.Auftraege.Count > 0 ? "status warnung" : "")">@_daten.Auftraege.Count</div>
-            <div class="label">Aufträge ohne Vorgang</div>
+            <div class="label">Aufträge nicht gestartet</div>
+        </div>
+        <div class="vg-kpi">
+            <div class="wert">@_daten.InOdoo.Count</div>
+            <div class="label">Aufträge als Projekt in Odoo</div>
         </div>
     </div>
 
     <div class="karte">
         <div class="vg-filter">
-            <strong>Bestätigte Aufträge ohne Vorgang</strong>
+            <strong>Bestätigte Aufträge, die niemand gestartet hat</strong>
             <span class="neben" style="color:var(--muted); font-size:12.5px">
-                In Odoo bestätigt, noch keine Rechnung, in der Kundenzentrale hat niemand den Vorgang gestartet.
+                In Odoo bestätigt, noch keine Rechnung, und es gibt weder ein Projekt in Odoo noch einen Vorgang in der Kundenzentrale.
             </span>
         </div>
         @if (_daten.Auftraege.Count == 0)
         {
-            <div class="leer-hinweis">Zu jedem bestätigten Auftrag gibt es einen Vorgang.</div>
+            <div class="leer-hinweis">Zu jedem bestätigten Auftrag gibt es ein Projekt in Odoo oder einen Vorgang.</div>
         }
         else
         {
@@ -101,6 +109,79 @@ else
             </div>
         }
     </div>
+
+    @if (_daten.InOdoo.Count > 0)
+    {
+        <div class="karte">
+            <div class="vg-filter">
+                <strong>Aufträge, die als Projekt in Odoo laufen</strong>
+                <span class="neben" style="color:var(--muted); font-size:12.5px">
+                    Odoo legt das Projekt an, sobald die Verkaufschance als gewonnen bestätigt ist. Was am längsten stillsteht, steht oben.
+                </span>
+            </div>
+            <div class="vg-tabelle-wrap">
+                <table class="liste">
+                    <thead><tr><th>Kunde</th><th>Auftrag</th><th>Projekt in Odoo</th><th>Stand</th><th>Letzte Bewegung</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var z in _daten.InOdoo)
+                        {
+                            var projekte = (z.Projekte ?? []).Where(p => !p.Abgeschlossen).ToList();
+                            <tr style="cursor:default">
+                                <td>@KundeZelle(z)</td>
+                                <td>
+                                    @NummerZelle(z)
+                                    <div class="neben">bestätigt @(z.Datum is { } d ? VorgangAnzeige.Datum(d) : "—")</div>
+                                </td>
+                                <td>
+                                    @foreach (var p in projekte)
+                                    {
+                                        <div>
+                                            @if (p.OdooLink is not null)
+                                            {
+                                                <a href="@p.OdooLink" target="_blank" rel="noopener noreferrer" title="Projekt in Odoo öffnen">@p.Name ↗</a>
+                                            }
+                                            else
+                                            {
+                                                <span>@p.Name</span>
+                                            }
+                                        </div>
+                                        <div class="neben">
+                                            @(p.Leitung is not null ? $"Leitung {p.Leitung}" : "ohne Projektleitung")
+                                            @if (p.Vermutet)
+                                            {
+                                                <span title="Odoo verknüpft dieses Projekt nicht selbst mit dem Auftrag. Es gehört demselben Kunden und wurde um den Auftrag herum angelegt — bitte im Zweifel in Odoo nachsehen."> · vermutlich, über den Kunden zugeordnet</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    @foreach (var p in projekte)
+                                    {
+                                        <div>@AufgabenText(p)</div>
+                                        @if (p.Phase is not null || p.Status is not null)
+                                        {
+                                            <div class="neben">@(string.Join(" · ", new[] { p.Phase, p.Status }.Where(t => t is not null)))</div>
+                                        }
+                                    }
+                                </td>
+                                <td>
+                                    @foreach (var p in projekte)
+                                    {
+                                        <div>@(p.LetzteBewegung is { } b ? VorgangAnzeige.Datum(b) : "—")</div>
+                                        <div class="neben">@BewegungText(p.TageOhneBewegung)</div>
+                                    }
+                                </td>
+                                <td style="white-space:nowrap; text-align:right">
+                                    <button class="mehr" @onclick="() => AusblendenOeffnen(z.Nummer)">ausblenden</button>
+                                </td>
+                            </tr>
+                            @AusblendZeile(z, 6)
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
 
     <div class="karte">
         <div class="vg-filter">
@@ -294,6 +375,22 @@ else
         0 => "heute",
         1 => "seit gestern",
         _ => $"seit {tage} Tagen",
+    };
+
+    private static string AufgabenText(VerkaufProjekt p) => p switch
+    {
+        { Aufgaben: 0 } => "noch keine Aufgaben",
+        { AufgabenErledigt: { } erledigt } when erledigt >= p.Aufgaben => $"alle {p.Aufgaben} Aufgaben erledigt",
+        { AufgabenErledigt: { } erledigt } => $"{erledigt} von {p.Aufgaben} Aufgaben erledigt",
+        _ => $"{p.Aufgaben} Aufgaben",
+    };
+
+    private static string BewegungText(int? tage) => tage switch
+    {
+        null => "",
+        0 => "heute",
+        1 => "gestern",
+        _ => $"vor {tage} Tagen",
     };
 
     private RenderFragment KundeZelle(VerkaufZeile z) => @<text>

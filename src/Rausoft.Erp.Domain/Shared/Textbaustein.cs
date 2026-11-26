@@ -39,6 +39,140 @@ public class Textbaustein
     public DateTime GeaendertAm { get; set; }
     public int? GeaendertVonId { get; set; }
     public Mitarbeiter? GeaendertVon { get; set; }
+
+    /// <summary>
+    /// Von einem Admin entfernt (MP 26.11.2026: nicht jede Odoo-Vorlage wird gebraucht). Ein aus
+    /// Odoo übernommener Baustein wird nicht gelöscht, sondern bleibt als Merker stehen — sonst
+    /// käme er bei der nächsten Übernahme wieder. Entfernte Bausteine sieht niemand mehr; ein
+    /// Admin kann sie wiederherstellen. Hier angelegte Bausteine werden wirklich gelöscht.
+    /// </summary>
+    public DateTime? EntferntAm { get; set; }
+    public int? EntferntVonId { get; set; }
+    public Mitarbeiter? EntferntVon { get; set; }
+
+    public List<TextbausteinAnhang> Anhaenge { get; set; } = [];
+}
+
+/// <summary>
+/// Datei, die Odoo mit der Mailvorlage verschickt (z. B. eine Infomappe als PDF). Liegt in der
+/// Datenbank, nicht in der Dokumentablage: Die Dateien gehören zu keinem Kunden, sind wenige
+/// und klein, und so hat auch das Testsystem sie ohne eigenes Verzeichnis.
+/// </summary>
+public class TextbausteinAnhang
+{
+    public int Id { get; set; }
+
+    public int TextbausteinId { get; set; }
+    public Textbaustein? Textbaustein { get; set; }
+
+    /// <summary>Dateiname zum Herunterladen, bereits bereinigt (<see cref="Dateinamen.Sicher"/>).</summary>
+    public required string Dateiname { get; set; }
+
+    public long Groesse { get; set; }
+
+    public byte[] Inhalt { get; set; } = [];
+
+    /// <summary>Odoo ir.attachment-Id.</summary>
+    public int? OdooId { get; set; }
+
+    /// <summary>Stand der Datei in Odoo bei der Übernahme (<see cref="AnhangAbgleich.Stand"/>) — ändert er sich, wird neu geladen.</summary>
+    public string? OdooStand { get; set; }
+
+    public DateTime UebernommenAm { get; set; }
+}
+
+/// <summary>Anhang einer Odoo-Mailvorlage, wie Odoo ihn beschreibt (ohne Inhalt).</summary>
+public sealed record OdooAnhangInfo(int OdooId, string Name, string? MimeTyp, long Groesse, string? Pruefsumme, bool HatDatei);
+
+/// <summary>
+/// Was beim Abgleich der Anhänge eines Bausteins mit Odoo zu tun ist. Reine Regel, ohne Odoo
+/// und Datenbank prüfbar: laden, was neu oder geändert ist; entfernen, was Odoo nicht mehr
+/// anhängt; auslassen, was zu groß, leer oder ein Programm ist — mit Hinweis.
+/// </summary>
+public static class AnhangAbgleich
+{
+    public const long MaxBytes = 15 * 1024 * 1024;
+
+    /// <summary>
+    /// Dateiarten, die ein Mailprogramm oder Windows ausführen würde. Sie werden nicht
+    /// übernommen: Die Anhänge stehen allen Mitarbeitern zum Herunterladen bereit und sollen
+    /// an Kunden gehen.
+    /// </summary>
+    private static readonly HashSet<string> Gesperrt = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".com", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".msi", ".msp",
+        ".scr", ".pif", ".cpl", ".hta", ".jar", ".lnk", ".reg", ".dll", ".sys", ".iso", ".img", ".chm",
+        ".html", ".htm", ".svg", ".docm", ".xlsm", ".pptm", ".dotm", ".xltm",
+    };
+
+    public sealed record Plan(IReadOnlyList<OdooAnhangInfo> Laden, IReadOnlyList<int> EntfernenIds, IReadOnlyList<string> Hinweise);
+
+    /// <summary>Woran eine geänderte Datei erkannt wird: Odoos Prüfsumme, sonst Größe und Name.</summary>
+    public static string Stand(OdooAnhangInfo a)
+    {
+        var stand = !string.IsNullOrWhiteSpace(a.Pruefsumme) ? a.Pruefsumme.Trim() : $"{a.Groesse}:{a.Name}";
+        return stand.Length > 300 ? stand[..300] : stand;
+    }
+
+    /// <summary>
+    /// Dateiname zum Herunterladen. Odoo führt Anhänge oft ohne Endung („Infomappe 3.0“) — dann
+    /// kommt sie aus dem Inhaltstyp, damit Windows und Outlook die Datei öffnen können.
+    /// </summary>
+    public static string Dateiname(OdooAnhangInfo a)
+    {
+        var name = Dateinamen.Sicher(a.Name, 200, "anhang");
+        // Eine Endung hat Buchstaben: „Infomappe 3.0“ endet nicht auf die Dateiart „.0“
+        var endeDesNamens = Path.GetExtension(name);
+        if (endeDesNamens.Length is > 1 and <= 6 && endeDesNamens.Skip(1).All(char.IsAsciiLetterOrDigit) && endeDesNamens.Any(char.IsAsciiLetter))
+            return name;
+        return Endungen.TryGetValue((a.MimeTyp ?? "").Trim(), out var endung) ? name + endung : name;
+    }
+
+    private static readonly Dictionary<string, string> Endungen = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["application/pdf"] = ".pdf",
+        ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = ".docx",
+        ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] = ".xlsx",
+        ["application/vnd.openxmlformats-officedocument.presentationml.presentation"] = ".pptx",
+        ["application/msword"] = ".doc",
+        ["application/vnd.ms-excel"] = ".xls",
+        ["application/zip"] = ".zip",
+        ["image/png"] = ".png",
+        ["image/jpeg"] = ".jpg",
+        ["text/plain"] = ".txt",
+        ["text/html"] = ".html",
+        ["image/svg+xml"] = ".svg",
+    };
+
+    /// <summary>Warum ein Anhang nicht übernommen wird; leer = er wird übernommen.</summary>
+    public static string? Ausschluss(OdooAnhangInfo a) =>
+        !a.HatDatei ? $"„{a.Name}“ ist in Odoo nur ein Verweis (Link), keine Datei."
+        : Gesperrt.Contains(Path.GetExtension(Dateiname(a))) ? $"„{a.Name}“ wird nicht übernommen (Dateiart nicht zugelassen)."
+        : a.Groesse > MaxBytes ? $"„{a.Name}“ ist zu groß ({a.Groesse / (1024 * 1024)} MB, höchstens {MaxBytes / (1024 * 1024)} MB)."
+        : null;
+
+    /// <param name="vorhanden">Bereits übernommene Anhänge des Bausteins: Id, Odoo-Id, Stand.</param>
+    public static Plan Planen(IEnumerable<(int Id, int? OdooId, string? OdooStand)> vorhanden, IEnumerable<OdooAnhangInfo> inOdoo)
+    {
+        var hinweise = new List<string>();
+        var gewollt = new Dictionary<int, OdooAnhangInfo>();
+        foreach (var a in inOdoo)
+            if (Ausschluss(a) is { } grund)
+                hinweise.Add(grund);
+            else
+                gewollt[a.OdooId] = a;
+
+        var behalten = new HashSet<int>();
+        var entfernen = new List<int>();
+        foreach (var v in vorhanden)
+        {
+            // Doppelte, nicht mehr angehängte und geänderte Dateien gehen; geänderte kommen neu
+            if (v.OdooId is { } odooId && gewollt.TryGetValue(odooId, out var a) && v.OdooStand == Stand(a) && behalten.Add(odooId))
+                continue;
+            entfernen.Add(v.Id);
+        }
+        return new Plan(gewollt.Values.Where(a => !behalten.Contains(a.OdooId)).ToList(), entfernen, hinweise);
+    }
 }
 
 /// <summary>Ergebnis der Umsetzung einer Odoo-Mailvorlage.</summary>

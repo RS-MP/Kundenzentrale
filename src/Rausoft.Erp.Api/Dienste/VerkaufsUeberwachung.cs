@@ -9,8 +9,10 @@ namespace Rausoft.Erp.Api.Dienste;
 
 /// <summary>
 /// Offene Angebote und Aufträge aus Odoo (ANFORDERUNGEN.md, Entscheidung MP 26.11.2026):
-/// 1. Übersicht — gesendete Angebote ohne Reaktion und bestätigte Aufträge ohne Vorgang
-///    (und ohne Rechnung: Abo-Verlängerungen stellt Odoo selbst in Rechnung).
+/// 1. Übersicht — gesendete Angebote ohne Reaktion und bestätigte Aufträge, die niemand
+///    gestartet hat: weder Vorgang hier noch Projekt in Odoo (und ohne Rechnung:
+///    Abo-Verlängerungen stellt Odoo selbst in Rechnung). Aufträge mit laufendem Odoo-Projekt
+///    stehen mit dessen Stand in einer eigenen Liste (<see cref="AuftragsProjekte"/>).
 /// 2. Nachfass-Aufgaben — nach der eingestellten Frist beim Verkäufer des Angebots; erledigt
 ///    sich von selbst, sobald das Angebot in Odoo bestätigt oder storniert ist.
 /// 3. Wochenübersicht per Mail.
@@ -55,9 +57,9 @@ public class VerkaufsUeberwachung(
     {
         var e = await EinstellungenAsync(ct);
         var heute = Heute;
-        var (verkaeufe, hinweis) = await LadenAsync(e, heute, ct);
-        if (verkaeufe is null)
-            return new VerkaufUebersicht([], [], [], e.NachfassTage, e.RueckblickTage, false, hinweis);
+        var (odoo, verkaeufe, hinweis) = await LadenAsync(e, heute, ct);
+        if (verkaeufe is null || odoo is null)
+            return new VerkaufUebersicht([], [], [], [], e.NachfassTage, e.RueckblickTage, false, hinweis);
 
         var nummern = verkaeufe.Select(v => v.Nummer).ToList();
         var kunden = await KundenAsync(verkaeufe, ct);
@@ -79,6 +81,16 @@ public class VerkaufsUeberwachung(
                 .ToListAsync(ct))
             .ToDictionary(m => m.Nummer, StringComparer.OrdinalIgnoreCase);
 
+        // Bestätigte Aufträge ohne Vorgang: Läuft dazu ein Projekt in Odoo? (Dort entsteht es,
+        // sobald die Verkaufschance als gewonnen bestätigt wird.)
+        var ohneVorgang = verkaeufe.Where(v => v.Bestaetigt && !mitVorgang.Contains(v.Nummer)).ToList();
+        var (projekte, projektHinweis) = await ProjekteAsync(odoo, ohneVorgang, ct);
+
+        VerkaufProjekt Projekt(OdooProjekt p) => new(
+            p.Name, p.Bezug == ProjektBezug.Kunde, p.Phase, p.Status, p.Leitung, p.AngelegtAm,
+            p.Aufgaben, p.AufgabenErledigt, p.LetzteBewegung, NachfassRegeln.TageOffen(p.LetzteBewegung, heute), p.Abgeschlossen,
+            e.OdooUrl.Length > 0 ? $"{e.OdooUrl}/web#id={p.Id}&model=project.project&view_type=form" : null);
+
         VerkaufZeile Zeile(OdooVerkauf v)
         {
             var kunde = v.FirmaId is { } f ? kunden.GetValueOrDefault(f) : null;
@@ -91,22 +103,37 @@ public class VerkaufsUeberwachung(
                 v.Verkaeufer, KundenAuftraege.Inhalt(v.Produkte), v.Referenz, v.Abo,
                 e.OdooUrl.Length > 0 ? $"{e.OdooUrl}/web#id={v.Id}&model=sale.order&view_type=form" : null,
                 aufgabeOffen, aufgabeOffen ? m!.AufgabeFaellig : null, aufgabeOffen ? m!.AufgabeBei : null,
-                m?.NachfassAnzahl ?? 0, m?.AusgeblendetAm, m?.AusgeblendetVon, m?.AusblendGrund);
+                m?.NachfassAnzahl ?? 0, m?.AusgeblendetAm, m?.AusgeblendetVon, m?.AusblendGrund,
+                projekte.GetValueOrDefault(v.Id)?.Select(Projekt).ToList());
         }
 
-        // Angebot gesendet · Auftrag bestätigt, aber weder Rechnung noch Vorgang
-        var relevant = verkaeufe.Where(v => !v.Bestaetigt || (!v.HatRechnung && !mitVorgang.Contains(v.Nummer)))
+        // Drei Fälle:
+        // · Angebot gesendet, keine Reaktion
+        // · Auftrag bestätigt, weder Rechnung noch Vorgang noch Odoo-Projekt → niemand hat angefangen
+        // · Auftrag bestätigt, kein Vorgang, aber ein laufendes Odoo-Projekt → läuft in Odoo
+        //   (auch mit Rechnung: die Rechnung sagt nichts darüber, ob das Projekt fertig ist).
+        // Ein Auftrag, dessen Odoo-Projekte alle abgeschlossen sind, ist erledigt und erscheint nicht.
+        bool Laeuft(OdooVerkauf v) => projekte.GetValueOrDefault(v.Id)?.Any(p => !p.Abgeschlossen) == true;
+        var relevant = verkaeufe
+            .Where(v => !v.Bestaetigt
+                        || (!mitVorgang.Contains(v.Nummer) && (Laeuft(v) || (!v.HatRechnung && !projekte.ContainsKey(v.Id)))))
             .Select(Zeile)
             .OrderByDescending(z => z.Tage ?? 0).ThenBy(z => z.Nummer, StringComparer.Ordinal)
             .ToList();
+        var sichtbar = relevant.Where(z => z.AusgeblendetAm is null).ToList();
         return new VerkaufUebersicht(
-            relevant.Where(z => !z.Bestaetigt && z.AusgeblendetAm is null).ToList(),
-            relevant.Where(z => z.Bestaetigt && z.AusgeblendetAm is null).ToList(),
+            sichtbar.Where(z => !z.Bestaetigt).ToList(),
+            sichtbar.Where(z => z.Bestaetigt && z.Projekte is null).ToList(),
+            // Was am längsten stillsteht, zuerst
+            sichtbar.Where(z => z.Bestaetigt && z.Projekte is not null)
+                .OrderByDescending(z => z.Projekte!.Where(p => !p.Abgeschlossen).Min(p => p.TageOhneBewegung ?? 0))
+                .ThenBy(z => z.Nummer, StringComparer.Ordinal).ToList(),
             relevant.Where(z => z.AusgeblendetAm is not null).ToList(),
             e.NachfassTage, e.RueckblickTage, true,
             verkaeufe.Count >= OffeneVerkaeufe.MaxZeilen
                 ? $"Odoo lieferte mehr als {OffeneVerkaeufe.MaxZeilen} Angebote und Aufträge — die Liste ist abgeschnitten. Bitte den Rückblick verkürzen."
-                : null);
+                : null,
+            projektHinweis);
     }
 
     public async Task AusblendenAsync(string nummer, string? grund, int? mitarbeiterId, CancellationToken ct)
@@ -145,7 +172,7 @@ public class VerkaufsUeberwachung(
         {
             var e = await EinstellungenAsync(ct);
             var heute = Heute;
-            var (verkaeufe, hinweis) = await LadenAsync(e, heute, ct);
+            var (_, verkaeufe, hinweis) = await LadenAsync(e, heute, ct);
             if (verkaeufe is null)
                 return new VerkaufLaufErgebnis(0, 0, hinweis);
 
@@ -284,14 +311,23 @@ public class VerkaufsUeberwachung(
             $"{(z.Inhalt is not null ? $" · {z.Inhalt}" : "")}" +
             $"{(angebot && z.AufgabeOffen ? $" · Nachfass-Aufgabe bei {z.AufgabeBei ?? "niemandem"}" : "")}";
 
+        static string ProjektZeile(VerkaufZeile z) =>
+            $"- {z.Nummer} · {z.Kunde} · " + string.Join("; ", (z.Projekte ?? []).Where(p => !p.Abgeschlossen).Select(p =>
+                $"Projekt „{p.Name}“{(p.Vermutet ? " (vermutlich, über den Kunden zugeordnet)" : "")}" +
+                $"{(p.Aufgaben > 0 && p.AufgabenErledigt is { } erledigt ? $" · {erledigt} von {p.Aufgaben} Aufgaben erledigt" : "")}" +
+                $"{(p.TageOhneBewegung is { } tage ? $" · letzte Bewegung {(tage == 0 ? "heute" : $"vor {tage} Tagen")}" : "")}"));
+
         var text = $"""
             Offene Angebote und Aufträge ({heute:dd.MM.yyyy})
 
             Angebote ohne Rückmeldung des Kunden: {u.Angebote.Count}
             {(u.Angebote.Count == 0 ? "- keine" : string.Join("\n", u.Angebote.Select(z => Zeile(z, true))))}
 
-            Bestätigte Aufträge, zu denen noch kein Vorgang angelegt ist: {u.Auftraege.Count}
+            Bestätigte Aufträge, die niemand gestartet hat (weder Vorgang noch Projekt in Odoo): {u.Auftraege.Count}
             {(u.Auftraege.Count == 0 ? "- keine" : string.Join("\n", u.Auftraege.Select(z => Zeile(z, false))))}
+            {(u.ProjektHinweis is not null ? $"Hinweis: {u.ProjektHinweis}\n" : "")}
+            Aufträge, die als Projekt in Odoo laufen: {u.InOdoo.Count}
+            {(u.InOdoo.Count == 0 ? "- keine" : string.Join("\n", u.InOdoo.Select(ProjektZeile)))}
 
             Von Hand ausgeblendet: {u.Ausgeblendet.Count}. Berücksichtigt sind die letzten {u.RueckblickTage} Tage.
             Einzelheiten in der Kundenzentrale unter „Angebote“.
@@ -299,7 +335,7 @@ public class VerkaufsUeberwachung(
         try
         {
             await mail.SendenAsync(empfaenger,
-                $"Offene Angebote: {u.Angebote.Count} ohne Rückmeldung, {u.Auftraege.Count} Aufträge ohne Vorgang", text, ct);
+                $"Offene Angebote: {u.Angebote.Count} ohne Rückmeldung, {u.Auftraege.Count} Aufträge nicht gestartet", text, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -319,25 +355,53 @@ public class VerkaufsUeberwachung(
 
     // --- Odoo --------------------------------------------------------------------------
 
-    private async Task<(List<OdooVerkauf>? Verkaeufe, string? Hinweis)> LadenAsync(Einstellungen e, DateOnly heute, CancellationToken ct)
+    private async Task<(IOdooAufruf? Odoo, List<OdooVerkauf>? Verkaeufe, string? Hinweis)> LadenAsync(Einstellungen e, DateOnly heute, CancellationToken ct)
     {
         try
         {
             var (odoo, _) = await OdooImportDienst.VerbindenAsync(scopeFactory, konfiguration);
-            return (await OffeneVerkaeufe.LadenAsync(odoo, heute.AddDays(-e.RueckblickTage)).WaitAsync(Wartezeit, ct), null);
+            return (odoo, await OffeneVerkaeufe.LadenAsync(odoo, heute.AddDays(-e.RueckblickTage)).WaitAsync(Wartezeit, ct), null);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("Odoo-Zugangsdaten unvollständig"))
         {
-            return (null, "Odoo ist nicht eingerichtet (Administration → Odoo-Anbindung).");
+            return (null, null, "Odoo ist nicht eingerichtet (Administration → Odoo-Anbindung).");
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TimeoutException or TaskCanceledException
                                    && !ct.IsCancellationRequested)
         {
             // Details (Host, Antwort) nur ins Log — der Hinweis geht an jeden Mitarbeiter (SICHERHEIT.md N5)
             log.LogWarning(ex, "Offene Angebote: Odoo nicht erreichbar");
-            return (null, ex is TimeoutException or TaskCanceledException
+            return (null, null, ex is TimeoutException or TaskCanceledException
                 ? "Odoo antwortet nicht (Zeitüberschreitung)."
                 : "Odoo ist gerade nicht erreichbar. Einzelheiten stehen im Server-Log.");
+        }
+    }
+
+    /// <summary>
+    /// Odoo-Projekte zu den Aufträgen. Scheitert das Lesen (Projektmodul fehlt, der Odoo-Benutzer
+    /// der Anbindung darf Projekte nicht lesen), bleibt die Übersicht nutzbar: Dann gilt jeder
+    /// Auftrag ohne Vorgang als nicht gestartet, und ein Hinweis sagt, warum.
+    /// </summary>
+    private async Task<(Dictionary<int, List<OdooProjekt>> Projekte, string? Hinweis)> ProjekteAsync(
+        IOdooAufruf odoo, List<OdooVerkauf> auftraege, CancellationToken ct)
+    {
+        try
+        {
+            return (await AuftragsProjekte.LadenAsync(odoo, auftraege).WaitAsync(Wartezeit, ct), null);
+        }
+        catch (OdooFehlerException ex)
+        {
+            // Nur die Art — Odoos Antworttext gehört weder ins Log noch in die Oberfläche
+            log.LogWarning("Offene Aufträge: Odoo-Projekte nicht lesbar ({Art})", ex.Art);
+            return ([], ex.Art?.EndsWith("AccessError", StringComparison.Ordinal) == true
+                ? "Der Odoo-Benutzer der Anbindung darf Projekte nicht lesen — unten stehen deshalb alle Aufträge ohne Vorgang, auch solche mit Projekt in Odoo."
+                : "Die Projekte in Odoo konnten nicht gelesen werden — unten stehen deshalb alle Aufträge ohne Vorgang, auch solche mit Projekt in Odoo.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TimeoutException or TaskCanceledException
+                                   && !ct.IsCancellationRequested)
+        {
+            log.LogWarning(ex, "Offene Aufträge: Odoo-Projekte nicht lesbar");
+            return ([], "Die Projekte in Odoo konnten gerade nicht gelesen werden — unten stehen deshalb alle Aufträge ohne Vorgang, auch solche mit Projekt in Odoo.");
         }
     }
 

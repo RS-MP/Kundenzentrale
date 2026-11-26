@@ -77,7 +77,8 @@ public static class OffeneVerkaeufe
     public static DateOnly? Tag(string? text) =>
         DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tag) ? tag : null;
 
-    private static async Task<Dictionary<int, int>> FirmenAsync(IOdooAufruf odoo, int[] partnerIds)
+    /// <summary>Kontakt → Firmenpartner (commercial_partner_id).</summary>
+    internal static async Task<Dictionary<int, int>> FirmenAsync(IOdooAufruf odoo, int[] partnerIds)
     {
         var firmen = new Dictionary<int, int>();
         if (partnerIds.Length == 0)

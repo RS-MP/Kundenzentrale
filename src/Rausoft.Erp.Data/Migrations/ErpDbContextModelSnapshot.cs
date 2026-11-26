@@ -1683,6 +1683,12 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<DateTime?>("EntferntAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("EntferntVonId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("GeaendertAm")
                         .HasColumnType("datetime2");
 
@@ -1722,6 +1728,8 @@ namespace Rausoft.Erp.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EntferntVonId");
+
                     b.HasIndex("GeaendertVonId");
 
                     b.HasIndex("OdooId")
@@ -1729,6 +1737,46 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasFilter("[OdooId] IS NOT NULL");
 
                     b.ToTable("Textbausteine", (string)null);
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.TextbausteinAnhang", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Dateiname")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<long>("Groesse")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("Inhalt")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int?>("OdooId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OdooStand")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("TextbausteinId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UebernommenAm")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TextbausteinId", "OdooId");
+
+                    b.ToTable("TextbausteinAnhaenge", (string)null);
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Vereinbarung", b =>
@@ -3106,12 +3154,30 @@ namespace Rausoft.Erp.Data.Migrations
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Textbaustein", b =>
                 {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "EntferntVon")
+                        .WithMany()
+                        .HasForeignKey("EntferntVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
                         .WithMany()
                         .HasForeignKey("GeaendertVonId")
                         .OnDelete(DeleteBehavior.NoAction);
 
+                    b.Navigation("EntferntVon");
+
                     b.Navigation("GeaendertVon");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.TextbausteinAnhang", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Textbaustein", "Textbaustein")
+                        .WithMany("Anhaenge")
+                        .HasForeignKey("TextbausteinId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Textbaustein");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Vereinbarung", b =>
@@ -3476,6 +3542,11 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Anhaenge");
 
                     b.Navigation("Teilnehmer");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Textbaustein", b =>
+                {
+                    b.Navigation("Anhaenge");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Subscriptions.Abo", b =>

@@ -40,6 +40,7 @@ public class ErpDbContext(
 
     // E-Mail-Textbausteine und Zahlungseingänge aus Kontoauszügen
     public DbSet<Textbaustein> Textbausteine => Set<Textbaustein>();
+    public DbSet<TextbausteinAnhang> TextbausteinAnhaenge => Set<TextbausteinAnhang>();
     public DbSet<Bankumsatz> Bankumsaetze => Set<Bankumsatz>();
 
     // Kontakte
@@ -249,6 +250,17 @@ public class ErpDbContext(
             e.Property(t => t.OdooModell).HasMaxLength(100);
             e.HasIndex(t => t.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
             e.HasOne(t => t.GeaendertVon).WithMany().HasForeignKey(t => t.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(t => t.EntferntVon).WithMany().HasForeignKey(t => t.EntferntVonId).OnDelete(DeleteBehavior.NoAction);
+            e.HasMany(t => t.Anhaenge).WithOne(a => a.Textbaustein).HasForeignKey(a => a.TextbausteinId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TextbausteinAnhang>(e =>
+        {
+            e.ToTable("TextbausteinAnhaenge");
+            e.Property(a => a.Dateiname).HasMaxLength(255);
+            e.Property(a => a.Inhalt).HasColumnType("varbinary(max)");
+            e.Property(a => a.OdooStand).HasMaxLength(300);
+            e.HasIndex(a => new { a.TextbausteinId, a.OdooId });
         });
 
         modelBuilder.Entity<Bankumsatz>(e =>
@@ -802,6 +814,8 @@ public class ErpDbContext(
         [typeof(AnfrageOdooAnlage)] = [nameof(AnfrageOdooAnlage.LaeuftSeit)],
         // Der formatierte Text eines Textbausteins kann groß sein — Name, Betreff und wer geändert hat, reichen im Audit.
         [typeof(Textbaustein)] = [nameof(Textbaustein.InhaltHtml)],
+        // Dateiinhalte gehören nicht ins Audit-Log — Name, Größe und Baustein stehen dort.
+        [typeof(TextbausteinAnhang)] = [nameof(TextbausteinAnhang.Inhalt)],
     };
 
     // Einstellungen, die Hintergrundläufe als Zeitstempel fortschreiben (kein Admin-Handeln),

@@ -204,11 +204,19 @@ Preise gehören nicht in Leitlinien.
 
 ## Offene Angebote und Aufträge
 
-Bereich **Angebote**: zwei Listen direkt aus Odoo.
+Bereich **Angebote**: drei Listen direkt aus Odoo.
 
-- **Bestätigte Aufträge ohne Vorgang** — hier fehlt der Start. „Vorgang
-  anlegen“ übernimmt Kunde und Auftragsnummer. Braucht ein Auftrag keinen
-  Vorgang: „ausblenden“ (mit Grund).
+- **Bestätigte Aufträge, die niemand gestartet hat** — bestellt, aber es gibt
+  weder ein Projekt in Odoo noch einen Vorgang in der Kundenzentrale. In Odoo
+  die Verkaufschance als gewonnen bestätigen (dann legt Odoo das Projekt an)
+  oder hier „Vorgang anlegen“ — das übernimmt Kunde und Auftragsnummer. Braucht
+  ein Auftrag weder noch: „ausblenden“ (mit Grund).
+- **Aufträge, die als Projekt in Odoo laufen** — zu jedem Auftrag das Projekt
+  mit Leitung, erledigten Aufgaben und letzter Bewegung; was am längsten
+  stillsteht, steht oben. Der Projektname öffnet das Projekt in Odoo. Steht
+  „vermutlich, über den Kunden zugeordnet“ dabei, verknüpft Odoo Projekt und
+  Auftrag nicht selbst — im Zweifel in Odoo nachsehen. Abgeschlossene
+  (archivierte) Projekte verschwinden aus der Liste.
 - **Angebote ohne Rückmeldung** — nach 30 Tagen bekommt der Verkäufer eine
   Aufgabe „Angebot … nachfassen“ unter **Meine Aufgaben**. Sie erledigt sich
   von selbst, sobald das Angebot in Odoo bestätigt oder storniert ist. Wer
@@ -223,6 +231,15 @@ einfügen; **Betreff kopieren** für die Betreffzeile. Platzhalter wie
 `{{Kunde.Name}}` vor dem Senden von Hand ersetzen. Steht „nacharbeiten“ am
 Baustein, konnte etwas aus Odoo nicht eins zu eins übernommen werden — ein
 Admin bereinigt den Text über „Bearbeiten“.
+
+**Anhänge:** Hängt Odoo eine Datei an die Vorlage (z. B. eine Infomappe), steht
+sie unter dem Betreff. Anklicken lädt sie herunter; in Outlook von Hand an die
+Mail hängen — „Text kopieren“ nimmt Dateien nicht mit.
+
+**Nicht gebrauchte Bausteine** entfernt ein Admin mit „Entfernen“ (zweimal
+klicken). Sie verschwinden für alle und kommen bei der nächsten Übernahme aus
+Odoo nicht wieder; unter „Entfernt“ (unter der Liste) lassen sie sich
+wiederherstellen.
 
 ## Zahlungen (Buchhaltung)
 
