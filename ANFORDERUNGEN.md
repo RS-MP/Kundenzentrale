@@ -617,6 +617,36 @@ Korrespondenz.
   Benachrichtigung von Graph).
 - Zeitpunkt: zusammen mit dem Outlook-Knopf, nach dem Produktivstart.
 
+### Outlook-Durchstich (26.11.2026 — vorgezogen, MP: schneller produktiv)
+
+Vor dem Ausbau beider Outlook-Wege klärt ein Durchstich die technischen Fragen
+(Seite Administration → Outlook-Anbindung, `/admin/outlook`; Schritte in
+DEPLOYMENT.md). Er speichert nichts in der Akte.
+
+- **Entwurf im eigenen Postfach:** Der Browser des Mitarbeiters meldet sich
+  selbst bei Microsoft an (öffentlicher Client, Autorisierungscode mit PKCE,
+  Anmeldefenster; `outlook-entwurf.js`) und legt über Graph den Entwurf an. Die
+  Kundenzentrale bleibt bei Windows-Auth, der Server sieht kein Token, das Token
+  liegt nur im Arbeitsspeicher der Seite. Der Entwurf bekommt eine
+  unveränderliche Kennung — darüber findet „Stand prüfen“ die gesendete Fassung
+  samt Message-ID wieder. Berechtigung: nur delegiert `Mail.ReadWrite`.
+- **Add-in „In Kundenakte“:** Manifest je Instanz (`OutlookManifest`,
+  Berechtigung `ReadItem`), Aufgabenbereich unter `outlook-addin/`. Er liest die
+  geöffnete Mail über Office.js und fragt `api/outlook/zuordnung`: exakte
+  Adresse eines Ansprechpartners, sonst Domäne (nie Freemail, nie eigene
+  Adressen), mehrere Kunden = Mensch entscheidet (`MailZuordnung`).
+- **Zu klären durch den Test auf dem Server:** Geht die Windows-Anmeldung im
+  Aufgabenbereich mit — in klassischem, neuem Outlook und Outlook im Web? Wird
+  das interne Zertifikat dort akzeptiert? Kommt das Anmeldefenster nur einmal?
+- **Bekannte Lücke:** Über Graph angelegte Entwürfe enthalten **keine
+  Signatur** — Outlook fügt sie nur in selbst begonnene Mails ein. Lösung beim
+  Ausbau: Signatur je Mitarbeiter in der Kundenzentrale pflegen und in den
+  Entwurf setzen.
+- **Danach (Ausbau):** „E-Mail vorbereiten“ in Akte, Vertrag und Vorgang mit
+  gefüllten Platzhaltern und Anhängen, gesendete Fassung in den Verlauf;
+  „Übernehmen“ im Add-in mit Speichern samt Anhängen, Liste „Zuzuordnen“,
+  Gesprächsfaden über Message-ID.
+
 ### Textbausteine aus den Odoo-Mailvorlagen (Entscheidung 26.11.2026, MP)
 
 Alle Mailvorlagen aus Odoo (`mail.template`, deutsche Fassung) werden als

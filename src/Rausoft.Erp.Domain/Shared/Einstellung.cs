@@ -82,6 +82,10 @@ public static class EinstellungsSchluessel
     public const string VerkaufBerichtTag = "Verkauf.BerichtTag";
     public const string VerkaufLetzterBericht = "Verkauf.LetzterBericht";
 
+    // Outlook-Anbindung: App-Registrierung in Entra ID (öffentlicher Client, keine Geheimnisse)
+    public const string OutlookTenantId = "Outlook.TenantId";
+    public const string OutlookClientId = "Outlook.ClientId";
+
     // Kontoauszüge: Eingangsordner, Buchen in Odoo, Meldung offener Posten
     public const string ZahlungenEingangVerzeichnis = "Zahlungen.EingangVerzeichnis";
     public const string ZahlungenAutomatischBuchen = "Zahlungen.AutomatischBuchen";

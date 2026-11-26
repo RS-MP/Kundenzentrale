@@ -1,0 +1,327 @@
+@page "/admin/outlook"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>Outlook-Anbindung · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Outlook-Anbindung</h1>
+    <span class="untertitel">Durchstich: Entwurf im eigenen Postfach anlegen und E-Mails aus Outlook zuordnen</span>
+    <span style="flex:1"></span>
+    <a class="knopf sekundaer" href="admin">Administration</a>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+
+@if (_konfig is null)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade …</div> }
+}
+else
+{
+    <div class="karte" style="padding:16px">
+        <h2 style="margin-top:0">1 · App-Registrierung in Entra ID</h2>
+        <div style="color:var(--muted); font-size:13px; margin-bottom:10px">
+            Einmalig im Entra Admin Center anlegen (Schritte in DEPLOYMENT.md). Beide Kennungen sind keine Geheimnisse —
+            die Anmeldung läuft im Browser des Mitarbeiters, die Kundenzentrale speichert kein Token.
+        </div>
+        @foreach (var (schluessel, name) in Kennungen)
+        {
+            <div class="zeile2">
+                <span class="l">@name</span>
+                <span style="display:flex; gap:6px; flex:1; max-width:520px; justify-content:end">
+                    <input type="text" style="flex:1; font-family:Consolas,monospace; font-size:13px" @bind="_werte[schluessel]"
+                           placeholder="00000000-0000-0000-0000-000000000000" />
+                    <button class="knopf sekundaer" @onclick="() => KennungSpeichernAsync(schluessel)">@(_gespeichert == schluessel ? "✓" : "Speichern")</button>
+                </span>
+            </div>
+        }
+        <div class="zeile2">
+            <span class="l">Umleitungs-URI (Typ „Single-Page-Anwendung“)</span>
+            <span style="display:flex; gap:6px; align-items:center">
+                <code style="font-size:12.5px; overflow-wrap:anywhere">@_ruecksprung</code>
+                <button class="knopf klein" @onclick="RuecksprungKopierenAsync">@(_kopiert ? "✓ kopiert" : "kopieren")</button>
+            </span>
+        </div>
+        <div class="zeile2">
+            <span class="l">Stand</span>
+            <span class="status @(_konfig.Eingerichtet ? "gut" : "warnung")">@(_konfig.Eingerichtet ? "eingetragen" : "noch nicht eingetragen")</span>
+        </div>
+    </div>
+
+    <div class="karte" style="padding:16px">
+        <h2 style="margin-top:0">2 · Entwurf in Outlook anlegen</h2>
+        <div style="color:var(--muted); font-size:13px; margin-bottom:10px">
+            Legt einen Entwurf im Postfach von <strong>@(_konfig.AnmeldeHinweis ?? _konfig.Angemeldet)</strong> an. Gesendet wird nichts —
+            das macht der Mitarbeiter selbst in Outlook. Beim ersten Mal öffnet sich das Anmeldefenster von Microsoft.
+        </div>
+        @if (_konfig.Testsystem)
+        {
+            <div class="zert-hinweis">
+                Testsystem: Der Entwurf geht nur an die Umleitungsadresse
+                @(string.IsNullOrEmpty(_konfig.EmpfaengerErzwungen) ? "— es ist keine eingetragen, der Entwurf entsteht ohne Empfänger." : _konfig.EmpfaengerErzwungen + ".")
+            </div>
+        }
+        <div class="formular">
+            <label>Empfänger
+                <input type="text" @bind="_empfaenger" disabled="@_konfig.Testsystem" placeholder="name@firma.de" />
+            </label>
+            <label>Textbaustein
+                <select @onchange="BausteinWaehlenAsync">
+                    <option value="">— ohne, freier Text —</option>
+                    @foreach (var b in _bausteine)
+                    {
+                        <option value="@b.Id">@b.Name</option>
+                    }
+                </select>
+            </label>
+            <label class="breit">Betreff<input type="text" maxlength="500" @bind="_betreff" /></label>
+            <label class="breit">Text (HTML)
+                <textarea rows="6" style="font-family:Consolas,monospace; font-size:12.5px" @bind="_html"></textarea>
+            </label>
+        </div>
+        <div class="formular-aktionen">
+            <button class="knopf" disabled="@(!_konfig.Eingerichtet || _arbeitet)" @onclick="EntwurfAnlegenAsync">
+                @(_arbeitet ? "Legt an …" : "Entwurf anlegen")
+            </button>
+            @if (!_konfig.Eingerichtet)
+            {
+                <span style="color:var(--muted); font-size:13px">Zuerst Verzeichnis-ID und Anwendungs-ID eintragen.</span>
+            }
+        </div>
+        @if (_entwurfFehler is not null)
+        {
+            <div class="fehler" style="margin-top:10px">@_entwurfFehler</div>
+        }
+        @if (_entwurf is not null)
+        {
+            <div class="zert-hinweis" style="margin-top:10px">
+                <strong>Entwurf angelegt.</strong>
+                @if (_entwurf.Verweis is not null)
+                {
+                    <button class="mehr" style="padding:0 0 0 6px" @onclick="OeffnenAsync">In Outlook im Web öffnen ↗</button>
+                }
+                <div style="margin-top:6px">
+                    Er liegt auch im Ordner „Entwürfe“ des Desktop-Outlook. Bitte dort oder im Web senden und danach den Stand prüfen —
+                    so zeigt sich, ob die Kundenzentrale die gesendete Fassung wiederfindet.
+                </div>
+                <div style="margin-top:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+                    <button class="knopf sekundaer" disabled="@_arbeitet" @onclick="StandPruefenAsync">Stand prüfen</button>
+                    @if (_stand is not null)
+                    {
+                        <span class="status @(_stand.Stand == "gesendet" ? "gut" : _stand.Stand == "entwurf" ? "warnung" : "kritisch")">
+                            @(_stand.Stand switch
+                            {
+                                "gesendet" => $"gesendet{(_stand.GesendetAm is { } am ? $" am {am.ToLocalTime():dd.MM.yyyy HH:mm}" : "")} — wiedergefunden",
+                                "entwurf" => "noch Entwurf",
+                                _ => "gelöscht oder nicht mehr auffindbar",
+                            })
+                        </span>
+                    }
+                </div>
+                @if (_stand?.NachrichtenKennung is not null)
+                {
+                    <div style="color:var(--muted); font-size:12.5px; margin-top:6px; overflow-wrap:anywhere">Kennung der Mail: @_stand.NachrichtenKennung</div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="karte" style="padding:16px">
+        <h2 style="margin-top:0">3 · Add-in „In Kundenakte“</h2>
+        <div style="color:var(--muted); font-size:13px; margin-bottom:10px">
+            Das Add-in zeigt in Outlook an der geöffneten Mail, zu welchem Kunden sie gehört. Es liest nur diese eine Mail;
+            gespeichert wird im Durchstich nichts.
+        </div>
+        <ol style="margin:0; padding-left:20px; line-height:1.7">
+            <li>
+                <a href="api/outlook/manifest" download>Manifest herunterladen</a>
+                @if (!Nav.BaseUri.StartsWith("https://"))
+                {
+                    <span class="krittext"> — nur über die https-Adresse der Kundenzentrale möglich</span>
+                }
+            </li>
+            <li>In Outlook: <code>https://aka.ms/olksideload</code> öffnen → „Meine Add-Ins“ → „Benutzerdefiniertes Add-In hinzufügen“ → „Aus Datei hinzufügen“.</li>
+            <li>Eine Kundenmail öffnen und im Menüband bzw. unter „Apps“ auf „In Kundenakte“ klicken.</li>
+            <li>Der Aufgabenbereich meldet in Klartext, ob Outlook die Mail lesen kann und ob die Kundenzentrale antwortet.</li>
+        </ol>
+        <div style="color:var(--muted); font-size:13px; margin-top:10px">
+            Bitte in jedem Outlook prüfen, das im Haus benutzt wird (klassisch, neu, im Web) — die Windows-Anmeldung verhält sich dort
+            unterschiedlich. Das ist die Frage, die der Durchstich beantworten soll.
+            <a href="outlook-addin/aufgabenbereich.html" target="_blank" rel="noopener">Aufgabenbereich außerhalb von Outlook ansehen</a>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly (string Schluessel, string Name)[] Kennungen =
+    [
+        ("Outlook.TenantId", "Verzeichnis-ID (Mandant)"),
+        ("Outlook.ClientId", "Anwendungs-ID (Client)"),
+    ];
+
+    private sealed record Entwurf(string Id, string? Verweis, string? NachrichtenKennung);
+    private sealed record EntwurfStand(string Stand, DateTime? GesendetAm, string Betreff, string? NachrichtenKennung);
+
+    private OutlookKonfiguration? _konfig;
+    private readonly Dictionary<string, string> _werte = new() { ["Outlook.TenantId"] = "", ["Outlook.ClientId"] = "" };
+    private List<TextbausteinZeile> _bausteine = [];
+    private string _ruecksprung = "";
+    private string? _fehler;
+    private string? _gespeichert;
+    private bool _kopiert;
+
+    private string _empfaenger = "";
+    private string _betreff = "Test aus der Kundenzentrale";
+    private string _html = "<p>Guten Tag,</p><p>dies ist ein <strong>Test-Entwurf</strong> aus der Kundenzentrale.</p>";
+    private bool _arbeitet;
+    private string? _entwurfFehler;
+    private Entwurf? _entwurf;
+    private EntwurfStand? _stand;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await KonfigLadenAsync();
+            var einstellungen = await Http.GetFromJsonAsync<List<EinstellungEintrag>>("api/einstellungen") ?? [];
+            foreach (var e in einstellungen.Where(e => _werte.ContainsKey(e.Schluessel)))
+                _werte[e.Schluessel] = e.Wert;
+            _bausteine = (await Http.GetFromJsonAsync<TextbausteinUebersicht>("api/textbausteine"))?.Bausteine.Where(b => b.Aktiv).ToList() ?? [];
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            _fehler = "Die Outlook-Anbindung richtet ein Administrator ein.";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Laden fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ruecksprung = await JS.InvokeAsync<string>("outlookRuecksprungAdresse");
+            StateHasChanged();
+        }
+    }
+
+    private async Task KonfigLadenAsync() => _konfig = await Http.GetFromJsonAsync<OutlookKonfiguration>("api/outlook/konfiguration");
+
+    private async Task KennungSpeichernAsync(string schluessel)
+    {
+        _fehler = null;
+        _gespeichert = null;
+        var wert = _werte[schluessel].Trim();
+        if (wert.Length > 0 && !Guid.TryParse(wert, out _))
+        {
+            _fehler = "Das ist keine Kennung der Form 00000000-0000-0000-0000-000000000000.";
+            return;
+        }
+        try
+        {
+            var antwort = await Http.PutAsJsonAsync($"api/einstellungen/{Uri.EscapeDataString(schluessel)}", new EinstellungAenderung(wert));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            _gespeichert = schluessel;
+            await KonfigLadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private async Task RuecksprungKopierenAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _ruecksprung);
+            _kopiert = true;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Kopieren nicht möglich: {ex.Message}";
+        }
+    }
+
+    private async Task BausteinWaehlenAsync(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id))
+            return;
+        try
+        {
+            var b = await Http.GetFromJsonAsync<TextbausteinDetail>($"api/textbausteine/{id}");
+            if (b is null)
+                return;
+            _betreff = b.Betreff;
+            _html = b.InhaltHtml;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Der Textbaustein konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private object Zugang() => new { tenantId = _konfig!.TenantId, clientId = _konfig.ClientId, anmeldeHinweis = _konfig.AnmeldeHinweis };
+
+    private async Task EntwurfAnlegenAsync()
+    {
+        // Der Aufruf muss ohne vorheriges Warten losgehen — sonst blockiert der Browser das Anmeldefenster
+        var empfaenger = _konfig!.Testsystem ? _konfig.EmpfaengerErzwungen ?? "" : _empfaenger.Trim();
+        var aufruf = JS.InvokeAsync<Entwurf>("outlookEntwurfAnlegen", Zugang(),
+            new { empfaenger = new[] { empfaenger }, betreff = _betreff, html = _html });
+        _arbeitet = true;
+        _entwurfFehler = null;
+        _entwurf = null;
+        _stand = null;
+        try
+        {
+            _entwurf = await aufruf;
+        }
+        catch (Exception ex)
+        {
+            _entwurfFehler = ex.Message;
+        }
+        finally
+        {
+            _arbeitet = false;
+        }
+    }
+
+    private async Task StandPruefenAsync()
+    {
+        if (_entwurf is null)
+            return;
+        var aufruf = JS.InvokeAsync<EntwurfStand>("outlookEntwurfStand", Zugang(), _entwurf.Id);
+        _arbeitet = true;
+        _entwurfFehler = null;
+        try
+        {
+            _stand = await aufruf;
+        }
+        catch (Exception ex)
+        {
+            _entwurfFehler = ex.Message;
+        }
+        finally
+        {
+            _arbeitet = false;
+        }
+    }
+
+    private async Task OeffnenAsync()
+    {
+        if (_entwurf?.Verweis is { } verweis && verweis.StartsWith("https://"))
+            await JS.InvokeVoidAsync("outlookOeffnen", verweis);
+    }
+}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kundenzentrale</title>
+    <style>
+        body { font-family: "Segoe UI", Arial, sans-serif; font-size: 13.5px; color: #1f2933; margin: 12px; background: #fff; }
+        h1 { font-size: 16px; margin: 0 0 4px; }
+        .neben { color: #6b7280; font-size: 12.5px; }
+        .karte { border: 1px solid #d9dee5; border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+        .zeile { display: flex; gap: 8px; padding: 2px 0; }
+        .zeile .l { color: #6b7280; min-width: 78px; }
+        .zeile .r { overflow-wrap: anywhere; }
+        .gut { color: #17693a; font-weight: 600; }
+        .warn { color: #9a5b00; font-weight: 600; }
+        .schlecht { color: #b42318; font-weight: 600; }
+        a { color: #1d5fa8; }
+        button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #b8c0cc; background: #f3f5f8; cursor: pointer; }
+        ul { margin: 6px 0 0; padding-left: 18px; }
+    </style>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body>
+    <h1>In Kundenakte</h1>
+    <div class="neben" id="stand">Wird geladen …</div>
+
+    <div class="karte" id="mail" hidden>
+        <div class="zeile"><span class="l">Von</span><span class="r" id="von"></span></div>
+        <div class="zeile"><span class="l">An</span><span class="r" id="an"></span></div>
+        <div class="zeile"><span class="l">Betreff</span><span class="r" id="betreff"></span></div>
+        <div class="zeile"><span class="l">Anhänge</span><span class="r" id="anhaenge"></span></div>
+        <div class="zeile"><span class="l">Text</span><span class="r" id="text"></span></div>
+        <div class="zeile"><span class="l">Kennung</span><span class="r neben" id="kennung"></span></div>
+    </div>
+
+    <div class="karte" id="ergebnis" hidden>
+        <div id="art"></div>
+        <div class="neben" id="hinweis"></div>
+        <ul id="kunden"></ul>
+        <div class="neben" id="wer" style="margin-top:8px"></div>
+    </div>
+
+    <div class="neben" style="margin-top:12px">
+        Durchstich: Es wird geprüft, ob Outlook die Mail lesen und die Kundenzentrale sie zuordnen kann.
+        Gespeichert wird noch nichts.
+    </div>
+    <script src="aufgabenbereich.js"></script>
+</body>
+</html>

@@ -404,6 +404,18 @@
     </div>
 </details>
 
+@* ---------- Outlook-Anbindung (eigene Seite) ---------- *@
+<details class="gruppe">
+    <summary>Outlook-Anbindung<span class="zahl">Durchstich</span></summary>
+    <div class="gruppe-inhalt">
+        <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
+            E-Mail als Entwurf im eigenen Postfach anlegen und E-Mails aus Outlook dem Kunden zuordnen — App-Registrierung,
+            Probe-Entwurf und Add-in stehen auf einer eigenen Seite.
+        </div>
+        <a class="knopf sekundaer" href="admin/outlook">Outlook-Anbindung einrichten und prüfen</a>
+    </div>
+</details>
+
 @* ---------- Offene Angebote und Kontoauszüge ---------- *@
 <details class="gruppe">
     <summary>Offene Angebote und Kontoauszüge<span class="zahl">@VerkaufZahlungEinstellungen().Count()</span></summary>
@@ -577,7 +589,7 @@
     private IEnumerable<EinstellungEintrag> VerzeichnisEinstellungen() =>
         (_einstellungen ?? []).Where(e => !e.Schluessel.StartsWith("ServicePortal.")
             && !e.Schluessel.StartsWith("Odoo.") && !e.Schluessel.StartsWith("OdooTest.") && !e.Schluessel.StartsWith("Mail.") && !e.Schluessel.StartsWith("Zertifikate.")
-            && !e.Schluessel.StartsWith("Verkauf.") && !e.Schluessel.StartsWith("Zahlungen."));
+            && !e.Schluessel.StartsWith("Verkauf.") && !e.Schluessel.StartsWith("Zahlungen.") && !e.Schluessel.StartsWith("Outlook."));
 
     /// <summary>Ohne die automatisch gepflegten Zeitstempel (letzter Bericht, letzter Lauf).</summary>
     private IEnumerable<EinstellungEintrag> VerkaufZahlungEinstellungen() =>

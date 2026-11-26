@@ -23,6 +23,37 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Outlook-Durchstich (26.11.2026):** Publish wie üblich, Migration `OutlookEinstellungen`
+  (nur zwei Einstellungen). Zuerst im **Testsystem** (`…/Kundenzentrale-Test`). Der Durchstich
+  speichert nichts; er soll zeigen, ob beide Wege in eurem M365 und eurem Outlook funktionieren.
+  1. **App-Registrierung** im Entra Admin Center (entra.microsoft.com → Identität → Anwendungen →
+     App-Registrierungen → Neue Registrierung):
+     - Name `Kundenzentrale Outlook`, Kontotyp „Nur Konten in diesem Organisationsverzeichnis“.
+     - Umleitungs-URI: Plattform **Single-Page-Anwendung (SPA)**, Adresse von der Seite
+       Administration → Outlook-Anbindung kopieren
+       (`https://rs-w2019-01:8443/Kundenzentrale-Test/outlook-anmeldung.html`). Für das
+       Produktivsystem später eine zweite Umleitungs-URI derselben Plattform ergänzen
+       (`https://rs-w2019-01:8443/Kundenzentrale/outlook-anmeldung.html`).
+     - API-Berechtigungen → Microsoft Graph → **Delegierte** Berechtigung `Mail.ReadWrite`
+       hinzufügen → „Administratorzustimmung erteilen“. Kein geheimer Clientschlüssel, kein
+       Zertifikat, keine Anwendungsberechtigung — die App darf nur im Namen des angemeldeten
+       Mitarbeiters auf dessen eigenes Postfach.
+     - Von der Übersicht **Anwendungs-ID (Client)** und **Verzeichnis-ID (Mandant)** kopieren.
+  2. Kundenzentrale → Administration → **Outlook-Anbindung**: beide Kennungen eintragen.
+  3. **Entwurf prüfen:** auf derselben Seite „Entwurf anlegen“. Erwartet: Anmeldefenster von
+     Microsoft (schließt sich bei bestehender Anmeldung von selbst), dann „Entwurf angelegt“. Den
+     Entwurf in Outlook senden, danach „Stand prüfen“ → „gesendet … wiedergefunden“.
+     Dabei notieren: Erscheint das Anmeldefenster jedes Mal oder nur einmal? Steht die
+     **Signatur** im Entwurf? (Erwartung: nein — Outlook setzt sie nur in selbst begonnene Mails.)
+  4. **Add-in prüfen:** „Manifest herunterladen“, in Outlook `https://aka.ms/olksideload` öffnen →
+     Meine Add-Ins → Benutzerdefiniertes Add-In hinzufügen → Aus Datei. Eine Kundenmail öffnen →
+     „In Kundenakte“. Der Aufgabenbereich meldet im Klartext, ob Outlook die Mail lesen kann und
+     ob die Kundenzentrale antwortet. **In jedem benutzten Outlook wiederholen** (klassisch, neu,
+     im Web) und das Ergebnis je Outlook notieren — vor allem, ob die Windows-Anmeldung mitgeht
+     (Meldung „Anmeldung nicht angenommen“) und ob das Zertifikat der Kundenzentrale akzeptiert wird.
+  5. Ergebnis an Claude melden; danach entscheidet sich, ob das Add-in bei der Windows-Anmeldung
+     bleiben kann oder ein Entra-Token braucht.
+
 - [ ] **Offene Angebote, Textbausteine, Kontoauszüge (26.11.2026):** Publish wie üblich, die
   Migration `VerkaufTextbausteineZahlungen` läuft beim Start (drei neue Tabellen, Einstellungen
   `Verkauf.*` und `Zahlungen.*`). Danach unter Administration → „Offene Angebote und Kontoauszüge“:

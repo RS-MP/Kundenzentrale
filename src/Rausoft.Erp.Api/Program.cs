@@ -248,7 +248,16 @@ app.UseBlazorFrameworkFiles();
 // heißt: behalten, aber vor jeder Verwendung nachfragen (ETag → 304, wenn gleich).
 app.UseStaticFiles(new StaticFileOptions
 {
-    OnPrepareResponse = antwort => antwort.Context.Response.Headers.CacheControl = "no-cache",
+    OnPrepareResponse = antwort =>
+    {
+        antwort.Context.Response.Headers.CacheControl = "no-cache";
+        // Der Aufgabenbereich des Outlook-Add-ins läuft in Outlook im Web in einem Rahmen —
+        // einbetten dürfen ihn nur die Outlook-Adressen von Microsoft, sonst niemand.
+        if (antwort.Context.Request.Path.StartsWithSegments("/outlook-addin"))
+            antwort.Context.Response.Headers.ContentSecurityPolicy =
+                "frame-ancestors 'self' https://outlook.office.com https://outlook.office365.com https://outlook.cloud.microsoft " +
+                "https://*.outlook.com https://*.office.com https://*.office365.com https://*.cloud.microsoft";
+    },
 });
 
 if (app.Environment.IsDevelopment())
