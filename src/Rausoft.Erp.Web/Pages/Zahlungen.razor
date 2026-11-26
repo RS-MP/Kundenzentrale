@@ -1,0 +1,400 @@
+@page "/zahlungen"
+@inject HttpClient Http
+
+<PageTitle>Zahlungen · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Zahlungen</h1>
+    <span class="untertitel">Zahlungseingänge aus den Kontoauszügen und was noch aussteht</span>
+    <span style="flex:1"></span>
+    <button class="knopf" disabled="@_liest" @onclick="EinlesenAsync"
+            title="Liest die Kontoauszüge im Eingangsordner, ordnet die Eingänge den offenen Rechnungen zu und bucht eindeutige Fälle in Odoo. Läuft sonst alle zwei Minuten.">
+        @(_liest ? "Liest ein …" : "Ordner jetzt einlesen")
+    </button>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_meldung is not null)
+{
+    <div class="zert-hinweis" style="white-space:pre-line">@_meldung</div>
+}
+
+@if (_daten is null)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade Zahlungen …</div> }
+}
+else
+{
+    var s = _daten.Stand;
+    @if (!s.OrdnerEingerichtet)
+    {
+        <div class="zert-hinweis">
+            Der Eingangsordner für Kontoauszüge ist noch nicht eingerichtet — unter Administration → Offene Angebote und
+            Kontoauszüge den Pfad eintragen. Danach genügt es, den Auszug (Export „CSV-MT940“) in den Ordner zu kopieren.
+        </div>
+    }
+    @if (s.SchreibSperre is not null)
+    {
+        <div class="zert-hinweis">
+            <strong>Es wird nicht in Odoo gebucht.</strong> @s.SchreibSperre
+            Die Eingänge werden trotzdem eingelesen und zugeordnet; gebucht wird, sobald das Schreiben eingeschaltet ist.
+        </div>
+    }
+    else if (s.SchreibZiel == "Test")
+    {
+        <div class="zert-hinweis"><strong>Gebucht wird in die Odoo-Testdatenbank</strong>, nicht in die echte Buchhaltung.</div>
+    }
+
+    <div class="vg-kpis">
+        <div class="vg-kpi">
+            <div class="wert @(_daten.Klaerung.Count > 0 ? "status warnung" : "")">@_daten.Klaerung.Count</div>
+            <div class="label">Eingänge zur Klärung</div>
+        </div>
+        <div class="vg-kpi">
+            <div class="wert">@_daten.Zugeordnet.Count</div>
+            <div class="label">Zugeordnet, noch nicht gebucht</div>
+        </div>
+        <div class="vg-kpi">
+            <div class="wert @(_posten is { SummeUeberfaellig: > 0 } ? "status kritisch" : "")">@(_posten is null ? "…" : Geld(_posten.SummeUeberfaellig))</div>
+            <div class="label">Überfällig (@(_posten?.Posten.Count(p => p.TageUeberfaellig is not null) ?? 0) Rechnungen)</div>
+        </div>
+        <div class="vg-kpi">
+            <div class="wert">@(_posten is null ? "…" : Geld(_posten.SummeOffen))</div>
+            <div class="label">Insgesamt offen (@(_posten?.Posten.Count ?? 0) Rechnungen)</div>
+        </div>
+    </div>
+
+    <div class="karte">
+        <div class="vg-filter">
+            <strong>Zur Klärung</strong>
+            <span style="color:var(--muted); font-size:12.5px">Eingänge, die sich nicht eindeutig einer offenen Rechnung zuordnen ließen.</span>
+        </div>
+        @if (_daten.Klaerung.Count == 0)
+        {
+            <div class="leer-hinweis">Nichts zu klären.</div>
+        }
+        else
+        {
+            <div class="vg-tabelle-wrap">
+                <table class="liste">
+                    <thead><tr><th>Eingang</th><th>Zahler und Verwendungszweck</th><th style="text-align:right">Betrag</th><th>Was fehlt</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var u in _daten.Klaerung)
+                        {
+                            <tr style="cursor:default">
+                                <td>@VorgangAnzeige.Datum(u.Buchungstag)</td>
+                                <td>
+                                    <div class="haupt">@(u.Zahler ?? "(ohne Namen)")</div>
+                                    <div class="neben" style="max-width:420px; overflow-wrap:anywhere">@u.Verwendungszweck</div>
+                                </td>
+                                <td style="text-align:right; white-space:nowrap">@Geld(u.Betrag) @(u.Waehrung == "EUR" ? "" : u.Waehrung)</td>
+                                <td>
+                                    @if (u.Status == "unklar") { <span class="status kritisch">Buchung unklar</span> }
+                                    <div style="max-width:340px">@u.Hinweis</div>
+                                </td>
+                                <td style="white-space:nowrap; text-align:right">
+                                    @if (u.Status == "unklar")
+                                    {
+                                        <button class="knopf sekundaer" @onclick='() => AktionAsync(u.Id, "als-gebucht")' title="Die Zahlung steht in Odoo an der Rechnung.">Steht in Odoo</button>
+                                        <button class="mehr" style="margin-left:8px" @onclick='() => AktionAsync(u.Id, "zuruecksetzen")' title="In Odoo ist keine Zahlung entstanden.">nicht gebucht</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="knopf sekundaer" @onclick="() => ZuordnenOeffnen(u)">Zuordnen</button>
+                                        <button class="mehr" style="margin-left:8px" @onclick='() => AktionAsync(u.Id, "als-gebucht")' title="Die Zahlung wurde schon von Hand in Odoo gebucht.">in Odoo erledigt</button>
+                                        <button class="mehr" style="margin-left:8px" @onclick="() => IgnorierenAsync(u.Id)" title="Gehört zu keiner Rechnung (Erstattung, Umbuchung …).">ignorieren</button>
+                                    }
+                                </td>
+                            </tr>
+                            @if (_zuordnen == u.Id)
+                            {
+                                <tr style="cursor:default">
+                                    <td colspan="5">
+                                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+                                            <span>Rechnung:</span>
+                                            <select style="min-width:320px; flex:1" @bind="_rechnung">
+                                                <option value="">— bitte wählen —</option>
+                                                @foreach (var p in Kandidaten(u))
+                                                {
+                                                    <option value="@p.Nummer">@p.Nummer · @p.Kunde · offen @Geld(p.Offen)@(p.Offen == u.Betrag ? " ✓" : "")</option>
+                                                }
+                                            </select>
+                                            <button class="knopf" disabled="@(_rechnung.Length == 0 || _bucht)" @onclick="() => ZuordnenAsync(u.Id)">
+                                                @(_bucht ? "Bucht …" : s.SchreibSperre is null ? "Zuordnen und in Odoo buchen" : "Zuordnen")
+                                            </button>
+                                            <button class="mehr" @onclick="() => _zuordnen = null">abbrechen</button>
+                                        </div>
+                                        @if (_posten is null)
+                                        {
+                                            <div class="neben" style="color:var(--muted)">Die offenen Rechnungen werden noch aus Odoo geladen …</div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    @if (_daten.Zugeordnet.Count > 0)
+    {
+        <div class="karte">
+            <div class="vg-filter"><strong>Zugeordnet, noch nicht in Odoo gebucht</strong></div>
+            @Tabelle(_daten.Zugeordnet, true)
+        </div>
+    }
+
+    <div class="karte">
+        <div class="vg-filter">
+            <strong>Offene Rechnungen</strong>
+            <span style="color:var(--muted); font-size:12.5px">live aus Odoo, überfällige zuerst</span>
+            <span style="flex:1"></span>
+            <label class="vg-schalter"><input type="checkbox" @bind="_nurUeberfaellig" /> nur überfällige</label>
+        </div>
+        @if (_posten is null)
+        {
+            <div class="leer-hinweis">Lade offene Rechnungen aus Odoo …</div>
+        }
+        else if (_posten.Posten.Count == 0)
+        {
+            <div class="leer-hinweis">@(_posten.Hinweis ?? "Keine offenen Rechnungen.")</div>
+        }
+        else
+        {
+            @if (_posten.Hinweis is not null) { <div class="zert-hinweis" style="margin:10px 16px">@_posten.Hinweis</div> }
+            <div class="vg-tabelle-wrap">
+                <table class="liste">
+                    <thead><tr><th>Rechnung</th><th>Kunde</th><th>Fällig</th><th style="text-align:right">Betrag</th><th style="text-align:right">Offen</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in _posten.Posten.Where(p => !_nurUeberfaellig || p.TageUeberfaellig is not null))
+                        {
+                            <tr style="cursor:default">
+                                <td>@p.Nummer<div class="neben">@(p.Datum is { } d ? $"vom {VorgangAnzeige.Datum(d)}" : "")</div></td>
+                                <td>
+                                    @if (p.KundeId is { } id) { <a href="@($"kunden/{id}")">@p.Kunde</a> } else { <span>@p.Kunde</span> }
+                                </td>
+                                <td>
+                                    <div>@(p.Faellig is { } f ? VorgangAnzeige.Datum(f) : "—")</div>
+                                    @if (p.TageUeberfaellig is { } tage) { <div class="neben krittext">seit @tage @(tage == 1 ? "Tag" : "Tagen") überfällig</div> }
+                                </td>
+                                <td style="text-align:right; white-space:nowrap">@Geld(p.Betrag)</td>
+                                <td style="text-align:right; white-space:nowrap; font-weight:600">@Geld(p.Offen) @(p.Waehrung == "EUR" ? "" : p.Waehrung)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <details class="gruppe" style="margin-top:16px">
+        <summary>Gebucht in den letzten 60 Tagen<span class="zahl">@_daten.Gebucht.Count</span></summary>
+        <div class="gruppe-inhalt">
+            @if (_daten.Gebucht.Count == 0) { <div style="color:var(--muted)">Noch nichts gebucht.</div> } else { @Tabelle(_daten.Gebucht, false) }
+        </div>
+    </details>
+    @if (_daten.Ignoriert.Count > 0)
+    {
+        <details class="gruppe">
+            <summary>Ignoriert<span class="zahl">@_daten.Ignoriert.Count</span></summary>
+            <div class="gruppe-inhalt">@Tabelle(_daten.Ignoriert, true)</div>
+        </details>
+    }
+
+    <div style="color:var(--muted); font-size:12.5px; margin-top:12px">
+        @(s.LetzterLauf is not null ? $"Letzter Lauf: {s.LetzterLauf}." : "Es wurde noch kein Kontoauszug eingelesen.")
+        @(s.WartendeDateien > 0 ? $" {s.WartendeDateien} Datei(en) warten im Eingangsordner." : "")
+        Übernommen werden nur gebuchte Zahlungseingänge — Abgänge bleiben in der Datei und werden nicht gespeichert.
+    </div>
+}
+
+@code {
+    private ZahlungenUebersicht? _daten;
+    private OffenePostenListe? _posten;
+    private string? _fehler;
+    private string? _meldung;
+    private bool _liest;
+    private bool _bucht;
+    private bool _nurUeberfaellig;
+    private int? _zuordnen;
+    private string _rechnung = "";
+
+    private static readonly System.Globalization.CultureInfo Deutsch = System.Globalization.CultureInfo.GetCultureInfo("de-DE");
+
+    private static string Geld(decimal betrag) => betrag.ToString("N2", Deutsch) + " €";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LadenAsync();
+        await PostenLadenAsync();
+    }
+
+    private async Task LadenAsync()
+    {
+        try
+        {
+            _daten = await Http.GetFromJsonAsync<ZahlungenUebersicht>("api/zahlungen");
+            _fehler = null;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            _fehler = "Die Zahlungen sind nur für die Buchhaltung und Administratoren freigegeben.";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Zahlungen konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private async Task PostenLadenAsync()
+    {
+        if (_daten is null)
+            return;
+        try
+        {
+            _posten = await Http.GetFromJsonAsync<OffenePostenListe>("api/zahlungen/offene-posten");
+        }
+        catch (Exception ex)
+        {
+            _posten = new OffenePostenListe([], 0, 0, $"Offene Rechnungen konnten nicht geladen werden: {ex.Message}");
+        }
+    }
+
+    private async Task EinlesenAsync()
+    {
+        _liest = true;
+        _meldung = null;
+        try
+        {
+            var antwort = await Http.PostAsync("api/zahlungen/einlesen", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            var l = await antwort.Content.ReadFromJsonAsync<ZahlungsLauf>();
+            if (l is not null)
+                _meldung = $"{l.Dateien} Datei(en) eingelesen: {l.NeueEingaenge} neue Eingänge, {l.Doppelt} schon bekannt, " +
+                           $"{l.Abgaenge} Abgänge und {l.Vorgemerkt} vorgemerkte Umsätze nicht übernommen. " +
+                           $"{l.Gebucht} in Odoo gebucht, {l.Klaerung} zur Klärung." +
+                           (l.Meldungen.Count > 0 ? "\n" + string.Join("\n", l.Meldungen) : "");
+            await LadenAsync();
+            await PostenLadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Einlesen fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _liest = false;
+        }
+    }
+
+    private void ZuordnenOeffnen(UmsatzEintrag u)
+    {
+        _zuordnen = _zuordnen == u.Id ? null : u.Id;
+        // Vorschlag vorbelegen, wenn die Rechnung noch offen ist
+        _rechnung = u.Rechnung is { } r && _posten?.Posten.Any(p => p.Nummer == r) == true ? r : "";
+    }
+
+    /// <summary>Zuerst Rechnungen mit genau diesem offenen Betrag, dann alle anderen, die mindestens so viel offen haben.</summary>
+    private IEnumerable<OffenerPosten> Kandidaten(UmsatzEintrag u) => (_posten?.Posten ?? [])
+        .Where(p => p.Offen >= u.Betrag)
+        .OrderBy(p => p.Offen == u.Betrag ? 0 : 1).ThenBy(p => p.Kunde).ThenBy(p => p.Nummer);
+
+    private async Task ZuordnenAsync(int id)
+    {
+        _bucht = true;
+        _meldung = null;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync($"api/zahlungen/{id}/zuordnen", new UmsatzZuordnen(_rechnung));
+            var text = (await antwort.Content.ReadAsStringAsync()).Trim('"');
+            if (antwort.IsSuccessStatusCode)
+            {
+                _meldung = text;
+                _fehler = null;
+            }
+            else
+                _fehler = text.Length > 0 ? text : $"Fehler {(int)antwort.StatusCode}.";
+            _zuordnen = null;
+            await LadenAsync();
+            await PostenLadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Zuordnen fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _bucht = false;
+        }
+    }
+
+    private Task IgnorierenAsync(int id) => SendenAsync(Http.PostAsJsonAsync($"api/zahlungen/{id}/ignorieren", new UmsatzIgnorieren(null)));
+
+    private Task AktionAsync(int id, string aktion) => SendenAsync(Http.PostAsync($"api/zahlungen/{id}/{aktion}", null));
+
+    private async Task SendenAsync(Task<HttpResponseMessage> aufruf)
+    {
+        try
+        {
+            var antwort = await aufruf;
+            _fehler = antwort.IsSuccessStatusCode ? null : await VorgangAnzeige.FehlerAsync(antwort);
+            await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Änderung ist fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private RenderFragment Tabelle(List<UmsatzEintrag> eintraege, bool zuruecksetzbar) => @<div class="vg-tabelle-wrap">
+        <table class="liste">
+            <thead><tr><th>Eingang</th><th>Zahler</th><th style="text-align:right">Betrag</th><th>Rechnung</th><th>Stand</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var u in eintraege)
+                {
+                    <tr style="cursor:default">
+                        <td>@VorgangAnzeige.Datum(u.Buchungstag)</td>
+                        <td>
+                            <div class="haupt">@(u.Zahler ?? "(ohne Namen)")</div>
+                            <div class="neben" style="max-width:380px; overflow-wrap:anywhere">@u.Verwendungszweck</div>
+                        </td>
+                        <td style="text-align:right; white-space:nowrap">@Geld(u.Betrag)</td>
+                        <td>
+                            @(u.Rechnung ?? "—")
+                            @if (u.RechnungKunde is not null)
+                            {
+                                <div class="neben">
+                                    @if (u.KundeId is { } id) { <a href="@($"kunden/{id}")">@u.RechnungKunde</a> } else { <span>@u.RechnungKunde</span> }
+                                </div>
+                            }
+                        </td>
+                        <td>
+                            @if (u.Status == "gebucht")
+                            {
+                                <span class="status @(u.GebuchtZiel == "Test" ? "warnung" : "gut")">
+                                    @(u.GebuchtZiel == "Test" ? "in Testdatenbank gebucht" : "gebucht")@(u.Automatisch ? " · automatisch" : "")
+                                </span>
+                            }
+                            <div class="neben" style="max-width:320px">@u.Hinweis</div>
+                        </td>
+                        <td style="white-space:nowrap; text-align:right">
+                            @if (zuruecksetzbar || u.GebuchtZiel == "Test")
+                            {
+                                <button class="mehr" @onclick='() => AktionAsync(u.Id, "zuruecksetzen")' title="Legt den Eingang zurück in die Klärung.">zurück in die Klärung</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>;
+}

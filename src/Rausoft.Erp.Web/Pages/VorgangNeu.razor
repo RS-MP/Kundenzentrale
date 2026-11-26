@@ -202,6 +202,8 @@ else
 
 @code {
     [SupplyParameterFromQuery(Name = "kunde")] public int? KundeId { get; set; }
+    /// <summary>Odoo-Auftrag vorbelegen — Sprung aus der Liste „Bestätigte Aufträge ohne Vorgang“.</summary>
+    [SupplyParameterFromQuery(Name = "auftrag")] public string? Auftrag { get; set; }
 
     private sealed record KundeWahl(int Id, string Name, string Nummer);
     private sealed record Manuell(string Titel, int BereichId, int FristTage, int? WartetAufNr);
@@ -236,6 +238,8 @@ else
         try
         {
             _typen = await Http.GetFromJsonAsync<VorgangstypenUebersicht>("api/vorgangstypen");
+            if (!string.IsNullOrWhiteSpace(Auftrag) && Auftrag.Trim().Length <= 30)
+                _odoo = Auftrag.Trim().ToUpperInvariant();
             if (KundeId is { } id)
             {
                 var k = await Http.GetFromJsonAsync<KundeDetail>($"api/kunden/{id}");

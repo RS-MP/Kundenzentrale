@@ -404,6 +404,38 @@
     </div>
 </details>
 
+@* ---------- Offene Angebote und Kontoauszüge ---------- *@
+<details class="gruppe">
+    <summary>Offene Angebote und Kontoauszüge<span class="zahl">@VerkaufZahlungEinstellungen().Count()</span></summary>
+    <div class="gruppe-inhalt">
+        <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
+            Nachfass-Aufgaben und Wochenübersicht zu den <a href="angebote">offenen Angeboten und Aufträgen</a> sowie Eingangsordner,
+            Buchen und Meldungen der <a href="zahlungen">Zahlungen</a>. In Odoo gebucht wird nur, wenn unter „Odoo-Testdatenbank“ das
+            Schreibziel auf Test oder Produktiv steht.
+        </div>
+        @foreach (var einstellung in VerkaufZahlungEinstellungen())
+        {
+            <div style="padding:8px 0; border-bottom:1px dashed var(--border)">
+                <div style="font-weight:600; font-size:13px">@KurzName(einstellung.Schluessel)</div>
+                <div style="color:var(--muted); font-size:12.5px; margin:2px 0 6px">@einstellung.Beschreibung</div>
+                <div style="display:flex; gap:8px">
+                    <input type="text" style="flex:1" @bind="_werte[einstellung.Schluessel]" />
+                    <button class="knopf sekundaer" @onclick="() => SpeichernAsync(einstellung.Schluessel)">
+                        @(_gespeichert == einstellung.Schluessel ? "✓ gespeichert" : "Speichern")
+                    </button>
+                </div>
+            </div>
+        }
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+            <button class="knopf sekundaer" disabled="@_berichtLaeuft" @onclick='() => BerichtSendenAsync("api/verkauf/bericht")'
+                    title="Sendet die Wochenübersicht der offenen Angebote und Aufträge sofort an die eingetragenen Empfänger.">Übersicht Angebote jetzt senden</button>
+            <button class="knopf sekundaer" disabled="@_berichtLaeuft" @onclick='() => BerichtSendenAsync("api/zahlungen/bericht")'
+                    title="Sendet die Übersicht der ausstehenden Zahlungen sofort an die eingetragenen Empfänger.">Übersicht Zahlungen jetzt senden</button>
+            <span style="color:var(--muted); font-size:13px">@_berichtErgebnis</span>
+        </div>
+    </div>
+</details>
+
 @* ---------- Verzeichnisse ---------- *@
 <details class="gruppe">
     <summary>Verzeichnisse<span class="zahl">@VerzeichnisEinstellungen().Count()</span></summary>
@@ -544,7 +576,37 @@
 
     private IEnumerable<EinstellungEintrag> VerzeichnisEinstellungen() =>
         (_einstellungen ?? []).Where(e => !e.Schluessel.StartsWith("ServicePortal.")
-            && !e.Schluessel.StartsWith("Odoo.") && !e.Schluessel.StartsWith("OdooTest.") && !e.Schluessel.StartsWith("Mail.") && !e.Schluessel.StartsWith("Zertifikate."));
+            && !e.Schluessel.StartsWith("Odoo.") && !e.Schluessel.StartsWith("OdooTest.") && !e.Schluessel.StartsWith("Mail.") && !e.Schluessel.StartsWith("Zertifikate.")
+            && !e.Schluessel.StartsWith("Verkauf.") && !e.Schluessel.StartsWith("Zahlungen."));
+
+    /// <summary>Ohne die automatisch gepflegten Zeitstempel (letzter Bericht, letzter Lauf).</summary>
+    private IEnumerable<EinstellungEintrag> VerkaufZahlungEinstellungen() =>
+        (_einstellungen ?? []).Where(e => (e.Schluessel.StartsWith("Verkauf.") || e.Schluessel.StartsWith("Zahlungen."))
+            && !e.Schluessel.Contains(".Letzter"));
+
+    private bool _berichtLaeuft;
+    private string? _berichtErgebnis;
+
+    private async Task BerichtSendenAsync(string adresse)
+    {
+        _berichtLaeuft = true;
+        _berichtErgebnis = null;
+        try
+        {
+            var antwort = await Http.PostAsync(adresse, null);
+            _berichtErgebnis = (await antwort.Content.ReadAsStringAsync()).Trim('"');
+            if (!antwort.IsSuccessStatusCode && string.IsNullOrWhiteSpace(_berichtErgebnis))
+                _berichtErgebnis = $"Fehler {(int)antwort.StatusCode}.";
+        }
+        catch (Exception ex)
+        {
+            _berichtErgebnis = $"Senden fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _berichtLaeuft = false;
+        }
+    }
 
     private string LetzterPushText()
     {
@@ -582,6 +644,16 @@
         "Zertifikate.ServerAutomatisch" => "ID.prove-Server automatisch übernehmen (true/false)",
         "Zertifikate.ErlaubtePorts" => "Live-Prüfung: erlaubte Ports (Komma, leer = 443, 8443)",
         "Zertifikate.EmpfaengerDomaenen" => "Statusmails nur an Domänen (Komma, leer = Absender-Domäne)",
+        "Verkauf.NachfassTage" => "Angebote: Nachfass-Aufgabe nach (Tagen, 0 = keine)",
+        "Verkauf.NachfassWiederholungTage" => "Angebote: erneut nachfassen nach (Tagen, 0 = nur einmal)",
+        "Verkauf.RueckblickTage" => "Angebote: Rückblick (Tage)",
+        "Verkauf.BerichtEmpfaenger" => "Angebote: Empfänger der Wochenübersicht",
+        "Verkauf.BerichtTag" => "Angebote: Wochenübersicht am (Wochentag, aus = keine)",
+        "Zahlungen.EingangVerzeichnis" => "Kontoauszüge: Eingangsordner",
+        "Zahlungen.AutomatischBuchen" => "Kontoauszüge: eindeutige Eingänge automatisch in Odoo buchen (Ja/Nein)",
+        "Zahlungen.OdooJournal" => "Kontoauszüge: Bankjournal in Odoo (Name)",
+        "Zahlungen.Empfaenger" => "Zahlungen: Empfänger der Meldungen",
+        "Zahlungen.BerichtTag" => "Zahlungen: Übersicht ausstehender Zahlungen am (Wochentag, aus = keine)",
         _ => schluessel,
     };
 

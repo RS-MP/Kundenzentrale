@@ -425,6 +425,38 @@ Erste Ausbaustufe in der App (Navigation „Vorgänge"):
 8. **Vorgangstypen pflegbar:** neue anlegen, ändern, kopieren; deaktivieren
    statt löschen.
 
+### Offene Angebote und Aufträge (Entscheidung 26.11.2026, MP)
+
+> Auslöser: In Odoo werden Angebote gestellt und teils auch bestellt, aber
+> niemand fasst nach und niemand startet das Projekt.
+
+Seite **Angebote** (`/angebote`, jeder aktive Mitarbeiter, ohne Preise), live
+aus Odoo, nur lesend (`OffeneVerkaeufe`, `VerkaufsUeberwachung`):
+
+- **Bestätigte Aufträge ohne Vorgang** — die am 28.10.2026 beschlossene Liste:
+  in Odoo bestätigt, noch keine Rechnung (Abo-Verlängerungen fallen so heraus),
+  kein Vorgang mit dieser Auftragsnummer. „Vorgang anlegen“ springt mit Kunde
+  und Auftragsnummer vorbelegt in die Anlage. Bewusst Vorschlag statt stiller
+  Automatik.
+- **Angebote ohne Rückmeldung** — in Odoo gesendet, weder bestätigt noch
+  storniert; mit Alter, Gültigkeit, Verkäufer.
+- **Nachfass-Aufgabe:** nach 7 Tagen ohne Reaktion beim Verkäufer des Angebots
+  (Zuordnung Odoo-Login = E-Mail des Mitarbeiters; sonst steht der Name an der
+  Aufgabe). Erledigt und Angebot weiter offen → nach 14 Tagen die nächste.
+  Solange eine offen ist, entsteht keine zweite. Wird das Angebot in Odoo
+  bestätigt oder storniert, erledigt sich die Aufgabe von selbst (Eintrag in
+  der Akte). Regeln: `NachfassRegeln`; stündlicher Takt und Knopf.
+- **Ausblenden** je Angebot/Auftrag mit Grund (braucht keinen Vorgang, Kunde
+  entscheidet später); ausgeblendete bekommen keine Aufgaben und lassen sich
+  wieder einblenden (`VerkaufsMerker` — gespeichert wird nur die Odoo-Nummer).
+- **Wochenübersicht per Mail** an die eingetragenen Empfänger (nur erlaubte
+  Domänen wie bei den Zertifikats-Mails).
+- Einstellungen `Verkauf.*` unter Administration → „Offene Angebote und
+  Kontoauszüge“: Frist, Wiederholung, Rückblick (180 Tage), Empfänger, Wochentag.
+- Das Angebotsdatum ist Odoos `date_order`; ein eigenes „gesendet am“ führt
+  Odoo nicht. Mit dem eigenen Angebotsmodul (Phase 3) entfällt die Odoo-Abfrage,
+  die Regeln bleiben.
+
 ## Wiki
 
 „Wie bei uns was funktioniert und wie wir es nennen." Themen stehen in
@@ -485,6 +517,52 @@ JSON-Export ist dafür vorbereitet).
 - **Mahnung auf Knopfdruck** als druckfertiges PDF (Versand meist manuell per
   Post); Offene-Posten-Liste reicht als Übersicht.
 
+### Kontoauszüge im Übergang mit Odoo (Entscheidung 26.11.2026, MP)
+
+> Bisher bucht MP jede Zahlung von Hand in Odoo. Neu: Auszug in einen Ordner
+> kopieren, die Kundenzentrale bucht die Eingänge und meldet, was aussteht.
+
+Ersetzt für die Übergangszeit den oben skizzierten „halbautomatischen“ Weg:
+eindeutige Eingänge werden **ohne Klick** gebucht, alles andere per Klick.
+
+- **Format: CSV-MT940** (Export des Online-Bankings; Spalten werden an der
+  Überschrift erkannt, CSV-CAMT geht deshalb auch). Echtes MT940 und CAMT-XML
+  werden mit Klartext abgelehnt (`KontoauszugLeser`).
+- **Eingangsordner** (`Zahlungen.EingangVerzeichnis`): alle zwei Minuten wird
+  nachgesehen; eingelesene Dateien wandern nach `verarbeitet`, unlesbare nach
+  `fehler`. Der Ordner gehört per NTFS-Rechten nur der Buchhaltung und dem
+  Dienstkonto.
+- **Datensparsam:** Gespeichert werden nur gebuchte **Eingänge** (`Bankumsatz`).
+  Abgänge (Gehälter, Miete) und vorgemerkte Umsätze werden gezählt und
+  verworfen; die Kontoverbindung des Zahlers wird nicht gespeichert.
+- **Nie doppelt:** Jede Buchung hat einen Fingerabdruck; dieselbe Datei oder
+  sich überlappende Auszüge erzeugen nichts Zweites.
+- **Automatisch gebucht wird nur der eindeutige Fall** (`ZahlungsZuordnung`):
+  genau eine Rechnungsnummer im Verwendungszweck (auch mit Leerzeichen oder
+  Umbruch), offener Betrag exakt, Euro. Teilzahlung, Skonto, Überzahlung,
+  Sammelüberweisung, fehlende Nummer → **Klärungsliste** mit Vorschlag.
+- **Zahlung in Odoo** über den Assistenten „Zahlung registrieren“ an der
+  Rechnung (`ZahlungsBucher`) — nur über das Schreibziel
+  (`OdooSchreibRegeln`: Aus/Test/Produktiv). Die Rechnung wird in der
+  Zieldatenbank am Namen gesucht, der offene Betrag vor dem Schreiben geprüft,
+  danach gegengeprüft. Das Bankjournal wird am Namen bestimmt
+  (`Zahlungen.OdooJournal`; leer = das einzige Bankjournal) — keine festen
+  Odoo-Nummern.
+- **Unklare Buchung:** Vor dem Aufruf wird der Eingang als „Buchung unklar“
+  gespeichert. Bricht der Aufruf ab, bucht kein Lauf ein zweites Mal; ein
+  Mensch sieht in Odoo nach und entscheidet („steht in Odoo“ / „nicht gebucht“).
+- **Wichtig:** Den Auszug **nicht zusätzlich in Odoo importieren** — sonst
+  stehen die Eingänge dort doppelt.
+- **Seite Zahlungen** (`/zahlungen`, Rolle Buchhaltung oder Admin):
+  Klärungsliste, Zugeordnetes, Gebuchtes, offene Rechnungen live aus Odoo
+  (überfällige zuerst).
+- **Meldungen per Mail:** nach jedem eingelesenen Auszug (gebucht, zur
+  Klärung) und wöchentlich die überfälligen Rechnungen (`Zahlungen.Empfaenger`).
+- **Offen:** Test gegen die Odoo-Testdatenbank (der Assistent ist lokal nur
+  gegen ein nachgestelltes Odoo gelaufen); eigener, eng berechtigter
+  Schreib-Benutzer vor „Produktiv“. Mit der eigenen Fakturierung (Phase 4)
+  bucht derselbe Ablauf gegen die eigenen Rechnungen.
+
 ## E-Mail (Basisdienst)
 
 ### Ausgang
@@ -538,6 +616,29 @@ Korrespondenz.
   Zeitpunkt der Übernahme (sofort nach dem Senden per Abfrage oder
   Benachrichtigung von Graph).
 - Zeitpunkt: zusammen mit dem Outlook-Knopf, nach dem Produktivstart.
+
+### Textbausteine aus den Odoo-Mailvorlagen (Entscheidung 26.11.2026, MP)
+
+Alle Mailvorlagen aus Odoo (`mail.template`, deutsche Fassung) werden als
+**Textbausteine** übernommen — Betreff und formatierter Text (HTML), Seite
+`/textbausteine` (Verweis unter „Vorlagen“). Sie sind der Vorrat für
+„E-Mail vorbereiten“; bis dahin lässt sich der Text formatiert in die
+Zwischenablage kopieren und in Outlook einfügen.
+
+- **Übernahme auf Knopfdruck** (Admin, mit Probelauf), wiederholbar über die
+  Odoo-Nummer der Vorlage. Hier bearbeitete Bausteine überschreibt sie nicht;
+  aus Odoo übernommene werden deaktiviert statt gelöscht.
+- **Platzhalter:** Odoos `<t t-out="object.partner_id.name"/>`,
+  `{{ object.name }}` und `${…}` werden zu `{{Kunde.Name}}`,
+  `{{Beleg.Nummer}}` usw. (`OdooMailvorlage`). Unbekannte bleiben als
+  `{{Odoo: …}}` stehen und erscheinen unter „Bitte nacharbeiten“.
+- **Bedingungen und Schleifen** (`t-if`, `t-foreach`) kann ein Textbaustein
+  nicht: Der Inhalt bleibt stehen, die Bedingung wird als Hinweis genannt.
+- **Nicht übernommen:** Odoos Mailrahmen (Kopf, Fuß, Logo) und angehängte
+  Berichte — die Signatur kommt aus dem Postfach des Mitarbeiters.
+- **Sicherheit:** Fremdes HTML wird beim Speichern gesäubert (keine Skripte,
+  Formulare, eingebetteten Inhalte, Ereignis-Attribute) und nur in einem
+  abgeschotteten Rahmen angezeigt (`iframe sandbox`).
 
 ### Erfassung aus Outlook (BCC-Postfach)
 

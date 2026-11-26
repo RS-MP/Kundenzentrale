@@ -1,0 +1,340 @@
+@page "/angebote"
+@inject HttpClient Http
+
+<PageTitle>Angebote · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>Angebote und Aufträge</h1>
+    <span class="untertitel">Was in Odoo offen steht: Angebote ohne Rückmeldung, bestätigte Aufträge ohne Vorgang</span>
+    <span style="flex:1"></span>
+    <button class="knopf sekundaer" disabled="@_laeuft" @onclick="NachfassenAsync"
+            title="Legt Nachfass-Aufgaben für Angebote an, deren Frist erreicht ist, und erledigt Aufgaben, deren Angebot in Odoo nicht mehr offen steht. Läuft sonst stündlich.">
+        @(_laeuft ? "Prüft …" : "Nachfass-Aufgaben prüfen")
+    </button>
+    <button class="knopf sekundaer" disabled="@_laedt" @onclick="LadenAsync">@(_laedt ? "Lädt …" : "Aktualisieren")</button>
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_meldung is not null)
+{
+    <div class="zert-hinweis">@_meldung</div>
+}
+
+@if (_daten is null)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade Angebote und Aufträge aus Odoo …</div> }
+}
+else if (!_daten.OdooErreichbar)
+{
+    <div class="karte"><div class="leer-hinweis">@(_daten.Hinweis ?? "Odoo ist nicht erreichbar.")</div></div>
+}
+else
+{
+    @if (_daten.Hinweis is not null)
+    {
+        <div class="zert-hinweis">@_daten.Hinweis</div>
+    }
+    <div class="vg-kpis">
+        <div class="vg-kpi">
+            <div class="wert">@_daten.Angebote.Count</div>
+            <div class="label">Angebote ohne Rückmeldung</div>
+        </div>
+        <div class="vg-kpi">
+            <div class="wert @(_daten.Angebote.Any(a => a.Tage >= 30) ? "status kritisch" : "")">@_daten.Angebote.Count(a => a.Tage >= 30)</div>
+            <div class="label">davon länger als 30 Tage</div>
+        </div>
+        <div class="vg-kpi">
+            <div class="wert @(_daten.Auftraege.Count > 0 ? "status warnung" : "")">@_daten.Auftraege.Count</div>
+            <div class="label">Aufträge ohne Vorgang</div>
+        </div>
+    </div>
+
+    <div class="karte">
+        <div class="vg-filter">
+            <strong>Bestätigte Aufträge ohne Vorgang</strong>
+            <span class="neben" style="color:var(--muted); font-size:12.5px">
+                In Odoo bestätigt, noch keine Rechnung, in der Kundenzentrale hat niemand den Vorgang gestartet.
+            </span>
+        </div>
+        @if (_daten.Auftraege.Count == 0)
+        {
+            <div class="leer-hinweis">Zu jedem bestätigten Auftrag gibt es einen Vorgang.</div>
+        }
+        else
+        {
+            <div class="vg-tabelle-wrap">
+                <table class="liste">
+                    <thead><tr><th>Kunde</th><th>Auftrag</th><th>Bestätigt</th><th>Inhalt</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var z in _daten.Auftraege)
+                        {
+                            <tr style="cursor:default">
+                                <td>@KundeZelle(z)</td>
+                                <td>@NummerZelle(z)</td>
+                                <td>
+                                    <div>@(z.Datum is { } d ? VorgangAnzeige.Datum(d) : "—")</div>
+                                    <div class="neben @(z.Tage >= 7 ? "krittext" : "")">@TageText(z.Tage)</div>
+                                </td>
+                                <td>
+                                    <div>@(z.Inhalt ?? "—")</div>
+                                    @if (z.Abo) { <div class="neben">Abo</div> }
+                                </td>
+                                <td style="white-space:nowrap; text-align:right">
+                                    @if (z.KundeId is { } kunde)
+                                    {
+                                        <a class="knopf" href="@($"vorgaenge/neu?kunde={kunde}&auftrag={Uri.EscapeDataString(z.Nummer)}")">Vorgang anlegen</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="neben" title="Der Odoo-Kontakt ist keinem Kunden der Kundenzentrale zugeordnet — nach dem nächsten Odoo-Import erneut prüfen.">Kunde nicht verknüpft</span>
+                                    }
+                                    <button class="mehr" style="margin-left:10px" @onclick="() => AusblendenOeffnen(z.Nummer)">ausblenden</button>
+                                </td>
+                            </tr>
+                            @AusblendZeile(z, 5)
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="karte">
+        <div class="vg-filter">
+            <strong>Angebote ohne Rückmeldung</strong>
+            <span class="neben" style="color:var(--muted); font-size:12.5px">
+                In Odoo gesendet und weder bestätigt noch storniert. Nach @_daten.NachfassTage Tagen bekommt der Verkäufer eine Nachfass-Aufgabe.
+            </span>
+        </div>
+        @if (_daten.Angebote.Count == 0)
+        {
+            <div class="leer-hinweis">Kein gesendetes Angebot wartet auf eine Rückmeldung.</div>
+        }
+        else
+        {
+            <div class="vg-tabelle-wrap">
+                <table class="liste">
+                    <thead><tr><th>Kunde</th><th>Angebot</th><th>Gesendet</th><th>Gültig bis</th><th>Verkäufer</th><th>Nachfassen</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var z in _daten.Angebote)
+                        {
+                            <tr style="cursor:default">
+                                <td>@KundeZelle(z)</td>
+                                <td>
+                                    @NummerZelle(z)
+                                    @if (z.Inhalt is not null) { <div class="neben">@z.Inhalt</div> }
+                                </td>
+                                <td>
+                                    <div>@(z.Datum is { } d ? VorgangAnzeige.Datum(d) : "—")</div>
+                                    <div class="neben @(z.Tage >= 30 ? "krittext" : "")">@TageText(z.Tage)</div>
+                                </td>
+                                <td>
+                                    @if (z.GueltigBis is { } g)
+                                    {
+                                        <span class="@(z.Abgelaufen ? "krittext" : "")">@VorgangAnzeige.Datum(g)@(z.Abgelaufen ? " · abgelaufen" : "")</span>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </td>
+                                <td>@(z.Verkaeufer ?? "—")</td>
+                                <td>
+                                    @if (z.AufgabeOffen)
+                                    {
+                                        <span class="status warnung">Aufgabe offen</span>
+                                        <div class="neben">bei @(z.AufgabeBei ?? "niemandem")@(z.AufgabeFaellig is { } f ? $" · fällig {VorgangAnzeige.Relativ(f)}" : "")</div>
+                                    }
+                                    else if (z.Nachfassungen > 0)
+                                    {
+                                        <span>@z.Nachfassungen× nachgefasst</span>
+                                    }
+                                    else if (_daten.NachfassTage > 0 && z.Tage >= _daten.NachfassTage)
+                                    {
+                                        <span class="neben" title="Die Aufgabe entsteht beim nächsten stündlichen Lauf oder über „Nachfass-Aufgaben prüfen“.">Aufgabe entsteht beim nächsten Lauf</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="neben">noch nicht fällig</span>
+                                    }
+                                </td>
+                                <td style="white-space:nowrap; text-align:right">
+                                    <button class="mehr" @onclick="() => AusblendenOeffnen(z.Nummer)">ausblenden</button>
+                                </td>
+                            </tr>
+                            @AusblendZeile(z, 7)
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    @if (_daten.Ausgeblendet.Count > 0)
+    {
+        <details class="gruppe" style="margin-top:16px">
+            <summary>Ausgeblendet<span class="zahl">@_daten.Ausgeblendet.Count</span></summary>
+            <div class="gruppe-inhalt">
+                @foreach (var z in _daten.Ausgeblendet)
+                {
+                    <div class="zeile2">
+                        <span>
+                            <strong>@z.Nummer</strong> · @z.Kunde · @(z.Bestaetigt ? "Auftrag" : "Angebot")
+                            <span class="l">
+                                — ausgeblendet@(z.AusgeblendetVon is not null ? $" von {z.AusgeblendetVon}" : "")
+                                @(z.AusgeblendetAm is { } am ? $"am {am.ToLocalTime():dd.MM.yyyy}" : "")@(z.AusblendGrund is not null ? $": {z.AusblendGrund}" : "")
+                            </span>
+                        </span>
+                        <button class="mehr" style="padding:0" @onclick="() => EinblendenAsync(z.Nummer)">wieder einblenden</button>
+                    </div>
+                }
+            </div>
+        </details>
+    }
+
+    <div class="neben" style="color:var(--muted); font-size:12.5px; margin-top:12px">
+        Berücksichtigt sind Angebote und Aufträge der letzten @_daten.RueckblickTage Tage, live aus Odoo. Fristen und die
+        Wochenübersicht per Mail stehen unter Administration → Offene Angebote und Kontoauszüge.
+    </div>
+}
+
+@code {
+    private VerkaufUebersicht? _daten;
+    private string? _fehler;
+    private string? _meldung;
+    private bool _laedt;
+    private bool _laeuft;
+    private string? _ausblenden;
+    private string _grund = "";
+
+    protected override Task OnInitializedAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        _laedt = true;
+        try
+        {
+            _daten = await Http.GetFromJsonAsync<VerkaufUebersicht>("api/verkauf/offen");
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Übersicht konnte nicht geladen werden: {ex.Message}";
+        }
+        finally
+        {
+            _laedt = false;
+        }
+    }
+
+    private async Task NachfassenAsync()
+    {
+        _laeuft = true;
+        _meldung = null;
+        try
+        {
+            var antwort = await Http.PostAsync("api/verkauf/nachfassen", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            var e = await antwort.Content.ReadFromJsonAsync<VerkaufLaufErgebnis>();
+            _meldung = e is null ? null
+                : e.Hinweis ?? $"Geprüft: {e.AufgabenAngelegt} Nachfass-{(e.AufgabenAngelegt == 1 ? "Aufgabe" : "Aufgaben")} angelegt, " +
+                               $"{e.AufgabenGeschlossen} automatisch erledigt.";
+            await LadenAsync();
+            AufgabenSignal.Melden();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Prüfung ist fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _laeuft = false;
+        }
+    }
+
+    private void AusblendenOeffnen(string nummer)
+    {
+        _ausblenden = _ausblenden == nummer ? null : nummer;
+        _grund = "";
+    }
+
+    private async Task AusblendenAsync(string nummer)
+    {
+        var antwort = await Http.PostAsJsonAsync("api/verkauf/ausblenden", new VerkaufAusblenden(nummer, _grund));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+            return;
+        }
+        _ausblenden = null;
+        await LadenAsync();
+    }
+
+    private async Task EinblendenAsync(string nummer)
+    {
+        var antwort = await Http.PostAsJsonAsync("api/verkauf/einblenden", new VerkaufAusblenden(nummer, null));
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+            return;
+        }
+        await LadenAsync();
+    }
+
+    private static string TageText(int? tage) => tage switch
+    {
+        null => "",
+        0 => "heute",
+        1 => "seit gestern",
+        _ => $"seit {tage} Tagen",
+    };
+
+    private RenderFragment KundeZelle(VerkaufZeile z) => @<text>
+        @if (z.KundeId is { } id)
+        {
+            <a class="haupt" href="@($"kunden/{id}")">@z.Kunde</a>
+            <div class="neben">@z.Kundennummer</div>
+        }
+        else
+        {
+            <div class="haupt">@z.Kunde</div>
+            <div class="neben">nicht mit einem Kunden verknüpft</div>
+        }
+    </text>;
+
+    private RenderFragment NummerZelle(VerkaufZeile z) => @<text>
+        @if (z.OdooLink is not null)
+        {
+            <a href="@z.OdooLink" target="_blank" rel="noopener noreferrer" title="In Odoo öffnen">@z.Nummer ↗</a>
+        }
+        else
+        {
+            <span>@z.Nummer</span>
+        }
+        @if (z.Referenz is not null) { <div class="neben">Ihre Referenz: @z.Referenz</div> }
+    </text>;
+
+    private RenderFragment AusblendZeile(VerkaufZeile z, int spalten) => @<text>
+        @if (_ausblenden == z.Nummer)
+        {
+            <tr style="cursor:default">
+                <td colspan="@spalten">
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+                        <span>@z.Nummer ausblenden — Grund (optional):</span>
+                        <input type="text" maxlength="200" style="flex:1; min-width:220px" @bind="_grund" @bind:event="oninput"
+                               placeholder="@(z.Bestaetigt ? "z. B. braucht keinen Vorgang" : "z. B. Kunde entscheidet erst im Frühjahr")" />
+                        <button class="knopf sekundaer" @onclick="() => AusblendenAsync(z.Nummer)">Ausblenden</button>
+                        <button class="mehr" @onclick="() => _ausblenden = null">abbrechen</button>
+                    </div>
+                </td>
+            </tr>
+        }
+    </text>;
+}

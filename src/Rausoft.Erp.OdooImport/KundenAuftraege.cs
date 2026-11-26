@@ -35,23 +35,7 @@ public static class KundenAuftraege
             return [];
 
         var ids = auftraege.EnumerateArray().Select(a => a.GetProperty("id").GetInt32()).ToArray();
-        var zeilen = await odoo.AusfuehrenAsync("sale.order.line", "search_read",
-            [new object[]
-            {
-                new object[] { "order_id", "in", ids },
-                new object[] { "display_type", "=", false },
-            }],
-            new Dictionary<string, object>
-            {
-                ["fields"] = new[] { "order_id", "product_id", "name" },
-                ["order"] = "order_id, sequence, id",
-            });
-        var produkte = new Dictionary<int, List<string>>();
-        if (zeilen.ValueKind == JsonValueKind.Array)
-            foreach (var z in zeilen.EnumerateArray())
-                if (OdooJson.Many2OneId(z, "order_id") is { } auftrag
-                    && (OdooJson.Many2OneLabel(z, "product_id") ?? ErsteZeile(OdooJson.Text(z, "name"))) is { } produkt)
-                    (produkte.TryGetValue(auftrag, out var liste) ? liste : produkte[auftrag] = []).Add(produkt);
+        var produkte = await ProdukteAsync(odoo, ids);
 
         return auftraege.EnumerateArray()
             .Select(a => new OdooKundenAuftrag(
@@ -61,6 +45,31 @@ public static class KundenAuftraege
                 OdooJson.Text(a, "client_order_ref"),
                 produkte.GetValueOrDefault(a.GetProperty("id").GetInt32()) ?? []))
             .ToList();
+    }
+
+    /// <summary>Produkte je Auftrag (ohne Abschnitts- und Notizzeilen), in der Reihenfolge des Auftrags.</summary>
+    public static async Task<Dictionary<int, List<string>>> ProdukteAsync(IOdooAufruf odoo, int[] auftragIds)
+    {
+        var produkte = new Dictionary<int, List<string>>();
+        if (auftragIds.Length == 0)
+            return produkte;
+        var zeilen = await odoo.AusfuehrenAsync("sale.order.line", "search_read",
+            [new object[]
+            {
+                new object[] { "order_id", "in", auftragIds },
+                new object[] { "display_type", "=", false },
+            }],
+            new Dictionary<string, object>
+            {
+                ["fields"] = new[] { "order_id", "product_id", "name" },
+                ["order"] = "order_id, sequence, id",
+            });
+        if (zeilen.ValueKind == JsonValueKind.Array)
+            foreach (var z in zeilen.EnumerateArray())
+                if (OdooJson.Many2OneId(z, "order_id") is { } auftrag
+                    && (OdooJson.Many2OneLabel(z, "product_id") ?? ErsteZeile(OdooJson.Text(z, "name"))) is { } produkt)
+                    (produkte.TryGetValue(auftrag, out var liste) ? liste : produkte[auftrag] = []).Add(produkt);
+        return produkte;
     }
 
     /// <summary>Kurzer Inhalt zum Wiedererkennen, z. B. „Shared Cloud Basis, Backup, Exchange +2".</summary>

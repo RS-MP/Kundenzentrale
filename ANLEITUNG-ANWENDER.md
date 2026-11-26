@@ -202,6 +202,45 @@ Claude kopieren" den fertigen Textblock für den Systemprompt bzw. die
 Projektanweisungen; interne Begründungen sind ausgenommen. Kundennamen und
 Preise gehören nicht in Leitlinien.
 
+## Offene Angebote und Aufträge
+
+Bereich **Angebote**: zwei Listen direkt aus Odoo.
+
+- **Bestätigte Aufträge ohne Vorgang** — hier fehlt der Start. „Vorgang
+  anlegen“ übernimmt Kunde und Auftragsnummer. Braucht ein Auftrag keinen
+  Vorgang: „ausblenden“ (mit Grund).
+- **Angebote ohne Rückmeldung** — nach 7 Tagen bekommt der Verkäufer eine
+  Aufgabe „Angebot … nachfassen“ unter **Meine Aufgaben**. Sie erledigt sich
+  von selbst, sobald das Angebot in Odoo bestätigt oder storniert ist. Wer
+  nachgefasst hat und der Kunde braucht noch Zeit: Aufgabe erledigen — nach
+  14 Tagen kommt die nächste. Soll gar nicht mehr erinnert werden: „ausblenden“.
+
+## E-Mail-Textbausteine
+
+Unter **Vorlagen → E-Mail-Textbausteine** liegen die Mailtexte aus Odoo mit
+Formatierung. Baustein wählen, **Text kopieren**, in Outlook mit Strg+V
+einfügen; **Betreff kopieren** für die Betreffzeile. Platzhalter wie
+`{{Kunde.Name}}` vor dem Senden von Hand ersetzen. Steht „nacharbeiten“ am
+Baustein, konnte etwas aus Odoo nicht eins zu eins übernommen werden — ein
+Admin bereinigt den Text über „Bearbeiten“.
+
+## Zahlungen (Buchhaltung)
+
+1. Kontoauszug im Online-Banking als **CSV-MT940** exportieren und in den
+   Eingangsordner kopieren. Nach spätestens zwei Minuten ist er eingelesen und
+   liegt im Unterordner `verarbeitet`.
+2. Eindeutige Eingänge (Rechnungsnummer im Verwendungszweck, Betrag stimmt)
+   bucht die Kundenzentrale selbst als Zahlung in Odoo.
+3. Der Rest steht unter **Zahlungen → Zur Klärung**: „Zuordnen“ (Rechnung
+   wählen, wird gebucht), „in Odoo erledigt“ (schon von Hand gebucht) oder
+   „ignorieren“ (gehört zu keiner Rechnung).
+4. **Den Auszug nicht zusätzlich in Odoo importieren** — sonst stehen die
+   Zahlungen doppelt.
+
+Steht an einem Eingang „Buchung unklar“, brach die Verbindung beim Buchen ab:
+in Odoo an der Rechnung nachsehen und dann „Steht in Odoo“ oder „nicht
+gebucht“ wählen. Darunter stehen die offenen Rechnungen, überfällige zuerst.
+
 ## Wer darf was
 
 Alle Mitarbeiter können mit Kunden und Verträgen arbeiten. Der Bereich
@@ -210,7 +249,8 @@ Verträge löschen) ist Admins vorbehalten — Rollen vergibt ein Admin unter
 Administration → Benutzer & Rollen. Vertrauliche Verträge sieht vollständig nur,
 wer die Rolle „Vertrauliche Verträge" hat. Das Wiki pflegen Admin, Compliance
 und Wiki-Redakteure (nur ihre freigegebenen Themen). Kommunikationsleitlinien
-geben ausschließlich Compliance und Admin frei.
+geben ausschließlich Compliance und Admin frei. Die Seite **Zahlungen** sehen nur
+Buchhaltung und Admin.
 
 ## Bei Problemen
 

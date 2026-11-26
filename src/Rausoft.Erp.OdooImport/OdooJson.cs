@@ -29,6 +29,11 @@ internal static class OdooJson
             ? wert[1].GetString()
             : null;
 
+    public static decimal Dezimal(JsonElement element, string feld) =>
+        element.TryGetProperty(feld, out var wert) && wert.ValueKind == JsonValueKind.Number
+            ? Math.Round(wert.GetDecimal(), 2, MidpointRounding.AwayFromZero)
+            : 0m;
+
     public static int AnzahlIds(JsonElement element, string feld) =>
         element.TryGetProperty(feld, out var wert) && wert.ValueKind == JsonValueKind.Array
             ? wert.GetArrayLength()

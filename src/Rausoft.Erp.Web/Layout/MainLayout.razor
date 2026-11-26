@@ -31,6 +31,10 @@
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4l1.2 1.2L6 3M2.5 8.5l1.2 1.2L6 7.5"/><circle cx="4" cy="12.6" r="1.1"/><path d="M8 4.2h5.5M8 8.7h5.5M8 12.8h5.5"/></svg>
                 Vorgänge
             </NavLink>
+            <NavLink href="angebote">
+                <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.2h11v7.6h-11z"/><path d="M2.8 4.6L8 8.7l5.2-4.1"/><circle cx="12.6" cy="11.6" r="2.1" fill="var(--surface, #fff)"/><path d="M12.6 10.6v1.1l.7.5"/></svg>
+                Angebote
+            </NavLink>
             <NavLink href="vertraege">
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.2" width="9.6" height="11.6" rx="1.4"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3"/></svg>
                 Verträge
@@ -57,6 +61,14 @@
                 <NavLink href="margenrechner">
                     <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 2.5v11h11"/><path d="M4.8 10.6l2.6-3 2.2 1.6 3.4-4.4"/></svg>
                     Margenrechner
+                </NavLink>
+            }
+            @if (_zahlungen)
+            {
+                @* Nur Buchhaltung und Admin — die API sperrt unabhängig davon *@
+                <NavLink href="zahlungen">
+                    <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.2" y="3.8" width="11.6" height="8.4" rx="1.4"/><path d="M2.4 6.6h11.2M4.6 9.8h2.6"/></svg>
+                    Zahlungen
                 </NavLink>
             }
             <NavLink href="server">
@@ -94,6 +106,7 @@
     private WikiHinweise? _wikiHinweise;
     private InstanzInfo? _instanz;
     private bool _margenrechner;
+    private bool _zahlungen;
 
     protected override async Task OnInitializedAsync()
     {
@@ -101,6 +114,8 @@
         catch { _instanz = null; /* ohne Antwort kein Band — die Sperren greifen serverseitig */ }
         try { _margenrechner = (await Http.GetFromJsonAsync<Rausoft.Erp.Dtos.Margen.MargenrechnerZugangInfo>("api/margenrechner-zugang"))?.Darf == true; }
         catch { _margenrechner = false; /* ohne Antwort kein Menüpunkt */ }
+        try { _zahlungen = (await Http.GetFromJsonAsync<ZahlungenZugang>("api/zahlungen-zugang"))?.Darf == true; }
+        catch { _zahlungen = false; /* ohne Antwort kein Menüpunkt */ }
         WikiHinweisSignal.Geaendert += WikiHinweiseNachladen;
         AufgabenSignal.Geaendert += AufgabenNachladen;
         await WikiHinweiseLadenAsync();

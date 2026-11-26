@@ -64,12 +64,15 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Betrieb", policy => policy.Requirements.Add(new BetriebAnforderung()));
     // Margenrechner: nur die einzeln vergebene Rolle — Admin genügt nicht
     options.AddPolicy(MargenrechnerAnforderung.Policy, policy => policy.Requirements.Add(new MargenrechnerAnforderung()));
+    // Zahlungseingänge und offene Posten: Buchhaltung oder Admin
+    options.AddPolicy(BuchhaltungAnforderung.Policy, policy => policy.Requirements.Add(new BuchhaltungAnforderung()));
 });
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AktiverMitarbeiterAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, ComplianceAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, BetriebAnforderungHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MargenrechnerAnforderungHandler>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, BuchhaltungAnforderungHandler>();
 // Wiki: Themen-Freigabe je Redakteur (kein Policy, weil themenabhängig)
 builder.Services.AddScoped<WikiBerechtigung>();
 // Mitarbeiter-Datensatz zum Konto einmal je Request (Policies, Controller, Wiki) — SICHERHEIT.md Q3
@@ -113,14 +116,18 @@ builder.Services.AddScoped<MailDienst>();
 builder.Services.AddScoped<ZertifikatDienst>();
 builder.Services.AddScoped<VorgangsAbgleichDienst>();
 builder.Services.AddScoped<OdooSchreibZugang>();
+builder.Services.AddScoped<VerkaufsUeberwachung>();
+builder.Services.AddScoped<ZahlungsDienst>();
 // Hintergrund-Takte nur im Produktivsystem: Server-Status-Meldung ans Portal,
 // Zertifikats-Erinnerungen per Mail, Vorgangs-Abgleich mit Odoo (stündlich, nur
-// lesend). Im Testsystem läuft nichts von selbst — alles nur auf Knopfdruck.
+// lesend), Nachfass-Aufgaben zu offenen Angeboten, Einlesen der Kontoauszüge. Im Testsystem läuft nichts von selbst — alles nur auf Knopfdruck.
 if (!instanz.Testsystem)
 {
     builder.Services.AddHostedService<ServerStatusHintergrund>();
     builder.Services.AddHostedService<ZertifikatHintergrund>();
     builder.Services.AddHostedService<VorgangsAbgleichHintergrund>();
+    builder.Services.AddHostedService<VerkaufsHintergrund>();
+    builder.Services.AddHostedService<ZahlungsHintergrund>();
 }
 // Löschfrist der Klick-Kennungen von Website-Anfragen — gilt auch im Testsystem
 builder.Services.AddHostedService<AnfragenAufraeumen>();

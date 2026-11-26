@@ -18,6 +18,7 @@ public static class TestsystemSchutz
         [EinstellungsSchluessel.VertragserzeugungZielverzeichnis] = "Erzeugt",
         [EinstellungsSchluessel.VertraulicheAblageVerzeichnis] = "Vertraulich",
         [EinstellungsSchluessel.PreislisteVerzeichnis] = "Preisliste",
+        [EinstellungsSchluessel.ZahlungenEingangVerzeichnis] = "Kontoauszuege",
     };
 
     /// <summary>Gilt die Einstellung als Pfad (Verzeichnis oder Datei), der im Testsystem geprüft wird?</summary>

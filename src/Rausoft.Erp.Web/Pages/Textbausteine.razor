@@ -1,0 +1,352 @@
+@page "/textbausteine"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>E-Mail-Textbausteine · Kundenzentrale</PageTitle>
+
+<div class="seitenkopf">
+    <h1>E-Mail-Textbausteine</h1>
+    <span class="untertitel">Betreff und formatierter Text für wiederkehrende Mails — übernommen aus den Odoo-Mailvorlagen</span>
+    <span style="flex:1"></span>
+    <a class="knopf sekundaer" href="vorlagen">Vertragsvorlagen</a>
+    @if (_daten?.DarfPflegen == true)
+    {
+        <button class="knopf sekundaer" disabled="@_uebernimmt" @onclick="() => UebernehmenAsync(true)"
+                title="Zählt nur, was übernommen würde — es wird nichts gespeichert.">Probelauf Odoo</button>
+        <button class="knopf sekundaer" disabled="@_uebernimmt" @onclick="() => UebernehmenAsync(false)"
+                title="Liest alle Mailvorlagen aus Odoo. Hier bearbeitete Bausteine bleiben unberührt.">
+            @(_uebernimmt ? "Übernimmt …" : "Aus Odoo übernehmen")
+        </button>
+        <button class="knopf" @onclick="NeuOeffnen">+ Textbaustein</button>
+    }
+</div>
+
+@if (_fehler is not null)
+{
+    <div class="fehler">@_fehler</div>
+}
+@if (_meldung is not null)
+{
+    <div class="zert-hinweis">@_meldung</div>
+}
+
+@if (_daten is null)
+{
+    @if (_fehler is null) { <div class="leer-hinweis">Lade Textbausteine …</div> }
+}
+else
+{
+    <div style="display:grid; grid-template-columns:minmax(260px, 360px) minmax(0, 1fr); gap:16px; align-items:start">
+        <div class="karte" style="margin:0">
+            <div class="vg-filter">
+                <input type="search" style="flex:1; min-width:0" placeholder="Suchen (Name, Betreff)" @bind="_suche" @bind:event="oninput" />
+            </div>
+            <div class="vg-filter">
+                <div class="chips">
+                    <button type="button" class="chip @(_verwendung is null ? "aktiv" : "")" @onclick="() => _verwendung = null">Alle</button>
+                    @foreach (var v in _daten.Bausteine.Select(b => b.Verwendung ?? "Sonstiges").Distinct().Order())
+                    {
+                        <button type="button" class="chip @(_verwendung == v ? "aktiv" : "")" @onclick="() => _verwendung = v">@v</button>
+                    }
+                </div>
+            </div>
+            @{ var zeilen = Gefiltert().ToList(); }
+            @if (zeilen.Count == 0)
+            {
+                <div class="leer-hinweis">
+                    @(_daten.Bausteine.Count == 0
+                        ? (_daten.DarfPflegen ? "Noch keine Textbausteine. „Aus Odoo übernehmen“ holt die Mailvorlagen." : "Noch keine Textbausteine.")
+                        : "Kein Textbaustein für diese Auswahl.")
+                </div>
+            }
+            else
+            {
+                <div style="max-height:70vh; overflow-y:auto">
+                    <table class="liste">
+                        <tbody>
+                            @foreach (var b in zeilen)
+                            {
+                                <tr @onclick="() => WaehlenAsync(b.Id)" style="@(_detail?.Id == b.Id ? "background:var(--accent-soft)" : "")">
+                                    <td>
+                                        <div class="haupt" style="@(b.Aktiv ? "" : "color:var(--muted); text-decoration:line-through")">@b.Name</div>
+                                        <div class="neben">
+                                            @(b.Verwendung ?? "Sonstiges")@(b.Aktiv ? "" : " · deaktiviert")@(b.LokalGeaendert ? " · hier bearbeitet" : "")
+                                            @if (b.HatHinweise) { <span class="krittext" title="Bei der Übernahme blieb etwas offen — bitte nacharbeiten"> · nacharbeiten</span> }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <div class="karte" style="margin:0; padding:16px">
+            @if (_bearbeiten is not null)
+            {
+                <h2 style="margin-top:0">@(_bearbeitenId is null ? "Neuer Textbaustein" : "Textbaustein bearbeiten")</h2>
+                <div class="formular">
+                    <label>Name<input type="text" maxlength="200" @bind="_bearbeiten.Name" /></label>
+                    <label>Verwendung<input type="text" maxlength="100" @bind="_bearbeiten.Verwendung" placeholder="z. B. Angebot / Auftrag" /></label>
+                    <label class="breit">Betreff<input type="text" maxlength="500" @bind="_bearbeiten.Betreff" /></label>
+                    <label class="breit">
+                        Text (HTML)
+                        <textarea rows="16" style="font-family:Consolas,monospace; font-size:12.5px" @bind="_bearbeiten.Html"></textarea>
+                    </label>
+                    <label class="ll-haken"><input type="checkbox" @bind="_bearbeiten.Aktiv" /> Aktiv — für alle Mitarbeiter sichtbar</label>
+                </div>
+                <div class="neben" style="color:var(--muted); font-size:12.5px; margin-top:8px">
+                    Platzhalter stehen in doppelten geschweiften Klammern, z. B. {{Kunde.Name}} oder {{Beleg.Nummer}}. Skripte und
+                    eingebettete Inhalte werden beim Speichern entfernt.
+                </div>
+                <div class="formular-aktionen">
+                    <button class="knopf" disabled="@_speichert" @onclick="SpeichernAsync">@(_speichert ? "Speichert …" : "Speichern")</button>
+                    <button class="knopf sekundaer" @onclick="() => _bearbeiten = null">Abbrechen</button>
+                    @if (_bearbeitenId is not null && _detail is { AusOdoo: false })
+                    {
+                        <span style="flex:1"></span>
+                        <button class="mehr krittext" @onclick="LoeschenAsync">@(_loeschenSicher ? "Wirklich löschen?" : "Löschen")</button>
+                    }
+                </div>
+            }
+            else if (_detail is null)
+            {
+                <div class="leer-hinweis">Links einen Textbaustein wählen.</div>
+            }
+            else
+            {
+                <div style="display:flex; gap:8px; align-items:baseline; flex-wrap:wrap">
+                    <h2 style="margin:0">@_detail.Name</h2>
+                    <span class="neben" style="color:var(--muted); font-size:12.5px">
+                        @(_detail.Verwendung ?? "Sonstiges") · @(_detail.AusOdoo ? (_detail.LokalGeaendert ? "aus Odoo, hier bearbeitet" : "aus Odoo") : "hier angelegt")
+                        · Stand @_detail.GeaendertAm.ToLocalTime().ToString("dd.MM.yyyy")
+                    </span>
+                    <span style="flex:1"></span>
+                    <button class="knopf" @onclick="KopierenAsync" title="Kopiert den formatierten Text in die Zwischenablage — in Outlook mit Strg+V einfügen.">
+                        @(_kopiert == "text" ? "✓ kopiert" : "Text kopieren")
+                    </button>
+                    <button class="knopf sekundaer" @onclick="BetreffKopierenAsync">@(_kopiert == "betreff" ? "✓ kopiert" : "Betreff kopieren")</button>
+                    @if (_daten.DarfPflegen)
+                    {
+                        <button class="knopf sekundaer" @onclick="BearbeitenOeffnen">Bearbeiten</button>
+                    }
+                </div>
+                <div class="zeile2" style="margin-top:12px">
+                    <span class="l">Betreff</span>
+                    <span style="flex:1; font-weight:600">@(_detail.Betreff.Length > 0 ? _detail.Betreff : "—")</span>
+                </div>
+                @if (_detail.Hinweise.Count > 0)
+                {
+                    <div class="zert-hinweis" style="margin-top:10px">
+                        <strong>Bitte nacharbeiten</strong> — das ließ sich aus Odoo nicht eins zu eins übernehmen:
+                        <ul style="margin:6px 0 0; padding-left:18px">
+                            @foreach (var h in _detail.Hinweise) { <li>@h</li> }
+                        </ul>
+                    </div>
+                }
+                @* Fremdes HTML wird nie in die eigene Seite gesetzt: abgeschotteter Rahmen ohne Skripte, Formulare und Zugriff auf die Kundenzentrale *@
+                <iframe sandbox="" referrerpolicy="no-referrer" title="Vorschau des Textbausteins" srcdoc="@Vorschau(_detail.InhaltHtml)"
+                        style="width:100%; height:480px; margin-top:12px; border:1px solid var(--border); border-radius:8px; background:#fff"></iframe>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private sealed class Eingabe
+    {
+        public string Name { get; set; } = "";
+        public string Betreff { get; set; } = "";
+        public string Html { get; set; } = "";
+        public string Verwendung { get; set; } = "";
+        public bool Aktiv { get; set; } = true;
+    }
+
+    private TextbausteinUebersicht? _daten;
+    private TextbausteinDetail? _detail;
+    private Eingabe? _bearbeiten;
+    private int? _bearbeitenId;
+    private string _suche = "";
+    private string? _verwendung;
+    private string? _fehler;
+    private string? _meldung;
+    private string? _kopiert;
+    private bool _uebernimmt;
+    private bool _speichert;
+    private bool _loeschenSicher;
+
+    protected override Task OnInitializedAsync() => LadenAsync();
+
+    private async Task LadenAsync()
+    {
+        try
+        {
+            _daten = await Http.GetFromJsonAsync<TextbausteinUebersicht>("api/textbausteine");
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Textbausteine konnten nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    private IEnumerable<TextbausteinZeile> Gefiltert() => _daten!.Bausteine
+        .Where(b => _verwendung is null || (b.Verwendung ?? "Sonstiges") == _verwendung)
+        .Where(b => _suche.Trim().Length == 0
+                    || b.Name.Contains(_suche.Trim(), StringComparison.OrdinalIgnoreCase)
+                    || b.Betreff.Contains(_suche.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private async Task WaehlenAsync(int id)
+    {
+        _bearbeiten = null;
+        _kopiert = null;
+        _loeschenSicher = false;
+        try
+        {
+            _detail = await Http.GetFromJsonAsync<TextbausteinDetail>($"api/textbausteine/{id}");
+            _fehler = null;
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Der Textbaustein konnte nicht geladen werden: {ex.Message}";
+        }
+    }
+
+    /// <summary>Vorschau wie in einer Mail: helle Fläche, Systemschrift, Verweise öffnen nicht im Rahmen.</summary>
+    private static string Vorschau(string html) =>
+        "<!doctype html><html><head><meta charset=\"utf-8\"><base target=\"_blank\">" +
+        "<style>body{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#222;margin:14px}img{max-width:100%}</style></head><body>" +
+        html + "</body></html>";
+
+    private async Task KopierenAsync()
+    {
+        if (_detail is null)
+            return;
+        try
+        {
+            await JS.InvokeVoidAsync("textbausteinKopieren", _detail.InhaltHtml);
+            _kopiert = "text";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Kopieren nicht möglich: {ex.Message}";
+        }
+    }
+
+    private async Task BetreffKopierenAsync()
+    {
+        if (_detail is null)
+            return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _detail.Betreff);
+            _kopiert = "betreff";
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Kopieren nicht möglich: {ex.Message}";
+        }
+    }
+
+    private void NeuOeffnen()
+    {
+        _bearbeitenId = null;
+        _bearbeiten = new Eingabe();
+    }
+
+    private void BearbeitenOeffnen()
+    {
+        if (_detail is null)
+            return;
+        _bearbeitenId = _detail.Id;
+        _loeschenSicher = false;
+        _bearbeiten = new Eingabe
+        {
+            Name = _detail.Name, Betreff = _detail.Betreff, Html = _detail.InhaltHtml,
+            Verwendung = _detail.Verwendung ?? "", Aktiv = _detail.Aktiv,
+        };
+    }
+
+    private async Task SpeichernAsync()
+    {
+        if (_bearbeiten is null)
+            return;
+        _speichert = true;
+        try
+        {
+            var daten = new TextbausteinSpeichern(_bearbeiten.Name, _bearbeiten.Betreff, _bearbeiten.Html, _bearbeiten.Verwendung, _bearbeiten.Aktiv);
+            var antwort = _bearbeitenId is { } id
+                ? await Http.PutAsJsonAsync($"api/textbausteine/{id}", daten)
+                : await Http.PostAsJsonAsync("api/textbausteine", daten);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            var gespeichert = _bearbeitenId ?? await antwort.Content.ReadFromJsonAsync<int>();
+            await LadenAsync();
+            await WaehlenAsync(gespeichert);
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichert = false;
+        }
+    }
+
+    private async Task LoeschenAsync()
+    {
+        if (_bearbeitenId is not { } id)
+            return;
+        if (!_loeschenSicher)
+        {
+            _loeschenSicher = true;
+            return;
+        }
+        var antwort = await Http.DeleteAsync($"api/textbausteine/{id}");
+        if (!antwort.IsSuccessStatusCode)
+        {
+            _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+            return;
+        }
+        _bearbeiten = null;
+        _detail = null;
+        await LadenAsync();
+    }
+
+    private async Task UebernehmenAsync(bool probe)
+    {
+        _uebernimmt = true;
+        _meldung = null;
+        try
+        {
+            var antwort = await Http.PostAsync($"api/textbausteine/odoo-uebernahme?probe={(probe ? "true" : "false")}", null);
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            var e = await antwort.Content.ReadFromJsonAsync<TextbausteinUebernahme>();
+            _meldung = e is null ? null
+                : e.Gelesen == 0 && e.Hinweis is not null ? e.Hinweis
+                : $"{(e.Probelauf ? "Probelauf — es wurde nichts gespeichert" : "Übernahme fertig")}: {e.Gelesen} Vorlagen in Odoo, " +
+                  $"{e.Neu} neu, {e.Aktualisiert} aktualisiert, {e.Unveraendert} unverändert, {e.LokalGeaendert} hier bearbeitet und nicht angefasst. " +
+                  $"{e.MitHinweisen} davon brauchen Nacharbeit (unbekannte Platzhalter oder Bedingungen)." +
+                  (e.Hinweis is { } h ? $" {h}" : "");
+            if (!probe)
+                await LadenAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Die Übernahme ist fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _uebernimmt = false;
+        }
+    }
+}

@@ -9,6 +9,7 @@ using Rausoft.Erp.Domain.Shared;
 using Rausoft.Erp.Domain.Subscriptions;
 using Rausoft.Erp.Domain.Vorgaenge;
 using Rausoft.Erp.Domain.Wiki;
+using Rausoft.Erp.Domain.Zahlungen;
 
 namespace Rausoft.Erp.Data;
 
@@ -35,6 +36,11 @@ public class ErpDbContext(
     public DbSet<Vorgang> Vorgaenge => Set<Vorgang>();
     public DbSet<Vorgangstyp> Vorgangstypen => Set<Vorgangstyp>();
     public DbSet<VorgangstypSchritt> VorgangstypSchritte => Set<VorgangstypSchritt>();
+    public DbSet<VerkaufsMerker> VerkaufsMerker => Set<VerkaufsMerker>();
+
+    // E-Mail-Textbausteine und Zahlungseingänge aus Kontoauszügen
+    public DbSet<Textbaustein> Textbausteine => Set<Textbaustein>();
+    public DbSet<Bankumsatz> Bankumsaetze => Set<Bankumsatz>();
 
     // Kontakte
     public DbSet<Kunde> Kunden => Set<Kunde>();
@@ -219,6 +225,52 @@ public class ErpDbContext(
             e.HasOne(v => v.ErstelltVon).WithMany().HasForeignKey(v => v.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
             e.HasMany(v => v.Schritte).WithOne(a => a.Vorgang)
                 .HasForeignKey(a => a.VorgangId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VerkaufsMerker>(e =>
+        {
+            e.ToTable("VerkaufsMerker");
+            e.Property(m => m.Nummer).HasMaxLength(30);
+            e.HasIndex(m => m.Nummer).IsUnique();
+            e.Property(m => m.AusblendGrund).HasMaxLength(200);
+            e.HasOne(m => m.AusgeblendetVon).WithMany().HasForeignKey(m => m.AusgeblendetVonId).OnDelete(DeleteBehavior.NoAction);
+            // Wird die Nachfass-Aufgabe gelöscht, bleibt der Merker (mit dem Tag der letzten Anlage) stehen
+            e.HasOne(m => m.NachfassAufgabe).WithMany().HasForeignKey(m => m.NachfassAufgabeId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Textbaustein>(e =>
+        {
+            e.ToTable("Textbausteine");
+            e.Property(t => t.Name).HasMaxLength(200);
+            e.Property(t => t.Betreff).HasMaxLength(500);
+            e.Property(t => t.InhaltHtml).HasColumnType("nvarchar(max)");
+            e.Property(t => t.Verwendung).HasMaxLength(100);
+            e.Property(t => t.Hinweise).HasColumnType("nvarchar(max)");
+            e.Property(t => t.OdooModell).HasMaxLength(100);
+            e.HasIndex(t => t.OdooId).IsUnique().HasFilter("[OdooId] IS NOT NULL");
+            e.HasOne(t => t.GeaendertVon).WithMany().HasForeignKey(t => t.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<Bankumsatz>(e =>
+        {
+            e.ToTable("Bankumsaetze");
+            e.Property(u => u.Fingerabdruck).HasMaxLength(64);
+            e.HasIndex(u => u.Fingerabdruck).IsUnique();
+            e.Property(u => u.Auftragskonto).HasMaxLength(40);
+            e.Property(u => u.Buchungstext).HasMaxLength(100);
+            e.Property(u => u.Verwendungszweck).HasMaxLength(1000);
+            e.Property(u => u.Zahler).HasMaxLength(200);
+            e.Property(u => u.Betrag).HasPrecision(18, 2);
+            e.Property(u => u.Waehrung).HasMaxLength(3);
+            e.Property(u => u.Datei).HasMaxLength(260);
+            e.Property(u => u.Hinweis).HasMaxLength(500);
+            e.Property(u => u.Rechnung).HasMaxLength(60);
+            e.Property(u => u.RechnungKunde).HasMaxLength(200);
+            e.Property(u => u.GebuchtIn).HasMaxLength(300);
+            e.HasIndex(u => new { u.Status, u.Buchungstag });
+            e.Property(u => u.RowVersion).IsRowVersion();
+            e.HasOne(u => u.Kunde).WithMany().HasForeignKey(u => u.KundeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(u => u.ZugeordnetVon).WithMany().HasForeignKey(u => u.ZugeordnetVonId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<AktivitaetAnhang>(e =>
@@ -748,13 +800,17 @@ public class ErpDbContext(
             [nameof(Anfrage.Gclid), nameof(Anfrage.Gbraid), nameof(Anfrage.Wbraid), nameof(Anfrage.Msclkid), nameof(Anfrage.KlickKennungenGeloeschtAm)],
         // Die Lauf-Sperre wird je Anlegen gesetzt und wieder gelöscht — die Schritte selbst stehen im Audit.
         [typeof(AnfrageOdooAnlage)] = [nameof(AnfrageOdooAnlage.LaeuftSeit)],
+        // Der formatierte Text eines Textbausteins kann groß sein — Name, Betreff und wer geändert hat, reichen im Audit.
+        [typeof(Textbaustein)] = [nameof(Textbaustein.InhaltHtml)],
     };
 
     // Einstellungen, die Hintergrundläufe als Zeitstempel fortschreiben (kein Admin-Handeln),
     // und die gemerkte letzte Auswahl beim Anlegen in Odoo
     private static readonly HashSet<string> AutomatischGepflegteEinstellungen =
         [EinstellungsSchluessel.ServicePortalLetzterPush, EinstellungsSchluessel.OdooLetzterImport,
-         EinstellungsSchluessel.ZertifikateLetzterWochenbericht, EinstellungsSchluessel.AnfragenOdooVorbelegung];
+         EinstellungsSchluessel.ZertifikateLetzterWochenbericht, EinstellungsSchluessel.AnfragenOdooVorbelegung,
+         EinstellungsSchluessel.VerkaufLetzterBericht, EinstellungsSchluessel.ZahlungenLetzterBericht,
+         EinstellungsSchluessel.ZahlungenLetzterLauf];
 
     private static bool Auditieren(EntityEntry entry) =>
         !NichtAuditieren.Contains(entry.Entity.GetType())

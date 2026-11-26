@@ -73,4 +73,21 @@ public static class EinstellungsSchluessel
     public const string OdooTestGueltigBis = "OdooTest.GueltigBis";
     public const string OdooSchreibZiel = "OdooTest.SchreibZiel";
     public const string OdooTestPraefix = "OdooTest.";
+
+    // Offene Angebote und Aufträge aus Odoo: Nachfass-Aufgaben und Wochenübersicht per Mail
+    public const string VerkaufNachfassTage = "Verkauf.NachfassTage";
+    public const string VerkaufNachfassWiederholungTage = "Verkauf.NachfassWiederholungTage";
+    public const string VerkaufRueckblickTage = "Verkauf.RueckblickTage";
+    public const string VerkaufBerichtEmpfaenger = "Verkauf.BerichtEmpfaenger";
+    public const string VerkaufBerichtTag = "Verkauf.BerichtTag";
+    public const string VerkaufLetzterBericht = "Verkauf.LetzterBericht";
+
+    // Kontoauszüge: Eingangsordner, Buchen in Odoo, Meldung offener Posten
+    public const string ZahlungenEingangVerzeichnis = "Zahlungen.EingangVerzeichnis";
+    public const string ZahlungenAutomatischBuchen = "Zahlungen.AutomatischBuchen";
+    public const string ZahlungenOdooJournal = "Zahlungen.OdooJournal";
+    public const string ZahlungenEmpfaenger = "Zahlungen.Empfaenger";
+    public const string ZahlungenBerichtTag = "Zahlungen.BerichtTag";
+    public const string ZahlungenLetzterBericht = "Zahlungen.LetzterBericht";
+    public const string ZahlungenLetzterLauf = "Zahlungen.LetzterLauf";
 }

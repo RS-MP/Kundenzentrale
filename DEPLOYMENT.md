@@ -23,6 +23,25 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Offene Angebote, Textbausteine, Kontoauszüge (26.11.2026):** Publish wie üblich, die
+  Migration `VerkaufTextbausteineZahlungen` läuft beim Start (drei neue Tabellen, Einstellungen
+  `Verkauf.*` und `Zahlungen.*`). Danach unter Administration → „Offene Angebote und Kontoauszüge“:
+  1. **Empfänger** der beiden Übersichten eintragen (`Verkauf.BerichtEmpfaenger`,
+     `Zahlungen.Empfaenger`) und mit „Übersicht … jetzt senden“ prüfen.
+  2. **Eingangsordner** für Kontoauszüge anlegen und eintragen. NTFS-Rechte: nur Buchhaltung
+     (Ändern) und das Konto des App-Pools (Ändern — es verschiebt die Dateien nach `verarbeitet`).
+     Der Ordner enthält vollständige Auszüge, also auch Gehaltszahlungen.
+  3. **Rolle Buchhaltung** an die Personen vergeben, die die Seite „Zahlungen“ sehen sollen.
+  4. **Mailvorlagen:** Vorlagen → E-Mail-Textbausteine → „Probelauf Odoo“, dann „Aus Odoo
+     übernehmen“. Liest der Odoo-Benutzer der Anbindung `mail.template` nicht, meldet die
+     Übernahme das im Klartext.
+  5. **Buchen in Odoo zuerst gegen die Testdatenbank:** Administration → Odoo-Testdatenbank,
+     Schreibziel „Test“. Einen Auszug mit einer bekannten offenen Rechnung einlesen und in Odoo
+     prüfen: Zahlung am richtigen Journal, Rechnung „bezahlt“ bzw. „in Zahlung“. Gibt es mehrere
+     Bankjournale, den Namen unter `Zahlungen.OdooJournal` eintragen. Erst danach „Produktiv“.
+     In der Testdatenbank Gebuchtes lässt sich auf der Seite „Zahlungen“ zurück in die Klärung legen.
+  6. Ab dann den Kontoauszug **nicht mehr in Odoo importieren** (sonst doppelte Eingänge).
+
 - [ ] **Margenrechner: Einkaufsstaffel oberhalb von 5 Mio. Cases berichtigen (25.11.2026):**
   Kein Publish, keine Migration — nur Datenpflege auf dem Server. Die HTML-Vorlage rechnet
   oberhalb von 5 Mio. Cases mit linearen 100.000er Zwischenstufen; laut Staffeltabelle des

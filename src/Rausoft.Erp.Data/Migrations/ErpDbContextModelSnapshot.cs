@@ -1667,6 +1667,70 @@ namespace Rausoft.Erp.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Textbaustein", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Aktiv")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Betreff")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("GeaendertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("GeaendertVonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Hinweise")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InhaltHtml")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("LokalGeaendert")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("OdooId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OdooModell")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("OdooStand")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Verwendung")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GeaendertVonId");
+
+                    b.HasIndex("OdooId")
+                        .IsUnique()
+                        .HasFilter("[OdooId] IS NOT NULL");
+
+                    b.ToTable("Textbausteine", (string)null);
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Vereinbarung", b =>
                 {
                     b.Property<int>("Id")
@@ -1787,6 +1851,50 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasIndex("AboId");
 
                     b.ToTable("AboPositionen");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.VerkaufsMerker", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AusblendGrund")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("AusgeblendetAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("AusgeblendetVonId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NachfassAnzahl")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("NachfassAufgabeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("NachfassZuletztAm")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Nummer")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AusgeblendetVonId");
+
+                    b.HasIndex("NachfassAufgabeId");
+
+                    b.HasIndex("Nummer")
+                        .IsUnique();
+
+                    b.ToTable("VerkaufsMerker", (string)null);
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.Vorgang", b =>
@@ -2528,6 +2636,119 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("WikiThemaInfos");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Zahlungen.Bankumsatz", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Auftragskonto")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("Automatisch")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("Betrag")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly>("Buchungstag")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Buchungstext")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Datei")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("Fingerabdruck")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("GebuchtAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GebuchtIn")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int?>("GebuchtZiel")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Hinweis")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("ImportiertAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("KundeId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("OdooZahlungId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Rechnung")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("RechnungKunde")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("Valuta")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Verwendungszweck")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Waehrung")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("Zahler")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ZugeordnetAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ZugeordnetVonId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Fingerabdruck")
+                        .IsUnique();
+
+                    b.HasIndex("KundeId");
+
+                    b.HasIndex("ZugeordnetVonId");
+
+                    b.HasIndex("Status", "Buchungstag");
+
+                    b.ToTable("Bankumsaetze", (string)null);
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Contracts.Vertrag", "Hauptvertrag")
@@ -2883,6 +3104,16 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Bereich");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Textbaustein", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "GeaendertVon")
+                        .WithMany()
+                        .HasForeignKey("GeaendertVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("GeaendertVon");
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Shared.Vereinbarung", b =>
                 {
                     b.HasOne("Rausoft.Erp.Domain.Shared.Aktivitaet", "Aktivitaet")
@@ -2935,6 +3166,23 @@ namespace Rausoft.Erp.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Abo");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.VerkaufsMerker", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "AusgeblendetVon")
+                        .WithMany()
+                        .HasForeignKey("AusgeblendetVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Aufgabe", "NachfassAufgabe")
+                        .WithMany()
+                        .HasForeignKey("NachfassAufgabeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AusgeblendetVon");
+
+                    b.Navigation("NachfassAufgabe");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Vorgaenge.Vorgang", b =>
@@ -3173,6 +3421,23 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Verantwortlich");
 
                     b.Navigation("Vertreter");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Zahlungen.Bankumsatz", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
+                        .WithMany()
+                        .HasForeignKey("KundeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ZugeordnetVon")
+                        .WithMany()
+                        .HasForeignKey("ZugeordnetVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Kunde");
+
+                    b.Navigation("ZugeordnetVon");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Contracts.Vertrag", b =>
