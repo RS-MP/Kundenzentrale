@@ -59,6 +59,15 @@ public class AufgabenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
             })
             .ToListAsync(ct);
 
+        // Achtung-Hinweise der Kunden dieser Aufgaben — wer die Aufgabe erledigt, muss sie sehen
+        var kundenIds = roh.Select(a => a.KundeId).OfType<int>().Distinct().ToList();
+        var kundenHinweise = kundenIds.Count == 0 ? null : (await db.KundenHinweise.AsNoTracking()
+                .Where(h => kundenIds.Contains(h.KundeId))
+                .OrderBy(h => h.ErstelltAm).ThenBy(h => h.Id)
+                .Select(h => new { h.KundeId, h.Text })
+                .ToListAsync(ct))
+            .ToLookup(h => h.KundeId, h => h.Text);
+
         var heute = Heute;
         var istAdmin = await angemeldet.HatRolleAsync(MitarbeiterRolle.Admin, ct);
         var zeilen = roh.Select(a =>
@@ -83,7 +92,8 @@ public class AufgabenController(ErpDbContext db, Dienste.AngemeldeterMitarbeiter
                 a.VorgangId, a.Vorgang, a.Hinweis, a.Pflichtfeld, a.Bezug,
                 a.Quelle == AktivitaetsQuelle.OdooImport ? "Odoo" : "Kundenzentrale",
                 AufgabenRegeln.DarfAendern(a.VorgangId, a.OdooId),
-                AufgabenRegeln.DarfLoeschen(a.VorgangId, a.OdooId, a.ErstelltVonId, a.ZustaendigId, ich, istAdmin));
+                AufgabenRegeln.DarfLoeschen(a.VorgangId, a.OdooId, a.ErstelltVonId, a.ZustaendigId, ich, istAdmin),
+                a.KundeId is { } kunde && kundenHinweise is not null && kundenHinweise.Contains(kunde) ? kundenHinweise[kunde].ToList() : null);
         })
             .OrderBy(z => AufgabenGruppen.Reihenfolge(z.Gruppe))
             .ThenBy(z => z.Faellig ?? DateOnly.MaxValue)

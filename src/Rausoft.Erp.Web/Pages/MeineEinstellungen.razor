@@ -1,13 +1,14 @@
+@page "/meine-einstellungen"
 @page "/signatur"
 @implements IDisposable
 @inject HttpClient Http
 @inject IJSRuntime JS
 
-<PageTitle>Meine E-Mail-Signatur · Kundenzentrale</PageTitle>
+<PageTitle>Meine Einstellungen · Kundenzentrale</PageTitle>
 
 <div class="seitenkopf">
-    <h1>Meine E-Mail-Signatur</h1>
-    <span class="untertitel">Steht unter den Mails, die du aus der Kundenakte verschickst — Outlook setzt seine Signatur dort nicht selbst ein</span>
+    <h1>Meine Einstellungen</h1>
+    <span class="untertitel">Alles, was nur dich betrifft</span>
 </div>
 
 @if (_fehler is not null)
@@ -25,7 +26,45 @@
 }
 else
 {
+    @if (_ich is not null)
+    {
+        <div class="karte" style="padding:16px">
+            <h2 style="margin-top:0">Mein Benutzer</h2>
+            <div class="zeile2"><span class="l">Name</span><span>@_ich.Anzeigename</span></div>
+            <div class="zeile2">
+                <span class="l">E-Mail-Adresse</span>
+                <span>
+                    @if (_ich.Email is not null) { <span>@_ich.Email</span> }
+                    else { <span class="krittext">keine hinterlegt — ohne sie kann die Kundenzentrale dir keine Mails zuordnen</span> }
+                </span>
+            </div>
+            @if (_ich.WindowsKonto is not null) { <div class="zeile2"><span class="l">Anmeldung</span><span>@_ich.WindowsKonto</span></div> }
+            <div class="zeile2"><span class="l">Bereich</span><span>@(_ich.Bereich ?? "—")</span></div>
+            <div class="zeile2"><span class="l">Rollen</span><span>@(_ich.Rollen.Count > 0 ? string.Join(", ", _ich.Rollen) : "keine")</span></div>
+            <div class="neben" style="color:var(--muted); font-size:12.5px; margin-top:8px">
+                Diese Angaben pflegt ein Administrator unter Administration → Benutzer &amp; Rollen.
+            </div>
+        </div>
+    }
+
     <div class="karte" style="padding:16px">
+        <h2 style="margin-top:0">Darstellung</h2>
+        <div class="zeile2">
+            <span class="l">Hell oder dunkel</span>
+            <span class="thema-segment" role="group" aria-label="Darstellung">
+                <button class="@(_thema is null ? "an" : "")" @onclick="() => ThemaSetzenAsync(null)">◐ Wie das Gerät</button>
+                <button class="@(_thema == "light" ? "an" : "")" @onclick='() => ThemaSetzenAsync("light")'>☀ Hell</button>
+                <button class="@(_thema == "dark" ? "an" : "")" @onclick='() => ThemaSetzenAsync("dark")'>🌙 Dunkel</button>
+            </span>
+        </div>
+        <div class="neben" style="color:var(--muted); font-size:12.5px; margin-top:8px">Gilt für diesen Browser. Derselbe Schalter steht unten im Menü.</div>
+    </div>
+
+    <div class="karte" style="padding:16px" id="signatur">
+        <h2 style="margin-top:0">E-Mail-Signatur</h2>
+        <div style="color:var(--muted); font-size:13px; margin-bottom:10px">
+            Steht unter den Mails, die du aus der Kundenakte verschickst — Outlook setzt seine Signatur dort nicht selbst ein.
+        </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
             <button class="knopf sekundaer" disabled="@_holt" @onclick="AusOdooAsync"
                     title="Liest die Signatur, die in Odoo an deinem Benutzer hinterlegt ist. Gespeichert wird erst mit „Speichern“.">
@@ -69,12 +108,15 @@ else
     private bool _geladen, _holt, _speichert;
     private string? _fehler, _meldung;
     private ElementReference _einfuegen;
-    private DotNetObjectReference<Signatur>? _ich;
+    private DotNetObjectReference<MeineEinstellungen>? _selbst;
+    private IchInfo? _ich;
+    private string? _thema; // null = wie das Gerät, sonst „light“ oder „dark“
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            _ich = await Http.GetFromJsonAsync<IchInfo>("api/ich");
             _html = (await Http.GetFromJsonAsync<MailSignatur>("api/mail/signatur"))?.Html ?? "";
             _geladen = true;
         }
@@ -87,10 +129,16 @@ else
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Das Einfügefeld gibt es erst nach dem Laden; das Skript meldet sich je Element nur einmal an
+        if (firstRender)
+        {
+            _thema = await JS.InvokeAsync<string?>("themaLesen");
+            ThemaSignal.Geaendert += ThemaUebernehmen;
+            StateHasChanged();
+        }
         if (_geladen)
         {
-            _ich ??= DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("signaturEinfuegenAnmelden", _einfuegen, _ich);
+            _selbst ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("signaturEinfuegenAnmelden", _einfuegen, _selbst);
         }
     }
 
@@ -168,5 +216,25 @@ else
         "<style>body{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#222;margin:14px}img{max-width:100%}</style></head><body>" +
         html + "</body></html>";
 
-    public void Dispose() => _ich?.Dispose();
+    private async Task ThemaSetzenAsync(string? thema)
+    {
+        _thema = thema;
+        await JS.InvokeVoidAsync("themaSetzen", _thema);
+        ThemaSignal.Melden(_thema);
+    }
+
+    /// <summary>Im Menü umgeschaltet — den Schalter hier nachziehen.</summary>
+    private void ThemaUebernehmen(string? thema)
+    {
+        if (_thema == thema)
+            return;
+        _thema = thema;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ThemaSignal.Geaendert -= ThemaUebernehmen;
+        _selbst?.Dispose();
+    }
 }

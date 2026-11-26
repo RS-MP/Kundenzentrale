@@ -76,6 +76,13 @@
                 verweis.textContent = `${k.firmenname} (${k.kundennummer})`;
                 punkt.appendChild(verweis);
                 if (k.ansprechpartner) punkt.appendChild(document.createTextNode(` · ${k.ansprechpartner}`));
+                // Achtung-Hinweise am Kunden — nur als Text, nie als HTML
+                (k.hinweise || []).forEach((h) => {
+                    const band = document.createElement("div");
+                    band.className = "achtung";
+                    band.textContent = `⚠ ${h}`;
+                    punkt.appendChild(band);
+                });
                 liste.appendChild(punkt);
             });
             zeige("wer", `Angemeldet an der Kundenzentrale als ${z.angemeldet}.`);

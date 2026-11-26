@@ -54,6 +54,10 @@ else
                 }
             </span>
         </div>
+        @if (_vertrag.KundeId is { } hinweisKunde)
+        {
+            <KundenHinweise KundeId="hinweisKunde" Vorsatz="Zum Kunden" />
+        }
         <p class="faktenzeile2">
             @if (_vertrag.Hauptvertrag is { } haupt)
             {

@@ -71,6 +71,36 @@ Layout-Entscheidung nach Ansicht beider Varianten.
   kommen Dauer/Richtung zurück, Gesprächsnotiz wird ergänzt, Eintrag landet in
   der Timeline.
 
+### Achtung-Hinweise am Kunden (MP 26.11.2026)
+
+> „Achtung, der Kunde muss immer mit Herr Dr. angesprochen werden“ ·
+> „Die Abrechnung darf erst nach der Schulung erfolgen“ — so etwas muss sofort
+> sichtbar sein. Bis dahin gab es den deutlichen Hinweis nur am Vorgang.
+
+- **Hinweis für alle** (`KundenHinweis`): kurzer Text (höchstens 500 Zeichen,
+  höchstens 5 je Kunde), den jeder aktive Mitarbeiter setzen und entfernen
+  kann. Knopf **„⚠ Hinweis für alle“** oben in der Kundenakte — kein
+  Untermenü.
+- **Überall sichtbar, wo am Kunden gearbeitet wird** — dasselbe Band wie am
+  Vorgang (`KundenHinweise`-Komponente): oben in der Kundenakte, im
+  Mail-Fenster, am Vorgang und am Vertrag („Zum Kunden: …“), in „Meine
+  Aufgaben“ an jeder Aufgabe des Kunden und im Outlook-Aufgabenbereich.
+- **Nachvollziehbar:** Setzen und Entfernen stehen mit Text und Mitarbeiter im
+  Verlauf der Akte.
+- **Abgrenzung:** Eine *Vereinbarung* ist eine Zusage an den Kunden und wird
+  erledigt; ein *Merkmal* ist ein festes Kennzeichen aus der Stammliste
+  (Insolvenz, Einmalkauf); der *Hinweis zum Vorgang* gilt nur für diese eine
+  Bestellung. Der Hinweis am Kunden gilt für alles, bis ihn jemand entfernt.
+- **Grundsatz für die Bedienung** (MP 26.11.2026): Funktionen nicht hinter
+  Textverweisen in Fenstern verstecken („wie in Odoo, das nervt“). Was jeder
+  wissen muss, steht ungefragt oben.
+- **„Meine Einstellungen“** (MP 26.11.2026, Seite `/meine-einstellungen`,
+  Menüpunkt unten in der Navigation): der eine Ort für alles, was nur den
+  angemeldeten Mitarbeiter betrifft — heute der eigene Benutzer (Name, Adresse,
+  Bereich, Rollen; nur zur Ansicht, Pflege durch den Admin), die Darstellung
+  hell/dunkel und die E-Mail-Signatur. **Neue persönliche Einstellungen kommen
+  dorthin**, nicht in das Fenster der Funktion, die sie braucht.
+
 ### Individualentwicklung & Preis-Sonderabsprachen (ergänzt 09/2026)
 
 - **Individualentwicklung:** Einige Kunden haben eine Individualentwicklung

@@ -27,6 +27,8 @@ else
                 <span class="status kritisch">in Odoo archiviert</span>
             }
             <span style="flex:1"></span>
+            <button class="knopf sekundaer" @onclick="() => _hinweise?.NeuOeffnen()"
+                    title="Ein Hinweis, den jeder sieht, der mit dem Kunden zu tun hat — in der Akte, im Mail-Fenster, an Vorgang, Vertrag und Aufgaben.">⚠ Hinweis für alle</button>
             @* Archivieren ist eine seltene Aktion → dezenter Kleinknopf; das
                Zurückholen ist im Archiv-Kontext die Hauptaktion und bleibt sichtbar. *@
             <button class="knopf sekundaer @(_kunde.ArchiviertAm is null ? "klein" : "")" @onclick="ArchivUmschaltenAsync">
@@ -85,6 +87,7 @@ else
                 <span class="trenn">·</span>@_kunde.Kundengruppe
             }
         </p>
+        <KundenHinweise @ref="_hinweise" KundeId="Id" Bearbeitbar="true" Geaendert="() => _verlaufVersion++" />
     </div>
 
     @* Bewusste Layout-Entscheidung: Verlauf links (breite Spalte), Fakten rechts *@
@@ -282,6 +285,7 @@ else
 }
 
 @code {
+    private KundenHinweise? _hinweise;
     [Parameter] public int Id { get; set; }
 
     private KundeDetail? _kunde;

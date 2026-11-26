@@ -43,7 +43,9 @@ public record AufgabeZeile(
     /// <summary>In der Kundenzentrale angelegt, ohne Vorgang (AufgabenRegeln).</summary>
     bool DarfBearbeiten = false,
     /// <summary>Wie <see cref="DarfBearbeiten"/>, dazu angelegt von mir, bei mir oder ich bin Admin.</summary>
-    bool DarfLoeschen = false);
+    bool DarfLoeschen = false,
+    /// <summary>Achtung-Hinweise am Kunden der Aufgabe.</summary>
+    List<string>? KundenHinweise = null);
 
 /// <summary>Für das Abzeichen in der Navigation: fällig bis heute, bei mir oder unbesetzt in meinem Pool.</summary>
 public record AufgabenZaehler(int FaelligBisHeute, int Ueberfaellig);

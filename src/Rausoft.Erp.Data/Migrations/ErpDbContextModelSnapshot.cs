@@ -740,6 +740,37 @@ namespace Rausoft.Erp.Data.Migrations
                     b.ToTable("Kunden");
                 });
 
+            modelBuilder.Entity("Rausoft.Erp.Domain.Customers.KundenHinweis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ErstelltAm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ErstelltVonId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("KundeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErstelltVonId");
+
+                    b.HasIndex("KundeId");
+
+                    b.ToTable("KundenHinweise", (string)null);
+                });
+
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Merkmal", b =>
                 {
                     b.Property<int>("Id")
@@ -3043,6 +3074,24 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("Server");
 
                     b.Navigation("VermitteltDurchPartner");
+                });
+
+            modelBuilder.Entity("Rausoft.Erp.Domain.Customers.KundenHinweis", b =>
+                {
+                    b.HasOne("Rausoft.Erp.Domain.Shared.Mitarbeiter", "ErstelltVon")
+                        .WithMany()
+                        .HasForeignKey("ErstelltVonId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Rausoft.Erp.Domain.Customers.Kunde", "Kunde")
+                        .WithMany()
+                        .HasForeignKey("KundeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ErstelltVon");
+
+                    b.Navigation("Kunde");
                 });
 
             modelBuilder.Entity("Rausoft.Erp.Domain.Customers.Partner", b =>

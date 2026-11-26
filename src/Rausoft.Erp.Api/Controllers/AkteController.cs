@@ -130,6 +130,64 @@ public class AkteController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet)
         _ => "Notiz",
     };
 
+    // --- Achtung-Hinweise ----------------------------------------------------------------
+
+    /// <summary>Hinweise am Kunden, die jeder sehen muss, der mit ihm zu tun hat — ältester zuerst.</summary>
+    [HttpGet("{id:int}/hinweise")]
+    public async Task<ActionResult<List<KundenHinweisEintrag>>> Hinweise(int id, CancellationToken ct) =>
+        Ok(await db.KundenHinweise.AsNoTracking()
+            .Where(h => h.KundeId == id)
+            .OrderBy(h => h.ErstelltAm).ThenBy(h => h.Id)
+            .Select(h => new KundenHinweisEintrag(h.Id, h.Text, h.ErstelltAm, h.ErstelltVon != null ? h.ErstelltVon.Anzeigename : null))
+            .ToListAsync(ct));
+
+    /// <summary>Hinweis setzen — jeder aktive Mitarbeiter; wer es war, steht im Verlauf.</summary>
+    [HttpPost("{id:int}/hinweise")]
+    public async Task<ActionResult<int>> HinweisAnlegen(int id, KundenHinweisAnlegen daten, CancellationToken ct)
+    {
+        var text = (daten.Text ?? "").Trim();
+        if (text.Length == 0)
+            return BadRequest("Bitte den Hinweis eingeben.");
+        if (text.Length > KundenHinweis.MaxLaenge)
+            return BadRequest($"Der Hinweis ist zu lang (höchstens {KundenHinweis.MaxLaenge} Zeichen) — ein Hinweis soll auf einen Blick lesbar sein.");
+        if (!await db.Kunden.AnyAsync(k => k.Id == id, ct))
+            return NotFound();
+        if (await db.KundenHinweise.CountAsync(h => h.KundeId == id, ct) >= KundenHinweis.MaxJeKunde)
+            return BadRequest($"Am Kunden stehen schon {KundenHinweis.MaxJeKunde} Hinweise — bitte erst einen überholten entfernen.");
+
+        var ich = await angemeldet.IdAsync(ct);
+        var hinweis = new KundenHinweis { KundeId = id, Text = text, ErstelltAm = DateTime.UtcNow, ErstelltVonId = ich };
+        db.KundenHinweise.Add(hinweis);
+        HinweisImVerlauf(id, ich, "Hinweis für alle gesetzt", text);
+        await db.SaveChangesAsync(ct);
+        return Ok(hinweis.Id);
+    }
+
+    [HttpDelete("hinweise/{hinweisId:int}")]
+    public async Task<IActionResult> HinweisEntfernen(int hinweisId, CancellationToken ct)
+    {
+        var hinweis = await db.KundenHinweise.FirstOrDefaultAsync(h => h.Id == hinweisId, ct);
+        if (hinweis is null)
+            return NotFound();
+        db.KundenHinweise.Remove(hinweis);
+        HinweisImVerlauf(hinweis.KundeId, await angemeldet.IdAsync(ct), "Hinweis für alle entfernt", hinweis.Text);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>Setzen und Entfernen stehen im Verlauf — so bleibt nachvollziehbar, wer was wann angeordnet oder aufgehoben hat.</summary>
+    private void HinweisImVerlauf(int kundeId, int? mitarbeiterId, string betreff, string text) =>
+        db.Aktivitaeten.Add(new Aktivitaet
+        {
+            KundeId = kundeId,
+            Typ = AktivitaetsTyp.Notiz,
+            Zeitpunkt = DateTime.UtcNow,
+            MitarbeiterId = mitarbeiterId,
+            Richtung = AktivitaetsRichtung.Intern,
+            Betreff = betreff,
+            Inhalt = text,
+        });
+
     // --- Aufgaben ----------------------------------------------------------------------
 
     /// <summary>

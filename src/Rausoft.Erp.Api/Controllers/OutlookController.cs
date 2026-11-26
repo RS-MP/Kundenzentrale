@@ -78,9 +78,14 @@ public class OutlookController(ErpDbContext db, AngemeldeterMitarbeiter angemeld
             }
 
         var (art, ids) = MailZuordnung.Entscheiden(fremde.Count > 0, perAdresse.Select(a => a.KundeId).ToList(), perDomaene);
+        // Achtung-Hinweise gehören auch ins Outlook: Wer dort antwortet, soll wissen, was am Kunden gilt
+        var hinweise = ids.Count == 0 ? null : (await db.KundenHinweise.AsNoTracking().Where(h => ids.Contains(h.KundeId))
+                .OrderBy(h => h.ErstelltAm).ThenBy(h => h.Id).Select(h => new { h.KundeId, h.Text }).ToListAsync(ct))
+            .ToLookup(h => h.KundeId, h => h.Text);
         var kunden = ids.Count == 0 ? [] : (await db.Kunden.AsNoTracking().Where(k => ids.Contains(k.Id))
                 .Select(k => new { k.Id, k.Firmenname, k.Kundennummer }).ToListAsync(ct))
-            .Select(k => new OutlookKunde(k.Id, k.Firmenname, k.Kundennummer, perAdresse.FirstOrDefault(a => a.KundeId == k.Id)?.Name))
+            .Select(k => new OutlookKunde(k.Id, k.Firmenname, k.Kundennummer, perAdresse.FirstOrDefault(a => a.KundeId == k.Id)?.Name,
+                hinweise is not null && hinweise.Contains(k.Id) ? hinweise[k.Id].ToList() : null))
             .OrderBy(k => k.Firmenname).ToList();
         return Ok(new OutlookZuordnung(name, art, kunden, art switch
         {

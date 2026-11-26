@@ -12,6 +12,7 @@
         </div>
 
         <div class="fenster-inhalt">
+            <KundenHinweise KundeId="KundeId" />
             @if (_fehler is not null)
             {
                 <div class="fehler">@_fehler</div>
@@ -114,7 +115,7 @@
                     <label class="ll-haken breit">
                         <input type="checkbox" checked="@_mitSignatur" @onchange="SignaturUmschaltenAsync" /> Meine Signatur anhängen
                         <span class="neben">
-                            — @(_auswahl.HatSignatur ? "" : "noch keine hinterlegt: ")<a href="signatur" target="_blank">@(_auswahl.HatSignatur ? "ändern ↗" : "Signatur einrichten ↗")</a>
+                            — @(_auswahl.HatSignatur ? "" : "noch keine hinterlegt: ")<a href="meine-einstellungen" target="_blank" title="Meine Einstellungen → E-Mail-Signatur">@(_auswahl.HatSignatur ? "ändern ↗" : "Signatur einrichten ↗")</a>
                         </span>
                     </label>
                 </div>

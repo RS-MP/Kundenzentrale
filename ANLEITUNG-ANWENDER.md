@@ -223,6 +223,17 @@ Bereich **Angebote**: drei Listen direkt aus Odoo.
   nachgefasst hat und der Kunde braucht noch Zeit: Aufgabe erledigen — nach
   weiteren 30 Tagen kommt die nächste. Die Fristen stellt ein Admin ein. Soll gar nicht mehr erinnert werden: „ausblenden“.
 
+## Hinweis für alle am Kunden
+
+Was jeder wissen muss, der mit dem Kunden zu tun hat — „Immer mit Herr Dr.
+ansprechen“, „Abrechnung erst nach der Schulung“: in der Kundenakte oben
+rechts **⚠ Hinweis für alle**, Text eingeben, „Für alle sichtbar machen“.
+
+Der Hinweis steht danach als gelbes Band oben in der Akte, im Mail-Fenster, am
+Vorgang, am Vertrag, an den Aufgaben des Kunden unter „Meine Aufgaben“ und im
+Outlook-Bereich „In Kundenakte“. Ist er überholt: in der Akte „entfernen“
+(zweimal klicken). Wer ihn gesetzt oder entfernt hat, steht im Verlauf.
+
 ## E-Mail aus der Kundenakte
 
 In der Akte am Verlauf: **✉ E-Mail**. Ansprechpartner wählen (weitere Adressen
@@ -243,9 +254,15 @@ Stehen im Text noch Platzhalter wie `{{Beleg.Nummer}}`, lässt sich nicht direkt
 senden — „In Outlook öffnen“ und dort ersetzen. Beim ersten Mal fragt
 Microsoft kurz nach der Anmeldung.
 
-**Signatur:** einmal unter **Meine Signatur** einrichten (Verweis im
-Mail-Fenster): „Aus Odoo holen“ oder die Signatur in Outlook kopieren und ins
-Feld einfügen, prüfen, speichern.
+**Signatur:** einmal unter **Meine Einstellungen** einrichten (unten im Menü):
+„Aus Odoo holen“ oder die Signatur in Outlook kopieren und ins Feld einfügen,
+prüfen, speichern.
+
+## Meine Einstellungen
+
+Unten im Menü. Dort steht alles, was nur dich betrifft: dein Benutzer (Name,
+E-Mail-Adresse, Bereich, Rollen — ändern kann das ein Admin), die Darstellung
+hell oder dunkel und deine E-Mail-Signatur.
 
 ## E-Mail-Textbausteine
 

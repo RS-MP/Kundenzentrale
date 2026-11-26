@@ -52,6 +52,10 @@ public record MailStand(
 /// <summary>Eigener Entwurf, der noch nicht als gesendet bekannt ist.</summary>
 public record MailOffen(int Id, string GraphId, int KundeId, string Kunde, string Betreff, string An, DateTime AngelegtAm);
 
+/// <summary>Der angemeldete Mitarbeiter über sich selbst (Seite „Meine Einstellungen“).</summary>
+/// <param name="Email">Leer, wenn am Benutzer keine echte Adresse hinterlegt ist.</param>
+public record IchInfo(string Anzeigename, string? Email, string? WindowsKonto, string? Bereich, List<string> Rollen);
+
 public record MailSignatur(string Html);
 
 /// <param name="Hinweis">Warum nichts gefunden wurde; leer bei Erfolg.</param>

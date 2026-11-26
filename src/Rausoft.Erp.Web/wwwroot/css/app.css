@@ -85,6 +85,8 @@ button { font: inherit; cursor: pointer; }
   width: 3px; border-radius: 2px; background: var(--accent);
 }
 .seitennav-links .ikone { width: 17px; height: 17px; flex-shrink: 0; opacity: .85; }
+.seitennav-eigenes { margin-top: auto; padding: 8px 6px 0; }
+.seitennav-eigenes + .seitennav-fuss { margin-top: 0; }
 .seitennav-fuss {
   margin-top: auto; padding: 12px 6px 2px; border-top: 1px solid var(--border);
   display: flex; justify-content: center;
@@ -128,6 +130,9 @@ button { font: inherit; cursor: pointer; }
   .seitennav-links { flex-direction: row; order: 3; flex: 1 1 100%; min-width: 0; overflow-x: auto; }
   .seitennav-links a { white-space: nowrap; }
   .seitennav-fuss { margin-left: auto; }
+  .seitennav-eigenes { margin: 0 0 0 auto; padding: 0; }
+  .seitennav-eigenes + .seitennav-fuss { margin-left: 8px; }
+  .seitennav-eigenes .navlink-klein { padding: 4px 6px; white-space: nowrap; }
   .seitennav-links a { padding: 6px 10px; }
   .seitennav-links a.active::before { display: none; }
   .seitennav-links .ikone { display: none; }
@@ -824,6 +829,13 @@ table.wer-mit-wem { border-collapse: separate; border-spacing: 0; width: 100%; f
   border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius: 8px; padding: 8px 12px; font-weight: 600; }
 .vg-hinweis .txt { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .vg-hinweis .textknopf { font-weight: 500; }
+/* Achtung-Hinweise am Kunden: dasselbe Band wie am Vorgang, als eigener Block über dem Inhalt */
+.kd-hinweise { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 12px; }
+.kd-hinweise .vg-hinweis { font-size: 14.5px; }
+.kd-hinweise .kd-vorsatz { font-weight: 500; opacity: .85; }
+.fenster-inhalt > .kd-hinweise { margin-top: 0; }
+.navlink-klein { display: block; text-align: center; font-size: 12.5px; color: var(--ink2); text-decoration: none; padding: 2px 6px 8px; }
+.navlink-klein:hover { color: var(--accent); }
 .vg-hinweis.bearbeiten { background: var(--surface2); color: var(--ink2); border-color: var(--border); font-weight: 400; flex-direction: column; align-items: stretch; }
 .vg-hinweis textarea, .vg-feld textarea { width: 100%; min-height: 46px; resize: vertical; font: inherit; }
 

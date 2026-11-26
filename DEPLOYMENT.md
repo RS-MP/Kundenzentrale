@@ -23,6 +23,18 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Hinweis für alle am Kunden, „Meine Einstellungen“ im Menü (26.11.2026):** Die Signatur
+  steht jetzt unter „Meine Einstellungen“ (unten im Menü, mit eigenem Benutzer und Darstellung);
+  die alte Adresse `…/signatur` führt weiter dorthin. Publish wie
+  üblich, die Migration `KundenHinweise` läuft beim Start (eine neue Tabelle, nichts wird
+  umgebaut). Keine Einrichtung nötig. Zum Ansehen: Kundenakte → oben rechts „⚠ Hinweis für
+  alle“ → Text → „Für alle sichtbar machen“; das Band steht danach in der Akte, im
+  Mail-Fenster, am Vorgang, am Vertrag und an den Aufgaben des Kunden. Im Outlook-Bereich
+  „In Kundenakte“ erscheint es nach dem Neuladen des Add-ins (Outlook einmal schließen und
+  öffnen, falls der alte Stand im Zwischenspeicher liegt). Lokal geprüft: Akte, Mail-Fenster,
+  Verlauf und die Antwort an Outlook — Vorgang, Vertrag und Aufgabenliste nutzen dasselbe Band,
+  dort bitte einmal hinsehen.
+
 - [ ] **E-Mail aus der Kundenakte (26.11.2026):** Publish wie üblich, die Migration
   `AusgangsmailUndSignatur` läuft beim Start (neue Tabelle `Ausgangsmails`, eine Spalte an
   `Mitarbeiter` — nichts wird umgebaut), danach `SignaturOhneLaengengrenze` (die Signaturspalte

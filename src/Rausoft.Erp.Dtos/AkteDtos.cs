@@ -101,6 +101,11 @@ public record VereinbarungEintrag(
 
 public record VereinbarungAnlegen(string Text, int? AktivitaetId);
 
+/// <summary>Achtung-Hinweis am Kunden — für alle sichtbar, überall wo am Kunden gearbeitet wird.</summary>
+public record KundenHinweisEintrag(int Id, string Text, DateTime ErstelltAm, string? ErstelltVon);
+
+public record KundenHinweisAnlegen(string Text);
+
 /// <summary>
 /// Manueller Verlaufseintrag. <paramref name="Typ"/>: „Notiz", „Anruf" oder „Termin";
 /// <paramref name="Richtung"/> nur beim Anruf („Eingehend"/„Ausgehend");

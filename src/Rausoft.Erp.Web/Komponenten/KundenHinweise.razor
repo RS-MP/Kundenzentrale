@@ -1,0 +1,140 @@
+@* Achtung-Hinweise am Kunden: deutlich sichtbares Band, überall wo am Kunden gearbeitet wird
+   (Akte, E-Mail, Vorgang, Vertrag). In der Akte lassen sie sich setzen und entfernen. *@
+@inject HttpClient Http
+
+@if (_hinweise.Count > 0 || _neu)
+{
+    <div class="kd-hinweise">
+        @foreach (var h in _hinweise)
+        {
+            <div class="vg-hinweis" title="@Herkunft(h)">
+                <span>⚠</span>
+                <span class="txt">@if (Vorsatz is not null) { <span class="kd-vorsatz">@Vorsatz: </span> }@h.Text</span>
+                @if (Bearbeitbar)
+                {
+                    <button class="textknopf" @onclick="() => EntfernenAsync(h)">@(_entfernen == h.Id ? "Wirklich entfernen?" : "entfernen")</button>
+                }
+            </div>
+        }
+        @if (_neu)
+        {
+            <div class="vg-hinweis bearbeiten">
+                <label>
+                    Hinweis für alle — steht deutlich sichtbar in der Akte, im Mail-Fenster, an Vorgang, Vertrag und Aufgaben dieses Kunden
+                    <textarea maxlength="500" @bind="_text" @bind:event="oninput"
+                              placeholder="z. B. Immer mit „Herr Dr.“ ansprechen · Abrechnung erst nach der Schulung"></textarea>
+                </label>
+                <div style="display:flex; gap:8px; margin-top:6px; align-items:center">
+                    <button class="knopf klein" disabled="@(_speichert || _text.Trim().Length == 0)" @onclick="SpeichernAsync">@(_speichert ? "Speichert …" : "Für alle sichtbar machen")</button>
+                    <button class="knopf sekundaer klein" @onclick="() => _neu = false">Abbrechen</button>
+                    @if (_fehler is not null) { <span class="krittext">@_fehler</span> }
+                </div>
+            </div>
+        }
+        else if (_fehler is not null)
+        {
+            <div class="fehler" style="margin:0">@_fehler</div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int KundeId { get; set; }
+    /// <summary>Nur in der Akte: Hinweise setzen und entfernen.</summary>
+    [Parameter] public bool Bearbeitbar { get; set; }
+    /// <summary>Kurzer Vorsatz, wo der Hinweis neben anderen steht (z. B. „Zum Kunden“ am Vorgang).</summary>
+    [Parameter] public string? Vorsatz { get; set; }
+    /// <summary>Ein Hinweis wurde gesetzt oder entfernt (der Verlauf der Akte hat einen neuen Eintrag).</summary>
+    [Parameter] public EventCallback Geaendert { get; set; }
+
+    private List<KundenHinweisEintrag> _hinweise = [];
+    private int _geladenFuer;
+    private bool _neu, _speichert;
+    private string _text = "";
+    private string? _fehler;
+    private int? _entfernen;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (KundeId != _geladenFuer)
+        {
+            _geladenFuer = KundeId;
+            _neu = false;
+            await LadenAsync();
+        }
+    }
+
+    /// <summary>Öffnet das Eingabefeld — für den Knopf im Kopf der Akte.</summary>
+    public void NeuOeffnen()
+    {
+        _neu = true;
+        _text = "";
+        _fehler = null;
+        StateHasChanged();
+    }
+
+    private async Task LadenAsync()
+    {
+        try
+        {
+            _hinweise = KundeId > 0 ? await Http.GetFromJsonAsync<List<KundenHinweisEintrag>>($"api/kunden/{KundeId}/hinweise") ?? [] : [];
+        }
+        catch
+        {
+            // Ein Fehler hier darf die Seite nicht stören; in der Akte fällt er beim Setzen auf
+            _hinweise = [];
+        }
+    }
+
+    private async Task SpeichernAsync()
+    {
+        _speichert = true;
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.PostAsJsonAsync($"api/kunden/{KundeId}/hinweise", new KundenHinweisAnlegen(_text));
+            if (!antwort.IsSuccessStatusCode)
+            {
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+                return;
+            }
+            _neu = false;
+            await LadenAsync();
+            await Geaendert.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _speichert = false;
+        }
+    }
+
+    private async Task EntfernenAsync(KundenHinweisEintrag h)
+    {
+        if (_entfernen != h.Id)
+        {
+            _entfernen = h.Id;
+            return;
+        }
+        _entfernen = null;
+        _fehler = null;
+        try
+        {
+            var antwort = await Http.DeleteAsync($"api/kunden/hinweise/{h.Id}");
+            if (!antwort.IsSuccessStatusCode)
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+            await LadenAsync();
+            await Geaendert.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _fehler = $"Entfernen fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private static string Herkunft(KundenHinweisEintrag h) =>
+        $"Hinweis für alle{(h.ErstelltVon is not null ? $" — gesetzt von {h.ErstelltVon}" : "")} am {h.ErstelltAm.ToLocalTime():dd.MM.yyyy}";
+}

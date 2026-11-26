@@ -50,6 +50,7 @@ public class ErpDbContext(
     public DbSet<Ansprechpartner> Ansprechpartner => Set<Ansprechpartner>();
     public DbSet<Adresse> Adressen => Set<Adresse>();
     public DbSet<Merkmal> Merkmale => Set<Merkmal>();
+    public DbSet<KundenHinweis> KundenHinweise => Set<KundenHinweis>();
     public DbSet<Anfrage> Anfragen => Set<Anfrage>();
     public DbSet<AnfrageOdooAnlage> AnfrageOdooAnlagen => Set<AnfrageOdooAnlage>();
 
@@ -255,6 +256,14 @@ public class ErpDbContext(
             e.HasOne(t => t.GeaendertVon).WithMany().HasForeignKey(t => t.GeaendertVonId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(t => t.EntferntVon).WithMany().HasForeignKey(t => t.EntferntVonId).OnDelete(DeleteBehavior.NoAction);
             e.HasMany(t => t.Anhaenge).WithOne(a => a.Textbaustein).HasForeignKey(a => a.TextbausteinId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KundenHinweis>(e =>
+        {
+            e.ToTable("KundenHinweise");
+            e.Property(h => h.Text).HasMaxLength(KundenHinweis.MaxLaenge);
+            e.HasOne(h => h.Kunde).WithMany().HasForeignKey(h => h.KundeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(h => h.ErstelltVon).WithMany().HasForeignKey(h => h.ErstelltVonId).OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<Ausgangsmail>(e =>

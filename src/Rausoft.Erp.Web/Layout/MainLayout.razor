@@ -84,6 +84,10 @@
                 Administration
             </NavLink>
         </nav>
+        @* Eigenes steht unten, getrennt von den Arbeitsbereichen — nicht versteckt in einem Fenster *@
+        <div class="seitennav-eigenes">
+            <NavLink href="meine-einstellungen" class="navlink-klein">Meine Einstellungen</NavLink>
+        </div>
         <div class="seitennav-fuss">
             <span class="thema-segment" role="group" aria-label="Darstellung">
                 <button class="@(_thema is null ? "an" : "")" title="Automatisch (Systemeinstellung)"
@@ -118,6 +122,7 @@
         catch { _zahlungen = false; /* ohne Antwort kein Menüpunkt */ }
         WikiHinweisSignal.Geaendert += WikiHinweiseNachladen;
         AufgabenSignal.Geaendert += AufgabenNachladen;
+        ThemaSignal.Geaendert += ThemaUebernehmen;
         await WikiHinweiseLadenAsync();
         await AufgabenLadenAsync();
     }
@@ -126,6 +131,7 @@
     {
         WikiHinweisSignal.Geaendert -= WikiHinweiseNachladen;
         AufgabenSignal.Geaendert -= AufgabenNachladen;
+        ThemaSignal.Geaendert -= ThemaUebernehmen;
     }
 
     private AufgabenZaehler? _aufgaben;
@@ -192,5 +198,15 @@
     {
         _thema = thema;
         await JS.InvokeVoidAsync("themaSetzen", _thema);
+        ThemaSignal.Melden(_thema);
+    }
+
+    /// <summary>Die Darstellung wurde unter „Meine Einstellungen“ umgeschaltet — den Schalter hier nachziehen.</summary>
+    private void ThemaUebernehmen(string? thema)
+    {
+        if (_thema == thema)
+            return;
+        _thema = thema;
+        _ = InvokeAsync(StateHasChanged);
     }
 }

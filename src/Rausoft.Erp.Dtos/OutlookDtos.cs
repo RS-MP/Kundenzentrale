@@ -18,4 +18,5 @@ public record OutlookMail(string? Absender, List<string>? Empfaenger, string? Be
 /// <param name="Art">"adresse" · "domaene" · "mehrdeutig" · "keine" · "intern"</param>
 public record OutlookZuordnung(string Angemeldet, string Art, List<OutlookKunde> Kunden, string Hinweis);
 
-public record OutlookKunde(int Id, string Firmenname, string Kundennummer, string? Ansprechpartner);
+/// <param name="Hinweise">Achtung-Hinweise am Kunden — stehen auch im Outlook-Aufgabenbereich.</param>
+public record OutlookKunde(int Id, string Firmenname, string Kundennummer, string? Ansprechpartner, List<string>? Hinweise = null);
