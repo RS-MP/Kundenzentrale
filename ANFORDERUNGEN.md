@@ -440,9 +440,9 @@ aus Odoo, nur lesend (`OffeneVerkaeufe`, `VerkaufsUeberwachung`):
   Automatik.
 - **Angebote ohne Rückmeldung** — in Odoo gesendet, weder bestätigt noch
   storniert; mit Alter, Gültigkeit, Verkäufer.
-- **Nachfass-Aufgabe:** nach 7 Tagen ohne Reaktion beim Verkäufer des Angebots
+- **Nachfass-Aufgabe:** nach 30 Tagen ohne Reaktion (einstellbar) beim Verkäufer des Angebots
   (Zuordnung Odoo-Login = E-Mail des Mitarbeiters; sonst steht der Name an der
-  Aufgabe). Erledigt und Angebot weiter offen → nach 14 Tagen die nächste.
+  Aufgabe). Erledigt und Angebot weiter offen → nach weiteren 30 Tagen die nächste.
   Solange eine offen ist, entsteht keine zweite. Wird das Angebot in Odoo
   bestätigt oder storniert, erledigt sich die Aufgabe von selbst (Eintrag in
   der Akte). Regeln: `NachfassRegeln`; stündlicher Takt und Knopf.

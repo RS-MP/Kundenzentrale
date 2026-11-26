@@ -209,11 +209,11 @@ Bereich **Angebote**: zwei Listen direkt aus Odoo.
 - **Bestätigte Aufträge ohne Vorgang** — hier fehlt der Start. „Vorgang
   anlegen“ übernimmt Kunde und Auftragsnummer. Braucht ein Auftrag keinen
   Vorgang: „ausblenden“ (mit Grund).
-- **Angebote ohne Rückmeldung** — nach 7 Tagen bekommt der Verkäufer eine
+- **Angebote ohne Rückmeldung** — nach 30 Tagen bekommt der Verkäufer eine
   Aufgabe „Angebot … nachfassen“ unter **Meine Aufgaben**. Sie erledigt sich
   von selbst, sobald das Angebot in Odoo bestätigt oder storniert ist. Wer
   nachgefasst hat und der Kunde braucht noch Zeit: Aufgabe erledigen — nach
-  14 Tagen kommt die nächste. Soll gar nicht mehr erinnert werden: „ausblenden“.
+  weiteren 30 Tagen kommt die nächste. Die Fristen stellt ein Admin ein. Soll gar nicht mehr erinnert werden: „ausblenden“.
 
 ## E-Mail-Textbausteine
 

@@ -34,11 +34,14 @@ public class VerkaufsMerker
 /// zum ersten Mal nach <see cref="StandardTage"/> Tagen ohne Reaktion, danach erneut, wenn die
 /// letzte Aufgabe seit <see cref="StandardWiederholungTage"/> Tagen erledigt ist und das Angebot
 /// in Odoo immer noch offen steht. Solange eine Aufgabe offen ist, entsteht keine zweite.
+/// Beide Fristen sind Einstellungen (Verkauf.NachfassTage, Verkauf.NachfassWiederholungTage);
+/// die Standardwerte gelten nur, wenn dort nichts Lesbares steht. 30 Tage, weil Angebote bei
+/// rausoft eher einen Monat und länger laufen (MP 26.11.2026, vorher 7 und 14).
 /// </summary>
 public static class NachfassRegeln
 {
-    public const int StandardTage = 7;
-    public const int StandardWiederholungTage = 14;
+    public const int StandardTage = 30;
+    public const int StandardWiederholungTage = 30;
     public const int StandardRueckblickTage = 180;
 
     /// <param name="fristTage">0 oder weniger = keine Nachfass-Aufgaben.</param>
