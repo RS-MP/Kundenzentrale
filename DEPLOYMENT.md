@@ -23,6 +23,42 @@ Option dokumentiert.
 
 ## Nachzuziehende Schritte (Testbetrieb → Server)
 
+- [ ] **Verträge versenden, Unterschrift als Freigabe, Administration mit Kacheln (27.11.2026):**
+  Publish wie üblich, die Migration `SchrittVertrag` läuft beim Start (eine Spalte an `Aufgaben`,
+  nichts wird umgebaut). Danach:
+  1. **Vorgangstyp einrichten** (Vorgänge → „Vorgangstypen einrichten“ oder Administration →
+     Vorgangstypen): im Typ für Bestellungen mit World-Check einen Schritt
+     „Unterschriebenen World-Check-Vertrag erfassen“ mit **„Abhaken: Vertrag unterschrieben“**
+     anlegen und beim Schritt „World-Check-Daten freischalten“ **„wartet auf“** diesen Schritt
+     wählen. Für Bestellungen ohne World-Check beide Schritte an eine Bedingung hängen.
+  2. **Durchspielen im Testsystem:** Vertrag aus Vorlage erzeugen → „✉ Per E-Mail senden“
+     (bei zwei Verträgen vorher „+ Weiteren Vertrag erstellen“) → im Mail-Fenster müssen die
+     Verträge unter „Verträge anhängen“ angehakt sein. Vorgang anlegen → am Schritt den Vertrag
+     wählen → „World-Check-Daten freischalten“ bleibt gesperrt. In der Vertragsakte
+     „Unterzeichnet am“ eintragen **und** die unterschriebene Datei als Version hinzufügen →
+     der Schritt erledigt sich, die Freischaltung wird frei.
+  3. **Administration:** öffnet jetzt mit Kacheln; jedes Thema hat eine eigene Seite.
+  **Nicht geprüft:** der Knopf „Per E-Mail senden“ im Fenster „Vertrag aus Vorlage“ (lokal gibt
+  es keine Vorlagen-Ablage) und das Anhängen der Vertrags-PDF beim Senden (braucht Microsoft).
+  Lokal geprüft: Liste der Verträge im Mail-Fenster, Sperre und Freigabe am Vorgang, Kacheln.
+
+- [ ] **Bedienung, erster Block (26.11.2026):** nur `publish`, keine Migration, keine
+  Einrichtung. Was sich für die Anwender ändert — bitte vor dem Einspielen in `Kundenzentrale`
+  kurz ankündigen: Die Anwendung **startet mit „Meine Aufgaben“** statt mit der Kundenliste;
+  das **Menü ist in Gruppen** gegliedert und hat den neuen Punkt **„Anfragen“**; die
+  E-Mail-Textbausteine stehen als **Reiter unter „Vorlagen“**; in der **Kundenakte steht oben
+  eine Leiste** mit E-Mail, Notiz/Telefonat, Aufgabe, Vorgang, Vertrag aus Vorlage und Hinweis
+  für alle (der Knopf „✉ E-Mail“ am Verlauf und „+ Vorgang“ bei den Aufgaben sind dafür
+  entfallen); am **Vorgang** sind drei Textverweise jetzt Knöpfe. Lokal geprüft: Menü, Start,
+  Reiter, Aktionsleiste. Die Vorgangsseite habe ich nicht aufgerufen — dort bitte hinsehen.
+  **Zweiter Block, im selben Publish (27.11.2026):** SSL-Zertifikate als **Reiter unter
+  „Server“**; in der Kundenakte der Knopf **„✎ Merkmale & Server“** im Kopf (eigener Abschnitt
+  statt am Ende der Stammdaten); **vorbereitete Mails** prüft die Akte von selbst, sonst steht
+  im Verlauf eine Zeile mit „Jetzt prüfen“; „Vorgangstypen einrichten“ sehen nur noch Admin und
+  Bereichsleiter. **Auf dem Server bitte prüfen:** Mail als Entwurf anlegen, in Outlook senden,
+  zurück in den Reiter der Kundenzentrale — der Eintrag „E-Mail vorbereitet“ sollte ohne Klick
+  zur gesendeten Mail werden (lokal nicht prüfbar, braucht die Anmeldung bei Microsoft).
+
 - [ ] **Hinweis für alle am Kunden, „Meine Einstellungen“ im Menü (26.11.2026):** Die Signatur
   steht jetzt unter „Meine Einstellungen“ (unten im Menü, mit eigenem Benutzer und Darstellung);
   die alte Adresse `…/signatur` führt weiter dorthin. Publish wie

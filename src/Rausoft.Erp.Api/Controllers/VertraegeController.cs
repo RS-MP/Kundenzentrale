@@ -512,7 +512,8 @@ public class VertraegeController(
     /// Erkennung nicht mehr überschrieben.
     /// </summary>
     [HttpPut("bestandteile/{bestandteilId:int}")]
-    public async Task<IActionResult> BestandteilAendern(int bestandteilId, BestandteilAendern aenderung, CancellationToken ct)
+    public async Task<IActionResult> BestandteilAendern(int bestandteilId, BestandteilAendern aenderung,
+        [FromServices] Dienste.VertragsUnterschriftDienst unterschrift, CancellationToken ct)
     {
         var bestandteil = await db.Vertragsbestandteile.Include(b => b.Vertrag)
             .FirstOrDefaultAsync(b => b.Id == bestandteilId, ct);
@@ -556,6 +557,7 @@ public class VertraegeController(
                 $"Vertrag {bestandteil.Vertrag.Vertragsnummer}: {VerlaufsName(bestandteil)} — {string.Join(", ", aenderungen)}",
                 null, bestandteil.VertragId, ct);
         await db.SaveChangesAsync(ct);
+        await unterschrift.AbhakenAsync(bestandteil.VertragId, ct);
         return NoContent();
     }
 
@@ -630,7 +632,8 @@ public class VertraegeController(
     /// </summary>
     [HttpPost("bestandteile/{bestandteilId:int}/dokumente")]
     public async Task<IActionResult> DokumentRegistrieren(
-        int bestandteilId, DokumentRegistrieren registrierung, CancellationToken ct)
+        int bestandteilId, DokumentRegistrieren registrierung,
+        [FromServices] Dienste.VertragsUnterschriftDienst unterschrift, CancellationToken ct)
     {
         var bestandteil = await db.Vertragsbestandteile
             .Include(b => b.Vertrag)
@@ -693,6 +696,7 @@ public class VertraegeController(
             null, bestandteil.VertragId, ct);
 
         await db.SaveChangesAsync(ct);
+        await unterschrift.AbhakenAsync(bestandteil.VertragId, ct);
         return NoContent();
     }
 
@@ -743,6 +747,8 @@ public class VertraegeController(
             null, ct);
 
         db.ErlaubeVertragsdokumentLoeschung = true;
+        // Schritte, die auf die Unterschrift dieses Vertrags warten, verlieren nur die Zuordnung
+        await db.Aufgaben.Where(a => a.VertragId == vertrag.Id).ExecuteUpdateAsync(s => s.SetProperty(a => a.VertragId, (int?)null), ct);
         db.Vertragsdokumente.RemoveRange(vertrag.Bestandteile.SelectMany(b => b.Dokumente));
         db.Vertragsbestandteile.RemoveRange(vertrag.Bestandteile);
         db.Vertraege.Remove(vertrag);

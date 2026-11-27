@@ -149,6 +149,24 @@
                             </span>
                         </div>
                     }
+                    @if (_auswahl.Vertragsdokumente is { Count: > 0 } vertraege)
+                    {
+                        <div class="zeile2" style="margin-top:10px; align-items:flex-start">
+                            <span class="l">Verträge anhängen</span>
+                            <span style="flex:1; max-height:150px; overflow-y:auto">
+                                @foreach (var d in vertraege)
+                                {
+                                    <label style="display:block">
+                                        <input type="checkbox" checked="@_vertragsdoks.Contains(d.DokumentId)" @onchange="() => VertragUmschalten(d.DokumentId)" />
+                                        <b>@d.Vertragsnummer</b> @(d.Bezeichnung ?? d.Titel)
+                                        <span class="neben">
+                                            · @d.Dateiname · @(d.UnterzeichnetAm is { } u ? $"unterschrieben {u:dd.MM.yyyy}" : d.Entwurf ? "Entwurf, noch nicht unterschrieben" : "ohne erfasste Unterschrift")
+                                        </span>
+                                    </label>
+                                }
+                            </span>
+                        </div>
+                    }
                     @* Fremdes HTML nie in die eigene Seite: abgeschotteter Rahmen ohne Skripte *@
                     <iframe sandbox="" referrerpolicy="no-referrer" title="Vorschau der E-Mail" srcdoc="@Vorschau(_fertig.Html)"
                             style="width:100%; height:300px; margin-top:12px; border:1px solid var(--border); border-radius:8px; background:#fff"></iframe>
@@ -183,6 +201,9 @@
     [Parameter] public int KundeId { get; set; }
     /// <summary>Wird beim Schließen gerufen; wahr, wenn eine Mail angelegt oder gesendet wurde (Verlauf neu laden).</summary>
     [Parameter] public EventCallback<bool> Geschlossen { get; set; }
+    /// <summary>Verträge, deren PDF schon angehakt sein soll — z. B. die gerade erzeugten.</summary>
+    [Parameter] public IReadOnlyCollection<int>? VertragIds { get; set; }
+
 
     private sealed record GraphErgebnis(string Id, string? Verweis, string? NachrichtenKennung, bool Gesendet, bool Geoeffnet);
     private sealed record GraphStand(string Stand, DateTime? GesendetAm, string? Betreff, string? NachrichtenKennung, string? Html, List<string>? An, List<string>? Cc);
@@ -202,6 +223,7 @@
     private bool _betreffVonHand;
     private bool _mitSignatur = true;
     private readonly HashSet<int> _ohneAnhang = [];
+    private readonly HashSet<int> _vertragsdoks = [];
 
     private bool _veraltet, _stelltZusammen, _laeuft, _sendet, _sendenSicher, _geaendert;
     private int _anfrage;
@@ -215,6 +237,10 @@
         {
             _auswahl = await Http.GetFromJsonAsync<MailAuswahl>($"api/mail/kunde/{KundeId}");
             _konfig = await Http.GetFromJsonAsync<OutlookKonfiguration>("api/outlook/konfiguration");
+            if (VertragIds is { Count: > 0 } vorgewaehlt)
+                foreach (var d in _auswahl?.Vertragsdokumente ?? [])
+                    if (vorgewaehlt.Contains(d.VertragId))
+                        _vertragsdoks.Add(d.DokumentId);
             // Genau ein Ansprechpartner mit Adresse: vorbelegen
             if (_auswahl is { Ansprechpartner.Count: 1 })
             {
@@ -263,6 +289,12 @@
     {
         if (!_ohneAnhang.Remove(id))
             _ohneAnhang.Add(id);
+    }
+
+    private void VertragUmschalten(int dokumentId)
+    {
+        if (!_vertragsdoks.Remove(dokumentId))
+            _vertragsdoks.Add(dokumentId);
     }
 
     /// <summary>Lässt den Server die Mail zusammenstellen; die jüngste Anfrage gewinnt.</summary>
@@ -319,20 +351,26 @@
         _laeuft = true;
         _sendet = senden;
         _fehler = null;
-        var anhaenge = _fertig.Anhaenge.Where(a => !_ohneAnhang.Contains(a.Id)).ToList();
+        // Dateien des Bausteins und die angehakten Vertrags-PDFs — der Browser holt sie bei der Kundenzentrale und hängt sie an
+        var dateien = _fertig.Anhaenge.Where(a => !_ohneAnhang.Contains(a.Id))
+            .Select(a => (Name: a.Dateiname, Pfad: $"api/textbausteine/anhaenge/{a.Id}/datei"))
+            .Concat((_auswahl?.Vertragsdokumente ?? []).Where(d => _vertragsdoks.Contains(d.DokumentId))
+                .Select(d => (Name: d.Dateiname, Pfad: $"api/vertraege/dokumente/{d.DokumentId}/datei")))
+            .ToList();
+
         try
         {
             var ergebnis = await JS.InvokeAsync<GraphErgebnis>("outlookMailAnlegen", _konfig, new
             {
                 an = _fertig.An, cc = _fertig.Cc, betreff = _fertig.Betreff, html = _fertig.Html,
-                anhaenge = anhaenge.Select(a => new { name = a.Dateiname, adresse = new Uri(Http.BaseAddress!, $"api/textbausteine/anhaenge/{a.Id}/datei").ToString() }),
+                anhaenge = dateien.Select(a => new { name = a.Name, adresse = new Uri(Http.BaseAddress!, a.Pfad).ToString() }),
             }, senden);
             _ergebnis = ergebnis;
             _stand = ergebnis.Gesendet ? "gesendet" : "entwurf";
             _geaendert = true;
             var antwort = await Http.PostAsJsonAsync("api/mail/ausgang", new MailAngelegt(
                 KundeId, _apId, _bausteinId, _fertig.An, _fertig.Cc, _fertig.Betreff, _fertig.Html,
-                anhaenge.Select(a => a.Dateiname).ToList(), ergebnis.Id, ergebnis.NachrichtenKennung, ergebnis.Gesendet));
+                dateien.Select(a => a.Name).ToList(), ergebnis.Id, ergebnis.NachrichtenKennung, ergebnis.Gesendet));
             if (antwort.IsSuccessStatusCode)
                 _ausgangId = await antwort.Content.ReadFromJsonAsync<int>();
             else

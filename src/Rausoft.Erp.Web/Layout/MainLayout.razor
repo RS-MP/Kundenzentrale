@@ -27,6 +27,10 @@
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c.7-2.6 2.8-4 5.2-4s4.5 1.4 5.2 4"/></svg>
                 Kunden
             </NavLink>
+            <NavLink href="anfragen">
+                <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 9.2l1.6-5.4a1 1 0 0 1 1-.7h5.8a1 1 0 0 1 1 .7l1.6 5.4v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-3Z"/><path d="M2.6 9.3h3.2l.8 1.5h2.8l.8-1.5h3.2"/></svg>
+                Anfragen
+            </NavLink>
             <NavLink href="vorgaenge">
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4l1.2 1.2L6 3M2.5 8.5l1.2 1.2L6 7.5"/><circle cx="4" cy="12.6" r="1.1"/><path d="M8 4.2h5.5M8 8.7h5.5M8 12.8h5.5"/></svg>
                 Vorgänge
@@ -43,6 +47,7 @@
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="2.2"/><circle cx="11" cy="6.5" r="1.8"/><path d="M1.8 13c.5-2.2 2-3.4 3.7-3.4S8.7 10.8 9.2 13M9.6 10.2c.4-.2.9-.3 1.4-.3 1.5 0 2.6 1 3 3.1"/></svg>
                 Partner
             </NavLink>
+            <div class="nav-gruppe">Nachschlagen</div>
             <NavLink href="vorlagen">
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 2.2h5.2l3 3v8.4a1.2 1.2 0 0 1-1.2 1.2H4.5a1.2 1.2 0 0 1-1.2-1.2V3.4a1.2 1.2 0 0 1 1.2-1.2Z"/><path d="M9.5 2.4v3h3M5.8 9l1.6 1.6L10.6 7.4"/></svg>
                 Vorlagen
@@ -55,6 +60,10 @@
                     <span class="abzeichen" title="@WikiHinweisText(h)">@(h.UnbestaetigteNeuerungen + h.OffeneMeldungen)</span>
                 }
             </NavLink>
+            @if (_margenrechner || _zahlungen)
+            {
+                <div class="nav-gruppe">Finanzen</div>
+            }
             @if (_margenrechner)
             {
                 @* Nur mit der Rolle „Margenrechner“ — die API sperrt unabhängig davon *@
@@ -71,6 +80,7 @@
                     Zahlungen
                 </NavLink>
             }
+            <div class="nav-gruppe">Technik &amp; Verwaltung</div>
             <NavLink href="server">
                 <svg class="ikone" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="11" height="4.2" rx="1.2"/><rect x="2.5" y="8.8" width="11" height="4.2" rx="1.2"/><circle cx="5" cy="5.1" r=".9" fill="currentColor" stroke="none"/><circle cx="5" cy="10.9" r=".9" fill="currentColor" stroke="none"/></svg>
                 Server

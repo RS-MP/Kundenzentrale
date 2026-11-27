@@ -17,7 +17,8 @@ namespace Rausoft.Erp.Api.Dienste;
 /// auf Knopfdruck in der Vorgangsübersicht.
 /// </summary>
 public class VorgangsAbgleichDienst(
-    ErpDbContext db, IServiceScopeFactory scopeFactory, IConfiguration konfiguration, ILogger<VorgangsAbgleichDienst> log)
+    ErpDbContext db, IServiceScopeFactory scopeFactory, IConfiguration konfiguration, ILogger<VorgangsAbgleichDienst> log,
+    VertragsUnterschriftDienst unterschrift)
 {
     private static DateOnly Heute => DateOnly.FromDateTime(DateTime.Now);
 
@@ -34,6 +35,8 @@ public class VorgangsAbgleichDienst(
         {
             var straenge = await StraengeNachziehenAsync(ct);
             var (abgehakt, hinweis) = await RechnungenAbhakenAsync(ct);
+            // Schritte, die auf einen unterschriebenen Vertrag warten — unabhängig von Odoo
+            abgehakt += await unterschrift.AbhakenAsync(null, ct);
             return new VorgangsAbgleichErgebnis(straenge, abgehakt, hinweis);
         }
         finally

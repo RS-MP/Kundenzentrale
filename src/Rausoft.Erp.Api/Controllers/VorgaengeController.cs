@@ -93,8 +93,12 @@ public partial class VorgaengeController(ErpDbContext db, AngemeldeterMitarbeite
     // --- Einzelansicht -------------------------------------------------------------
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<VorgangDetail>> Detail(int id, CancellationToken ct)
+    public async Task<ActionResult<VorgangDetail>> Detail(int id, [FromServices] VertragsUnterschriftDienst unterschrift, CancellationToken ct)
     {
+        // Wer den Vorgang öffnet, sieht den aktuellen Stand: Liegt die unterschriebene Fassung
+        // inzwischen vor, ist der Schritt jetzt erledigt und der nächste freigegeben.
+        await unterschrift.AbhakenAsync(null, ct);
+
         var v = await db.Vorgaenge.AsNoTracking()
             .Include(x => x.Kunde)
             .Include(x => x.Vorgangstyp)
@@ -118,19 +122,39 @@ public partial class VorgaengeController(ErpDbContext db, AngemeldeterMitarbeite
         var mitarbeiter = await db.Mitarbeiter.AsNoTracking().Where(m => m.Aktiv).OrderBy(m => m.Anzeigename)
             .Select(m => new AuswahlEintrag(m.Id, m.Anzeigename, m.Bereich != null ? m.Bereich.Name : null)).ToListAsync(ct);
 
+        // Verträge des Kunden: zur Auswahl an Schritten, die auf eine Unterschrift warten, und für deren Stand.
+        // Gezeigt werden nur Nummer und Bezeichnung (für alle sichtbar, auch bei vertraulichen Verträgen).
+        var vertraege = v.Schritte.Any(s => s.AutoAbhaken == AutoAbhaken.VertragUnterschrieben)
+            ? await db.Vertraege.AsNoTracking()
+                .Include(x => x.Bestandteile).ThenInclude(b => b.Dokumente)
+                .Where(x => x.KundeId == v.KundeId)
+                .OrderByDescending(x => x.Id)
+                .AsSplitQuery()
+                .ToListAsync(ct)
+            : [];
+        var jeVertrag = vertraege.ToDictionary(x => x.Id);
+
         return Ok(new VorgangDetail(
             v.Id, v.KundeId, v.Kunde!.Firmenname, v.Kunde.Kundennummer, v.VorgangstypId, v.Vorgangstyp!.Name, v.VorgangstypStand,
             v.Titel, v.OdooAuftrag, v.Hinweis, v.Start, StatusText(VorgangsLogik.Status(v.Schritte, heute)),
             v.ErstelltAm, v.ErstelltVon?.Anzeigename, v.AbgeschlossenAm, v.StrangName,
-            v.Schritte.OrderBy(s => s.Reihenfolge).Select(s => SchrittDto(s, heute)).ToList(),
-            verlauf, await BereicheAsync(ct), mitarbeiter, await angemeldet.IdAsync(ct)));
+            v.Schritte.OrderBy(s => s.Reihenfolge)
+                .Select(s => SchrittDto(s, heute, s.VertragId is { } vid ? jeVertrag.GetValueOrDefault(vid) : null)).ToList(),
+            verlauf, await BereicheAsync(ct), mitarbeiter, await angemeldet.IdAsync(ct),
+            vertraege.Select(x => new AuswahlEintrag(x.Id, VertragsText(x), x.Status == Domain.Contracts.VertragsStatus.Entwurf ? "Entwurf" : null)).ToList()));
     }
 
-    private static VorgangSchritt SchrittDto(Aufgabe s, DateOnly heute) => new(
+    private static string VertragsText(Domain.Contracts.Vertrag v) =>
+        string.IsNullOrWhiteSpace(v.Bezeichnung) ? v.Vertragsnummer : $"{v.Vertragsnummer} · {v.Bezeichnung}";
+
+    private static VorgangSchritt SchrittDto(Aufgabe s, DateOnly heute, Domain.Contracts.Vertrag? vertrag = null) => new(
         s.Id, s.Reihenfolge ?? 0, s.Titel, s.ZustaendigBereichId, s.ZustaendigBereich?.Name, s.ZustaendigId, s.Zustaendig?.Anzeigename,
         SchrittStatus(s, heute), VorgangsLogik.FaelligAm(s), VorgangsLogik.Ueberfaellig(s, heute), s.Wiedervorlage,
         s.WartetAufId, s.WartetAuf?.Titel, s.Herkunft == SchrittHerkunft.Manuell, s.EntfallenGrund, s.Pflichtfeld, s.PflichtfeldWert,
-        s.Benachrichtigung.ToString(), s.AutoAbhaken.ToString(), s.FristTage ?? 0, s.ErledigtAm, s.ErledigtVon?.Anzeigename);
+        s.Benachrichtigung.ToString(), s.AutoAbhaken.ToString(), s.FristTage ?? 0, s.ErledigtAm, s.ErledigtVon?.Anzeigename,
+        s.VertragId, vertrag is null ? null : VertragsText(vertrag),
+        vertrag is null ? null : Domain.Contracts.VertragsUnterschrift.WasFehlt(vertrag),
+        vertrag is null ? null : Domain.Contracts.VertragsUnterschrift.LiegtVorSeit(vertrag));
 
     // --- Anlegen -------------------------------------------------------------------
 
@@ -444,12 +468,50 @@ public partial class VorgaengeController(ErpDbContext db, AngemeldeterMitarbeite
             return NotFound();
         if (VorgangsLogik.FertigOderWeg(s))
             return BadRequest("Erledigte oder schon entfallene Schritte lassen sich nicht entfernen.");
+        // Ein Schritt, der auf die Unterschrift wartet, sichert ab, was nach ihm kommt (z. B. eine Freischaltung).
+        // Wer ihn entfernt, hebt diese Sperre auf — das darf nur ein Admin.
+        if (s.AutoAbhaken == AutoAbhaken.VertragUnterschrieben && !await angemeldet.HatRolleAsync(MitarbeiterRolle.Admin, ct))
+            return BadRequest("Dieser Schritt wartet auf den unterschriebenen Vertrag und sperrt die Schritte danach. Entfernen kann ihn nur ein Admin.");
         var ich = await angemeldet.IdAsync(ct);
         var freigegeben = VorgangsLogik.Entfernen(s, v.Schritte, Heute);
         Verlauf(v, ich, $"Schritt von Hand entfernt: {s.Titel}");
         Freigabe(v, ich, freigegeben);
         Abschluss(v, ich);
         await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Ordnet einem Schritt, der auf die Unterschrift wartet, den Vertrag zu. Liegt dessen
+    /// unterschriebene Fassung schon vor, erledigt sich der Schritt sofort.
+    /// </summary>
+    [HttpPost("schritte/{schrittId:int}/vertrag")]
+    public async Task<IActionResult> VertragZuordnen(int schrittId, SchrittVertrag daten,
+        [FromServices] VertragsUnterschriftDienst unterschrift, CancellationToken ct)
+    {
+        var (v, s) = await SchrittLadenAsync(schrittId, ct);
+        if (v is null || s is null)
+            return NotFound();
+        if (s.AutoAbhaken != AutoAbhaken.VertragUnterschrieben)
+            return BadRequest("An diesem Schritt hängt keine Unterschrift.");
+        if (VorgangsLogik.FertigOderWeg(s))
+            return BadRequest("Der Schritt ist schon erledigt oder entfallen.");
+        string? vertrag = null;
+        if (daten.VertragId is { } vertragId)
+        {
+            vertrag = await db.Vertraege.Where(x => x.Id == vertragId && x.KundeId == v.KundeId)
+                .Select(x => x.Vertragsnummer).FirstOrDefaultAsync(ct);
+            if (vertrag is null)
+                return BadRequest("Dieser Vertrag gehört nicht zum Kunden des Vorgangs.");
+        }
+        if (s.VertragId == daten.VertragId)
+            return NoContent();
+        s.VertragId = daten.VertragId;
+        Verlauf(v, await angemeldet.IdAsync(ct), vertrag is null
+            ? $"Vertrag vom Schritt gelöst: {s.Titel}"
+            : $"Vertrag {vertrag} zugeordnet: {s.Titel}");
+        await db.SaveChangesAsync(ct);
+        await unterschrift.AbhakenAsync(daten.VertragId, ct);
         return NoContent();
     }
 
@@ -510,6 +572,12 @@ public partial class VorgaengeController(ErpDbContext db, AngemeldeterMitarbeite
             return BadRequest("Der Schritt ist schon erledigt oder entfallen.");
         if (VorgangsLogik.Gesperrt(s))
             return BadRequest($"Der Schritt wartet noch auf „{s.WartetAuf!.Titel}“.");
+        // Von Hand lässt sich ein solcher Schritt nicht abhaken: Er erledigt sich, sobald die unterschriebene
+        // Fassung wirklich vorliegt — sonst wäre die Sperre der Schritte danach mit einem Klick umgangen.
+        if (s.AutoAbhaken == AutoAbhaken.VertragUnterschrieben)
+            return BadRequest(s.VertragId is null
+                ? "Bitte zuerst den Vertrag zuordnen. Der Schritt erledigt sich von selbst, sobald dessen unterschriebene Fassung in der Vertragsakte liegt."
+                : "Dieser Schritt erledigt sich von selbst, sobald die unterschriebene Fassung in der Vertragsakte liegt (Unterschrift erfasst und Datei abgelegt).");
         var wert = erledigen.Wert?.Trim();
         if (s.Pflichtfeld is not null && string.IsNullOrEmpty(wert))
             return BadRequest($"Bitte „{s.Pflichtfeld}“ eintragen.");

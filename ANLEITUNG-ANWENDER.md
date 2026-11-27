@@ -226,8 +226,8 @@ Bereich **Angebote**: drei Listen direkt aus Odoo.
 ## Hinweis für alle am Kunden
 
 Was jeder wissen muss, der mit dem Kunden zu tun hat — „Immer mit Herr Dr.
-ansprechen“, „Abrechnung erst nach der Schulung“: in der Kundenakte oben
-rechts **⚠ Hinweis für alle**, Text eingeben, „Für alle sichtbar machen“.
+ansprechen“, „Abrechnung erst nach der Schulung“: in der Kundenakte in der
+Leiste oben **⚠ Hinweis für alle**, Text eingeben, „Für alle sichtbar machen“.
 
 Der Hinweis steht danach als gelbes Band oben in der Akte, im Mail-Fenster, am
 Vorgang, am Vertrag, an den Aufgaben des Kunden unter „Meine Aufgaben“ und im
@@ -236,15 +236,33 @@ Outlook-Bereich „In Kundenakte“. Ist er überholt: in der Akte „entfernen�
 
 ## E-Mail aus der Kundenakte
 
-In der Akte am Verlauf: **✉ E-Mail**. Ansprechpartner wählen (weitere Adressen
+In der Kundenakte steht oben eine Leiste mit allem, was man für den Kunden tun
+kann: **✉ E-Mail · + Notiz / Telefonat · + Aufgabe · + Vorgang · + Vertrag aus
+Vorlage · ⚠ Hinweis für alle**.
+
+**✉ E-Mail:** Ansprechpartner wählen (weitere Adressen
 mit Semikolon), bei Bedarf einen Textbaustein und einen eigenen Text darüber.
 Die Vorschau zeigt genau, was verschickt wird.
 
 - **Senden** — die Mail geht sofort aus deinem Postfach (nach der Rückfrage
   „Jetzt an … senden?“) und liegt in deinen gesendeten Elementen.
 - **In Outlook öffnen** — die Mail wird als Entwurf angelegt und in Outlook im
-  Web geöffnet; dort ändern, weitere Dateien anhängen, senden. Danach in der
-  Akte **„Entwurf prüfen“**, dann steht die gesendete Fassung im Verlauf.
+  Web geöffnet; dort ändern, weitere Dateien anhängen, senden. Zurück in der
+  Kundenzentrale holt die Akte die gesendete Fassung von selbst in den
+  Verlauf. Steht dort stattdessen die Zeile „Eine vorbereitete Mail ist noch
+  nicht als gesendet bekannt“, einmal auf **„Jetzt prüfen“** klicken.
+
+**Verträge mitschicken:** Im Mail-Fenster unter „Verträge anhängen“ die
+Verträge des Kunden anhaken. Direkt nach „+ Vertrag aus Vorlage“ geht es mit
+**„✉ Per E-Mail senden“** weiter; gehören zur Bestellung mehrere Verträge,
+vorher **„+ Weiteren Vertrag erstellen“** — dann hängen alle an.
+
+**Unterschrift:** Kommt der Vertrag unterschrieben zurück, in der Vertragsakte
+am Bestandteil „Unterzeichnet am“ eintragen **und** die unterschriebene Datei
+als Version hinzufügen. Erst dann gilt der Vertrag als unterschrieben. Wartet
+im Vorgang ein Schritt darauf (z. B. vor „World-Check-Daten freischalten“),
+erledigt er sich damit von selbst und gibt den nächsten Schritt frei — von
+Hand abhaken lässt er sich nicht. Am Schritt muss dafür der Vertrag gewählt sein.
 
 **Probebetrieb:** Steht oben im Fenster „Kundenmails sind noch nicht
 freigegeben“, geht jede Mail an dich selbst statt an den Kunden — zum
@@ -266,7 +284,7 @@ hell oder dunkel und deine E-Mail-Signatur.
 
 ## E-Mail-Textbausteine
 
-Unter **Vorlagen → E-Mail-Textbausteine** liegen die Mailtexte aus Odoo mit
+Im Menü **Vorlagen**, Reiter **E-Mail-Textbausteine**, liegen die Mailtexte aus Odoo mit
 Formatierung. Baustein wählen, **Text kopieren**, in Outlook mit Strg+V
 einfügen; **Betreff kopieren** für die Betreffzeile. Platzhalter wie
 `{{Kunde.Name}}` vor dem Senden von Hand ersetzen. Steht „nacharbeiten“ am

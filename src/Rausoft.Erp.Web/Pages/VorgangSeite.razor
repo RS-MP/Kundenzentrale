@@ -18,7 +18,7 @@
             <div class="meta">
                 @v.Typ
                 @if (v.OdooAuftrag is not null) { <span class="trenn">·</span><span>Odoo @v.OdooAuftrag</span> }
-                else if (v.AbgeschlossenAm is null) { <span class="trenn">·</span><button class="textknopf" @onclick="OdooOeffnen">Odoo-Auftrag eintragen</button> }
+                else if (v.AbgeschlossenAm is null) { <span class="trenn">·</span><button class="knopf sekundaer klein" @onclick="OdooOeffnen">Odoo-Auftrag eintragen</button> }
                 <span class="trenn">·</span>gestartet @VorgangAnzeige.Datum(v.Start)
                 <span class="trenn">·</span><a href="kunden/@v.KundeId">Kundenakte</a>
             </div>
@@ -46,7 +46,10 @@
         }
         else
         {
-            <div style="flex-basis:100%"><button class="textknopf" @onclick="HinweisOeffnen">+ Hinweis zum Vorgang</button></div>
+            <div style="flex-basis:100%">
+                <button class="knopf sekundaer klein" @onclick="HinweisOeffnen"
+                        title="Ein Hinweis, den jeder sieht, der an einem Schritt dieses Vorgangs arbeitet.">⚠ Hinweis zum Vorgang</button>
+            </div>
         }
     </div>
     <KundenHinweise KundeId="v.KundeId" Vorsatz="Zum Kunden" />
@@ -97,6 +100,33 @@
                         {
                             <div class="s-auto">@VorgangAnzeige.AutoHinweis(s.AutoAbhaken, v.OdooAuftrag is not null)</div>
                         }
+                        @* Schritt wartet auf die Unterschrift: Vertrag zuordnen, Stand sehen — abgehakt wird er vom System *@
+                        @if (s.AutoAbhaken == "VertragUnterschrieben" && s.Status is not ("erledigt" or "entfallen"))
+                        {
+                            <div class="s-wert" style="display:flex; gap:8px 10px; align-items:center; flex-wrap:wrap">
+                                <span>Vertrag</span>
+                                <select style="flex:1 1 220px; min-width:0" value="@(s.VertragId?.ToString() ?? "")" disabled="@_sende"
+                                        @onchange="e => VertragZuordnenAsync(s, e.Value)">
+                                    <option value="">— bitte wählen —</option>
+                                    @foreach (var vt in v.Vertraege ?? [])
+                                    {
+                                        <option value="@vt.Id">@vt.Name@(vt.Zusatz is not null ? $" ({vt.Zusatz})" : "")</option>
+                                    }
+                                </select>
+                                @if (s.VertragId is { } vertragId)
+                                {
+                                    <a class="knopf sekundaer klein" href="vertraege/@vertragId">Zur Vertragsakte</a>
+                                    <span class="krittext" style="flex-basis:100%; font-weight:600">⚠ @(s.UnterschriftFehlt ?? "Die unterschriebene Fassung liegt vor — der Schritt erledigt sich beim nächsten Laden.")</span>
+                                }
+                                else
+                                {
+                                    <span class="krittext" style="flex-basis:100%; font-weight:600">
+                                        ⚠ Noch kein Vertrag zugeordnet. Ohne ihn bleibt dieser Schritt offen und alles danach gesperrt.
+                                        @if ((v.Vertraege?.Count ?? 0) == 0) { <text> Für den Kunden gibt es noch keinen Vertrag — in der <a href="kunden/@v.KundeId">Kundenakte</a> „+ Vertrag aus Vorlage“.</text> }
+                                    </span>
+                                }
+                            </div>
+                        }
                         @if (s.Pflichtfeld is not null && s.PflichtfeldWert is not null)
                         {
                             <div class="s-wert">@s.Pflichtfeld: <b>@s.PflichtfeldWert</b></div>
@@ -111,14 +141,20 @@
                                         {
                                             <button class="knopf sekundaer klein" disabled="@_sende" @onclick='() => AktionAsync(s, "uebernehmen")'>Übernehmen</button>
                                         }
-                                        <button class="knopf klein" style="color:var(--knopf-text)" @onclick='() => FormOeffnen(s, "erledigt")'>Erledigt …</button>
+                                        @if (s.AutoAbhaken != "VertragUnterschrieben")
+                                        {
+                                            <button class="knopf klein" style="color:var(--knopf-text)" @onclick='() => FormOeffnen(s, "erledigt")'>Erledigt …</button>
+                                        }
                                         <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "wartet")'>Wartet auf Kunden …</button>
                                         <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "zuweisen")'>Zuweisen …</button>
                                         <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "notiz")'>Notiz</button>
                                         <button class="textknopf leise" @onclick='() => FormOeffnen(s, "entfernen")'>Entfernen</button>
                                         break;
                                     case "wartet":
-                                        <button class="knopf klein" style="color:var(--knopf-text)" @onclick='() => FormOeffnen(s, "erledigt")'>Erledigt …</button>
+                                        @if (s.AutoAbhaken != "VertragUnterschrieben")
+                                        {
+                                            <button class="knopf klein" style="color:var(--knopf-text)" @onclick='() => FormOeffnen(s, "erledigt")'>Erledigt …</button>
+                                        }
                                         <button class="knopf sekundaer klein" disabled="@_sende" @onclick='() => AktionAsync(s, "offen")'>Warten beenden</button>
                                         <button class="knopf sekundaer klein" @onclick='() => FormOeffnen(s, "notiz")'>Notiz</button>
                                         break;
@@ -219,7 +255,7 @@
                 }
                 else
                 {
-                    <button class="textknopf" @onclick="NeuOeffnen">+ Schritt von Hand hinzufügen</button>
+                    <button class="knopf sekundaer klein" @onclick="NeuOeffnen">+ Schritt von Hand hinzufügen</button>
                 }
             </div>
         </div>
@@ -408,6 +444,11 @@ else if (_fehler is null)
 
     private Task EntfernenAsync(VorgangSchritt s) => SendenAsync(
         () => Http.DeleteAsync($"api/vorgaenge/schritte/{s.Id}"));
+
+    /// <summary>Vertrag am Schritt zuordnen, der auf die Unterschrift wartet; die Seite lädt danach neu (evtl. ist er dann schon erledigt).</summary>
+    private Task VertragZuordnenAsync(VorgangSchritt s, object? wert) => SendenAsync(
+        () => Http.PostAsJsonAsync($"api/vorgaenge/schritte/{s.Id}/vertrag",
+            new SchrittVertrag(int.TryParse(wert?.ToString(), out var id) ? id : null)));
 
     private Task SchrittHinzufuegenAsync()
     {

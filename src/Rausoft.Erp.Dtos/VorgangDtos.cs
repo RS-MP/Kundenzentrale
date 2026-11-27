@@ -61,7 +61,10 @@ public record VorgangDetail(
     List<VorgangVerlaufEintrag> Verlauf,
     List<AuswahlEintrag> Bereiche,
     List<AuswahlEintrag> Mitarbeiter,
-    int? IchId);
+    int? IchId,
+    /// <summary>Verträge des Kunden — zur Auswahl an Schritten, die auf eine Unterschrift warten.</summary>
+    List<AuswahlEintrag>? Vertraege = null);
+
 
 public record VorgangSchritt(
     int Id,
@@ -85,7 +88,17 @@ public record VorgangSchritt(
     string AutoAbhaken,
     int FristTage,
     DateTime? ErledigtAm,
-    string? ErledigtVon);
+    string? ErledigtVon,
+    /// <summary>Nur bei Schritten, die sich mit der Unterschrift erledigen: der zugeordnete Vertrag.</summary>
+    int? VertragId = null,
+    string? Vertrag = null,
+    /// <summary>Was zur unterschriebenen Fassung noch fehlt; leer, wenn sie vorliegt oder kein Vertrag zugeordnet ist.</summary>
+    string? UnterschriftFehlt = null,
+    DateOnly? UnterschriebenAm = null);
+
+/// <summary>Vertrag an einem Schritt zuordnen, der auf die Unterschrift wartet — null löst die Zuordnung.</summary>
+public record SchrittVertrag(int? VertragId);
+
 
 public record VorgangVerlaufEintrag(DateTime Zeitpunkt, string? Wer, string Text, string? Inhalt);
 

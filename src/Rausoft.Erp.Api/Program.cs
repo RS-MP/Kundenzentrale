@@ -115,6 +115,7 @@ builder.Services.AddScoped<PdfDienst>();
 builder.Services.AddScoped<MailDienst>();
 builder.Services.AddScoped<ZertifikatDienst>();
 builder.Services.AddScoped<VorgangsAbgleichDienst>();
+builder.Services.AddScoped<VertragsUnterschriftDienst>();
 builder.Services.AddScoped<OdooSchreibZugang>();
 builder.Services.AddScoped<VerkaufsUeberwachung>();
 builder.Services.AddScoped<ZahlungsDienst>();

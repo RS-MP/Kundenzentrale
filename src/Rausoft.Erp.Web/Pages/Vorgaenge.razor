@@ -13,7 +13,11 @@
         @(_gleichtAb ? "Gleicht ab …" : "Mit Odoo abgleichen")
     </button>
     <a class="knopf sekundaer" href="angebote" title="Angebote ohne Rückmeldung und bestätigte Odoo-Aufträge, zu denen noch kein Vorgang angelegt ist">Offene Angebote und Aufträge</a>
-    <a class="knopf sekundaer" href="vorgaenge/typen">Vorgangstypen</a>
+    @* Einrichtung, keine Tagesarbeit: nur für die, die Vorgangstypen pflegen dürfen (Admin, Bereichsleiter) *@
+    @if (_daten?.DarfTypenPflegen == true)
+    {
+        <a class="knopf sekundaer" href="vorgaenge/typen" title="Vorlagen für Vorgänge: welche Schritte in welchem Bereich anfallen">Vorgangstypen einrichten</a>
+    }
     <a class="knopf" href="vorgaenge/neu">+ Vorgang anlegen</a>
 </div>
 

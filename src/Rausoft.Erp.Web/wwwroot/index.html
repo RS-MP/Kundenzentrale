@@ -61,7 +61,14 @@
         };
         // Kundenakte: Element sanft in den Blick holen (Verlauf, Eintrag, Vereinbarungen)
         window.akte = {
-            zeige: (id, block) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: block || 'start' })
+            zeige: (id, block) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: block || 'start' }),
+            // Zugeklappten Abschnitt aufklappen und in den Blick holen
+            oeffne: (id) => {
+                const abschnitt = document.getElementById(id);
+                if (!abschnitt) return;
+                abschnitt.open = true;
+                abschnitt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         };
         window.dateiVorschau = {
             erzeugeUrl: (base64, typ) => {

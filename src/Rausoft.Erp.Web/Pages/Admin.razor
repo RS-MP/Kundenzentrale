@@ -1,12 +1,18 @@
 @page "/admin"
+@page "/admin/{Bereich}"
 @implements IDisposable
 @inject HttpClient Http
 
 <PageTitle>Administration · Kundenzentrale</PageTitle>
 
 <div class="seitenkopf">
-    <h1>Administration</h1>
-    <span class="untertitel">Änderungen werden protokolliert</span>
+    <h1>@(AktiverBereich?.Titel ?? "Administration")</h1>
+    <span class="untertitel">@(AktiverBereich is null ? "Einrichtung der Kundenzentrale — Änderungen werden protokolliert" : "Administration · Änderungen werden protokolliert")</span>
+    @if (AktiverBereich is not null)
+    {
+        <span style="flex:1"></span>
+        <a class="knopf sekundaer" href="admin">‹ Zur Übersicht</a>
+    }
 </div>
 
 @if (_fehler is not null)
@@ -14,6 +20,26 @@
     <div class="fehler">@_fehler</div>
 }
 
+@* ---------- Übersicht: je Thema eine Kachel mit Stand — statt einer langen Seite mit zugeklappten Abschnitten ---------- *@
+@if (Aktiv is null)
+{
+    <div class="kacheln">
+        @foreach (var k in Kacheln())
+        {
+            <a class="kachel" href="@k.Ziel">
+                <h2>@k.Titel</h2>
+                <div class="neben">@k.Text</div>
+                @if (k.Stand is not null)
+                {
+                    <div class="stand"><span class="status @k.StandKlasse">@k.Stand</span></div>
+                }
+            </a>
+        }
+    </div>
+}
+
+@if (Aktiv == "server")
+{
 @* ---------- Server & Portal-Meldung ---------- *@
 <details class="gruppe" open>
     <summary>Server &amp; Service-Portal-Meldung<span class="zahl">@(_server?.Count ?? 0) Server</span></summary>
@@ -127,8 +153,12 @@
     </div>
 </details>
 
+}
+
+@if (Aktiv == "benutzer")
+{
 @* ---------- Benutzer & Rollen ---------- *@
-<details class="gruppe">
+<details class="gruppe" open>
     <summary>Benutzer &amp; Rollen<span class="zahl">@(_mitarbeiter?.Count ?? 0)</span></summary>
     <div class="gruppe-inhalt">
         <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
@@ -239,8 +269,12 @@
     <BereichsLeitung />
 }
 
+}
+
+@if (Aktiv == "odoo")
+{
 @* ---------- Odoo-Anbindung ---------- *@
-<details class="gruppe">
+<details class="gruppe" open>
     <summary>Odoo-Anbindung<span class="zahl">Import</span></summary>
     <div class="gruppe-inhalt">
         <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
@@ -352,13 +386,17 @@
 @* ---------- Odoo-Testdatenbank und Schreibziel ---------- *@
 <OdooTestdatenbank />
 
+}
+
+@if (Aktiv == "mail")
+{
 @* ---------- E-Mail-Versand (SMTP) & Zertifikats-Erinnerungen ---------- *@
-<details class="gruppe">
+<details class="gruppe" open>
     <summary>E-Mail-Versand und Zertifikats-Erinnerungen<span class="zahl">SMTP</span></summary>
     <div class="gruppe-inhalt">
         <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
             SMTP-Zugang für Benachrichtigungen der Kundenzentrale — zuerst für die Erinnerungen an ablaufende
-            <a href="zertifikate">SSL-Zertifikate</a>. Das Passwort wird verschlüsselt gespeichert und nie wieder angezeigt.
+            <a href="server/zertifikate">SSL-Zertifikate</a>. Das Passwort wird verschlüsselt gespeichert und nie wieder angezeigt.
         </div>
         @foreach (var einstellung in MailEinstellungen())
         {
@@ -404,20 +442,12 @@
     </div>
 </details>
 
-@* ---------- Outlook-Anbindung (eigene Seite) ---------- *@
-<details class="gruppe">
-    <summary>Outlook-Anbindung<span class="zahl">Durchstich</span></summary>
-    <div class="gruppe-inhalt">
-        <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
-            E-Mail als Entwurf im eigenen Postfach anlegen und E-Mails aus Outlook dem Kunden zuordnen — App-Registrierung,
-            Probe-Entwurf und Add-in stehen auf einer eigenen Seite.
-        </div>
-        <a class="knopf sekundaer" href="admin/outlook">Outlook-Anbindung einrichten und prüfen</a>
-    </div>
-</details>
+}
 
+@if (Aktiv == "angebote-zahlungen")
+{
 @* ---------- Offene Angebote und Kontoauszüge ---------- *@
-<details class="gruppe">
+<details class="gruppe" open>
     <summary>Offene Angebote und Kontoauszüge<span class="zahl">@VerkaufZahlungEinstellungen().Count()</span></summary>
     <div class="gruppe-inhalt">
         <div style="color:var(--muted); font-size:12.5px; margin-bottom:8px">
@@ -448,8 +478,12 @@
     </div>
 </details>
 
+}
+
+@if (Aktiv == "verzeichnisse")
+{
 @* ---------- Verzeichnisse ---------- *@
-<details class="gruppe">
+<details class="gruppe" open>
     <summary>Verzeichnisse<span class="zahl">@VerzeichnisEinstellungen().Count()</span></summary>
     <div class="gruppe-inhalt">
         @if (_einstellungen is null)
@@ -501,7 +535,51 @@
     </div>
 </details>
 
+}
+
 @code {
+    /// <summary>Bereich aus der Adresse (admin/benutzer …); ohne oder mit unbekanntem Wert die Übersicht.</summary>
+    [Parameter] public string? Bereich { get; set; }
+
+    private sealed record AdminBereich(string Schluessel, string Titel, string Text);
+    private sealed record Kachel(string Titel, string Text, string Ziel, string? Stand = null, string? StandKlasse = null);
+
+    private static readonly AdminBereich[] Bereiche =
+    [
+        new("benutzer", "Benutzer & Rollen", "Wer die Kundenzentrale nutzt, mit welchen Rollen und in welchem Bereich"),
+        new("server", "Server & Service-Portal", "Serverliste, Prüfung und Meldung an das Service-Portal"),
+        new("odoo", "Odoo", "Verbindung zu Odoo, Daten übernehmen, Testdatenbank und Schreibziel"),
+        new("mail", "E-Mail-Versand", "SMTP-Zugang für Benachrichtigungen und Zertifikats-Erinnerungen"),
+        new("angebote-zahlungen", "Offene Angebote & Kontoauszüge", "Fristen, Empfänger der Übersichten, Eingangsordner"),
+        new("verzeichnisse", "Verzeichnisse", "Ablage für Verträge, Vorlagen und Dokumente"),
+    ];
+
+    private AdminBereich? AktiverBereich => Bereiche.FirstOrDefault(b => b.Schluessel.Equals(Bereich, StringComparison.OrdinalIgnoreCase));
+    private string? Aktiv => AktiverBereich?.Schluessel;
+
+    private string? EinstellungsWert(string schluessel) => _einstellungen?.FirstOrDefault(e => e.Schluessel == schluessel)?.Wert;
+
+    /// <summary>Kacheln der Übersicht: Thema, kurze Erklärung und — wo es einen gibt — der Stand auf einen Blick.</summary>
+    private IEnumerable<Kachel> Kacheln()
+    {
+        var odoo = !string.IsNullOrWhiteSpace(EinstellungsWert("Odoo.Url"));
+        var smtp = !string.IsNullOrWhiteSpace(EinstellungsWert("Mail.SmtpHost"));
+        var outlook = !string.IsNullOrWhiteSpace(EinstellungsWert("Outlook.ClientId"));
+        var frei = string.Equals(EinstellungsWert("Outlook.KundenmailsFreigegeben")?.Trim(), "Ja", StringComparison.OrdinalIgnoreCase);
+        foreach (var b in Bereiche)
+            yield return b.Schluessel switch
+            {
+                "benutzer" => new Kachel(b.Titel, b.Text, "admin/benutzer", _mitarbeiter is null ? null : $"{_mitarbeiter.Count} Benutzer", ""),
+                "server" => new Kachel(b.Titel, b.Text, "admin/server", _server is null ? null : $"{_server.Count} Server", ""),
+                "odoo" => new Kachel(b.Titel, b.Text, "admin/odoo", odoo ? "Verbindung eingetragen" : "nicht eingerichtet", odoo ? "gut" : "warnung"),
+                "mail" => new Kachel(b.Titel, b.Text, "admin/mail", smtp ? "SMTP eingetragen" : "nicht eingerichtet", smtp ? "gut" : "warnung"),
+                _ => new Kachel(b.Titel, b.Text, $"admin/{b.Schluessel}"),
+            };
+        yield return new Kachel("Outlook & Kundenmails", "App-Registrierung, Add-in „In Kundenakte“ und die Freigabe von Mails an Kunden", "admin/outlook",
+            !outlook ? "nicht eingerichtet" : frei ? "Kundenmails freigegeben" : "Kundenmails: Probebetrieb", !outlook ? "warnung" : frei ? "gut" : "warnung");
+        yield return new Kachel("Vorgangstypen", "Vorlagen für Vorgänge: welche Schritte in welchem Bereich anfallen", "vorgaenge/typen");
+    }
+
     private bool _datenNachtragen;
     private string? _datenErgebnis;
 

@@ -193,6 +193,8 @@ public class ErpDbContext(
             e.HasIndex(a => new { a.ZustaendigBereichId, a.Status });
             e.HasIndex(a => new { a.ZustaendigId, a.Status });
             e.HasOne(a => a.WartetAuf).WithMany().HasForeignKey(a => a.WartetAufId).OnDelete(DeleteBehavior.NoAction);
+            // Beim Löschen eines Vertrags löst der Vertrags-Controller die Zuordnung selbst (kein zweiter Kaskadenweg über den Kunden)
+            e.HasOne(a => a.Vertrag).WithMany().HasForeignKey(a => a.VertragId).OnDelete(DeleteBehavior.NoAction);
         });
 
         // --- Vorgänge (Bestellung → Teilaufgaben je Bereich) -----------------

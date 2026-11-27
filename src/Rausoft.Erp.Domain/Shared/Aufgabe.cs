@@ -67,6 +67,15 @@ public class Aufgabe
     public int? WartetAufId { get; set; }
     public Aufgabe? WartetAuf { get; set; }
 
+    /// <summary>
+    /// Vertrag, an dem dieser Schritt hängt — für Schritte, die sich mit der Unterschrift erledigen
+    /// (<see cref="Vorgaenge.AutoAbhaken.VertragUnterschrieben"/>). Solange die unterschriebene
+    /// Fassung dieses Vertrags nicht vorliegt, bleibt der Schritt offen, und alles, was auf ihn
+    /// wartet, gesperrt (z. B. die Freischaltung der World-Check-Daten).
+    /// </summary>
+    public int? VertragId { get; set; }
+    public Rausoft.Erp.Domain.Contracts.Vertrag? Vertrag { get; set; }
+
     public SchrittHerkunft? Herkunft { get; set; }
 
     /// <summary>Frist in Tagen ab Freigabe; <see cref="Faellig"/> wird gesetzt, sobald der Schritt startet.</summary>

@@ -18,7 +18,15 @@ public record MailAuswahl(
     bool HatSignatur,
     bool Umgeleitet,
     string? Umleitung,
-    string? UmleitungHinweis);
+    string? UmleitungHinweis,
+    List<MailVertragsdokument>? Vertragsdokumente = null);
+
+/// <summary>Vertrags-PDF des Kunden, das sich an die Mail hängen lässt — je Bestandteil die neueste Fassung.</summary>
+/// <param name="UnterzeichnetAm">Gesetzt, wenn am Bestandteil die Unterschrift erfasst ist.</param>
+public record MailVertragsdokument(
+    int DokumentId, int VertragId, string Vertragsnummer, string? Bezeichnung, string Titel, string Dateiname,
+    DateTime ErstelltAm, bool Entwurf, DateOnly? UnterzeichnetAm);
+
 
 public record MailAnsprechpartner(int Id, string Name, string Email);
 

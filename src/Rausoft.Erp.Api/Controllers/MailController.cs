@@ -42,7 +42,39 @@ public class MailController(ErpDbContext db, AngemeldeterMitarbeiter angemeldet,
         var ich = await IchAsync(ct);
         var umleitung = await UmleitungAsync(ich, ct);
         return Ok(new MailAuswahl(kundeId, kunde, ansprechpartner, bausteine,
-            !string.IsNullOrWhiteSpace(ich?.MailSignaturHtml), umleitung.Aktiv, umleitung.Adresse, umleitung.Hinweis));
+            !string.IsNullOrWhiteSpace(ich?.MailSignaturHtml), umleitung.Aktiv, umleitung.Adresse, umleitung.Hinweis,
+            await VertragsdokumenteAsync(kundeId, ct)));
+
+    }
+
+    /// <summary>
+    /// Vertrags-PDFs des Kunden zum Anhängen: je Bestandteil die neueste Fassung, laufende und
+    /// neue Verträge zuerst. Vertrauliche Bestandteile nur mit der Rolle dafür — dieselbe Regel
+    /// wie in der Vertragsakte; die Datei selbst liefert weiterhin nur der Vertrags-Endpunkt aus.
+    /// </summary>
+    private async Task<List<MailVertragsdokument>> VertragsdokumenteAsync(int kundeId, CancellationToken ct)
+    {
+        var darfVertrauliche = (await angemeldet.RollenAsync(ct)).HasFlag(MitarbeiterRolle.VertraulicheVertraege);
+        var alle = await db.Vertragsdokumente.AsNoTracking()
+            .Where(d => d.Vertragsbestandteil!.Vertrag!.KundeId == kundeId
+                        && d.Vertragsbestandteil.Vertrag.Status != Rausoft.Erp.Domain.Contracts.VertragsStatus.Beendet
+                        && (darfVertrauliche || !d.Vertragsbestandteil.Vertraulich))
+            .Select(d => new
+            {
+                d.Id, d.Version, d.DateinameOriginal, d.ErstelltAm, d.VertragsbestandteilId,
+                d.Vertragsbestandteil!.Titel, d.Vertragsbestandteil.UnterzeichnetAm, d.Vertragsbestandteil.VertragId,
+                d.Vertragsbestandteil.Vertrag!.Vertragsnummer, d.Vertragsbestandteil.Vertrag.Bezeichnung, d.Vertragsbestandteil.Vertrag.Status,
+            })
+            .ToListAsync(ct);
+        return alle
+            .Where(d => d.DateinameOriginal.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(d => d.VertragsbestandteilId)
+            .Select(g => g.OrderByDescending(d => d.Version).First())
+            .OrderByDescending(d => d.ErstelltAm)
+            .Take(40)
+            .Select(d => new MailVertragsdokument(d.Id, d.VertragId, d.Vertragsnummer, d.Bezeichnung, d.Titel, d.DateinameOriginal,
+                d.ErstelltAm, d.Status == Rausoft.Erp.Domain.Contracts.VertragsStatus.Entwurf, d.UnterzeichnetAm))
+            .ToList();
     }
 
     /// <summary>Stellt die Mail zusammen, ohne etwas zu speichern — die Vorschau ist genau das, was ins Postfach geht.</summary>

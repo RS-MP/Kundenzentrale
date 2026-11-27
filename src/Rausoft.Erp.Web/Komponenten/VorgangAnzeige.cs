@@ -57,7 +57,7 @@ public static class VorgangAnzeige
         "OdooRechnung" =>
             "Ohne Odoo-Auftragsnummer kein automatischer Abgleich — bitte von Hand abhaken.",
         "VertragUnterschrieben" =>
-            "Soll sich später abhaken, wenn der Vertrag als unterschrieben erfasst ist — diesen Status gibt es im Vertragsmodul noch nicht, bitte von Hand.",
+            "Erledigt sich von selbst, sobald die unterschriebene Fassung des zugeordneten Vertrags vorliegt (Unterschrift erfasst und Datei abgelegt). Von Hand abhaken geht hier nicht — bis dahin bleiben die Schritte danach gesperrt.",
         _ => "",
     };
 

@@ -1,11 +1,13 @@
+@page "/server/zertifikate"
 @page "/zertifikate"
 @inject HttpClient Http
+@inject NavigationManager Navigation
 
-<PageTitle>SSL-Zertifikate · Kundenzentrale</PageTitle>
+<PageTitle>Server · Kundenzentrale</PageTitle>
 
 <div class="seitenkopf">
-    <h1>SSL-Zertifikate</h1>
-    <span class="untertitel"><a href="server">Server</a> · Ablaufdaten aller produktiven Systeme — Erneuerung wird automatisch erkannt, sonst Erinnerung bis zur Bestätigung</span>
+    <h1>Server</h1>
+    <span class="untertitel">SSL-Zertifikate: Ablaufdaten aller produktiven Systeme — Erneuerung wird automatisch erkannt, sonst Erinnerung bis zur Bestätigung</span>
     <span style="flex:1"></span>
     @if (_uebersicht?.DarfBearbeiten == true && _formular is null)
     {
@@ -13,6 +15,7 @@
         <button class="knopf" @onclick="NeuOeffnen">+ Zertifikat</button>
     }
 </div>
+<ServerReiter />
 
 @if (_fehler is not null)
 {
@@ -330,7 +333,13 @@ else
         public bool AutoErkennung { get; set; } = true;
     }
 
-    protected override Task OnInitializedAsync() => LadenAsync();
+    protected override Task OnInitializedAsync()
+    {
+        // Die alte Adresse führt auf die neue unter „Server“ — dort sind Reiter und Menüpunkt aktiv
+        if (!new Uri(Navigation.Uri).AbsolutePath.EndsWith("/server/zertifikate", StringComparison.OrdinalIgnoreCase))
+            Navigation.NavigateTo("server/zertifikate", replace: true);
+        return LadenAsync();
+    }
 
     private async Task LadenAsync()
     {

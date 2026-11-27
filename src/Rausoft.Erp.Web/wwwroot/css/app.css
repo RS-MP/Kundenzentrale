@@ -73,12 +73,29 @@ button { font: inherit; cursor: pointer; }
 }
 .marke { font-weight: 700; font-size: 15px; color: var(--ink); white-space: nowrap; padding: 4px 12px 16px; }
 .marke .firma { color: var(--accent); }
-.seitennav-links { display: flex; flex-direction: column; gap: 2px; }
+/* Scrollt, wenn das Fenster zu niedrig für alle Punkte ist; der Rand links hält den Strich des aktiven Punkts sichtbar */
+.seitennav-links { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow-y: auto; margin-left: -10px; padding-left: 10px; }
 .seitennav-links a {
   display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px;
   color: var(--ink2); font-weight: 500; position: relative;
 }
 .seitennav-links a:hover { background: var(--surface2); text-decoration: none; }
+/* Gruppen im Menü: erst die tägliche Arbeit (ohne Überschrift), dann Nachschlagen, Finanzen, Technik */
+.nav-gruppe { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 12px 12px 3px; }
+/* Reiter: zwei, drei gleichrangige Ansichten eines Bereichs — statt eines Knopfs, der auf die andere Seite führt */
+.reiter { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 0 0 16px; }
+.reiter a { padding: 8px 14px; color: var(--ink2); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.reiter a:hover { color: var(--accent-strong); text-decoration: none; }
+.reiter a.active { color: var(--accent-strong); font-weight: 600; border-bottom-color: var(--accent); }
+/* Administration: Übersicht mit einer Kachel je Thema, der Stand steht schon auf der Kachel */
+.kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.kachel { display: block; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: inherit; }
+.kachel:hover { border-color: var(--accent); text-decoration: none; }
+.kachel h2 { margin: 0 0 4px; font-size: 15px; }
+.kachel .neben { color: var(--muted); font-size: 12.5px; }
+.kachel .stand { margin-top: 10px; font-size: 12.5px; }
+/* Kundenakte: alles, was man für den Kunden tun kann, in einer Leiste oben */
+.akte-aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
 .seitennav-links a.active { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
 .seitennav-links a.active::before {
   content: ""; position: absolute; left: -10px; top: 6px; bottom: 6px;
@@ -129,6 +146,7 @@ button { font: inherit; cursor: pointer; }
   /* Links in eigener Zeile, seitlich scrollbar — sonst wird die Seite breiter als das Handy */
   .seitennav-links { flex-direction: row; order: 3; flex: 1 1 100%; min-width: 0; overflow-x: auto; }
   .seitennav-links a { white-space: nowrap; }
+  .nav-gruppe { display: none; }
   .seitennav-fuss { margin-left: auto; }
   .seitennav-eigenes { margin: 0 0 0 auto; padding: 0; }
   .seitennav-eigenes + .seitennav-fuss { margin-left: 8px; }

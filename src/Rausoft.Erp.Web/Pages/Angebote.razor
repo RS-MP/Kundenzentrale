@@ -4,8 +4,8 @@
 <PageTitle>Angebote · Kundenzentrale</PageTitle>
 
 <div class="seitenkopf">
-    <h1>Angebote und Aufträge</h1>
-    <span class="untertitel">Was in Odoo offen steht: Angebote ohne Rückmeldung, bestätigte Aufträge, die niemand gestartet hat</span>
+    <h1>Angebote</h1>
+    <span class="untertitel">Angebote und Aufträge in Odoo: Angebote ohne Rückmeldung, bestätigte Aufträge, die niemand gestartet hat</span>
     <span style="flex:1"></span>
     <button class="knopf sekundaer" disabled="@_laeuft" @onclick="NachfassenAsync"
             title="Legt Nachfass-Aufgaben für Angebote an, deren Frist erreicht ist, und erledigt Aufgaben, deren Angebot in Odoo nicht mehr offen steht. Läuft sonst stündlich.">
@@ -99,7 +99,7 @@ else
                                     {
                                         <span class="neben" title="Der Odoo-Kontakt ist keinem Kunden der Kundenzentrale zugeordnet — nach dem nächsten Odoo-Import erneut prüfen.">Kunde nicht verknüpft</span>
                                     }
-                                    <button class="mehr" style="margin-left:10px" @onclick="() => AusblendenOeffnen(z.Nummer)">ausblenden</button>
+                                    <button class="knopf sekundaer klein" style="margin-left:8px" @onclick="() => AusblendenOeffnen(z.Nummer)">Ausblenden</button>
                                 </td>
                             </tr>
                             @AusblendZeile(z, 5)
@@ -172,7 +172,7 @@ else
                                     }
                                 </td>
                                 <td style="white-space:nowrap; text-align:right">
-                                    <button class="mehr" @onclick="() => AusblendenOeffnen(z.Nummer)">ausblenden</button>
+                                    <button class="knopf sekundaer klein" @onclick="() => AusblendenOeffnen(z.Nummer)">Ausblenden</button>
                                 </td>
                             </tr>
                             @AusblendZeile(z, 6)
@@ -243,7 +243,7 @@ else
                                     }
                                 </td>
                                 <td style="white-space:nowrap; text-align:right">
-                                    <button class="mehr" @onclick="() => AusblendenOeffnen(z.Nummer)">ausblenden</button>
+                                    <button class="knopf sekundaer klein" @onclick="() => AusblendenOeffnen(z.Nummer)">Ausblenden</button>
                                 </td>
                             </tr>
                             @AusblendZeile(z, 7)
@@ -269,7 +269,7 @@ else
                                 @(z.AusgeblendetAm is { } am ? $"am {am.ToLocalTime():dd.MM.yyyy}" : "")@(z.AusblendGrund is not null ? $": {z.AusblendGrund}" : "")
                             </span>
                         </span>
-                        <button class="mehr" style="padding:0" @onclick="() => EinblendenAsync(z.Nummer)">wieder einblenden</button>
+                        <button class="knopf sekundaer klein" @onclick="() => EinblendenAsync(z.Nummer)">Wieder einblenden</button>
                     </div>
                 }
             </div>
@@ -428,7 +428,7 @@ else
                         <input type="text" maxlength="200" style="flex:1; min-width:220px" @bind="_grund" @bind:event="oninput"
                                placeholder="@(z.Bestaetigt ? "z. B. braucht keinen Vorgang" : "z. B. Kunde entscheidet erst im Frühjahr")" />
                         <button class="knopf sekundaer" @onclick="() => AusblendenAsync(z.Nummer)">Ausblenden</button>
-                        <button class="mehr" @onclick="() => _ausblenden = null">abbrechen</button>
+                        <button class="knopf sekundaer klein" @onclick="() => _ausblenden = null">Abbrechen</button>
                     </div>
                 </td>
             </tr>

@@ -27,8 +27,6 @@ else
                 <span class="status kritisch">in Odoo archiviert</span>
             }
             <span style="flex:1"></span>
-            <button class="knopf sekundaer" @onclick="() => _hinweise?.NeuOeffnen()"
-                    title="Ein Hinweis, den jeder sieht, der mit dem Kunden zu tun hat — in der Akte, im Mail-Fenster, an Vorgang, Vertrag und Aufgaben.">⚠ Hinweis für alle</button>
             @* Archivieren ist eine seltene Aktion → dezenter Kleinknopf; das
                Zurückholen ist im Archiv-Kontext die Hauptaktion und bleibt sichtbar. *@
             <button class="knopf sekundaer @(_kunde.ArchiviertAm is null ? "klein" : "")" @onclick="ArchivUmschaltenAsync">
@@ -86,7 +84,23 @@ else
             {
                 <span class="trenn">·</span>@_kunde.Kundengruppe
             }
+            @* Merkmale, Server und Individualentwicklung stehen hier oben — also lassen sie sich auch von hier aus ändern *@
+            <button class="knopf sekundaer klein" style="margin-left:10px" @onclick="MerkmaleOeffnenAsync"
+                    title="Merkmale (z. B. Insolvenz, Einmalkauf), Server und Mandanten-Kennung, Individualentwicklung ändern">✎ Merkmale &amp; Server</button>
         </p>
+        @* Alles, was man für den Kunden tun kann, an einer Stelle — nicht verteilt auf die Blöcke darunter *@
+        <div class="akte-aktionen">
+            <button class="knopf" @onclick="() => _verlauf?.MailOeffnen()" title="E-Mail an den Kunden — senden oder in Outlook öffnen">✉ E-Mail</button>
+            <button class="knopf sekundaer" @onclick="EintragAsync" title="Notiz, Telefonat oder Termin im Verlauf festhalten">+ Notiz / Telefonat</button>
+            <button class="knopf sekundaer" @onclick="AufgabeAsync">+ Aufgabe</button>
+            <a class="knopf sekundaer" href="vorgaenge/neu?kunde=@Id" title="Bestellung mit Schritten je Bereich anlegen">+ Vorgang</a>
+            @if (_vorlagen.Count > 0)
+            {
+                <button class="knopf sekundaer" @onclick="() => _fensterOffen = true">+ Vertrag aus Vorlage</button>
+            }
+            <button class="knopf sekundaer" @onclick="() => _hinweise?.NeuOeffnen()"
+                    title="Ein Hinweis, den jeder sieht, der mit dem Kunden zu tun hat — in der Akte, im Mail-Fenster, an Vorgang, Vertrag und Aufgaben.">⚠ Hinweis für alle</button>
+        </div>
         <KundenHinweise @ref="_hinweise" KundeId="Id" Bearbeitbar="true" Geaendert="() => _verlaufVersion++" />
     </div>
 
@@ -94,7 +108,7 @@ else
     <div class="akte">
         <div>
             @* Was lief zuletzt, Aufgaben, Vereinbarungen, Verlauf — siehe Komponenten/AkteVerlauf.razor *@
-            <AkteVerlauf KundeId="Id" Aktualisierung="_verlaufVersion" />
+            <AkteVerlauf @ref="_verlauf" KundeId="Id" Aktualisierung="_verlaufVersion" />
         </div>
 
         <div>
@@ -221,7 +235,14 @@ else
                     {
                         <div class="zeile2"><span class="l">Notiz</span><span class="r">@_kunde.Notiz</span></div>
                     }
-                    <div style="border-top:1px dashed var(--border); margin-top:8px; padding-top:8px">
+                </div>
+            </details>
+
+            @* Eigener Abschnitt statt ganz unten in den Stammdaten; „✎ Merkmale & Server“ im Kopf der Akte springt hierher *@
+            <details class="gruppe" id="akte-merkmale">
+                <summary>Merkmale, Server &amp; Besonderheiten</summary>
+                <div class="gruppe-inhalt">
+                    <div>
                         <div style="color:var(--muted); font-size:12.5px; margin-bottom:6px">
                             Betrieb: Server &amp; Mandanten-Kennung (intern)
                         </div>
@@ -281,11 +302,20 @@ else
 @if (_fensterOffen && _kunde is not null)
 {
     <VertragAusVorlageFenster KundeId="Id" Vorlagen="_vorlagen" Abos="_abos"
-                              Ansprechpartner="_kunde.Ansprechpartner" Geschlossen="FensterGeschlossenAsync" />
+                              Ansprechpartner="_kunde.Ansprechpartner" Geschlossen="FensterGeschlossenAsync"
+                              Senden="VertraegeSendenAsync" />
 }
 
 @code {
     private KundenHinweise? _hinweise;
+    private AkteVerlauf? _verlauf;
+
+    // Aktionsleiste: Die Formulare gehören zum Verlauf bzw. zu den Aufgaben — dort öffnen und hinspringen
+    private Task EintragAsync() => _verlauf?.EintragOeffnenAsync() ?? Task.CompletedTask;
+    private Task AufgabeAsync() => _verlauf?.AufgabeOeffnenAsync() ?? Task.CompletedTask;
+
+    /// <summary>Klappt den Abschnitt „Merkmale, Server &amp; Besonderheiten“ auf und springt hin.</summary>
+    private async Task MerkmaleOeffnenAsync() => await JS.InvokeVoidAsync("akte.oeffne", "akte-merkmale");
     [Parameter] public int Id { get; set; }
 
     private KundeDetail? _kunde;
@@ -396,6 +426,13 @@ else
     </div>;
 
     private bool _fensterOffen;
+
+    /// <summary>Nach dem Erzeugen gleich senden: Fenster zu, Akte neu laden, Mail-Fenster mit den neuen Verträgen als Anhang.</summary>
+    private async Task VertraegeSendenAsync(List<int> vertragIds)
+    {
+        await FensterGeschlossenAsync(true);
+        _verlauf?.MailOeffnen(vertragIds);
+    }
 
     private async Task FensterGeschlossenAsync(bool erstellt)
     {

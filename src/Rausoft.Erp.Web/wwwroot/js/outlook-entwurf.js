@@ -219,6 +219,19 @@
         }
     };
 
+    // Ist diese Seite schon bei Microsoft angemeldet? Dann lässt sich der Stand vorbereiteter Mails
+    // ohne Anmeldefenster prüfen — ein Fenster darf nur nach einem Klick aufgehen.
+    window.outlookAngemeldet = (k) => !!(k && (gemerkt(k, BEREICH) || gemerkt(k, BEREICH_SENDEN)));
+
+    // Meldet, wenn der Mitarbeiter in den Reiter der Kundenzentrale zurückkommt (z. B. nach dem Senden in Outlook).
+    window.akteRueckkehrAnmelden = (empfaenger) => {
+        const hoeren = () => {
+            if (document.visibilityState === "visible") empfaenger.invokeMethodAsync("ZurueckImReiter").catch(() => { });
+        };
+        document.addEventListener("visibilitychange", hoeren);
+        return { abmelden: () => document.removeEventListener("visibilitychange", hoeren) };
+    };
+
     window.outlookRuecksprungAdresse = ruecksprung;
     window.outlookOeffnen = (verweis) => { window.open(verweis, "_blank", "noopener"); };
 

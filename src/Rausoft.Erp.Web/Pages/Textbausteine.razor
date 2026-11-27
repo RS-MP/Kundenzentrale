@@ -1,14 +1,15 @@
+@page "/vorlagen/textbausteine"
 @page "/textbausteine"
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
-<PageTitle>E-Mail-Textbausteine · Kundenzentrale</PageTitle>
+<PageTitle>Vorlagen · Kundenzentrale</PageTitle>
 
 <div class="seitenkopf">
-    <h1>E-Mail-Textbausteine</h1>
-    <span class="untertitel">Betreff und formatierter Text für wiederkehrende Mails — übernommen aus den Odoo-Mailvorlagen</span>
+    <h1>Vorlagen</h1>
+    <span class="untertitel">E-Mail-Textbausteine: Betreff und formatierter Text für wiederkehrende Mails — übernommen aus den Odoo-Mailvorlagen</span>
     <span style="flex:1"></span>
-    <a class="knopf sekundaer" href="vorlagen">Vertragsvorlagen</a>
     @if (_daten?.DarfPflegen == true)
     {
         <button class="knopf sekundaer" disabled="@_uebernimmt" @onclick="() => UebernehmenAsync(true)"
@@ -20,6 +21,7 @@
         <button class="knopf" @onclick="NeuOeffnen">+ Textbaustein</button>
     }
 </div>
+<VorlagenReiter />
 
 @if (_fehler is not null)
 {
@@ -159,7 +161,7 @@ else
                         <button class="knopf sekundaer" @onclick="BearbeitenOeffnen">Bearbeiten</button>
                         <button class="mehr krittext" @onclick="EntfernenAsync"
                                 title="@(_detail.AusOdoo ? "Der Baustein verschwindet für alle und kommt bei der nächsten Übernahme aus Odoo nicht wieder. Unter „Entfernt“ lässt er sich wiederherstellen." : "Löscht den hier angelegten Baustein endgültig.")">
-                            @(_loeschenSicher ? "Wirklich entfernen?" : "Entfernen")
+                            @(_loeschenSicher ? (_detail.AusOdoo ? "Wirklich entfernen?" : "Wirklich löschen?") : _detail.AusOdoo ? "Entfernen" : "Löschen")
                         </button>
                     }
                 </div>
@@ -230,7 +232,13 @@ else
     private int? _laedtAnhang;
     private List<string>? _anhangHinweise;
 
-    protected override Task OnInitializedAsync() => LadenAsync();
+    protected override Task OnInitializedAsync()
+    {
+        // Die alte Adresse führt auf die neue unter „Vorlagen“ — dort ist der Reiter und der Menüpunkt aktiv
+        if (!new Uri(Navigation.Uri).AbsolutePath.EndsWith("/vorlagen/textbausteine", StringComparison.OrdinalIgnoreCase))
+            Navigation.NavigateTo("vorlagen/textbausteine", replace: true);
+        return LadenAsync();
+    }
 
     private async Task LadenAsync()
     {

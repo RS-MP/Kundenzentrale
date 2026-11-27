@@ -114,7 +114,14 @@
         <div class="fenster-fuss">
             @if (_ergebnis is not null)
             {
-                <a class="knopf" href="vertraege/@_ergebnis.VertragId">Zur Vertragsakte</a>
+                @* Nach dem Erzeugen gleich weiter: senden — oder erst den zweiten Vertrag der Bestellung erzeugen und dann beide senden *@
+                <button class="knopf" @onclick="() => Senden.InvokeAsync(_erzeugt.ToList())"
+                        title="Öffnet das Mail-Fenster; die hier erzeugten Verträge hängen schon an.">
+                    ✉ @(_erzeugt.Count == 1 ? "Per E-Mail senden" : $"{_erzeugt.Count} Verträge per E-Mail senden")
+                </button>
+                <button class="knopf sekundaer" @onclick="WeitererVertrag"
+                        title="Für Bestellungen mit mehreren Verträgen, z. B. Lizenzvertrag und Vertrag über die World-Check-Daten.">+ Weiteren Vertrag erstellen</button>
+                <a class="knopf sekundaer" href="vertraege/@_ergebnis.VertragId">Zur Vertragsakte</a>
                 <button class="knopf sekundaer" @onclick="SchliessenAsync">Schließen</button>
             }
             else
@@ -136,6 +143,17 @@
     [Parameter] public List<AnsprechpartnerEintrag>? Ansprechpartner { get; set; }
     /// <summary>Wird beim Schließen aufgerufen; true = es wurde ein Vertrag erstellt (Akte neu laden).</summary>
     [Parameter] public EventCallback<bool> Geschlossen { get; set; }
+    /// <summary>„Per E-Mail senden“: die Ids der in diesem Fenster erzeugten Verträge.</summary>
+    [Parameter] public EventCallback<List<int>> Senden { get; set; }
+
+    /// <summary>In diesem Fenster erzeugte Verträge — bei „weiteren Vertrag erstellen“ sammeln sie sich.</summary>
+    private readonly List<int> _erzeugt = [];
+
+    private void WeitererVertrag()
+    {
+        _ergebnis = null;
+        _fehler = null;
+    }
 
     private int _vorlageId;
     private int _aboId;              // 0 = ohne Angebotsnummer
@@ -214,6 +232,8 @@
                 return;
             }
             _ergebnis = await antwort.Content.ReadFromJsonAsync<VorlagenErgebnis>();
+            if (_ergebnis is not null)
+                _erzeugt.Add(_ergebnis.VertragId);
         }
         catch (Exception ex)
         {
@@ -225,7 +245,7 @@
         }
     }
 
-    private Task SchliessenAsync() => Geschlossen.InvokeAsync(_ergebnis is not null);
+    private Task SchliessenAsync() => Geschlossen.InvokeAsync(_erzeugt.Count > 0);
 
     private static string Positionen(AboEintrag abo) =>
         abo.Positionen.Count == 0 ? ""

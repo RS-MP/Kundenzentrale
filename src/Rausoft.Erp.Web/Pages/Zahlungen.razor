@@ -99,13 +99,13 @@ else
                                     @if (u.Status == "unklar")
                                     {
                                         <button class="knopf sekundaer" @onclick='() => AktionAsync(u.Id, "als-gebucht")' title="Die Zahlung steht in Odoo an der Rechnung.">Steht in Odoo</button>
-                                        <button class="mehr" style="margin-left:8px" @onclick='() => AktionAsync(u.Id, "zuruecksetzen")' title="In Odoo ist keine Zahlung entstanden.">nicht gebucht</button>
+                                        <button class="knopf sekundaer klein" style="margin-left:8px" @onclick='() => AktionAsync(u.Id, "zuruecksetzen")' title="In Odoo ist keine Zahlung entstanden.">Nicht gebucht</button>
                                     }
                                     else
                                     {
                                         <button class="knopf sekundaer" @onclick="() => ZuordnenOeffnen(u)">Zuordnen</button>
-                                        <button class="mehr" style="margin-left:8px" @onclick='() => AktionAsync(u.Id, "als-gebucht")' title="Die Zahlung wurde schon von Hand in Odoo gebucht.">in Odoo erledigt</button>
-                                        <button class="mehr" style="margin-left:8px" @onclick="() => IgnorierenAsync(u.Id)" title="Gehört zu keiner Rechnung (Erstattung, Umbuchung …).">ignorieren</button>
+                                        <button class="knopf sekundaer klein" style="margin-left:8px" @onclick='() => AktionAsync(u.Id, "als-gebucht")' title="Die Zahlung wurde schon von Hand in Odoo gebucht.">In Odoo erledigt</button>
+                                        <button class="knopf sekundaer klein" style="margin-left:8px" @onclick="() => IgnorierenAsync(u.Id)" title="Gehört zu keiner Rechnung (Erstattung, Umbuchung …).">Ausblenden</button>
                                     }
                                 </td>
                             </tr>
@@ -125,7 +125,7 @@ else
                                             <button class="knopf" disabled="@(_rechnung.Length == 0 || _bucht)" @onclick="() => ZuordnenAsync(u.Id)">
                                                 @(_bucht ? "Bucht …" : s.SchreibSperre is null ? "Zuordnen und in Odoo buchen" : "Zuordnen")
                                             </button>
-                                            <button class="mehr" @onclick="() => _zuordnen = null">abbrechen</button>
+                                            <button class="knopf sekundaer klein" @onclick="() => _zuordnen = null">Abbrechen</button>
                                         </div>
                                         @if (_posten is null)
                                         {
@@ -201,7 +201,7 @@ else
     @if (_daten.Ignoriert.Count > 0)
     {
         <details class="gruppe">
-            <summary>Ignoriert<span class="zahl">@_daten.Ignoriert.Count</span></summary>
+            <summary>Ausgeblendet<span class="zahl">@_daten.Ignoriert.Count</span></summary>
             <div class="gruppe-inhalt">@Tabelle(_daten.Ignoriert, true)</div>
         </details>
     }
@@ -389,7 +389,7 @@ else
                         <td style="white-space:nowrap; text-align:right">
                             @if (zuruecksetzbar || u.GebuchtZiel == "Test")
                             {
-                                <button class="mehr" @onclick='() => AktionAsync(u.Id, "zuruecksetzen")' title="Legt den Eingang zurück in die Klärung.">zurück in die Klärung</button>
+                                <button class="knopf sekundaer klein" @onclick='() => AktionAsync(u.Id, "zuruecksetzen")' title="Legt den Eingang zurück in die Klärung.">Zurück in die Klärung</button>
                             }
                         </td>
                     </tr>

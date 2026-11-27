@@ -101,6 +101,67 @@ Layout-Entscheidung nach Ansicht beider Varianten.
   hell/dunkel und die E-Mail-Signatur. **Neue persönliche Einstellungen kommen
   dorthin**, nicht in das Fenster der Funktion, die sie braucht.
 
+#### Durchgang „aus Anwendersicht“ (26.11.2026)
+
+Alle Bereiche auf versteckte und verschachtelte Funktionen durchgesehen (Menü,
+Knöpfe, Textverweise, zugeklappte Abschnitte). MP folgt der vorgeschlagenen
+Reihenfolge. **Erledigt im ersten Block:**
+
+- **Menü in Gruppen:** oben die tägliche Arbeit (Meine Aufgaben, Kunden,
+  Anfragen, Vorgänge, Angebote, Verträge, Partner), dann „Nachschlagen“
+  (Vorlagen, Wiki), „Finanzen“ (Zahlungen, Margenrechner — nur für
+  Berechtigte), „Technik & Verwaltung“ (Server, Administration), unten „Meine
+  Einstellungen“.
+- **„Anfragen“ ist ein eigener Menüpunkt** (vorher nur ein Knopf auf der
+  Kundenliste).
+- **Start mit „Meine Aufgaben“** statt mit der Kundenliste.
+- **Vorlagen mit zwei Reitern:** Vertragsvorlagen · E-Mail-Textbausteine
+  (`/vorlagen`, `/vorlagen/textbausteine`; die alte Adresse `/textbausteine`
+  leitet um). Menüpunkt und Seitentitel heißen beide „Vorlagen“.
+- **Aktionsleiste oben in der Kundenakte:** ✉ E-Mail · + Notiz / Telefonat ·
+  + Aufgabe · + Vorgang · + Vertrag aus Vorlage · ⚠ Hinweis für alle. Die
+  Formulare öffnen sich an ihrem Platz, die Seite springt hin.
+- **Vorgang:** „⚠ Hinweis zum Vorgang“, „Odoo-Auftrag eintragen“ und „+ Schritt
+  von Hand hinzufügen“ sind Knöpfe statt Textverweise.
+
+**Erledigt im zweiten Block (27.11.2026):**
+
+- **Vorbereitete Mails prüft die Akte von selbst**, sobald die Seite bei
+  Microsoft angemeldet ist — beim Laden und beim Zurückkommen in den Reiter
+  (etwa nach dem Senden in Outlook). Ohne Anmeldung steht im Verlauf eine
+  deutliche Zeile mit dem Knopf „Jetzt prüfen“ (ein Anmeldefenster darf der
+  Browser nur nach einem Klick öffnen). Der Textverweis „Entwürfe prüfen“
+  ist entfallen.
+- **Merkmale, Server und Individualentwicklung** haben in der Akte einen
+  eigenen Abschnitt „Merkmale, Server & Besonderheiten“; der Knopf „✎
+  Merkmale & Server“ im Kopf der Akte klappt ihn auf und springt hin. Vorher
+  lagen sie am Ende von „Stammdaten & Adressen“.
+- **Server mit zwei Reitern:** Server · SSL-Zertifikate (`/server`,
+  `/server/zertifikate`; die alte Adresse `/zertifikate` leitet um).
+- **Vorgangstypen:** Der Knopf auf der Seite Vorgänge heißt „Vorgangstypen
+  einrichten“ und erscheint nur noch für die, die sie pflegen dürfen (Admin,
+  Bereichsleiter). Der Platz in der Administration kommt mit deren Umbau.
+
+**Erledigt im dritten Block (27.11.2026):**
+
+- **Angebote und Zahlungen:** Alle Aktionen je Zeile sind Knöpfe (klein und
+  zweitrangig neben der Hauptaktion). Bewusst **kein Menü „…“**: Das hätte
+  wieder etwas versteckt.
+- **Benennungen:** Menüpunkt und Seitentitel sind gleich („Angebote“,
+  „Vorlagen“, „Server“). Je Handlung ein Wort: **Löschen** = endgültig weg
+  (Aufgabe, Anfrage, hier angelegter Textbaustein); **Entfernen** = aus der
+  Liste nehmen, wiederherstellbar (Textbaustein aus Odoo, Hinweis, Schritt);
+  **Ausblenden** = hier nicht mehr zeigen, wieder einblendbar (Angebote,
+  Zahlungseingänge — dort vorher „ignorieren“).
+- **Administration als Übersicht mit Kacheln:** je Thema eine eigene Seite
+  (`/admin/benutzer`, `/admin/server`, `/admin/odoo`, `/admin/mail`,
+  `/admin/angebote-zahlungen`, `/admin/verzeichnisse`), dazu Kacheln für
+  Outlook & Kundenmails und Vorgangstypen. Der Stand steht auf der Kachel
+  („Kundenmails: Probebetrieb“, „SMTP eingetragen“, „3 Server“).
+
+**Noch offen:** Im Odoo-Teil der Administration stehen Verbindung und „Daten
+übernehmen“ weiter auf einer Seite untereinander — trennen, wenn es stört.
+
 ### Individualentwicklung & Preis-Sonderabsprachen (ergänzt 09/2026)
 
 - **Individualentwicklung:** Einige Kunden haben eine Individualentwicklung
@@ -728,6 +789,45 @@ Erkennen des Sendens). Daraus entschieden und gebaut:
   **Nicht gegen Microsoft geprüft** (lokal nicht möglich): Senden, Anhänge
   (auch über 3 MB) und ob der Verweis den Entwurf in Outlook im Web im
   Schreibfenster öffnet.
+
+#### Verträge versenden und Unterschrift als Freigabe (MP 27.11.2026)
+
+> Ein Kunde bestellt z. B. ID.prove Professional und die World-Check-Daten:
+> Dann gehen **zwei Verträge** raus, und der **unterschriebene Vertrag über
+> die World-Check-Daten muss zwingend vorliegen** — sonst dürfen die Daten in
+> der SaaS-Umgebung nicht freigeschaltet werden.
+
+- **Senden gleich nach dem Erzeugen:** Im Fenster „Vertrag aus Vorlage“ steht
+  nach dem Erstellen **„✉ Per E-Mail senden“**. Für Bestellungen mit mehreren
+  Verträgen daneben **„+ Weiteren Vertrag erstellen“** — das Fenster sammelt
+  die erzeugten Verträge und übergibt sie zusammen („2 Verträge per E-Mail
+  senden“).
+- **Verträge anhängen im Mail-Fenster:** Abschnitt „Verträge anhängen“ mit den
+  Vertrags-PDFs des Kunden (je Bestandteil die neueste Fassung, mit Stand:
+  Entwurf / unterschrieben am …). Die übergebenen Verträge sind angehakt,
+  weitere lassen sich dazunehmen. Vertrauliche Bestandteile nur mit der Rolle
+  dafür; ausgeliefert wird die Datei weiter nur über den Vertrags-Endpunkt.
+- **„Unterschrieben liegt vor“** (`VertragsUnterschrift`): am selben
+  Bestandteil ist „Unterzeichnet am“ eingetragen **und** eine Datei abgelegt,
+  die nicht der aus der Vorlage erzeugte Entwurf ist. Ein Datum allein reicht
+  nicht, eine Datei allein auch nicht. Bestellung, Installationsprotokoll und
+  Kündigung zählen nicht als Vertragstext.
+- **Sperre im Vorgang:** Ein Schritt mit „Abhaken: Vertrag unterschrieben“
+  bekommt den **Vertrag zugeordnet** (Auswahl am Schritt) und zeigt, was noch
+  fehlt. Er lässt sich **nicht von Hand abhaken** — die Kundenzentrale
+  erledigt ihn, sobald die unterschriebene Fassung vorliegt (sofort nach der
+  Änderung am Vertrag, beim Öffnen des Vorgangs, sonst stündlich;
+  `VertragsUnterschriftDienst`). Alles, was auf ihn wartet — etwa
+  „World-Check-Daten freischalten“ — bleibt bis dahin gesperrt. Entfernen
+  kann einen solchen Schritt nur ein Admin (sonst wäre die Sperre mit einem
+  Klick aufgehoben); das steht im Verlauf.
+- **Einrichtung** in den Vorgangstypen: je Vertrag, der unterschrieben sein
+  muss, ein Schritt „Unterschriebenen … erfassen“ mit „Abhaken: Vertrag
+  unterschrieben“; der Schritt der Freischaltung „wartet auf“ ihn. Für
+  Bestellungen ohne World-Check über eine Bedingung („World-Check bestellt“).
+- **Noch offen:** Der Schritt „Vertrag an Kunden senden“ hakt sich beim
+  Versand noch nicht selbst ab; die Zuordnung Vertrag ↔ Schritt geschieht von
+  Hand; „E-Mail“ direkt aus Vertragsakte und Vorgang.
 
 ### Outlook-Durchstich (26.11.2026 — vorgezogen, MP: schneller produktiv)
 

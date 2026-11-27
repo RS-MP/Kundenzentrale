@@ -2,6 +2,7 @@
    „Was lief zuletzt?" mit Wer-mit-wem, offene Aufgaben, Vereinbarungen und der Verlauf —
    einzeilig, Details per Klick. Notizen, Telefonate, Termine, Vereinbarungen und Aufgaben
    lassen sich direkt hier erfassen. *@
+@implements IAsyncDisposable
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -135,12 +136,11 @@
 </div>
 
 @* ---------- Offene Aufgaben ---------- *@
-<div class="karte akte-block">
+<div class="karte akte-block" id="akte-aufgaben">
     <div class="karte-kopf">
         <h2>Offene Aufgaben</h2>
         <span class="zahl">@(_aufgaben?.Count(a => !a.Erledigt) ?? 0) offen</span>
-        <a class="knopf sekundaer klein rechts" href="vorgaenge/neu?kunde=@KundeId" title="Bestellung mit Schritten je Bereich anlegen">+ Vorgang</a>
-        <button type="button" class="knopf sekundaer klein" @onclick='() => FormularAsync("aufgabe")'>+ Aufgabe</button>
+        <button type="button" class="knopf sekundaer klein rechts" @onclick='() => FormularAsync("aufgabe")'>+ Aufgabe</button>
     </div>
     @if (_formular == "aufgabe")
     {
@@ -300,17 +300,25 @@
                 <input type="checkbox" checked="@_mitOdoo" @onchange="OdooUmschaltenAsync" /> Odoo
             </label>
             <button type="button" class="link" @onclick="AlleAufklappen">@(_alleAuf ? "alle zuklappen" : "alle aufklappen")</button>
-            @if (_mailEntwuerfe > 0)
-            {
-                <button type="button" class="link" disabled="@_prueftMails" @onclick="MailEntwuerfePruefenAsync"
-                        title="Sieht in deinem Postfach nach, ob vorbereitete Mails inzwischen gesendet sind, und übernimmt die gesendete Fassung in den Verlauf.">
-                    @(_prueftMails ? "prüft …" : $"{_mailEntwuerfe} {(_mailEntwuerfe == 1 ? "Entwurf" : "Entwürfe")} prüfen")
-                </button>
-            }
-            <button type="button" class="knopf sekundaer klein" @onclick="() => _mailFenster = true">✉ E-Mail</button>
             <button type="button" class="knopf sekundaer klein" @onclick='() => FormularAsync("eintrag")'>+ Eintrag</button>
         </span>
     </div>
+    @* Vorbereitete Mails: Die Kundenzentrale sieht von selbst im Postfach nach, sobald sie dort angemeldet ist
+       (auch beim Zurückkommen aus Outlook). Sonst steht hier eine deutliche Zeile mit einem Knopf — kein Textverweis. *@
+    @if (_mailEntwuerfe > 0)
+    {
+        <div class="zert-hinweis" style="margin:10px 14px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+            <span style="flex:1 1 260px">
+                @(_mailEntwuerfe == 1
+                    ? $"Eine vorbereitete Mail ist noch nicht als gesendet bekannt: „{_offeneMails[0].Betreff}“."
+                    : $"{_mailEntwuerfe} vorbereitete Mails sind noch nicht als gesendet bekannt.")
+                In Outlook gesendet? Dann holt die Kundenzentrale die gesendete Fassung in den Verlauf.
+            </span>
+            <button type="button" class="knopf sekundaer klein" disabled="@_prueftMails" @onclick="MailEntwuerfePruefenAsync">
+                @(_prueftMails ? "Prüft …" : "Jetzt prüfen")
+            </button>
+        </div>
+    }
     @if (_formular == "eintrag" && _auswahl is { } ew)
     {
         <div class="erfassen">
@@ -506,7 +514,7 @@
 
 @if (_mailFenster)
 {
-    <EmailFenster KundeId="KundeId" Geschlossen="MailFensterZuAsync" />
+    <EmailFenster KundeId="KundeId" VertragIds="_mailVertraege" Geschlossen="MailFensterZuAsync" />
 }
 
 @code {
@@ -624,6 +632,7 @@
             _offeneMails = [];
         }
         _mailEntwuerfe = _offeneMails.Count;
+        await StillPruefenAsync();
     }
 
     private async Task MailFensterZuAsync(bool geaendert)
@@ -642,16 +651,7 @@
         _fehler = null;
         try
         {
-            foreach (var mail in _offeneMails)
-            {
-                var s = await JS.InvokeAsync<GraphStand>("outlookEntwurfStand", _outlook, mail.GraphId);
-                if (s.Stand == "entwurf")
-                    continue;
-                var antwort = await Http.PostAsJsonAsync($"api/mail/ausgang/{mail.Id}/stand",
-                    new MailStand(s.Stand, s.GesendetAm, s.Betreff, s.Html, s.An, s.Cc, s.NachrichtenKennung));
-                if (!antwort.IsSuccessStatusCode)
-                    _fehler = await VorgangAnzeige.FehlerAsync(antwort);
-            }
+            await MailStaendeMeldenAsync();
         }
         catch (Exception ex)
         {
@@ -664,6 +664,99 @@
         var fehler = _fehler;
         await AllesLadenAsync();
         _fehler ??= fehler;
+    }
+
+    /// <summary>Fragt je vorbereiteter Mail das Postfach und meldet der Kundenzentrale, was sich geändert hat.</summary>
+    /// <returns>Zahl der Mails, die inzwischen gesendet oder gelöscht sind.</returns>
+    private async Task<int> MailStaendeMeldenAsync()
+    {
+        var geaendert = 0;
+        foreach (var mail in _offeneMails.ToList())
+        {
+            var s = await JS.InvokeAsync<GraphStand>("outlookEntwurfStand", _outlook, mail.GraphId);
+            if (s.Stand == "entwurf")
+                continue;
+            var antwort = await Http.PostAsJsonAsync($"api/mail/ausgang/{mail.Id}/stand",
+                new MailStand(s.Stand, s.GesendetAm, s.Betreff, s.Html, s.An, s.Cc, s.NachrichtenKennung));
+            if (antwort.IsSuccessStatusCode)
+                geaendert++;
+            else
+                _fehler = await VorgangAnzeige.FehlerAsync(antwort);
+        }
+        return geaendert;
+    }
+
+    private bool _prueftStill;
+
+    /// <summary>
+    /// Prüft die vorbereiteten Mails von selbst — aber nur, wenn die Seite bei Microsoft schon
+    /// angemeldet ist. Ein Anmeldefenster darf nur nach einem Klick aufgehen; ohne Anmeldung
+    /// bleibt deshalb die Zeile mit „Jetzt prüfen“ stehen. Fehler hier stören die Akte nicht.
+    /// </summary>
+    private async Task StillPruefenAsync()
+    {
+        if (_prueftStill || _prueftMails || _offeneMails.Count == 0 || _outlook is not { Eingerichtet: true })
+            return;
+        _prueftStill = true;
+        try
+        {
+            if (!await JS.InvokeAsync<bool>("outlookAngemeldet", _outlook))
+                return;
+            // Das Neuladen ruft diese Prüfung erneut auf — die Sperre oben verhindert die Schleife
+            if (await MailStaendeMeldenAsync() > 0)
+                await AllesLadenAsync();
+        }
+        catch
+        {
+            // z. B. Netz weg oder Anmeldung abgelaufen: Die Zeile mit dem Knopf bleibt
+        }
+        finally
+        {
+            _prueftStill = false;
+        }
+    }
+
+    // Zurück im Reiter der Kundenzentrale (etwa nach dem Senden in Outlook): gleich nachsehen
+    private DotNetObjectReference<AkteVerlauf>? _selbst;
+    private IJSObjectReference? _rueckkehr;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        try
+        {
+            _selbst = DotNetObjectReference.Create(this);
+            _rueckkehr = await JS.InvokeAsync<IJSObjectReference>("akteRueckkehrAnmelden", _selbst);
+        }
+        catch
+        {
+            // Ohne die Meldung bleibt alles benutzbar — geprüft wird dann beim Laden und per Knopf
+        }
+    }
+
+    [JSInvokable]
+    public async Task ZurueckImReiter()
+    {
+        await StillPruefenAsync();
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_rueckkehr is not null)
+            {
+                await _rueckkehr.InvokeVoidAsync("abmelden");
+                await _rueckkehr.DisposeAsync();
+            }
+        }
+        catch
+        {
+            // Die Seite wird gerade verlassen — nichts mehr zu tun
+        }
+        _selbst?.Dispose();
     }
 
     private async Task VerlaufLadenAsync()
@@ -761,6 +854,32 @@
     }
 
     // --- Erfassen ------------------------------------------------------------------------
+
+    // --- Für die Aktionsleiste oben in der Akte ----------------------------------------
+
+    /// <param name="vertragIds">Verträge, deren PDF im Mail-Fenster schon angehakt sein soll.</param>
+    public void MailOeffnen(IReadOnlyCollection<int>? vertragIds = null)
+    {
+        _mailVertraege = vertragIds;
+        _mailFenster = true;
+        StateHasChanged();
+    }
+
+    private IReadOnlyCollection<int>? _mailVertraege;
+
+    /// <summary>Öffnet das Formular für Notiz, Telefonat oder Termin und springt zum Verlauf.</summary>
+    public Task EintragOeffnenAsync() => FormularZeigenAsync("eintrag", "akte-verlauf");
+
+    public Task AufgabeOeffnenAsync() => FormularZeigenAsync("aufgabe", "akte-aufgaben");
+
+    private async Task FormularZeigenAsync(string art, string block)
+    {
+        // FormularAsync schaltet um — ein schon offenes Formular bleibt offen
+        if (_formular != art)
+            await FormularAsync(art);
+        StateHasChanged();
+        await JS.InvokeVoidAsync("akte.zeige", block, "start");
+    }
 
     private async Task FormularAsync(string art)
     {

@@ -1410,6 +1410,9 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<int?>("VertragId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("VorgangId")
                         .HasColumnType("int");
 
@@ -1438,6 +1441,8 @@ namespace Rausoft.Erp.Data.Migrations
                     b.HasIndex("OdooId")
                         .IsUnique()
                         .HasFilter("[OdooId] IS NOT NULL");
+
+                    b.HasIndex("VertragId");
 
                     b.HasIndex("VorgangId");
 
@@ -3227,6 +3232,11 @@ namespace Rausoft.Erp.Data.Migrations
                         .HasForeignKey("KundeId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Rausoft.Erp.Domain.Contracts.Vertrag", "Vertrag")
+                        .WithMany()
+                        .HasForeignKey("VertragId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Rausoft.Erp.Domain.Vorgaenge.Vorgang", "Vorgang")
                         .WithMany("Schritte")
                         .HasForeignKey("VorgangId")
@@ -3252,6 +3262,8 @@ namespace Rausoft.Erp.Data.Migrations
                     b.Navigation("ErstelltVon");
 
                     b.Navigation("Kunde");
+
+                    b.Navigation("Vertrag");
 
                     b.Navigation("Vorgang");
 
